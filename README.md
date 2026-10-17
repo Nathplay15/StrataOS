@@ -26,10 +26,10 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Utilisateurs** | Comptes Linux + Samba synchronisés, rôles admin/utilisateur, groupes, accès SSH et Docker, désactivation, changement de mot de passe |
 | **Docker** | Conteneurs (création, start/stop/restart/pause, logs en direct, console web, statistiques CPU/RAM, inspection), images (pull avec progression), volumes, réseaux, nettoyage |
 | **Compose** | Stacks docker-compose avec éditeur `compose.yaml` + `.env`, déploiement, mise à jour des images, journaux |
-| **App Center** | 18 applications prêtes : Jellyfin, Plex, Nextcloud, Immich, Home Assistant, Vaultwarden, qBittorrent, Transmission, Syncthing, AdGuard Home, Pi-hole, Nginx Proxy Manager, Uptime Kuma, Gitea, Navidrome, File Browser, Paperless-ngx, Portainer |
+| **App Center** | 33 applications prêtes : Jellyfin, Plex, Nextcloud, Immich, PhotoPrism, Home Assistant, Vaultwarden, qBittorrent, Transmission, Sonarr, Radarr, Prowlarr, Jellyseerr, Syncthing, AdGuard Home, Pi-hole, Nginx Proxy Manager, WireGuard (wg-easy), Uptime Kuma, Homepage, Grafana, Gitea, code-server, Navidrome, Audiobookshelf, Calibre-Web, File Browser, Paperless-ngx, Stirling-PDF, Mealie, MinIO, Duplicati, Portainer ; mises à jour automatiques planifiables (nouvelles images, conteneurs recréés seulement si besoin, anciennes images supprimées) |
 | **Fichiers** | Explorateur web : navigation, envoi par glisser-déposer, téléchargement (dossiers en ZIP), aperçu image/vidéo/PDF/texte, renommer, supprimer — limité aux partages autorisés pour les non-admins |
 | **Système** | Tableau de bord temps réel, moniteur (CPU par cœur, RAM, réseau, E/S disques, capteurs), services, réseau, nom d'hôte, fuseau horaire, mises à jour apt, journaux systemd, journal d'audit, terminal root web, redémarrage/arrêt |
-| **Tâches planifiées** | Snapshots automatiques ZFS (récursifs) et Btrfs (volume ou sous-volume) avec rétention par nombre et/ou par âge, scrubs RAID mdadm / ZFS / Btrfs, tests SMART courts et longs ; planification quotidienne, hebdomadaire, mensuelle ou cron, aperçu des prochaines exécutions, historique, exécution manuelle, plan de maintenance recommandé en un clic |
+| **Tâches planifiées** | Mises à jour des applications Docker, snapshots automatiques ZFS (récursifs) et Btrfs (volume ou sous-volume) avec rétention par nombre et/ou par âge, scrubs RAID mdadm / ZFS / Btrfs, tests SMART courts et longs ; planification quotidienne, hebdomadaire, mensuelle ou cron, aperçu des prochaines exécutions, historique, exécution manuelle, plan de maintenance recommandé en un clic |
 | **Sauvegarde** | Copie rsync (volume, disque USB, serveur SSH), sauvegarde versionnée chiffrée restic (dossier local, SFTP, S3/B2/MinIO, serveur REST) avec rétention et restauration depuis l'interface, réplication ZFS incrémentale (pool local ou distant via SSH), planification, clé SSH propre à StrataOS |
 | **Réseau** | Adresse fixe / DHCP / sans IP par interface, agrégation de liens (actif/secours, LACP 802.3ad, équilibrage…), ponts (bridges) pour les machines virtuelles, VLAN, MTU, DNS ; chaque changement est appliqué **à l'essai** et annulé automatiquement s'il n'est pas confirmé (même après un redémarrage du service) |
 | **Comptes** | Quotas par utilisateur (ext4, XFS, ZFS), double authentification TOTP avec codes de secours et réinitialisation par l'administrateur, certificat HTTPS importé ou Let's Encrypt automatique |
@@ -111,4 +111,6 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Applications supplémentaires dans l'App Center, mises à jour automatiques des conteneurs
+- Antivirus des dossiers partagés (ClamAV) planifiable
+- Réplication et bascule entre deux NAS StrataOS (haute disponibilité)
+- Notifications push sur mobile (ntfy intégré) et application mobile de fichiers

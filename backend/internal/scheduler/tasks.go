@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"strataos/internal/docker"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 )
@@ -71,6 +72,16 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 		if s.SmartTest != "short" && s.SmartTest != "long" {
 			return fmt.Errorf("SMART test type must be short or long")
 		}
+	case "appupdate":
+		s.TargetKind = "stacks"
+		if s.Target == "" {
+			s.Target = "all"
+		}
+		if s.Target != "all" {
+			if err := docker.ValidStack(s.Target); err != nil {
+				return err
+			}
+		}
 	default:
 		return fmt.Errorf("unknown task type %q", s.Type)
 	}
@@ -93,6 +104,8 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 		return scrub(&s, resolve, logf)
 	case "smart":
 		return smart(&s, logf)
+	case "appupdate":
+		return appUpdate(ctx, &s, logf)
 	}
 	return "", fmt.Errorf("unknown task type %q", s.Type)
 }
@@ -249,6 +262,50 @@ func smart(s *store.Schedule, logf func(string, ...any)) (string, error) {
 	msg := fmt.Sprintf("Test SMART %s lancé sur %d disque(s)", s.SmartTest, ok)
 	if len(failed) > 0 {
 		msg += fmt.Sprintf(" ; non pris en charge : %s", strings.Join(failed, ", "))
+	}
+	return msg, nil
+}
+
+// appUpdate pulls newer images for the running stacks (or one stack) and
+// recreates only the containers whose image changed, then removes the old images.
+func appUpdate(ctx context.Context, s *store.Schedule, logf func(string, ...any)) (string, error) {
+	names := []string{s.Target}
+	if s.Target == "all" {
+		names = docker.StackNames()
+	}
+	var updated, failed []string
+	checked := 0
+	for _, n := range names {
+		if !docker.StackRunning(ctx, n) {
+			continue
+		}
+		checked++
+		before := docker.StackImages(ctx, n)
+		logf("%s : recherche de nouvelles images…", n)
+		if err := docker.StackAction(ctx, n, "pull", nil); err != nil {
+			logf("%s : %v", n, err)
+			failed = append(failed, n)
+			continue
+		}
+		if err := docker.StackAction(ctx, n, "up", nil); err != nil {
+			logf("%s : %v", n, err)
+			failed = append(failed, n)
+			continue
+		}
+		if after := docker.StackImages(ctx, n); after != before {
+			updated = append(updated, n)
+			logf("%s : mise à jour appliquée", n)
+		}
+	}
+	if len(updated) > 0 {
+		docker.PruneDanglingImages(ctx)
+	}
+	msg := fmt.Sprintf("%d application(s) vérifiée(s), %d mise(s) à jour", checked, len(updated))
+	if len(updated) > 0 {
+		msg += " : " + strings.Join(updated, ", ")
+	}
+	if len(failed) > 0 {
+		return msg, fmt.Errorf("update failed for %s", strings.Join(failed, ", "))
 	}
 	return msg, nil
 }

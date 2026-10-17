@@ -241,3 +241,40 @@ func EnvValue(stack, key string) string {
 	}
 	return ""
 }
+
+// StackNames lists the stacks managed by StrataOS.
+func StackNames() []string {
+	entries, _ := os.ReadDir(StacksDir)
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() && ValidStack(e.Name()) == nil {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+// StackRunning reports whether a stack has running containers.
+func StackRunning(ctx context.Context, name string) bool {
+	out, err := compose(ctx, name, nil, "ps", "-q", "--status", "running")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
+// StackImages returns the image IDs used by a stack's containers (to detect updates).
+func StackImages(ctx context.Context, name string) string {
+	out, _ := compose(ctx, name, nil, "ps", "-q")
+	var ids []string
+	for _, id := range strings.Fields(out) {
+		img, err := sys.RunCtx(ctx, "docker", "inspect", "-f", "{{.Image}}", id)
+		if err == nil {
+			ids = append(ids, strings.TrimSpace(img))
+		}
+	}
+	sort.Strings(ids)
+	return strings.Join(ids, ",")
+}
+
+// PruneDanglingImages removes the images left behind by updates.
+func PruneDanglingImages(ctx context.Context) {
+	_, _ = sys.RunCtx(ctx, "docker", "image", "prune", "-f")
+}

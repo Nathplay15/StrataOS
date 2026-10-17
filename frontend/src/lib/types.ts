@@ -363,10 +363,10 @@ export interface ScheduleRun {
 export interface Schedule {
   id: string;
   name: string;
-  type: "snapshot" | "scrub" | "smart";
+  type: "snapshot" | "scrub" | "smart" | "appupdate";
   cron: string;
   enabled: boolean;
-  targetKind: "zfs" | "btrfs" | "mdadm" | "disks";
+  targetKind: "zfs" | "btrfs" | "mdadm" | "disks" | "stacks";
   target: string;
   subvolume?: string;
   recursive?: boolean;

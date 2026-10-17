@@ -99,6 +99,10 @@ check "cross-origin websocket refused" "$(curl -s -o /dev/null -w '%{http_code}'
 section "Docker & apps"
 check "docker engine" "$(c GET /api/docker/info | py 'print(d["available"])')" "True"
 check "install Uptime Kuma" "$(job "$(c POST /api/apps/uptimekuma/install -d '{"name":"uptime","values":{"DATA_DIR":"/srv/strata/main/apps/uptime-kuma"}}')")" "success"
+APPUPD=$(c POST /api/schedules -d '{"name":"Apps","type":"appupdate","target":"all","cron":"0 4 * * 0","enabled":true}' | py 'print(d["id"])')
+check "app update task" "$(job "$(c POST /api/schedules/$APPUPD/run)")" "success"
+check "app update summary" "$(c GET /api/schedules | py '[print(s["history"][0]["message"]) for s in d if s["id"]=="'$APPUPD'"]')" "1 application(s) vérifiée(s)"
+c DELETE /api/schedules/$APPUPD >/dev/null
 check "container running" "$(c GET /api/docker/containers | py 'print([x["State"] for x in d if "uptime" in x["Names"][0]])')" "running"
 check "app port reported" "$(c GET /api/apps | py 'print(d["ports"])')" "3001"
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, CalendarClock, Camera, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, CalendarClock, Camera, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
@@ -14,6 +14,7 @@ const typeInfo = {
   snapshot: { label: tr("Snapshot"), icon: <Camera size={15} />, tone: "accent" as const },
   scrub: { label: tr("Vérification"), icon: <ShieldCheck size={15} />, tone: "ok" as const },
   smart: { label: tr("Test SMART"), icon: <Activity size={15} />, tone: "warn" as const },
+  appupdate: { label: tr("Mise à jour des applications"), icon: <AppWindow size={15} />, tone: "accent" as const },
 };
 
 const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -123,7 +124,9 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   const [plan, setPlan] = useState<Plan>(fromCron((initial ?? blank).cron));
   const [named, setNamed] = useState(editing);
   const set = (k: Partial<Schedule>) => setS((p) => ({ ...p, ...k }));
-  const options = s.type === "snapshot" ? targets.snapshot : s.type === "scrub" ? targets.scrub : [];
+  const stacks = useQuery({ queryKey: ["stacks"], queryFn: () => api.get<{ name: string }[]>("/api/docker/stacks"), enabled: s.type === "appupdate" });
+  const stackOptions: ScheduleTarget[] = [{ kind: "stacks", value: "all", label: tr("Toutes les applications en marche") }, ...(stacks.data ?? []).map((x) => ({ kind: "stacks" as const, value: x.name, label: x.name }))];
+  const options = s.type === "snapshot" ? targets.snapshot : s.type === "scrub" ? targets.scrub : s.type === "appupdate" ? stackOptions : [];
   const current = options.find((o) => o.kind === s.targetKind && o.value === s.target);
   const selectedDisks = s.target === "all" ? [] : s.target.split(/[\s,]+/).filter(Boolean);
 
@@ -152,13 +155,13 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
       <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Enregistrer") : tr("Créer")}</Button>
     </>}>
       <div className="space-y-5">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {(Object.keys(typeInfo) as Schedule["type"][]).map((t) => (
             <button key={t} type="button" disabled={editing} onClick={() => set({ type: t })} className={cx("flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60", s.type === t ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS ou Btrfs, avec rétention"), scrub: tr("RAID, pool ZFS, Btrfs"), smart: tr("Autodiagnostic des disques") }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS ou Btrfs, avec rétention"), scrub: tr("RAID, pool ZFS, Btrfs"), smart: tr("Autodiagnostic des disques"), appupdate: tr("Nouvelles images Docker, sans perte de données") }[t]}</div>
               </div>
             </button>
           ))}
@@ -168,7 +171,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
 
         {s.type !== "smart" ? (
           options.length === 0 ? (
-            <Notice tone="warn">{s.type === "snapshot" ? tr("Aucun dataset ZFS ni volume Btrfs : les snapshots nécessitent l'un des deux.") : tr("Aucune grappe RAID, pool ZFS ou volume Btrfs à vérifier.")}</Notice>
+            <Notice tone="warn">{s.type === "snapshot" ? tr("Aucun dataset ZFS ni volume Btrfs : les snapshots nécessitent l'un des deux.") : s.type === "appupdate" ? tr("Aucune application installée.") : tr("Aucune grappe RAID, pool ZFS ou volume Btrfs à vérifier.")}</Notice>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={tr("Cible")} className={s.targetKind === "btrfs" && s.type === "snapshot" ? "" : "sm:col-span-2"}>
@@ -252,6 +255,7 @@ function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
 
 function targetLabel(s: Schedule, targets?: Targets) {
   if (s.type === "smart") return s.target === "all" ? tr("Tous les disques") : s.target;
+  if (s.type === "appupdate") return s.target === "all" ? tr("Toutes les applications en marche") : s.target;
   const list = s.type === "snapshot" ? targets?.snapshot : targets?.scrub;
   const t = list?.find((o) => o.kind === s.targetKind && o.value === s.target);
   return (t?.label ?? s.target) + (s.subvolume ? ` / ${s.subvolume}` : "");

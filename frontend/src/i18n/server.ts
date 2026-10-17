@@ -64,6 +64,8 @@ export const serverTexts: [string, string][] = [
   ["Connexion réussie ({0} dossier(s) à cet emplacement)", "Connection successful ({0} folder(s) at this location)"],
   ["Relation d'approbation avec le domaine valide", "Trust relationship with the domain is valid"],
   ["Annuaire LDAP connecté", "LDAP directory connected"],
+  ["{0} application(s) vérifiée(s), {1} mise(s) à jour : {2}", "{0} app(s) checked, {1} updated: {2}"],
+  ["{0} application(s) vérifiée(s), {1} mise(s) à jour", "{0} app(s) checked, {1} updated"],
   // Labels sent by the server
   ["Partage {0}", "Share {0}"],
   ["Clé d'accès", "Access key"],
