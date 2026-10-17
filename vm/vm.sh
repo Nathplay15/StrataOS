@@ -14,12 +14,15 @@
 #
 # Settings (environment): VM_MEM (MiB, 4096), VM_CPUS (4), VM_DISKS (6), VM_DISK_SIZE (10G),
 # VM_WEB_PORT (7070), VM_SSH_PORT (2222), VM_EXTRA_PORTS ("8096 8080 8081 3001 9091"),
-# VM_NICS (1: extra NICs for bonding tests).
+# VM_NICS (1: extra NICs for bonding tests), VM_STATE (state folder, for a second VM),
+# VM_HOSTNAME (strata-vm), VM_HTTPS_PORT (7443), VM_SMB_PORT (4450), SEED_PORT (8719),
+# VM_LAN (multicast address:port, e.g. 230.0.0.1:12345): an extra NIC on a LAN shared
+# by every VM started with the same value (high availability tests).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGES="$DIR/images"
-STATE="$DIR/state"
+STATE="${VM_STATE:-$DIR/state}"
 BASE="$IMAGES/debian-13-generic-amd64.qcow2"
 BASE_URL="https://cloud.debian.org/images/cloud/trixie/latest"
 SYSDISK="$STATE/system.qcow2"
@@ -34,7 +37,10 @@ VM_DISKS=${VM_DISKS:-6}
 VM_DISK_SIZE=${VM_DISK_SIZE:-10G}
 VM_WEB_PORT=${VM_WEB_PORT:-7070}
 VM_SSH_PORT=${VM_SSH_PORT:-2222}
-VM_EXTRA_PORTS=${VM_EXTRA_PORTS:-"8096 8080 8081 3001 9091"}
+VM_EXTRA_PORTS=${VM_EXTRA_PORTS-"8096 8080 8081 3001 9091"}
+VM_HTTPS_PORT=${VM_HTTPS_PORT:-7443}
+VM_SMB_PORT=${VM_SMB_PORT:-4450}
+VM_HOSTNAME=${VM_HOSTNAME:-strata-vm}
 SEED_PORT=${SEED_PORT:-8719}
 
 SSH_OPTS=(-i "$KEY" -p "$VM_SSH_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
@@ -74,11 +80,11 @@ write_seed() {
   local pub; pub=$(cat "$KEY.pub")
   cat > "$STATE/seed/meta-data" <<EOF
 instance-id: strata-vm-$(date +%s)
-local-hostname: strata-vm
+local-hostname: $VM_HOSTNAME
 EOF
   cat > "$STATE/seed/user-data" <<EOF
 #cloud-config
-hostname: strata-vm
+hostname: $VM_HOSTNAME
 timezone: Europe/Paris
 ssh_pwauth: false
 users:
@@ -105,13 +111,14 @@ qemu_start() {
   local extra_fwd=""
   for p in $VM_EXTRA_PORTS; do extra_fwd+=",hostfwd=tcp:127.0.0.1:$p-:$p"; done
   local args=(
-    -name strata-vm -machine q35,accel=kvm -cpu host -smp "$VM_CPUS" -m "$VM_MEM"
+    -name "$VM_HOSTNAME" -machine q35,accel=kvm -cpu host -smp "$VM_CPUS" -m "$VM_MEM"
     -drive "file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap"
     -device virtio-blk-pci,drive=sys,bootindex=0
     -device ahci,id=ahci0
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$VM_SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$VM_WEB_PORT-:7070,hostfwd=tcp:127.0.0.1:7443-:7443,hostfwd=tcp:127.0.0.1:4450-:445$extra_fwd"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$VM_SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$VM_WEB_PORT-:7070,hostfwd=tcp:127.0.0.1:$VM_HTTPS_PORT-:7443,hostfwd=tcp:127.0.0.1:$VM_SMB_PORT-:445$extra_fwd"
     -device virtio-net-pci,netdev=n0
     $(for k in $(seq 2 "${VM_NICS:-1}"); do echo "-netdev user,id=n$k -device virtio-net-pci,netdev=n$k"; done)
+    $(if [ -n "${VM_LAN:-}" ]; then printf -- '-netdev socket,id=lan,mcast=%s -device virtio-net-pci,netdev=lan,mac=52:54:00:aa:%02x:%02x' "$VM_LAN" $((VM_SSH_PORT / 256 % 256)) $((VM_SSH_PORT % 256)); fi)
     -device virtio-rng-pci
     -smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$SEED_PORT/"
     -display none -serial "file:$CONSOLE"

@@ -173,6 +173,24 @@ type Directory struct {
 	JoinedAt   time.Time `json:"joinedAt"`
 }
 
+// HA pairs two StrataOS NAS: the primary replicates to the secondary, which
+// takes over a shared virtual IP address (keepalived/VRRP) when it fails.
+type HA struct {
+	Role       string    `json:"role"`               // "" | primary | secondary
+	PeerHost   string    `json:"peerHost"`           // address of the other NAS
+	PeerName   string    `json:"peerName"`           // its host name
+	PeerCert   string    `json:"peerCert"`           // SHA-256 of its HTTPS certificate (pinned at pairing)
+	VIP        string    `json:"vip"`                // shared address with prefix, e.g. 192.168.1.50/24
+	Interface  string    `json:"interface"`          // network interface carrying the VIP
+	VRID       int       `json:"vrid"`               // VRRP router ID
+	AuthPass   string    `json:"authPass,omitempty"` // VRRP password
+	Token      string    `json:"token,omitempty"`    // shared secret for calls between the two NAS
+	Interval   int       `json:"interval"`           // replication period, minutes
+	LastSync   time.Time `json:"lastSync"`
+	LastResult string    `json:"lastResult"`
+	PairedAt   time.Time `json:"pairedAt"`
+}
+
 // FileServices are the optional file access protocols.
 type FileServices struct {
 	WebDAV        bool `json:"webdav"`
@@ -214,6 +232,7 @@ type State struct {
 	Clouds    []*CloudSync  `json:"cloudSyncs"`
 	Files     FileServices  `json:"fileServices"`
 	Directory Directory     `json:"directory"`
+	HA        HA            `json:"ha"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

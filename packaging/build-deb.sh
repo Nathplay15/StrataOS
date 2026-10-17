@@ -21,6 +21,8 @@ install -Dm755 packaging/scripts/install-rclone.sh "$ROOT/usr/lib/strata/scripts
 install -Dm755 packaging/scripts/install-ftp.sh "$ROOT/usr/lib/strata/scripts/install-ftp.sh"
 install -Dm755 packaging/scripts/install-directory.sh "$ROOT/usr/lib/strata/scripts/install-directory.sh"
 install -Dm755 packaging/scripts/install-antivirus.sh "$ROOT/usr/lib/strata/scripts/install-antivirus.sh"
+install -Dm755 packaging/scripts/install-ha.sh "$ROOT/usr/lib/strata/scripts/install-ha.sh"
+install -Dm755 packaging/scripts/ha-notify "$ROOT/usr/lib/strata/scripts/ha-notify"
 install -Dm755 packaging/scripts/upssched-cmd "$ROOT/usr/lib/strata/scripts/upssched-cmd"
 # APT repository for StrataOS updates (see packaging/make-repo.sh).
 if [ -f packaging/keys/strataos-archive.gpg ]; then

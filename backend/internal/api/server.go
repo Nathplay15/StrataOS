@@ -85,6 +85,7 @@ func New(c Config) *Server {
 	s.routes()
 	go s.healthWatcher()
 	go s.schedulerLoop()
+	go s.haLoop()
 	return s
 }
 
@@ -198,6 +199,7 @@ func (s *Server) routes() {
 	s.fileServiceRoutes()
 	s.directoryRoutes()
 	s.antivirusRoutes()
+	s.haRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

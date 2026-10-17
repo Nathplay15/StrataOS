@@ -37,6 +37,7 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Synchronisation cloud** | rclone : Google Drive, OneDrive, Dropbox, S3 (AWS, Wasabi, MinIO, R2…), Backblaze B2, WebDAV/Nextcloud, SFTP ; envoi, téléchargement (avec ou sans miroir) ou bidirectionnelle, exclusions, limite de bande passante, planification, test de connexion et choix du dossier distant, jetons OAuth rafraîchis conservés, identifiants jamais renvoyés au navigateur |
 | **Domaine / LDAP** | Jonction à Active Directory (Samba serveur membre, winbind, Kerberos ; mot de passe administrateur jamais enregistré), droits des partages pour les utilisateurs et groupes du domaine (`DOMAINE\utilisateur`), connexion à l'interface web et à WebDAV avec les comptes de l'annuaire (groupe d'administrateurs configurable), sortie propre du domaine ; annuaire LDAP via sssd (identités POSIX pour les ACL et NFS) |
 | **Services de fichiers** | WebDAV intégré (HTTPS, droits des partages, corbeille), FTP/FTPS (vsftpd, chiffrement exigible, ports passifs), SFTP confiné au stockage pour les utilisateurs sans accès SSH ; tout passe par les mêmes droits que SMB |
+| **Haute disponibilité** | Deux NAS appairés par code : adresse IP partagée (keepalived/VRRP), réplication périodique des comptes (mêmes UID, mots de passe Linux et SMB), des dossiers partagés et de leurs fichiers (rsync par une clé SSH restreinte), bascule automatique en quelques secondes si le principal tombe, alerte, retour manuel au principal après recopie des modifications ; le NAS en attente ne publie jamais les partages |
 | **Antivirus** | ClamAV installé en un clic, signatures mises à jour automatiquement, analyses planifiées (un partage ou tout le stockage) en priorité basse, quarantaine avec restauration, alerte « virus détecté » |
 | **Onduleur** | NUT : onduleur USB/série/SNMP avec détection, client d'un autre serveur NUT (Synology…), partage de l'onduleur sur le réseau, arrêt automatique (batterie faible ou après X minutes), alertes, mode simulation pour tester |
 | **Mises à jour** | Dépôt APT signé (`make repo`), mise à jour de StrataOS en un clic depuis l'interface, exécutée hors du service pour survivre à son redémarrage |
@@ -112,5 +113,4 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Réplication et bascule entre deux NAS StrataOS (haute disponibilité)
 - Application mobile de fichiers

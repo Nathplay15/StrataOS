@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
+  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
   Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
 } from "lucide-react";
 import type { Me } from "../lib/types";
@@ -34,6 +34,7 @@ const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
 const DirectoryPage = lazy(() => import("../pages/system/Directory"));
 const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
+const HAPage = lazy(() => import("../pages/system/HighAvailability"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -85,6 +86,7 @@ export const APPS: AppDef[] = [
       { id: "schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
       { id: "network", label: tr("Réseau"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
+      { id: "ha", label: tr("Haute disponibilité"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },
       { id: "ups", label: tr("Onduleur"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
       { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },
       { id: "updates", label: tr("Mises à jour"), icon: <RefreshCcw size={16} />, component: page(Updates), path: "/system/updates" },

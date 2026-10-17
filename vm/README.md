@@ -67,3 +67,9 @@ make iso
 Avec des disques en plus, l'installeur demande le disque système (répondre avec `key ret`, le disque de 16 Go est le premier). Le journal du script d'installation reste dans `/var/log/strataos-install.log` de la machine installée.
 
 Machines virtuelles : la virtualisation imbriquée doit être activée sur l'hôte (`cat /sys/module/kvm_amd/parameters/nested` ou `kvm_intel`, doit afficher `1`/`Y`).
+
+## Tester la haute disponibilité
+
+`make ha-test` recrée deux VM reliées par un réseau local commun (multicast QEMU, sans droits root) : A (principal, 10.99.0.1) et B (secondaire, 10.99.0.2), adresse partagée 10.99.0.100. Le script vérifie l'appairage, la réplication (données, comptes avec les mêmes UID), la bascule quand A est arrêté brutalement (SMB servi par B à l'adresse partagée, connexion d'un utilisateur répliqué), le retour de A en attente, le retour au principal avec les modifications faites pendant la panne, puis le désappairage.
+
+Pour lancer une deuxième VM à la main : `VM_STATE=$PWD/vm/state-b VM_HOSTNAME=strata-b VM_WEB_PORT=7080 VM_SSH_PORT=2232 VM_HTTPS_PORT=7453 VM_SMB_PORT=4460 SEED_PORT=8729 VM_EXTRA_PORTS= VM_LAN=230.0.0.1:12345 ./vm/vm.sh create` (et `VM_LAN=230.0.0.1:12345` sur la première).

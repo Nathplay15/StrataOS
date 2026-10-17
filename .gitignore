@@ -13,3 +13,4 @@ frontend/tsconfig.tsbuildinfo
 .claude/
 vm/state-iso/
 vm/state-iso.log
+vm/state-b/

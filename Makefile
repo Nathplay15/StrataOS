@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend backend build deb repo iso dev clean test vm-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend backend build deb repo iso dev clean test vm-test ha-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -48,6 +48,9 @@ vm-test: deb
 	VM_DISKS=8 ./vm/vm.sh create
 	./vm/vm.sh deploy dist/strataos_$(VERSION)_$(ARCH).deb
 	bash -c 'set -o pipefail; ./vm/e2e-test.sh | tee vm/last-test.log'
+
+ha-test: deb
+	./vm/ha-test.sh
 
 clean:
 	rm -rf build dist backend/web/dist/assets

@@ -21,7 +21,18 @@ var reservedShares = map[string]bool{"global": true, "homes": true, "printers": 
 // applyShares regenerates Samba and NFS configuration; errors are logged.
 func (s *Server) applyShares() error {
 	var err error
-	s.store.Read(func(st *store.State) { err = shares.Apply(st) })
+	passive := s.haPassive()
+	s.store.Read(func(st *store.State) {
+		if passive {
+			// High availability: the other NAS holds the shared address and
+			// serves the shares; publish none here (the data is replicated).
+			cp := *st
+			cp.Shares = nil
+			err = shares.Apply(&cp)
+			return
+		}
+		err = shares.Apply(st)
+	})
 	var skipped shares.SkippedError
 	if errors.As(err, &skipped) {
 		// The configuration was applied without these shares: report, don't fail.

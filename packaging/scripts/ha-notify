@@ -1,0 +1,7 @@
+#!/bin/sh
+# Called by keepalived on every VRRP state change: notify TYPE NAME STATE PRIORITY.
+# StrataOS reads the state to publish (MASTER) or withdraw (BACKUP) the shares.
+mkdir -p /run/strata
+case "$3" in
+  MASTER|BACKUP|FAULT|STOP) echo "$3" > /run/strata/ha-state.tmp && mv /run/strata/ha-state.tmp /run/strata/ha-state ;;
+esac
