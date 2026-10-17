@@ -146,6 +146,10 @@ func Validate(t *store.BackupTask) error {
 			if u, err := url.Parse(t.DestPath); err != nil || (u.Scheme != "https" && u.Scheme != "http") {
 				return fmt.Errorf("the REST server must be an http(s) URL")
 			}
+		case "strataos":
+			if u, err := url.Parse(t.VaultURL); err != nil || u.Scheme != "https" || t.VaultToken == "" || len(t.VaultCert) != 64 {
+				return fmt.Errorf("pair this NAS with the vault first")
+			}
 		default:
 			return fmt.Errorf("unsupported restic destination")
 		}
@@ -304,6 +308,16 @@ func resticArgs(t *store.BackupTask, args ...string) []string {
 }
 
 func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...string) (string, error) {
+	if t.DestType == "strataos" {
+		p, err := startVaultProxy(t)
+		if err != nil {
+			return "", err
+		}
+		defer p.close()
+		c := *t
+		c.DestType, c.DestPath = "rest", p.url
+		t = &c
+	}
 	o := sys.Opts{Env: resticEnv(t), Timeout: 48 * time.Hour}
 	if out != nil {
 		o.Output = out
@@ -387,9 +401,13 @@ func runRestic(ctx context.Context, t *store.BackupTask, p Progress) (string, er
 			forget = append(forget, flag, strconv.Itoa(n))
 		}
 	}
-	p.Log("Applying retention")
-	if _, err := restic(ctx, t, nil, forget...); err != nil {
-		p.Log("warning: retention failed: %v", err)
+	if t.AppendOnly {
+		p.Log("Append-only vault: old snapshots are kept (deletions are refused by the vault)")
+	} else {
+		p.Log("Applying retention")
+		if _, err := restic(ctx, t, nil, forget...); err != nil {
+			p.Log("warning: retention failed: %v", err)
+		}
 	}
 	return fmt.Sprintf("Snapshot %s : %d nouveau(x), %d modifié(s), %s ajoutés", short(summary.SnapshotID), summary.FilesNew, summary.FilesChanged, humanBytes(summary.DataAdded)), nil
 }

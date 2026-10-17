@@ -490,6 +490,30 @@ c PUT /api/guard -d '{"enabled":false,"maxFailures":5,"windowMin":10,"blockMin":
 check "protection off removes the rules" "$(vm "sudo nft list table inet strata_guard 2>&1")" "No such file"
 kill $GEO_PID 2>/dev/null; vm "sudo rm -f /etc/systemd/system/strata.service.d/geo-test.conf; sudo systemctl daemon-reload; sudo docker rm -f atk >/dev/null"
 
+section "Backup vault (another StrataOS)"
+VID=$(c POST /api/vaults -d '{"name":"Coffre test","path":"/srv/strata/fast/coffre","appendOnly":true}' | py 'print(d["id"])')
+check "wrong vault code refused" "$(c POST /api/backups/vault-pair -d '{"host":"127.0.0.1","code":"AAAAA-00000"}')" "wrong or expired"
+VCODE=$(c POST /api/vaults/$VID/code | py 'print(d["code"])')
+c POST /api/backups/vault-pair -d "{\"host\":\"127.0.0.1\",\"code\":\"$VCODE\"}" > "$TMP/vault.json"
+check "paired with the vault" "$(py 'print(d["appendOnly"], len(d["vaultCert"]))' < "$TMP/vault.json")" "True 64"
+check "pairing code used once" "$(c POST /api/backups/vault-pair -d "{\"host\":\"127.0.0.1\",\"code\":\"$VCODE\"}")" "wrong or expired"
+VT=$(py 'd.update({"name":"vers le coffre","kind":"restic","sources":["/srv/strata/main/Photos/2026"],"destType":"strataos","destPath":d["vaultUrl"],"password":"Vault-Test-Pass","cron":"","enabled":True}); print(json.dumps(d))' < "$TMP/vault.json")
+VB=$(c POST /api/backups -d "$VT" | py 'print(d["id"])')
+check "backup sent to the vault" "$(job "$(c POST /api/backups/$VB/run)")" "success"
+vm "echo encore | sudo tee /srv/strata/main/Photos/2026/second.txt >/dev/null"
+check "second backup" "$(job "$(c POST /api/backups/$VB/run)")" "success"
+check "vault token masked" "$(c GET /api/backups | py "print([b['vaultToken'] for b in d if b['id']=='$VB'][0])")" "********"
+check "snapshots in the vault" "$(c GET /api/backups/$VB/snapshots | py 'print(len(d))')" "2"
+VS=$(c GET /api/backups/$VB/snapshots | py 'print(d[0]["id"])')
+check "restore from the vault" "$(job "$(c POST /api/backups/$VB/restore -d "{\"snapshot\":\"$VS\",\"target\":\"/srv/strata/fast/restore-vault\"}")")" "success"
+check "restored file" "$(vm "sudo cat /srv/strata/fast/restore-vault/srv/strata/main/Photos/2026/second.txt")" "encore"
+check "vault data encrypted" "$(vm "sudo grep -rl encore /srv/strata/fast/coffre | wc -l")" "0"
+VURL=$(py 'print(d["vaultUrl"])' < "$TMP/vault.json"); VTOK=$(py 'print(d["vaultToken"])' < "$TMP/vault.json")
+SN=$(curl -sk -H "Authorization: Bearer $VTOK" -H 'Accept: application/vnd.x.restic.rest.v2' "${VURL}snapshots/" | py 'print(d[0]["name"])')
+check "append-only: deletion refused" "$(curl -sk -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer $VTOK" "${VURL}snapshots/$SN")" "403"
+check "vault refuses unknown clients" "$(curl -sk -o /dev/null -w '%{http_code}' "${VURL}config")" "401"
+check "client listed on the vault" "$(c GET /api/vaults | py 'print([(c["name"], c["size"] > 0) for v in d for c in v["clients"]])')" "True)"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

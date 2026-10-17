@@ -220,6 +220,7 @@ func (s *Server) routes() {
 	s.energyRoutes()
 	s.versionRoutes()
 	s.guardRoutes()
+	s.vaultRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

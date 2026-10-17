@@ -32,6 +32,9 @@ func maskBackup(b store.BackupTask) store.BackupTask {
 	if b.SecretKey != "" {
 		b.SecretKey = masked
 	}
+	if b.VaultToken != "" {
+		b.VaultToken = masked
+	}
 	return b
 }
 
@@ -47,6 +50,9 @@ func (s *Server) unmaskBackup(b *store.BackupTask, id string) {
 		}
 		if b.SecretKey == masked {
 			b.SecretKey = old.SecretKey
+		}
+		if b.VaultToken == masked {
+			b.VaultToken = old.VaultToken
 		}
 	})
 }

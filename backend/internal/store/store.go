@@ -164,16 +164,22 @@ type BackupTask struct {
 	Kind    string   `json:"kind"`    // rsync | restic | zfs
 	Sources []string `json:"sources"` // folders under /srv/strata, or one ZFS dataset
 	// Destination. DestType: local | ssh (rsync, zfs) ; local | sftp | s3 | rest (restic).
-	DestType    string        `json:"destType"`
-	DestPath    string        `json:"destPath"` // folder, remote path, ZFS dataset, bucket path or REST URL
-	Host        string        `json:"host,omitempty"`
-	User        string        `json:"user,omitempty"`
-	Port        int           `json:"port,omitempty"`
-	S3Endpoint  string        `json:"s3Endpoint,omitempty"`
-	AccessKey   string        `json:"accessKey,omitempty"`
-	SecretKey   string        `json:"secretKey,omitempty"`
-	Password    string        `json:"password,omitempty"` // restic repository password
-	Delete      bool          `json:"delete,omitempty"`   // rsync: remove files deleted at the source
+	DestType   string `json:"destType"`
+	DestPath   string `json:"destPath"` // folder, remote path, ZFS dataset, bucket path or REST URL
+	Host       string `json:"host,omitempty"`
+	User       string `json:"user,omitempty"`
+	Port       int    `json:"port,omitempty"`
+	S3Endpoint string `json:"s3Endpoint,omitempty"`
+	AccessKey  string `json:"accessKey,omitempty"`
+	SecretKey  string `json:"secretKey,omitempty"`
+	Password   string `json:"password,omitempty"` // restic repository password
+	Delete     bool   `json:"delete,omitempty"`   // rsync: remove files deleted at the source
+	// Vault on another StrataOS (DestType "strataos"): REST URL, access token
+	// and pinned certificate (SHA-256), append-only when the vault forbids deletions.
+	VaultURL    string        `json:"vaultUrl,omitempty"`
+	VaultToken  string        `json:"vaultToken,omitempty"`
+	VaultCert   string        `json:"vaultCert,omitempty"`
+	AppendOnly  bool          `json:"appendOnly,omitempty"`
 	Excludes    []string      `json:"excludes,omitempty"`
 	Recursive   bool          `json:"recursive,omitempty"` // zfs: include child datasets
 	KeepLast    int           `json:"keepLast,omitempty"`
@@ -228,6 +234,27 @@ type HA struct {
 	// Continuous: changed folders are copied a few seconds after the change
 	// (the periodic replication still runs, as a safety net).
 	Continuous bool `json:"continuous,omitempty"`
+}
+
+// Vault receives the backups of other StrataOS NAS (restic REST protocol);
+// each paired NAS gets its own repository folder and token.
+type Vault struct {
+	ID         string        `json:"id"`
+	Name       string        `json:"name"`
+	Path       string        `json:"path"`
+	AppendOnly bool          `json:"appendOnly"` // clients can add, never delete
+	Created    time.Time     `json:"created"`
+	Clients    []VaultClient `json:"clients"`
+}
+
+// VaultClient is a NAS allowed to write to a vault.
+type VaultClient struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	TokenHash string    `json:"tokenHash,omitempty"`
+	Created   time.Time `json:"created"`
+	LastSeen  time.Time `json:"lastSeen,omitzero"`
+	Size      int64     `json:"size"`
 }
 
 // Guard is the automatic blocking of addresses (and countries).
@@ -379,6 +406,7 @@ type State struct {
 	Links     []*ShareLink  `json:"links,omitempty"`
 	Energy    Energy        `json:"energy"`
 	Guard     Guard         `json:"guard"`
+	Vaults    []*Vault      `json:"vaults,omitempty"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, CheckCircle2, Cloud, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { ArchiveRestore, CheckCircle2, Cloud, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RotateCcw, Trash2, Vault as VaultIcon, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { BackupTask, ResticSnapshot } from "../../lib/types";
@@ -25,6 +25,7 @@ function destLabel(b: BackupTask) {
     case "ssh": case "sftp": return `${b.user}@${b.host}:${b.destPath}`;
     case "s3": return tr("S3 {0}/{1}", b.s3Endpoint?.replace(/^https?:\/\//, ""), b.destPath);
     case "rest": return b.destPath;
+    case "strataos": return tr("Coffre de {0}", (b.vaultUrl ?? "").replace(/^https:\/\//, "").split(/[:/]/)[0]);
   }
 }
 
@@ -44,6 +45,89 @@ function SSHKey() {
   );
 }
 
+function VaultPair({ b, set }: { b: BackupTask; set: (k: Partial<BackupTask>) => void }) {
+  const [host, setHost] = useState("");
+  const [code, setCode] = useState("");
+  const pair = useAction(() => api.post<{ vaultUrl: string; vaultToken: string; vaultCert: string; appendOnly: boolean }>("/api/backups/vault-pair", { host, code }), {
+    success: tr("Appairé avec le coffre"),
+    onDone: (r) => set({ ...r, destPath: r.vaultUrl }),
+  });
+  return (
+    <div className="space-y-3">
+      {b.vaultUrl && <Notice>{tr("Appairé avec {0}", b.vaultUrl.replace(/^https:\/\//, "").split("/")[0])}{b.appendOnly ? ` · ${tr("coffre en ajout seul : les anciennes versions ne sont jamais supprimées")}` : ""}</Notice>}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={tr("Adresse du NAS coffre")} className="sm:col-span-2"><Input value={host} onChange={(e) => setHost(e.target.value.trim())} placeholder="192.168.1.30" /></Field>
+        <Field label={tr("Code d'appairage")} hint={tr("Affiché par le coffre")}><Input className="mono uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ABCDE-12345" /></Field>
+      </div>
+      <div className="flex justify-end"><Button loading={pair.isPending} disabled={!host || !code} onClick={() => pair.mutate()}>{b.vaultUrl ? tr("Appairer à nouveau") : tr("Appairer")}</Button></div>
+      <ErrorBox error={pair.error} />
+    </div>
+  );
+}
+
+type VaultT = { id: string; name: string; path: string; appendOnly: boolean; created: string; clients: { id: string; name: string; created: string; lastSeen?: string; size: number }[] };
+
+function VaultsCard({ sources }: { sources?: Sources }) {
+  const { confirm, toast } = useUI();
+  const { data } = useQuery({ queryKey: ["vaults"], queryFn: () => api.get<VaultT[]>("/api/vaults") });
+  const [form, setForm] = useState<{ name: string; path: string; appendOnly: boolean } | null>(null);
+  const [code, setCode] = useState<{ vault: string; code: string } | null>(null);
+  const create = useAction(() => api.post("/api/vaults", form), { success: tr("Coffre créé"), onDone: () => setForm(null) });
+  const mkCode = useAction((id: string) => api.post<{ code: string }>(`/api/vaults/${id}/code`), { onDone: (r) => setCode({ vault: "", code: r.code }) });
+  const revoke = useAction((v: { id: string; cid: string }) => api.del(`/api/vaults/${v.id}/clients/${v.cid}`), { success: tr("Accès retiré (les sauvegardes sont conservées)") });
+  const del = useAction((id: string) => api.del(`/api/vaults/${id}`), { success: tr("Coffre supprimé (les données sont conservées)") });
+  return (
+    <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Coffres de sauvegarde")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true })}>{tr("Nouveau coffre")}</Button>}>
+      <p className="mb-3 text-muted text-[12.5px]">{tr("Recevez ici les sauvegardes chiffrées d'autres NAS StrataOS (type « Coffre d'un autre NAS StrataOS » sur le NAS à sauvegarder).")}</p>
+      {!data?.length ? <div className="text-muted text-[13px]">{tr("Aucun coffre.")}</div> : data.map((v) => (
+        <div key={v.id} className="mb-3 rounded-xl border border-line p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium">{v.name}</div><span className="mono text-muted text-[12px]">{v.path}</span>
+            {v.appendOnly && <Badge tone="ok">{tr("Ajout seul")}</Badge>}
+            <div className="flex-1" />
+            <Button size="sm" loading={mkCode.isPending && mkCode.variables === v.id} onClick={() => mkCode.mutate(v.id)}>{tr("Code d'appairage")}</Button>
+            <IconButton title={tr("Supprimer")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer le coffre {0} ?", v.name), text: tr("Les NAS appairés ne pourront plus y envoyer de sauvegardes. Les données restent dans le dossier."), danger: true })) del.mutate(v.id); }}><Trash2 size={15} /></IconButton>
+          </div>
+          {v.clients.length > 0 && (
+            <table className="table mt-2">
+              <tbody>
+                {v.clients.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.name}</td><td className="text-muted">{bytes(c.size)}</td>
+                    <td className="text-muted text-[12px]">{c.lastSeen ? tr("Dernier envoi {0}", ago(c.lastSeen)) : tr("Jamais")}</td>
+                    <td className="text-right"><Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Retirer l'accès de {0} ?", c.name), text: tr("Ce NAS ne pourra plus envoyer de sauvegardes. Celles déjà reçues sont conservées."), danger: true })) revoke.mutate({ id: v.id, cid: c.id }); }}>{tr("Retirer")}</Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
+      <Modal open={!!form} onClose={() => setForm(null)} title={tr("Nouveau coffre de sauvegarde")} footer={<><Button onClick={() => setForm(null)}>{tr("Annuler")}</Button><Button variant="primary" loading={create.isPending} disabled={!form?.name || !form.path} onClick={() => create.mutate()}>{tr("Créer")}</Button></>}>
+        {form && (
+          <div className="space-y-4">
+            <Field label={tr("Nom")}><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={tr("ex. Sauvegardes du bureau")} /></Field>
+            <Field label={tr("Dossier")}>
+              <div className="flex gap-2">
+                <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && setForm({ ...form, path: `${e.target.value}/coffre` })}>
+                  <option value="">{tr("Volume…")}</option>
+                  {sources?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
+                </Select>
+                <Input className="mono" value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} />
+              </div>
+            </Field>
+            <Switch checked={form.appendOnly} onChange={(v) => setForm({ ...form, appendOnly: v })} label={tr("Ajout seul (anti-rançongiciel)")} hint={tr("Un NAS appairé peut ajouter des sauvegardes mais jamais en supprimer : même piraté, il ne peut pas détruire ses copies. Les anciennes versions s'accumulent.")} />
+            <ErrorBox error={create.error} />
+          </div>
+        )}
+      </Modal>
+      <Modal open={!!code} onClose={() => setCode(null)} title={tr("Code d'appairage")} footer={<Button onClick={() => setCode(null)}>{tr("Fermer")}</Button>}>
+        {code && <div className="space-y-3 text-[13px]"><p className="text-muted">{tr("Saisissez ce code sur le NAS à sauvegarder, dans une sauvegarde de type « Coffre d'un autre NAS StrataOS ». Il est valable 15 minutes, une seule fois.")}</p><div className="flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code.code}</code><IconButton title={tr("Copier")} onClick={() => { navigator.clipboard?.writeText(code.code); toast(tr("Code copié")); }}><Copy size={15} /></IconButton></div></div>}
+      </Modal>
+    </Card>
+  );
+}
+
 function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sources: Sources; onClose: () => void }) {
   const editing = !!initial;
   const [b, setB] = useState<BackupTask>(initial ?? blank);
@@ -55,7 +139,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
   const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Sauvegarde mise à jour") : tr("Sauvegarde créée"), onDone: onClose });
   const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => srv(r.message) });
   const remote = b.destType === "ssh" || b.destType === "sftp";
-  const destTypes = b.kind === "restic" ? [["local", tr("Dossier local / disque USB")], ["sftp", tr("Serveur SFTP (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("Serveur REST restic")]] : [["local", b.kind === "zfs" ? tr("Pool local") : tr("Dossier local / disque USB")], ["ssh", tr("Serveur distant (SSH)")]];
+  const destTypes = b.kind === "restic" ? [["local", tr("Dossier local / disque USB")], ["sftp", tr("Serveur SFTP (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("Serveur REST restic")], ["strataos", tr("Coffre d'un autre NAS StrataOS")]] : [["local", b.kind === "zfs" ? tr("Pool local") : tr("Dossier local / disque USB")], ["ssh", tr("Serveur distant (SSH)")]];
   const pickKind = (k: BackupTask["kind"]) => set({ kind: k, sources: [], destType: "local", destPath: "" });
 
   return (
@@ -107,6 +191,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
               <Field label={tr("Utilisateur")}><Input value={b.user ?? ""} onChange={(e) => set({ user: e.target.value })} /></Field>
             </div>
           )}
+          {b.destType === "strataos" && <VaultPair b={b} set={set} />}
           {b.destType === "s3" && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={tr("Point de terminaison")} className="sm:col-span-2" hint={tr("ex. https://s3.eu-west-3.amazonaws.com, https://s3.us-west-002.backblazeb2.com, http://minio:9000")}><Input value={b.s3Endpoint ?? ""} onChange={(e) => set({ s3Endpoint: e.target.value })} /></Field>
@@ -114,7 +199,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
               <Field label={tr("Clé secrète")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
             </div>
           )}
-          <Field
+          {b.destType !== "strataos" && <Field
             label={b.kind === "zfs" ? tr("Dataset de destination") : b.destType === "s3" ? tr("Bucket / dossier") : b.destType === "rest" ? tr("URL du serveur REST") : b.destType === "local" ? tr("Dossier de destination") : tr("Chemin distant")}
             hint={b.kind === "zfs" ? tr("ex. backup/media (créé automatiquement)") : b.destType === "local" ? tr("Dans un volume, ex. /srv/strata/usb/sauvegardes (un disque USB s'importe depuis le Gestionnaire de stockage)") : undefined}
           >
@@ -127,7 +212,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
                 <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />
               </div>
             ) : <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />}
-          </Field>
+          </Field>}
           {remote && <SSHKey />}
         </div>
 
@@ -272,6 +357,7 @@ export default function Backups() {
           })}
         </div>
       )}
+      <VaultsCard sources={sources.data} />
       {edit !== undefined && sources.data && <Editor initial={edit} sources={sources.data} onClose={() => setEdit(undefined)} />}
       {restore && <RestoreModal b={restore} onClose={() => setRestore(null)} />}
       {hist && <HistoryModal b={data?.find((x) => x.id === hist.id) ?? hist} onClose={() => setHist(null)} />}

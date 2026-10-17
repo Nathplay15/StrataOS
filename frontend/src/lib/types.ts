@@ -408,7 +408,11 @@ export interface BackupTask {
   name: string;
   kind: "rsync" | "restic" | "zfs";
   sources: string[];
-  destType: "local" | "ssh" | "sftp" | "s3" | "rest";
+  destType: "local" | "ssh" | "sftp" | "s3" | "rest" | "strataos";
+  vaultUrl?: string;
+  vaultToken?: string;
+  vaultCert?: string;
+  appendOnly?: boolean;
   destPath: string;
   host?: string;
   user?: string;
