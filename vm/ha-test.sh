@@ -44,7 +44,7 @@ A ssh 'echo "version 1" | sudo tee /srv/strata/volume1/Documents/rapport.txt >/d
 section "Pairing and replication"
 check "wrong pairing code refused" "$(api 7080 POST /api/ha/prepare >/dev/null; api 7070 POST /api/ha/pair -d '{"peerHost":"10.99.0.2","vip":"10.99.0.100/24","interface":"enp0s5","interval":5,"code":"AAAAA-BBBBB"}')" "wrong or expired"
 CODE=$(api 7080 POST /api/ha/prepare | py 'print(d["code"])')
-check "paired" "$(api 7070 POST /api/ha/pair -d "{\"peerHost\":\"10.99.0.2\",\"vip\":\"10.99.0.100/24\",\"interface\":\"enp0s5\",\"interval\":5,\"code\":\"$CODE\"}")" '"role":"primary"'
+check "paired" "$(api 7070 POST /api/ha/pair -d "{\"peerHost\":\"10.99.0.2\",\"vip\":\"10.99.0.100/24\",\"interface\":\"enp0s5\",\"interval\":5,\"continuous\":true,\"code\":\"$CODE\"}")" '"role":"primary"'
 for _ in $(seq 1 60); do [ "$(state 7070)" = MASTER ] && [ "$(state 7080)" = BACKUP ] && break; sleep 2; done
 check "primary holds the shared address" "$(state 7070) $(state 7080)" "MASTER BACKUP"
 # Pairing starts a first replication by itself: wait for it, then run one by hand.
@@ -55,6 +55,15 @@ check "replication" "$(job 7070 "$(api 7070 POST /api/ha/sync)")" "success"
 check "data on the secondary" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 1"
 check "accounts on the secondary (same UID)" "$(A ssh 'id -u alice') $(B ssh 'id -u alice')" "$(A ssh 'id -u alice') $(A ssh 'id -u alice')"
 check "secondary does not publish the shares" "$(B ssh "grep -c '^\[' /etc/samba/strata-shares.conf")" "0"
+
+section "Continuous replication"
+A ssh 'sudo mkdir -p /srv/strata/volume1/Documents/projets/2026 && echo "plan A" | sudo tee /srv/strata/volume1/Documents/projets/2026/plan.txt >/dev/null && echo live | sudo tee /srv/strata/volume1/Documents/live.txt >/dev/null'
+for _ in $(seq 1 30); do [ "$(B ssh 'sudo cat /srv/strata/volume1/Documents/live.txt /srv/strata/volume1/Documents/projets/2026/plan.txt 2>/dev/null')" = "$(printf 'live\nplan A')" ] && break; sleep 1; done
+check "changes copied within seconds" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/live.txt /srv/strata/volume1/Documents/projets/2026/plan.txt 2>&1')" "plan A"
+A ssh 'sudo rm /srv/strata/volume1/Documents/live.txt'
+for _ in $(seq 1 30); do B ssh 'sudo test -e /srv/strata/volume1/Documents/live.txt' || break; sleep 1; done
+check "deletions copied" "$(B ssh 'sudo test -e /srv/strata/volume1/Documents/live.txt && echo still || echo gone')" "gone"
+check "continuous replication status" "$(api 7070 GET /api/ha | py 'c=d["continuous"]; print(c["active"], c["pending"], c.get("error") or "")')" "True 0"
 
 section "Failover"
 A ssh 'sync' >/dev/null; kill -9 "$(cat vm/state/qemu.pid)"

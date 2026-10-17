@@ -323,18 +323,31 @@ func rewriteKeys(add string) error {
 
 // SyncPath mirrors a folder of the storage to the same place on the peer.
 func SyncPath(ctx context.Context, key, knownHosts, peer, path string, logf func(string, ...any)) error {
+	return SyncDir(ctx, key, knownHosts, peer, path, true, logf)
+}
+
+// SyncDir copies one folder to the peer: with its whole tree, or only its
+// direct content (files, and removal of what was deleted) when recursive is
+// false, for the near-continuous replication.
+func SyncDir(ctx context.Context, key, knownHosts, peer, path string, recursive bool, logf func(string, ...any)) error {
 	clean := filepath.Clean(path)
 	rel, ok := strings.CutPrefix(clean, StorageRoot+"/")
 	if !ok || rel == "" || strings.HasPrefix(rel, "..") {
 		return fmt.Errorf("%s is not inside the storage", path)
 	}
 	ssh := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%s -o ConnectTimeout=15", key, knownHosts)
-	args := []string{"-aHAX", "--numeric-ids", "--delete", "--partial", "--mkpath", "--exclude=.recycle/", "-e", ssh, clean + "/", "root@" + bracket(peer) + ":" + rel + "/"}
-	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 24 * time.Hour}, "rsync", args...)
+	mode := []string{"-aHAX"}
+	if !recursive {
+		mode = []string{"-dlptgoDHAX"} // -a without recursion
+	}
+	args := append(mode, "--numeric-ids", "--delete", "--partial", "--mkpath", "--exclude=.recycle/", "-e", ssh, clean+"/", "root@"+bracket(peer)+":"+rel+"/")
+	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 24 * time.Hour, AllowCodes: []int{24}}, "rsync", args...) // 24: files vanished meanwhile
 	if err != nil {
 		return fmt.Errorf("rsync %s: %s", rel, lastLine(out+" "+err.Error()))
 	}
-	logf("%s synchronisé", rel)
+	if recursive {
+		logf("%s synchronisé", rel)
+	}
 	return nil
 }
 

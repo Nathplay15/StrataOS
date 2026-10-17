@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUI } from "../components/ui";
 import { useJobs } from "./jobs";
+import { srv } from "./i18n";
 
 /**
  * Wraps an API call: shows a toast on success/error, tracks background jobs
@@ -21,6 +22,6 @@ export function useAction<A = void, R = unknown>(fn: (arg: A) => Promise<R>, opt
       }
       opts.onDone?.(r);
     },
-    onError: (e: Error) => toast(e.message, "error"),
+    onError: (e: Error) => toast(srv(e.message), "error"),
   });
 }

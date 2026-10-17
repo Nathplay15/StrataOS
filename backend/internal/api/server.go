@@ -86,6 +86,7 @@ func New(c Config) *Server {
 	go s.healthWatcher()
 	go s.schedulerLoop()
 	go s.haLoop()
+	go s.haContinuousLoop()
 	go s.ransomLoop()
 	go s.ddnsLoop()
 	go s.photoLoop()

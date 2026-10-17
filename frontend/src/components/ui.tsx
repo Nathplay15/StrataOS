@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 import { cx } from "../lib/format";
 import { InWindow } from "../desktop/context";
-import { tr } from "../lib/i18n";
+import { srv, tr } from "../lib/i18n";
 
 /* ---------- Buttons ---------- */
 
@@ -165,7 +165,7 @@ export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
   return (
     <div className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-danger text-[13px]">
-      <XCircle size={16} className="mt-0.5 shrink-0" /> <span className="break-words">{error instanceof Error ? error.message : String(error)}</span>
+      <XCircle size={16} className="mt-0.5 shrink-0" /> <span className="break-words">{srv(error instanceof Error ? error.message : String(error))}</span>
     </div>
   );
 }

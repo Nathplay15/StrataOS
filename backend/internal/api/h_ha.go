@@ -198,6 +198,9 @@ func (s *Server) haRoutes() {
 		var c store.HA
 		s.store.Read(func(st *store.State) { c = st.HA })
 		out := map[string]any{"installed": ha.Installed(), "config": maskHA(c), "state": ha.State()}
+		if c.Role == "primary" {
+			out["continuous"] = haContSnapshot()
+		}
 		haPairing.Lock()
 		if haPairing.code != "" && time.Now().Before(haPairing.expires) {
 			out["pairingCode"] = haPairing.code
@@ -296,6 +299,32 @@ func (s *Server) haRoutes() {
 	})
 
 	s.admin("POST /api/ha/sync", func(r *http.Request) (any, error) { return s.runReplication(userOf(r)) })
+
+	// Replication mode of the primary: continuous or not, and the period of
+	// the full replication.
+	s.admin("PUT /api/ha/settings", func(r *http.Request) (any, error) {
+		var req struct {
+			Continuous bool `json:"continuous"`
+			Interval   int  `json:"interval"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if req.Interval < 1 || req.Interval > 1440 {
+			return nil, badRequest("invalid replication period")
+		}
+		err := s.store.Update(func(st *store.State) error {
+			if st.HA.Role != "primary" {
+				return badRequest("only the primary replicates")
+			}
+			st.HA.Continuous, st.HA.Interval = req.Continuous, req.Interval
+			return nil
+		})
+		if err == nil {
+			s.audit(r, "ha", fmt.Sprintf("Replication: continuous=%v, full every %d min", req.Continuous, req.Interval))
+		}
+		return nil, err
+	})
 
 	// On the secondary while it is active: copy the data back to the primary,
 	// then release the shared address so the primary takes it again.

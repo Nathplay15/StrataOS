@@ -210,6 +210,9 @@ type HA struct {
 	// is back, after copying the changes.
 	Maintenance bool `json:"maintenance,omitempty"`
 	AutoReturn  bool `json:"autoReturn,omitempty"`
+	// Continuous: changed folders are copied a few seconds after the change
+	// (the periodic replication still runs, as a safety net).
+	Continuous bool `json:"continuous,omitempty"`
 }
 
 // Energy holds the power saving settings.

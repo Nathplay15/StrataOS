@@ -4,18 +4,21 @@ import { ArrowLeftRight, Copy, KeyRound, Plug, RefreshCcw, Server, ServerCog, Un
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, dateTime } from "../../lib/format";
-import { Badge, Button, Card, ErrorBox, Field, Input, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
+import { Badge, Button, Card, ErrorBox, Field, Input, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
 
-type Config = { maintenance?: boolean; autoReturn?: boolean; role: "" | "primary" | "secondary"; peerHost: string; peerName: string; vip: string; interface: string; vrid: number; interval: number; lastSync: string; lastResult: string; pairedAt: string };
-type Data = { installed: boolean; config: Config; state: string; pairingCode?: string; pairingExpires?: string; interfaces?: Record<string, string> };
+type Config = { continuous?: boolean; maintenance?: boolean; autoReturn?: boolean; role: "" | "primary" | "secondary"; peerHost: string; peerName: string; vip: string; interface: string; vrid: number; interval: number; lastSync: string; lastResult: string; pairedAt: string };
+type Cont = { pending: number; last?: string; error?: string; watchLimit?: boolean; active: boolean };
+type Data = { installed: boolean; config: Config; continuous?: Cont; state: string; pairingCode?: string; pairingExpires?: string; interfaces?: Record<string, string> };
 
 export default function HighAvailability() {
   const { confirm, toast } = useUI();
   const { data, isLoading, error } = useQuery({ queryKey: ["ha"], queryFn: () => api.get<Data>("/api/ha"), refetchInterval: 3000 });
   const install = useAction(() => api.post("/api/system/components/ha/install"));
   const prepare = useAction(() => api.post("/api/ha/prepare"));
-  const [f, setF] = useState({ peerHost: "", vip: "", interface: "", interval: 15, code: "" });
+  const [f, setF] = useState({ peerHost: "", vip: "", interface: "", interval: 15, code: "", continuous: true });
+  const [mode, setMode] = useState<{ continuous: boolean; interval: number } | null>(null);
+  const saveMode = useAction(() => api.put("/api/ha/settings", mode), { success: tr("Mode de réplication enregistré"), onDone: () => setMode(null) });
   const pair = useAction(() => api.post("/api/ha/pair", f), { success: tr("NAS appairés : la première réplication démarre") });
   const sync = useAction(() => api.post("/api/ha/sync"));
   const back = useAction(() => api.post("/api/ha/switchback"));
@@ -50,6 +53,16 @@ export default function HighAvailability() {
               <div><div className="text-muted text-[12px]">{tr("Adresse partagée")}</div><div className="mono">{c.vip} · {c.interface}</div></div>
               <div><div className="text-muted text-[12px]">{tr("Dernière réplication")}</div><div>{c.lastSync && !c.lastSync.startsWith("0001") ? `${dateTime(c.lastSync)} (${ago(c.lastSync)})` : "—"}</div></div>
               <div className="sm:col-span-2"><div className="text-muted text-[12px]">{tr("Résultat")}</div><div className={c.lastResult && c.lastResult !== "OK" ? "text-danger" : ""}>{c.lastResult ? srv(c.lastResult) : "—"}</div></div>
+              {c.role === "primary" && c.continuous && data.continuous && (
+                <div className="sm:col-span-3">
+                  <div className="text-muted text-[12px]">{tr("Réplication continue")}</div>
+                  {!data.continuous.active ? <div className="text-muted">{tr("En pause (ce NAS ne sert pas l'adresse partagée)")}</div>
+                    : data.continuous.error ? <div className="text-danger">{srv(data.continuous.error)}</div>
+                    : data.continuous.pending > 0 ? <div>{tr("{0} dossier(s) en cours de copie", data.continuous.pending)}</div>
+                    : <div className="text-ok">{tr("À jour")}{data.continuous.last && !data.continuous.last.startsWith("0001") ? ` · ${tr("dernière copie {0}", ago(data.continuous.last))}` : ""}</div>}
+                  {data.continuous.watchLimit && <div className="text-warn text-[12px]">{tr("Trop de dossiers à suivre : certains ne sont copiés que par la réplication complète.")}</div>}
+                </div>
+              )}
             </div>
             {c.role === "secondary" && active && !c.autoReturn && <div className="mt-4"><Notice tone="warn">{tr("Ce NAS secondaire sert actuellement les partages : le principal ne répondait plus. Une fois le principal réparé et redémarré, rendez-lui la main : les modifications faites ici lui seront d'abord copiées.")}</Notice></div>}
             {c.role === "primary" && !active && c.maintenance && <div className="mt-4"><Notice>{tr("Maintenance en cours : le secondaire sert les partages. Vous pouvez redémarrer ou éteindre ce NAS ; à son retour, la main lui revient automatiquement après recopie des modifications.")}</Notice></div>}
@@ -64,10 +77,20 @@ export default function HighAvailability() {
               <Button variant="danger" icon={<Unlink size={15} />} onClick={async () => { if (await confirm({ title: tr("Supprimer l'appairage ?"), text: tr("Les deux NAS redeviennent indépendants ; l'adresse partagée n'est plus servie. Les données déjà répliquées restent sur le secondaire."), danger: true })) unpair.mutate(); }}>{tr("Désappairer")}</Button>
             </div>
           </Card>
+          {c.role === "primary" && (
+            <Card title={tr("Mode de réplication")}>
+              <div className="space-y-4">
+                <Switch checked={(mode ?? c).continuous ?? false} onChange={(v) => setMode({ continuous: v, interval: (mode ?? c).interval })} label={tr("Réplication continue")} hint={tr("Les dossiers modifiés sont copiés sur le secondaire quelques secondes après chaque changement : en cas de panne, presque rien n'est perdu.")} />
+                <Field label={tr("Réplication complète toutes les (minutes)")} hint={tr("Comptes, partages et vérification de tous les fichiers")}><Input type="number" min={1} className="max-w-[160px]" value={(mode ?? c).interval} onChange={(e) => setMode({ continuous: (mode ?? c).continuous ?? false, interval: Math.max(1, +e.target.value) })} /></Field>
+                {mode && <div className="flex justify-end"><Button variant="primary" loading={saveMode.isPending} onClick={() => saveMode.mutate()}>{tr("Enregistrer")}</Button></div>}
+                <ErrorBox error={saveMode.error} />
+              </div>
+            </Card>
+          )}
           <Card title={tr("Fonctionnement")}>
             <ul className="text-muted list-disc space-y-1 pl-5 text-[13px]">
               <li>{tr("Les postes se connectent à l'adresse partagée {0} (SMB, NFS, WebDAV, interface web).", c.vip.split("/")[0])}</li>
-              <li>{tr("Toutes les {0} minutes, le principal copie sur le secondaire les comptes, les dossiers partagés et leurs fichiers.", c.interval)}</li>
+              <li>{c.continuous ? tr("Chaque modification est copiée sur le secondaire en quelques secondes ; toutes les {0} minutes, une réplication complète vérifie aussi les comptes et tous les fichiers.", c.interval) : tr("Toutes les {0} minutes, le principal copie sur le secondaire les comptes, les dossiers partagés et leurs fichiers.", c.interval)}</li>
               <li>{tr("Si le principal ne répond plus pendant quelques secondes, le secondaire prend l'adresse et publie les partages, avec les données de la dernière réplication.")}</li>
               <li>{tr("Le principal ne reprend jamais la main tout seul : cela évite d'écraser des fichiers modifiés sur le secondaire pendant la panne.")}</li>
             </ul>
@@ -96,6 +119,7 @@ export default function HighAvailability() {
               <Field label={tr("Réplication toutes les (minutes)")}><Input type="number" min={1} value={f.interval} onChange={(e) => setF({ ...f, interval: Math.max(1, +e.target.value) })} /></Field>
               <Field label={tr("Code d'appairage")} hint={tr("Affiché sur le secondaire")}><Input className="mono uppercase" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} placeholder="ABCDE-FGHIJ" /></Field>
             </div>
+            <Switch checked={f.continuous} onChange={(v) => setF({ ...f, continuous: v })} label={tr("Réplication continue")} hint={tr("Copie chaque modification en quelques secondes, en plus de la réplication complète.")} />
             <div className="flex justify-end"><Button variant="primary" icon={<KeyRound size={15} />} loading={pair.isPending} disabled={!f.peerHost || !f.vip || !f.code} onClick={() => pair.mutate()}>{tr("Appairer")}</Button></div>
           </div>
         </Card>
