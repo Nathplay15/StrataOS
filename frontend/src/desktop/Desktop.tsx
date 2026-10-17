@@ -298,7 +298,7 @@ function DesktopIcon({ label, onOpen, children }: { label: string; onOpen: () =>
   return (
     <button onClick={onOpen} className="group flex w-[92px] flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center outline-none transition hover:bg-white/10 focus-visible:bg-white/15">
       <div className="transition group-hover:scale-105 group-active:scale-95">{children}</div>
-      <span className="line-clamp-2 text-[12px] leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{label}</span>
+      <span className="line-clamp-2 w-full break-words hyphens-auto text-[12px] leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{label}</span>
     </button>
   );
 }

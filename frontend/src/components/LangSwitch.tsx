@@ -1,12 +1,14 @@
 import { Languages } from "lucide-react";
-import { lang, setLang } from "../lib/i18n";
+import { lang, languages, setLang, type Lang } from "../lib/i18n";
 
-/** Switches the interface between French and English (the page reloads). */
+/** Language picker (the page reloads to apply the choice everywhere). */
 export function LangSwitch({ className }: { className?: string }) {
-  const other = lang === "fr" ? "en" : "fr";
   return (
-    <button type="button" className={className} onClick={() => setLang(other)} title={other === "en" ? "Switch to English" : "Passer en français"}>
-      <Languages size={15} /> {other === "en" ? "English" : "Français"}
-    </button>
+    <label className={className} title="Language">
+      <Languages size={15} className="shrink-0" />
+      <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} className="min-w-0 flex-1 cursor-pointer bg-transparent outline-none">
+        {languages.map((l) => <option key={l.id} value={l.id} className="bg-panel text-fg">{l.name}</option>)}
+      </select>
+    </label>
   );
 }

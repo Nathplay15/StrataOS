@@ -13,4 +13,11 @@ const out = {};
 for (const k of [...keys].sort()) out[k] = en[k] ?? "";
 const missing = Object.values(out).filter((v) => !v).length;
 fs.writeFileSync(process.argv[2] || "/dev/stdout", JSON.stringify(out, null, 1));
-console.error(`${keys.size} keys, ${missing} untranslated`);
+console.error(`${keys.size} keys, ${missing} untranslated (en)`);
+for (const f of fs.readdirSync(path.dirname(enPath))) {
+  const m = f.match(/^([a-z]{2})\.json$/);
+  if (!m || m[1] === "en") continue;
+  const d = JSON.parse(fs.readFileSync(path.join(path.dirname(enPath), f), "utf8"));
+  const miss = [...keys].filter((k) => !d[k]).length;
+  if (miss) console.error(`${m[1]}: ${miss} untranslated (English is shown instead)`);
+}

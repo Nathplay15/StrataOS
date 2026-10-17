@@ -6,7 +6,7 @@
 
 ## Interface
 
-Disponible en français et en anglais (choix dans le menu utilisateur ou sur l'écran de connexion ; par défaut, la langue du navigateur). Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/en.json` contient leur traduction (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent) ; les textes envoyés par le serveur (tâches, historique, alertes) sont traduits à l'affichage par les motifs de `frontend/src/i18n/server.ts`.
+Disponible en français, anglais, espagnol, allemand, italien, portugais (Brésil), néerlandais et chinois simplifié (choix dans le menu utilisateur, sur l'écran de connexion ou dans l'assistant ; par défaut, la langue du navigateur). Chaque langue est chargée à la demande. Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/<langue>.json` contiennent leur traduction (l'anglais sert de repli) (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent) ; les textes envoyés par le serveur (tâches, historique, alertes) sont traduits à l'affichage par les motifs de `frontend/src/i18n/server.ts`.
 
 Sur ordinateur, StrataOS s'affiche comme un **bureau** à la manière de Synology DSM ou fnOS : icônes d'applications, fenêtres déplaçables et redimensionnables (plusieurs à la fois, aimantation sur les bords, agrandir/réduire), barre des tâches, menu principal avec recherche, widgets (état, ressources, stockage, applications), fonds d'écran (clic droit sur le bureau), raccourcis vers les applications installées depuis l'App Center. Les pages sont regroupées en suites : **Gestionnaire de stockage**, **Panneau de configuration**, **Docker**.
 

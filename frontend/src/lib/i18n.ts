@@ -1,35 +1,63 @@
 // Interface language. Texts are written in French in the code and wrapped in
-// tr("…"); the English dictionary maps them (missing entries stay in French).
-import en from "../i18n/en.json";
+// tr("…"); src/i18n/<lang>.json maps them to the other languages (missing
+// entries fall back to English, then French). Dictionaries are loaded on
+// demand by initI18n(), before the interface modules are imported.
 import { serverTexts } from "../i18n/server";
 
-export type Lang = "fr" | "en";
+export type Lang = "fr" | "en" | "es" | "de" | "it" | "pt" | "nl" | "zh";
 
-/** Languages offered in the interface, with their own name. */
-export const languages: { id: Lang; name: string }[] = [
-  { id: "fr", name: "Français" },
-  { id: "en", name: "English" },
+/** Languages offered in the interface, with their own name and date locale. */
+export const languages: { id: Lang; name: string; locale: string }[] = [
+  { id: "fr", name: "Français", locale: "fr-FR" },
+  { id: "en", name: "English", locale: "en-GB" },
+  { id: "es", name: "Español", locale: "es-ES" },
+  { id: "de", name: "Deutsch", locale: "de-DE" },
+  { id: "it", name: "Italiano", locale: "it-IT" },
+  { id: "pt", name: "Português (Brasil)", locale: "pt-BR" },
+  { id: "nl", name: "Nederlands", locale: "nl-NL" },
+  { id: "zh", name: "中文（简体）", locale: "zh-CN" },
 ];
+
+const known = (l: string | null): l is Lang => languages.some((x) => x.id === l);
 
 function initial(): Lang {
   try {
     const saved = localStorage.getItem("strata-lang");
-    if (saved === "fr" || saved === "en") return saved;
+    if (known(saved)) return saved;
   } catch {
     /* private mode */
   }
-  return (navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en";
+  for (const pref of navigator.languages ?? [navigator.language]) {
+    const l = (pref || "").toLowerCase().slice(0, 2);
+    if (known(l)) return l;
+  }
+  return "en";
 }
 
 export const lang: Lang = initial();
-export const locale = lang === "en" ? "en-GB" : "fr-FR";
+export const locale = languages.find((l) => l.id === lang)!.locale;
 document.documentElement.lang = lang;
 
-const dict = en as Record<string, string>;
+let dict: Record<string, string> = {};
+let fallback: Record<string, string> = {};
+let serverDict: Record<string, string> = {};
+type Rule = { re: RegExp; from: string; to: string };
+let rules: Rule[] = [];
+
+const loaders = import.meta.glob<{ default: Record<string, string> }>("../i18n/*.json");
+const load = async (name: string) => (loaders[`../i18n/${name}.json`] ? (await loaders[`../i18n/${name}.json`]()).default : {});
+
+/** Loads the dictionaries of the current language (call before rendering). */
+export async function initI18n() {
+  if (lang !== "fr") {
+    [dict, fallback, serverDict] = await Promise.all([load(lang), lang === "en" ? Promise.resolve({}) : load("en"), lang === "en" ? Promise.resolve({}) : load(`server.${lang}`)]);
+  }
+  rules = buildRules();
+}
 
 /** Translates a French UI text; {0}, {1}… are replaced by the arguments. */
 export function tr(fr: string, ...args: (string | number | null | undefined)[]): string {
-  let s = lang === "en" ? (dict[fr] ?? fr) : fr;
+  let s = lang === "fr" ? fr : (dict[fr] || fallback[fr] || fr);
   args.forEach((a, i) => { s = s.split(`{${i}}`).join(String(a ?? "")); });
   return s;
 }
@@ -45,11 +73,19 @@ export function setLang(l: Lang) {
 }
 
 const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// [source pattern, target template] for the current language, most specific first.
-const rules = serverTexts
-  .map(([fr, en]) => (lang === "en" ? [fr, en] : [en, fr]))
-  .map(([from, to]) => ({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to }))
-  .sort((a, b) => b.from.length - a.from.length);
+
+// Server texts come in French or English: both are matched and rendered in
+// the current language, most specific pattern first.
+function buildRules(): Rule[] {
+  const out: Rule[] = [];
+  for (const [fr, en] of serverTexts) {
+    const to = lang === "fr" ? fr : lang === "en" ? en : (serverDict[fr] || en);
+    for (const from of [fr, en]) {
+      if (from !== to) out.push({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to });
+    }
+  }
+  return out.sort((a, b) => b.from.length - a.from.length);
+}
 
 /** Translates a text produced by the server (job title, history, alert…). */
 export function srv(text: string | undefined | null, depth = 0): string {

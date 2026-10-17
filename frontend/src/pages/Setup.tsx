@@ -194,7 +194,7 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
               <div className="space-y-4">
                 <Field label={tr("Langue")}>
                   <div className="flex flex-wrap gap-2">
-                    {languages.map((l) => <Button key={l.id} type="button" variant={l.id === lang ? "primary" : "secondary"} onClick={() => l.id !== lang && setLang(l.id)}>{l.name}</Button>)}
+                    {languages.map((l) => <Button key={l.id} type="button" size="sm" variant={l.id === lang ? "primary" : "secondary"} onClick={() => l.id !== lang && setLang(l.id)}>{l.name}</Button>)}
                   </div>
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
