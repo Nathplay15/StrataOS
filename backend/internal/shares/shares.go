@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"strataos/internal/accounts"
+	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 )
@@ -342,6 +343,13 @@ func Apply(st *store.State) error {
 		}
 		b.WriteString("   create mask = 0664\n   directory mask = 2775\n   inherit acls = yes\n   map acl inherit = yes\n")
 		vfs := []string{"catia", "fruit", "streams_xattr"}
+		// Previous versions (Windows) from the snapshots of the volume.
+		shadow := storage.ShadowMount(sh.Path)
+		if shadow != "" && storage.SyncVersionLinks(shadow) == nil {
+			vfs = append([]string{"shadow_copy2"}, vfs...)
+		} else {
+			shadow = ""
+		}
 		if sh.RecycleBin {
 			vfs = append(vfs, "recycle")
 		}
@@ -355,10 +363,23 @@ func Apply(st *store.State) error {
 			b.WriteString("   full_audit:prefix = %u|%I|%S\n   full_audit:success = renameat unlinkat\n   full_audit:failure = none\n   full_audit:facility = LOCAL5\n   full_audit:priority = NOTICE\n")
 		}
 		if sh.RecycleBin {
-			b.WriteString("   recycle:repository = .recycle/%U\n   recycle:keeptree = yes\n   recycle:versions = yes\n   recycle:touch = yes\n   recycle:touch_mtime = yes\n   recycle:exclude = *.tmp,~$*\n   veto files = /.recycle/\n   hide files = /.recycle/\n")
+			b.WriteString("   recycle:repository = .recycle/%U\n   recycle:keeptree = yes\n   recycle:versions = yes\n   recycle:touch = yes\n   recycle:touch_mtime = yes\n   recycle:exclude = *.tmp,~$*\n")
 		}
 		if sh.TimeMachine {
 			b.WriteString("   fruit:time machine = yes\n")
+		}
+		var veto []string
+		if sh.RecycleBin {
+			veto = append(veto, ".recycle")
+		}
+		if shadow != "" {
+			veto = append(veto, storage.VersionsDirName)
+		}
+		if len(veto) > 0 {
+			fmt.Fprintf(&b, "   veto files = /%s/\n   hide files = /%s/\n", strings.Join(veto, "/"), strings.Join(veto, "/"))
+		}
+		if shadow != "" {
+			fmt.Fprintf(&b, "   shadow:mountpoint = %s\n   shadow:basedir = %s\n   shadow:snapdir = %s/%s\n   shadow:sort = desc\n   shadow:crossmountpoints = yes\n", shadow, shadow, shadow, storage.VersionsDirName)
 		}
 	}
 	if sys.Has("smbd") || dirExists("/etc/samba") {

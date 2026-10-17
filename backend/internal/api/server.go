@@ -93,6 +93,7 @@ func New(c Config) *Server {
 	go s.photoLoop()
 	go s.shareQuotaLoop()
 	go s.energyLoop()
+	go s.versionLinksLoop()
 	return s
 }
 
@@ -215,6 +216,7 @@ func (s *Server) routes() {
 	s.linkRoutes()
 	s.albumRoutes()
 	s.energyRoutes()
+	s.versionRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

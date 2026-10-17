@@ -340,7 +340,7 @@ func SyncDir(ctx context.Context, key, knownHosts, peer, path string, recursive 
 	if !recursive {
 		mode = []string{"-dlptgoDHAX"} // -a without recursion
 	}
-	args := append(mode, "--numeric-ids", "--delete", "--partial", "--mkpath", "--exclude=.recycle/", "-e", ssh, clean+"/", "root@"+bracket(peer)+":"+rel+"/")
+	args := append(mode, "--numeric-ids", "--delete", "--partial", "--mkpath", "--exclude=.recycle/", "--exclude=/.strata-versions/", "-e", ssh, clean+"/", "root@"+bracket(peer)+":"+rel+"/")
 	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 24 * time.Hour, AllowCodes: []int{24}}, "rsync", args...) // 24: files vanished meanwhile
 	if err != nil {
 		return fmt.Errorf("rsync %s: %s", rel, lastLine(out+" "+err.Error()))

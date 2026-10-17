@@ -1,11 +1,12 @@
 import { useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Download, Eye, EyeOff, File, FileImage, FileText, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, Link2, Pencil, Trash2, Upload } from "lucide-react";
+import { ChevronRight, Download, Eye, EyeOff, File, FileImage, FileText, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { FileEntry, UserQuota } from "../lib/types";
 import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
+import { VersionsModal } from "../components/VersionsModal";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Progress, Spinner, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
 
@@ -31,6 +32,7 @@ export default function Files() {
   const [mkdir, setMkdir] = useState<string | null>(null);
   const [rename, setRename] = useState<{ from: string; name: string } | null>(null);
   const [share, setShare] = useState<{ path: string; name: string; dir: boolean } | null>(null);
+  const [versions, setVersions] = useState<{ path: string; name: string } | null>(null);
   const [preview, setPreview] = useState<FileEntry | null>(null);
   const [upload, setUpload] = useState<{ pct: number; name: string } | null>(null);
   const [drag, setDrag] = useState(false);
@@ -178,6 +180,7 @@ export default function Files() {
                     <td className="mono hidden text-muted md:table-cell">{e.mode}</td>
                     <td className="text-right whitespace-nowrap">
                       <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(e.path)} title={tr("Télécharger")} />
+                      {!e.dir && path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => setVersions({ path: e.path, name: e.name })} title={tr("Versions précédentes")} />}
                       {path !== ROOT && <Button size="sm" variant="ghost" icon={<Link2 size={14} />} onClick={() => setShare({ path: e.path, name: e.name, dir: e.dir })} title={tr("Partager un lien")} />}
                       {data?.writable && path !== ROOT && <Button size="sm" variant="ghost" icon={<Pencil size={14} />} onClick={() => setRename({ from: e.path, name: e.name })} title={tr("Renommer")} />}
                     </td>
@@ -189,6 +192,7 @@ export default function Files() {
         )}
       </Card>
 
+      {versions && <VersionsModal path={versions.path} name={versions.name} onClose={() => setVersions(null)} />}
       {share && <ShareLinkModal path={share.path} name={share.name} dir={share.dir} onClose={() => setShare(null)} />}
       <Modal open={mkdir !== null} onClose={() => setMkdir(null)} title={tr("Nouveau dossier")} footer={<>
         <Button onClick={() => setMkdir(null)}>{tr("Annuler")}</Button>

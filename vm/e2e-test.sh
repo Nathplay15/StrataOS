@@ -422,6 +422,21 @@ check "Wake-on-LAN magic packet sent" "$(vm 'cat /tmp/wol.txt')" "102 aabbccddee
 c PUT /api/energy -d '{"spindownMin":0,"schedule":{"enabled":false,"days":[]}}' >/dev/null
 check "schedule off" "$(c GET /api/energy | py 'print("nextShutdown" in d)')" "False"
 
+section "Previous versions"
+vm "echo one | sudo tee /srv/strata/tank/media/v.txt >/dev/null; sudo zfs snapshot tank/media@manual-\$(date +%Y%m%d-%H%M%S); sleep 1; echo two-two | sudo tee /srv/strata/tank/media/v.txt >/dev/null"
+SNAP=$(c GET "/api/files/versions?path=/srv/strata/tank/media/v.txt" | py 'print(d["versions"][0]["snapshot"])')
+check "earlier version listed" "$(c GET "/api/files/versions?path=/srv/strata/tank/media/v.txt" | py 'print(len(d["versions"]), d["versions"][0]["size"])')" "1 4"
+check "version downloaded" "$(curl -s -b "$J" "$B/api/files/versions/download?path=/srv/strata/tank/media/v.txt&snapshot=$SNAP")" "one"
+check "restored as a copy" "$(c POST /api/files/versions/restore -d "{\"path\":\"/srv/strata/tank/media/v.txt\",\"snapshot\":\"$SNAP\"}" | py 'print(d["path"])')" "v (version du"
+check "copy content" "$(vm "sudo find /srv/strata/tank/media -maxdepth 1 -name 'v (version du*' -exec cat {} +")" "one"
+c POST /api/files/versions/restore -d "{\"path\":\"/srv/strata/tank/media/v.txt\",\"snapshot\":\"$SNAP\",\"replace\":true}" >/dev/null
+check "file replaced by the version" "$(vm 'sudo cat /srv/strata/tank/media/v.txt')" "one"
+check "versions follow share rights" "$(u GET "/api/files/versions?path=/srv/strata/tank/media/v.txt")" "access denied"
+check "no way out of the snapshot" "$(curl -s -b "$J" "$B/api/files/versions/download?path=/srv/strata/tank/media/../../../etc/passwd&snapshot=$SNAP")" "outside of the NAS storage"
+c PUT /api/shares/Media -d "$(c GET /api/shares | py 'print(json.dumps([x for x in d if x["name"]=="Media"][0]))')" >/dev/null
+check "Windows previous versions (SMB)" "$(vm "smbclient //localhost/Media -U '$ADMIN_USER%$ADMIN_PASS' -c 'allinfo v.txt' 2>&1")" "@GMT-"
+check "versions folder hidden over SMB" "$(vm "smbclient //localhost/Media -U '$ADMIN_USER%$ADMIN_PASS' -c ls 2>&1 | grep -c strata-versions")" "0"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')
