@@ -47,7 +47,7 @@ vm-test: deb
 	./vm/vm.sh destroy
 	VM_DISKS=8 ./vm/vm.sh create
 	./vm/vm.sh deploy dist/strataos_$(VERSION)_$(ARCH).deb
-	./vm/e2e-test.sh
+	bash -c 'set -o pipefail; ./vm/e2e-test.sh | tee vm/last-test.log'
 
 clean:
 	rm -rf build dist backend/web/dist/assets
