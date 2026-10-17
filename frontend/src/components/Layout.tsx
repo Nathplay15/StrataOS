@@ -12,7 +12,7 @@ import { useJobs } from "../lib/jobs";
 import type { Me } from "../lib/types";
 import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, Progress, useUI } from "./ui";
-import { tr, jobTitle } from "../lib/i18n";
+import { tr, srv } from "../lib/i18n";
 import { LangSwitch } from "./LangSwitch";
 
 type NavItem = { to: string; label: string; icon: ReactNode; admin?: boolean };
@@ -119,7 +119,7 @@ export function JobsMenu() {
               <button key={j.id} onClick={() => setDetail(j.id)} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-panel-2">
                 {j.status === "running" ? <Loader2 size={16} className="mt-0.5 animate-spin text-accent" /> : j.status === "success" ? <CheckCircle2 size={16} className="mt-0.5 text-ok" /> : <XCircle size={16} className="mt-0.5 text-danger" />}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">{jobTitle(j.title)}</div>
+                  <div className="truncate text-[13px]">{srv(j.title)}</div>
                   <div className="text-[11.5px] text-muted">{ago(j.started)}{j.error ? ` · ${j.error}` : ""}</div>
                   {j.status === "running" && <Progress className="mt-1.5" value={j.progress} indeterminate={j.progress < 0} />}
                 </div>
@@ -128,7 +128,7 @@ export function JobsMenu() {
           </div>
         </div>
       )}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={job ? jobTitle(job.title) : tr("Tâche")} wide>
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={job ? srv(job.title) : tr("Tâche")} wide>
         {job && (
           <div className="space-y-3">
             {job.status === "running" && <Progress value={job.progress} indeterminate={job.progress < 0} />}

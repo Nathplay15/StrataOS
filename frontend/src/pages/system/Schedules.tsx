@@ -6,7 +6,7 @@ import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
 import { ago, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
-import { tr } from "../../lib/i18n";
+import { tr, srv } from "../../lib/i18n";
 
 type Targets = { snapshot: ScheduleTarget[]; scrub: ScheduleTarget[]; disks: ScheduleTarget[] };
 
@@ -239,7 +239,7 @@ function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
             <div key={i} className="flex items-start gap-3 rounded-xl bg-panel-2 px-4 py-3">
               {h.status === "success" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={17} className="mt-0.5 shrink-0 text-danger" />}
               <div className="min-w-0 flex-1">
-                <div className="text-[13px]">{h.message}</div>
+                <div className="text-[13px]">{srv(h.message)}</div>
                 <div className="text-muted text-[11.5px]">{dateTime(h.started)} · {h.duration < 1 ? "<1" : h.duration.toFixed(0)} s{h.manual ? tr(" · lancée manuellement") : ""}</div>
               </div>
             </div>
@@ -304,7 +304,7 @@ export default function Schedules() {
                       <td className="whitespace-nowrap text-[12.5px]">{describeCron(s.cron)}</td>
                       <td className="whitespace-nowrap text-[12.5px]">
                         {s.running ? <Badge tone="accent" dot>{tr("En cours")}</Badge> : last ? (
-                          <button onClick={() => setHist(s)} className="flex items-center gap-1.5 text-left hover:underline" title={last.message}>
+                          <button onClick={() => setHist(s)} className="flex items-center gap-1.5 text-left hover:underline" title={srv(last.message)}>
                             {last.status === "success" ? <CheckCircle2 size={14} className="text-ok" /> : <XCircle size={14} className="text-danger" />}
                             {ago(last.started)}
                           </button>

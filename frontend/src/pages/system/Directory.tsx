@@ -5,7 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, Switch, Tabs } from "../../components/ui";
-import { tr } from "../../lib/i18n";
+import { tr, srv } from "../../lib/i18n";
 
 type Config = { adminGroup?: string; type: "" | "ad" | "ldap"; realm: string; workgroup: string; server: string; uri?: string; baseDn?: string; bindDn?: string; bindPassword?: string; startTls?: boolean; joinedAt: string };
 type Data = { config: Config; adInstalled: boolean; ldapInstalled: boolean; joined: boolean; status?: { connected: boolean; message: string } };
@@ -32,7 +32,7 @@ export default function Directory() {
         {header}
         <Card title={tr("Annuaire")} actions={<Button variant="danger" icon={<LogOut size={15} />} onClick={() => setLeaving(true)}>{tr("Quitter")}</Button>}>
           <div className="space-y-3 text-[13px]">
-            <div className="flex items-center gap-2">{data.status?.connected ? <CheckCircle2 size={17} className="text-ok" /> : <XCircle size={17} className="text-danger" />}<span>{data.status?.message}</span></div>
+            <div className="flex items-center gap-2">{data.status?.connected ? <CheckCircle2 size={17} className="text-ok" /> : <XCircle size={17} className="text-danger" />}<span>{srv(data.status?.message)}</span></div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div><div className="text-muted text-[12px]">{tr("Type")}</div><Badge tone="accent">{c.type === "ad" ? tr("Active Directory") : "LDAP"}</Badge></div>
               <div><div className="text-muted text-[12px]">{c.type === "ad" ? tr("Domaine") : tr("Serveur")}</div><div className="mono">{c.type === "ad" ? `${c.realm} (${c.workgroup})` : c.uri}</div></div>

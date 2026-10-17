@@ -5,7 +5,7 @@ import { api, q } from "../../lib/api";
 import type { LogEntry, StrataEvent } from "../../lib/types";
 import { dateTime } from "../../lib/format";
 import { Badge, Card, Empty, ErrorBox, Input, PageHeader, Select, Spinner, Tabs } from "../../components/ui";
-import { tr, locale } from "../../lib/i18n";
+import { tr, locale, srv } from "../../lib/i18n";
 
 const prio = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"];
 
@@ -59,7 +59,7 @@ function Events() {
                 <tr key={i}>
                   <td className="whitespace-nowrap text-muted text-[12.5px]">{dateTime(e.time)}</td>
                   <td><Badge tone={e.level === "error" ? "danger" : e.level === "warning" ? "warn" : "neutral"}>{e.level}</Badge></td>
-                  <td>{e.category}</td><td>{e.user || "—"}</td><td>{e.message}</td>
+                  <td>{e.category}</td><td>{e.user || "—"}</td><td>{srv(e.message)}</td>
                 </tr>
               ))}
             </tbody>

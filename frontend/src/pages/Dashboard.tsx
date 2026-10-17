@@ -6,7 +6,7 @@ import type { Me, Overview, Sample, SystemInfo } from "../lib/types";
 import { bytes, duration, pct, rate } from "../lib/format";
 import { Card, Empty, Health, PageHeader, Progress, Spinner, Stat } from "../components/ui";
 import { AreaChart, Ring } from "../components/charts";
-import { tr } from "../lib/i18n";
+import { tr, srv } from "../lib/i18n";
 
 export default function Dashboard({ me }: { me: Me }) {
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info"), refetchInterval: 30000 });
@@ -28,7 +28,7 @@ export default function Dashboard({ me }: { me: Me }) {
           {o.alerts.map((a) => (
             <div key={a.message} className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-[13.5px] ${a.level === "error" ? "border-danger/30 bg-danger/10 text-danger" : "border-warn/30 bg-warn/10 text-warn"}`}>
               {a.level === "error" ? <XCircle size={17} /> : <AlertTriangle size={17} />}
-              {a.message}
+              {srv(a.message)}
             </div>
           ))}
         </div>

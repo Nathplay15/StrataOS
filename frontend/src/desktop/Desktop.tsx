@@ -14,7 +14,7 @@ import { Window } from "./Window";
 import { TASKBAR, WindowManager, useWM } from "./wm";
 import { setUIMode } from "./mode";
 import { OpenPath } from "./context";
-import { tr, locale } from "../lib/i18n";
+import { tr, locale, srv } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
 
 /* ---------- Wallpapers (pure CSS, no download) ---------- */
@@ -130,7 +130,7 @@ function Alerts({ alerts }: { alerts: Overview["alerts"] }) {
           ) : alerts.map((a) => (
             <div key={a.message} className="flex items-start gap-2 rounded-lg px-2 py-2 text-[13px]">
               {a.level === "error" ? <XCircle size={16} className="mt-0.5 shrink-0 text-danger" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn" />}
-              {a.message}
+              {srv(a.message)}
             </div>
           ))}
         </div>
@@ -261,7 +261,7 @@ function Widgets({ me, ov }: { me: Me; ov?: Overview }) {
           </div>
           <div className="min-w-0">
             <div className="font-semibold">{!ov ? "…" : healthy ? tr("Sain") : errors ? tr("Attention requise") : tr("Avertissement")}</div>
-            <div className="truncate text-[12px] text-white/70">{ov?.alerts[0]?.message ?? (info.data ? tr("{0} · actif depuis {1}", info.data.hostname, duration(info.data.uptime)) : "")}</div>
+            <div className="truncate text-[12px] text-white/70">{srv(ov?.alerts[0]?.message) || (info.data ? tr("{0} · actif depuis {1}", info.data.hostname, duration(info.data.uptime)) : "")}</div>
           </div>
         </div>
       </Widget>

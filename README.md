@@ -6,7 +6,7 @@
 
 ## Interface
 
-Disponible en français et en anglais (choix dans le menu utilisateur ou sur l'écran de connexion ; par défaut, la langue du navigateur). Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/en.json` contient leur traduction (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent).
+Disponible en français et en anglais (choix dans le menu utilisateur ou sur l'écran de connexion ; par défaut, la langue du navigateur). Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/en.json` contient leur traduction (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent) ; les textes envoyés par le serveur (tâches, historique, alertes) sont traduits à l'affichage par les motifs de `frontend/src/i18n/server.ts`.
 
 Sur ordinateur, StrataOS s'affiche comme un **bureau** à la manière de Synology DSM ou fnOS : icônes d'applications, fenêtres déplaçables et redimensionnables (plusieurs à la fois, aimantation sur les bords, agrandir/réduire), barre des tâches, menu principal avec recherche, widgets (état, ressources, stockage, applications), fonds d'écran (clic droit sur le bureau), raccourcis vers les applications installées depuis l'App Center. Les pages sont regroupées en suites : **Gestionnaire de stockage**, **Panneau de configuration**, **Docker**.
 
@@ -35,7 +35,7 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Comptes** | Quotas par utilisateur (ext4, XFS, ZFS), double authentification TOTP avec codes de secours et réinitialisation par l'administrateur, certificat HTTPS importé ou Let's Encrypt automatique |
 | **Machines virtuelles** | KVM/libvirt installé en un clic : création guidée (Linux, Windows 10/11 avec TPM 2.0 et UEFI, autre), disques qcow2 dans un dossier partagé, ISO choisie parmi les fichiers des volumes, réseau NAT ou pont sur le réseau local, console graphique dans le navigateur (noVNC), démarrage/arrêt/pause/arrêt forcé, démarrage avec le NAS, changement de CD et de ressources |
 | **Synchronisation cloud** | rclone : Google Drive, OneDrive, Dropbox, S3 (AWS, Wasabi, MinIO, R2…), Backblaze B2, WebDAV/Nextcloud, SFTP ; envoi, téléchargement (avec ou sans miroir) ou bidirectionnelle, exclusions, limite de bande passante, planification, test de connexion et choix du dossier distant, jetons OAuth rafraîchis conservés, identifiants jamais renvoyés au navigateur |
-| **Domaine / LDAP** | Jonction à Active Directory (Samba serveur membre, winbind, Kerberos ; mot de passe administrateur jamais enregistré), droits des partages pour les utilisateurs et groupes du domaine (`DOMAINE\utilisateur`), sortie propre du domaine ; annuaire LDAP via sssd (identités POSIX pour les ACL et NFS) |
+| **Domaine / LDAP** | Jonction à Active Directory (Samba serveur membre, winbind, Kerberos ; mot de passe administrateur jamais enregistré), droits des partages pour les utilisateurs et groupes du domaine (`DOMAINE\utilisateur`), connexion à l'interface web et à WebDAV avec les comptes de l'annuaire (groupe d'administrateurs configurable), sortie propre du domaine ; annuaire LDAP via sssd (identités POSIX pour les ACL et NFS) |
 | **Services de fichiers** | WebDAV intégré (HTTPS, droits des partages, corbeille), FTP/FTPS (vsftpd, chiffrement exigible, ports passifs), SFTP confiné au stockage pour les utilisateurs sans accès SSH ; tout passe par les mêmes droits que SMB |
 | **Onduleur** | NUT : onduleur USB/série/SNMP avec détection, client d'un autre serveur NUT (Synology…), partage de l'onduleur sur le réseau, arrêt automatique (batterie faible ou après X minutes), alertes, mode simulation pour tester |
 | **Mises à jour** | Dépôt APT signé (`make repo`), mise à jour de StrataOS en un clic depuis l'interface, exécutée hors du service pour survivre à son redémarrage |
@@ -111,5 +111,4 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Titres et messages des tâches traduits côté serveur
 - Applications supplémentaires dans l'App Center, mises à jour automatiques des conteneurs

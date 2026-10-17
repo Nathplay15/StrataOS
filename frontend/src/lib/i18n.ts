@@ -1,6 +1,7 @@
 // Interface language. Texts are written in French in the code and wrapped in
 // tr("…"); the English dictionary maps them (missing entries stay in French).
 import en from "../i18n/en.json";
+import { serverTexts } from "../i18n/server";
 
 export type Lang = "fr" | "en";
 
@@ -37,34 +38,20 @@ export function setLang(l: Lang) {
   location.reload();
 }
 
-// Background job titles come from the server, partly in French, partly in English.
-const jobPrefixes: [string, string][] = [
-  ["Certificat Let's Encrypt pour ", "Let's Encrypt certificate for "],
-  ["Mise à jour de StrataOS", "StrataOS update"],
-  ["Mise à jour du système", "System update"],
-  ["Recherche de mises à jour", "Checking for updates"],
-  ["Sauvegarde : ", "Backup: "],
-  ["Synchronisation cloud : ", "Cloud sync: "],
-  ["Jonction à l'annuaire", "Joining the directory"],
-  ["Activer les quotas sur ", "Enable quotas on "],
-  ["Restauration : ", "Restore: "],
-  ["Tâche planifiée : ", "Scheduled task: "],
-  ["Création de la VM ", "Creating VM "],
-  ["Installation de ", "Install "],
-  ["Création du conteneur ", "Create container "],
-  ["Téléchargement de l'image ", "Pull "],
-  ["Création de la grappe RAID ", "Create RAID "],
-  ["Déploiement de la stack ", "Deploy stack "],
-  ["Création du volume ", "Create volume "],
-  ["Création du pool ZFS ", "Create ZFS pool "],
-  ["Équilibrage ", "Balance "],
-];
+const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// [source pattern, target template] for the current language, most specific first.
+const rules = serverTexts
+  .map(([fr, en]) => (lang === "en" ? [fr, en] : [en, fr]))
+  .map(([from, to]) => ({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to }))
+  .sort((a, b) => b.from.length - a.from.length);
 
-/** Translates a job title sent by the server. */
-export function jobTitle(title: string): string {
-  for (const [fr, en] of jobPrefixes) {
-    const [from, to] = lang === "en" ? [fr, en] : [en, fr];
-    if (title.startsWith(from)) return to + title.slice(from.length);
+/** Translates a text produced by the server (job title, history, alert…). */
+export function srv(text: string | undefined | null, depth = 0): string {
+  if (!text) return text ?? "";
+  for (const r of rules) {
+    const m = r.re.exec(text);
+    // Variable parts may themselves be server texts ("Backup: X" + ": finished").
+    if (m) return r.to.replace(/\{(\d)\}/g, (_, i) => (depth < 3 ? srv(m[+i + 1], depth + 1) : m[+i + 1]) ?? "");
   }
-  return title;
+  return text;
 }

@@ -8,7 +8,7 @@ import { ago, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { HistoryModal } from "./Backups";
-import { tr } from "../../lib/i18n";
+import { tr, srv } from "../../lib/i18n";
 
 type ProviderField = { key: string; label: string; secret?: boolean; required?: boolean; options?: string[]; hint?: string };
 type Provider = { id: string; label: string; fields: ProviderField[]; authorize?: string; bucket?: boolean };
@@ -63,7 +63,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
   const set = (k: Partial<Task>) => setT((o) => ({ ...o, ...k }));
   const payload = () => ({ ...t, cron: scheduled ? toCron(plan) : "", excludes: excludes.split("\n").map((x) => x.trim()).filter(Boolean) });
   const save = useAction(() => (editing ? api.put(`/api/cloudsync/${t.id}`, payload()) : api.post("/api/cloudsync", payload())), { success: editing ? tr("Synchronisation mise à jour") : tr("Synchronisation créée"), onDone: onClose });
-  const test = useAction(() => api.post<{ message: string }>("/api/cloudsync/test", payload()), { success: (r) => r.message });
+  const test = useAction(() => api.post<{ message: string }>("/api/cloudsync/test", payload()), { success: (r) => srv(r.message) });
   const field = (f: ProviderField) => {
     const v = (f.secret ? t.secrets[f.key] : t.params[f.key]) ?? "";
     const upd = (val: string) => (f.secret ? set({ secrets: { ...t.secrets, [f.key]: val } }) : set({ params: { ...t.params, [f.key]: val } }));
@@ -84,7 +84,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
           <Field label={tr("Nom")}><Input value={t.name} onChange={(e) => set({ name: e.target.value })} placeholder={tr("Photos → Google Drive")} autoFocus /></Field>
           <Field label={tr("Service")}>
             <Select value={t.provider} disabled={editing} onChange={(e) => { const np = providers.find((x) => x.id === e.target.value)!; setT({ ...blank(np), name: t.name, localPath: t.localPath, direction: t.direction }); }}>
-              {providers.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+              {providers.map((x) => <option key={x.id} value={x.id}>{srv(x.label)}</option>)}
             </Select>
           </Field>
         </div>
@@ -98,7 +98,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
             </Notice>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
-            {p.fields.map((f) => <Field key={f.key} label={f.label + (f.required ? "" : tr(" (optionnel)"))} hint={f.hint} className={f.key === "token" || f.key === "url" ? "sm:col-span-2" : ""}>{field(f)}</Field>)}
+            {p.fields.map((f) => <Field key={f.key} label={srv(f.label) + (f.required ? "" : tr(" (optionnel)"))} hint={srv(f.hint)} className={f.key === "token" || f.key === "url" ? "sm:col-span-2" : ""}>{field(f)}</Field>)}
           </div>
           {p.id === "sftp" && !t.secrets.pass && <div className="text-muted text-[12px]">{tr("Sans mot de passe, la clé SSH de StrataOS est utilisée (affichée dans Sauvegarde → nouvelle sauvegarde → serveur SSH).")}</div>}
         </div>
@@ -119,7 +119,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
           <Field label={tr("Dossier du NAS")}>
             <Select value={t.localPath} onChange={(e) => set({ localPath: e.target.value })}>
               <option value="">{tr("Choisir…")}</option>
-              {sources.folders.map((f) => <option key={f.path} value={f.path}>{f.label} ({f.path})</option>)}
+              {sources.folders.map((f) => <option key={f.path} value={f.path}>{srv(f.label)} ({f.path})</option>)}
               {t.localPath && !sources.folders.some((f) => f.path === t.localPath) && <option value={t.localPath}>{t.localPath}</option>}
             </Select>
           </Field>
@@ -201,7 +201,7 @@ export default function CloudSync() {
                   {last && (
                     <button onClick={() => setHist(t)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", last.status === "success" ? "bg-ok/10" : "bg-danger/10 text-danger")}>
                       {last.status === "success" ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
-                      <span className="min-w-0 break-words">{ago(last.started)} — {last.message}</span>
+                      <span className="min-w-0 break-words">{ago(last.started)} — {srv(last.message)}</span>
                     </button>
                   )}
                 </div>

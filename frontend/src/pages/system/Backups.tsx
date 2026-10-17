@@ -7,7 +7,7 @@ import type { BackupTask, ResticSnapshot } from "../../lib/types";
 import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
-import { tr } from "../../lib/i18n";
+import { tr, srv } from "../../lib/i18n";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -53,7 +53,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
   const set = (k: Partial<BackupTask>) => setB((p) => ({ ...p, ...k }));
   const payload = () => ({ ...b, cron: scheduled ? toCron(plan) : "", excludes: excludes.split("\n").map((x) => x.trim()).filter(Boolean) });
   const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Sauvegarde mise à jour") : tr("Sauvegarde créée"), onDone: onClose });
-  const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => r.message });
+  const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => srv(r.message) });
   const remote = b.destType === "ssh" || b.destType === "sftp";
   const destTypes = b.kind === "restic" ? [["local", tr("Dossier local / disque USB")], ["sftp", tr("Serveur SFTP (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("Serveur REST restic")]] : [["local", b.kind === "zfs" ? tr("Pool local") : tr("Dossier local / disque USB")], ["ssh", tr("Serveur distant (SSH)")]];
   const pickKind = (k: BackupTask["kind"]) => set({ kind: k, sources: [], destType: "local", destPath: "" });
@@ -87,7 +87,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {sources.folders.map((f) => (
-                <Checkbox key={f.path} checked={b.sources.includes(f.path)} onChange={(v) => set({ sources: v ? [...b.sources, f.path] : b.sources.filter((x) => x !== f.path) })} label={<span><span className="text-[13px]">{f.label}</span> <span className="mono text-muted text-[11px]">{f.path}</span></span>} />
+                <Checkbox key={f.path} checked={b.sources.includes(f.path)} onChange={(v) => set({ sources: v ? [...b.sources, f.path] : b.sources.filter((x) => x !== f.path) })} label={<span><span className="text-[13px]">{srv(f.label)}</span> <span className="mono text-muted text-[11px]">{f.path}</span></span>} />
               ))}
             </div>
           )}
@@ -122,7 +122,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
               <div className="flex gap-2">
                 <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && set({ destPath: `${e.target.value}/sauvegardes` })}>
                   <option value="">{tr("Volume…")}</option>
-                  {sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{f.label}</option>)}
+                  {sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
                 </Select>
                 <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />
               </div>
@@ -207,7 +207,7 @@ export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "his
           {b.history.map((h, i) => (
             <div key={i} className="flex items-start gap-3 rounded-xl bg-panel-2 px-4 py-3">
               {h.status === "success" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={17} className="mt-0.5 shrink-0 text-danger" />}
-              <div className="min-w-0"><div className="text-[13px] break-words">{h.message}</div><div className="text-muted text-[11.5px]">{dateTime(h.started)} · {Math.max(1, Math.round(h.duration))} s{h.manual ? tr(" · manuelle") : ""}</div></div>
+              <div className="min-w-0"><div className="text-[13px] break-words">{srv(h.message)}</div><div className="text-muted text-[11.5px]">{dateTime(h.started)} · {Math.max(1, Math.round(h.duration))} s{h.manual ? tr(" · manuelle") : ""}</div></div>
             </div>
           ))}
         </div>
@@ -256,7 +256,7 @@ export default function Backups() {
                   {last && (
                     <button onClick={() => setHist(b)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", last.status === "success" ? "bg-ok/10" : "bg-danger/10 text-danger")}>
                       {last.status === "success" ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
-                      <span className="min-w-0 break-words">{ago(last.started)} — {last.message}</span>
+                      <span className="min-w-0 break-words">{ago(last.started)} — {srv(last.message)}</span>
                     </button>
                   )}
                 </div>
