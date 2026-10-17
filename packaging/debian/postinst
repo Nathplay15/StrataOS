@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+case "$1" in
+  configure)
+    getent group strata >/dev/null || groupadd --system strata
+    mkdir -p /var/lib/strata /srv/strata
+    chmod 700 /var/lib/strata
+    chmod 755 /srv/strata
+    # Detected arrays must be assembled at boot.
+    mkdir -p /etc/mdadm
+    touch /etc/mdadm/mdadm.conf
+    # Treat every array as local (so degraded arrays can be started at boot) and drop
+    # volatile "spares=N" hints that delay assembly when a disk is missing.
+    sed -i -E '/^HOMEHOST/d; /^ARRAY/ s/ spares=[0-9]+//' /etc/mdadm/mdadm.conf
+    sed -i '1i HOMEHOST <ignore>' /etc/mdadm/mdadm.conf
+    command -v update-initramfs >/dev/null && update-initramfs -u >/dev/null 2>&1 || true
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload
+      systemctl enable strata.service >/dev/null 2>&1 || true
+      systemctl restart strata.service || true
+      systemctl enable --now smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
+      systemctl enable --now wsdd2.service >/dev/null 2>&1 || true
+      # samba (Recommends) pulls in the AD domain controller unit: StrataOS is a standalone server.
+      if ! grep -qi "server role *= *active directory" /etc/samba/smb.conf 2>/dev/null; then
+        systemctl disable --now samba-ad-dc.service >/dev/null 2>&1 || true
+        systemctl mask samba-ad-dc.service >/dev/null 2>&1 || true
+      fi
+      systemctl enable --now docker.service >/dev/null 2>&1 || true
+      systemctl reload avahi-daemon.service >/dev/null 2>&1 || true
+    fi
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    echo ""
+    echo "  StrataOS is running: http://${IP:-<server-ip>}:7070  (HTTPS: port 7443)"
+    echo ""
+    ;;
+esac
+exit 0

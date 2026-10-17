@@ -1,0 +1,18 @@
+[Unit]
+Description=StrataOS NAS management service
+Documentation=https://github.com/strataos/strataos
+After=network-online.target local-fs.target docker.service zfs-mount.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/strata
+Environment=STRATA_DATA=/var/lib/strata
+Restart=on-failure
+RestartSec=3
+# StrataOS manages disks, users and services: it must run as root.
+User=root
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

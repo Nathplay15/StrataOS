@@ -1,0 +1,18 @@
+Package: strataos
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: StrataOS <dev@strataos.local>
+Section: admin
+Priority: optional
+Homepage: https://github.com/strataos/strataos
+Depends: mdadm, lvm2, btrfs-progs, xfsprogs, e2fsprogs, smartmontools, samba, nfs-kernel-server, acl, parted, gdisk, util-linux, udev, procps, ca-certificates, rsync, openssh-client, quota
+Recommends: docker.io | docker-ce, docker-compose | docker-compose-plugin, avahi-daemon, wsdd2, restic, openssh-server, nut-client, nut-server
+Suggests: zfsutils-linux
+Installed-Size: @SIZE@
+Description: StrataOS - complete NAS operating system on top of Debian
+ StrataOS turns a plain Debian 13 installation into a full featured NAS:
+ disk and SMART monitoring, software RAID (mdadm), LVM, Btrfs and ZFS pools,
+ volumes, SMB/NFS shares with per-user permissions, users and groups,
+ a Docker Engine manager with Compose stacks and an application center,
+ file manager, monitoring, notifications and system administration,
+ all from a modern web interface (http://<host>:7070).

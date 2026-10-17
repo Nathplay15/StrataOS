@@ -1,0 +1,8 @@
+#!/bin/sh
+# Called by upssched (NUT) when a StrataOS UPS timer expires.
+case "$1" in
+  strata-shutdown)
+    logger -t strata-ups "Power outage lasted longer than the configured delay: shutting down"
+    /usr/sbin/upsmon -c fsd
+    ;;
+esac

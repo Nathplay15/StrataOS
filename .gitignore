@@ -1,0 +1,13 @@
+build/
+dist/
+frontend/node_modules/
+backend/web/dist/*
+!backend/web/dist/.gitkeep
+vm/images/
+vm/state/
+vm/last-test.log
+packaging/keys/gnupg/
+packaging/keys/keyid
+frontend/*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+.claude/
