@@ -437,6 +437,21 @@ c PUT /api/shares/Media -d "$(c GET /api/shares | py 'print(json.dumps([x for x 
 check "Windows previous versions (SMB)" "$(vm "smbclient //localhost/Media -U '$ADMIN_USER%$ADMIN_PASS' -c 'allinfo v.txt' 2>&1")" "@GMT-"
 check "versions folder hidden over SMB" "$(vm "smbclient //localhost/Media -U '$ADMIN_USER%$ADMIN_PASS' -c ls 2>&1 | grep -c strata-versions")" "0"
 
+section "Encrypted shares"
+check "NFS refused for an encrypted share" "$(c POST /api/shares -d '{"name":"CoffreNFS","path":"/srv/strata/main/CoffreNFS","smb":true,"nfs":true,"encrypted":true,"passphrase":"coffre-secret-1","browseable":true,"permissions":{}}')" "NFS"
+KEY=$(c POST /api/shares -d "{\"name\":\"Coffre\",\"path\":\"/srv/strata/main/Coffre\",\"smb\":true,\"encrypted\":true,\"passphrase\":\"coffre-secret-1\",\"browseable\":true,\"permissions\":{\"$USER_NAME\":\"rw\"}}" | py 'print(d["recoveryKey"])')
+check "recovery key given once" "$(echo "$KEY" | grep -cE '^[0-9a-f]{8}(-[0-9a-f]{8}){7}$')" "1"
+vm "echo top-secret > /tmp/s.txt; smbclient //localhost/Coffre -U '$USER_NAME%$USER_PASS' -c 'put /tmp/s.txt secret-doc.txt' >/dev/null 2>&1"
+check "encrypted share usable over SMB" "$(vm "sudo cat /srv/strata/main/Coffre/secret-doc.txt")" "top-secret"
+check "data stored encrypted" "$(vm "sudo grep -rl top-secret /srv/strata/main/.strata-crypt; sudo find /srv/strata/main/.strata-crypt -name 'secret-doc*' | wc -l")" "0"
+check "locked" "$(c POST /api/shares/Coffre/lock)" '"ok":true'
+check "locked share not published" "$(vm "smbclient //localhost/Coffre -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "NT_STATUS_BAD_NETWORK_NAME"
+check "files unreadable while locked" "$(vm "sudo ls /srv/strata/main/Coffre | wc -l")" "0"
+check "listed as locked" "$(c GET /api/shares | py 'print([s.get("locked") for s in d if s["name"]=="Coffre"])')" "[True]"
+check "wrong passphrase refused" "$(c POST /api/shares/Coffre/unlock -d '{"passphrase":"wrong-passphrase"}')" "wrong passphrase"
+check "unlocked with the recovery key" "$(c POST /api/shares/Coffre/unlock -d "{\"recoveryKey\":\"$KEY\"}")" '"ok":true'
+check "files back" "$(vm "smbclient //localhost/Coffre -U '$USER_NAME%$USER_PASS' -c 'get secret-doc.txt /tmp/back.txt' >/dev/null 2>&1; cat /tmp/back.txt")" "top-secret"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')
@@ -527,6 +542,8 @@ check "RAID assembled" "$(raid_health)" "healthy"
 check "volumes remounted" "$(c GET /api/storage/volumes | py 'print(sorted(v["name"] for v in d if v["mounted"]))')" "['fast', 'main']"
 check "container restarted" "$(vm "sudo docker ps --format '{{.Names}}'")" "uptime"
 check "services active" "$(vm "systemctl is-active strata smbd nfs-server docker | sort -u")" "active"
+check "encrypted share locked after a reboot" "$(c GET /api/shares | py 'print([s.get("locked") for s in d if s["name"]=="Coffre"])')" "[True]"
+check "unlocked again with the passphrase" "$(c POST /api/shares/Coffre/unlock -d '{"passphrase":"coffre-secret-1"}')" '"ok":true'
 
 section "Boot with a RAID disk and a ZFS disk missing"
 ./vm/vm.sh stop >/dev/null

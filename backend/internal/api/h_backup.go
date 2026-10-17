@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -71,7 +72,14 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 	return s.jobs.Start("backup", "Sauvegarde : "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(key)
 		start := time.Now()
-		msg, err := backup.Run(ctx, t, backup.Progress{Set: j.SetProgress, Log: j.Logf})
+		var msg string
+		var err error
+		if name := s.lockedShareIn(t.Sources); name != "" {
+			// An empty mount point would be copied (and, with deletion, wipe the backup).
+			err = fmt.Errorf("the encrypted share %s is locked: unlock it before the backup", name)
+		} else {
+			msg, err = backup.Run(ctx, t, backup.Progress{Set: j.SetProgress, Log: j.Logf})
+		}
 		run := store.ScheduleRun{Started: start, Duration: time.Since(start).Seconds(), Status: "success", Message: msg, Manual: manual}
 		if err != nil {
 			run.Status, run.Message = "failed", err.Error()

@@ -61,7 +61,7 @@ func (s *Server) haContinuousLoop() {
 		s.store.Read(func(st *store.State) {
 			c = st.HA
 			for _, sh := range st.Shares {
-				want = append(want, sh.Path)
+				want = append(want, sh.DataPath())
 			}
 		})
 		slices.Sort(want)

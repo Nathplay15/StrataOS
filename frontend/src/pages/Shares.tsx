@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Edit3, Monitor, Plus, Share2, Trash2, User as UserIcon, Users as UsersIcon } from "lucide-react";
+import { Edit3, Lock, Monitor, Plus, Share2, Trash2, Unlock, User as UserIcon, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Group, Perm, Share, User } from "../lib/types";
@@ -57,6 +57,21 @@ function PermPicker({ value, onChange }: { value?: Perm; onChange: (p?: Perm) =>
   );
 }
 
+function UnlockModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const [secret, setSecret] = useState("");
+  const [recovery, setRecovery] = useState(false);
+  const unlock = useAction(() => api.post(`/api/shares/${encodeURIComponent(name)}/unlock`, recovery ? { recoveryKey: secret } : { passphrase: secret }), { success: tr("Dossier déverrouillé"), onDone: onClose });
+  return (
+    <Modal open onClose={onClose} title={tr("Déverrouiller {0}", name)} footer={<><Button onClick={onClose}>{tr("Annuler")}</Button><Button variant="primary" disabled={!secret} loading={unlock.isPending} onClick={() => unlock.mutate()}>{tr("Déverrouiller")}</Button></>}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (secret) unlock.mutate(); }}>
+        <Field label={recovery ? tr("Clé de secours") : tr("Phrase secrète")}><Input autoFocus type={recovery ? "text" : "password"} className={recovery ? "mono" : ""} value={secret} onChange={(e) => setSecret(e.target.value)} /></Field>
+        <button type="button" className="text-accent text-[12.5px]" onClick={() => { setRecovery(!recovery); setSecret(""); }}>{recovery ? tr("Utiliser la phrase secrète") : tr("Phrase oubliée ? Utiliser la clé de secours")}</button>
+        <ErrorBox error={unlock.error} />
+      </form>
+    </Modal>
+  );
+}
+
 function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () => void }) {
   const editing = !!initial?.name;
   const [s, setS] = useState<Share>(initial ?? empty);
@@ -64,7 +79,24 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
   const [base, setBase] = useState(() => (initial?.path ? "" : ""));
-  const save = useAction(() => (editing ? api.put(`/api/shares/${encodeURIComponent(s.name)}`, s) : api.post("/api/shares", s)), { success: editing ? tr("Partage mis à jour") : tr("Partage créé"), onDone: onClose });
+  const [pass, setPass] = useState({ a: "", b: "" });
+  const [recovery, setRecovery] = useState("");
+  const save = useAction(() => (editing ? api.put(`/api/shares/${encodeURIComponent(s.name)}`, s) : api.post<{ recoveryKey?: string }>("/api/shares", { ...s, passphrase: s.encrypted ? pass.a : undefined })), {
+    success: editing ? tr("Partage mis à jour") : tr("Partage créé"),
+    onDone: (r) => { const k = (r as { recoveryKey?: string } | null)?.recoveryKey; if (k) setRecovery(k); else onClose(); },
+  });
+  const passOK = !s.encrypted || editing || (pass.a.length >= 8 && pass.a === pass.b);
+  if (recovery) {
+    return (
+      <Modal open onClose={onClose} title={tr("Clé de secours du dossier chiffré")} footer={<Button variant="primary" onClick={onClose}>{tr("Je l'ai notée")}</Button>}>
+        <div className="space-y-3">
+          <Notice tone="warn">{tr("Notez cette clé et gardez-la en lieu sûr : elle seule permet d'ouvrir le dossier si la phrase secrète est oubliée. Elle ne sera plus jamais affichée.")}</Notice>
+          <div className="mono break-all rounded-lg bg-panel-2 p-3 text-[14px] tracking-wide">{recovery}</div>
+          <Button size="sm" onClick={() => navigator.clipboard?.writeText(recovery)}>{tr("Copier")}</Button>
+        </div>
+      </Modal>
+    );
+  }
   const set = <K extends keyof Share>(k: K, v: Share[K]) => setS((p) => ({ ...p, [k]: v }));
   const setPerm = (who: string, p?: Perm) => setS((x) => { const perms = { ...x.permissions }; if (p) perms[who] = p; else delete perms[who]; return { ...x, permissions: perms }; });
 
@@ -76,7 +108,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
   return (
     <Modal open onClose={onClose} title={editing ? tr("Modifier « {0} »", s.name) : tr("Nouveau dossier partagé")} wide footer={<>
       <Button onClick={onClose}>{tr("Annuler")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!s.name || !s.path} onClick={() => save.mutate()}>{editing ? tr("Enregistrer") : tr("Créer")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!s.name || !s.path || !passOK} onClick={() => save.mutate()}>{editing ? tr("Enregistrer") : tr("Créer")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -93,9 +125,20 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
         )}
         <Field label={tr("Chemin du dossier")} hint={tr("Créé automatiquement s'il n'existe pas.")}><Input className="mono" value={s.path} onChange={(e) => set("path", e.target.value)} /></Field>
 
+        {!editing && (
+          <div className="space-y-3 rounded-xl border border-line p-4">
+            <Switch checked={!!s.encrypted} onChange={(v) => setS((p) => ({ ...p, encrypted: v, nfs: v ? false : p.nfs }))} label={tr("Chiffrer ce dossier")} hint={tr("Les fichiers sont stockés chiffrés ; après chaque démarrage, le dossier reste fermé jusqu'à ce qu'un administrateur saisisse la phrase secrète. Utile si le NAS ou ses disques sont volés.")} />
+            {s.encrypted && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={tr("Phrase secrète")} hint={tr("8 caractères minimum, jamais enregistrée sur le NAS")}><Input type="password" autoComplete="new-password" value={pass.a} onChange={(e) => setPass({ ...pass, a: e.target.value })} /></Field>
+                <Field label={tr("Confirmation")}><Input type="password" autoComplete="new-password" value={pass.b} onChange={(e) => setPass({ ...pass, b: e.target.value })} /></Field>
+              </div>
+            )}
+          </div>
+        )}
         <div className="grid gap-4 rounded-xl border border-line p-4 sm:grid-cols-2">
           <Switch checked={s.smb} onChange={(v) => set("smb", v)} label={tr("SMB / CIFS")} hint={tr("Windows, macOS, Linux")} />
-          <Switch checked={s.nfs} onChange={(v) => set("nfs", v)} label="NFS" hint={tr("Linux, hyperviseurs")} />
+          <Switch checked={s.nfs} disabled={!!s.encrypted} onChange={(v) => set("nfs", v)} label="NFS" hint={s.encrypted ? tr("Non disponible pour un dossier chiffré") : tr("Linux, hyperviseurs")} />
           <Switch checked={s.browseable} onChange={(v) => set("browseable", v)} label={tr("Visible sur le réseau")} />
           <Switch checked={s.recycleBin} onChange={(v) => set("recycleBin", v)} label={tr("Corbeille réseau")} hint={tr("Fichiers supprimés conservés dans .recycle")} />
           <Switch checked={s.timeMachine} onChange={(v) => set("timeMachine", v)} label={tr("Cible Time Machine")} hint={tr("Sauvegarde macOS")} />
@@ -147,6 +190,8 @@ export default function Shares() {
   const { confirm } = useUI();
   const [tab, setTab] = useState<"shares" | "sessions">("shares");
   const [edit, setEdit] = useState<Share | null | undefined>(undefined);
+  const [unlocking, setUnlocking] = useState<string | null>(null);
+  const lock = useAction((n: string) => api.post(`/api/shares/${encodeURIComponent(n)}/lock`), { success: tr("Dossier verrouillé") });
   const { data, isLoading, error } = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
   const sessions = useQuery({ queryKey: ["smb-sessions"], queryFn: () => api.get<{ pid: string; username: string; machine: string; protocol: string }[]>("/api/shares/sessions"), enabled: tab === "sessions", refetchInterval: 5000 });
   const del = useAction((n: string) => api.del(`/api/shares/${encodeURIComponent(n)}`), { success: tr("Partage supprimé (fichiers conservés)") });
@@ -176,6 +221,7 @@ export default function Shares() {
                   </div>
                   {s.description && <p className="mt-3 text-[13px] text-muted">{s.description}</p>}
                   <div className="mt-3 flex flex-wrap gap-1.5">
+                    {s.encrypted && <Badge tone={s.locked ? "warn" : "ok"}>{s.locked ? tr("Chiffré · verrouillé") : tr("Chiffré · ouvert")}</Badge>}
                     {s.smb && <Badge tone="accent">SMB</Badge>}
                     {s.nfs && <Badge tone="accent">NFS</Badge>}
                     {s.guest && <Badge tone="warn">{tr("Invité")}</Badge>}
@@ -196,6 +242,9 @@ export default function Shares() {
                   {s.smb && <div className="mono mt-3 rounded-lg bg-panel-2 px-2.5 py-1.5 text-[11.5px] text-muted">\\{host}\{s.name}</div>}
                 </div>
                 <div className="flex justify-end gap-1 border-t border-line bg-panel-2/50 px-4 py-2.5">
+                  {s.encrypted && (s.locked
+                    ? <Button size="sm" variant="primary" icon={<Unlock size={14} />} onClick={() => setUnlocking(s.name)}>{tr("Déverrouiller")}</Button>
+                    : <Button size="sm" variant="ghost" icon={<Lock size={14} />} onClick={async () => { if (await confirm({ title: tr("Verrouiller {0} ?", s.name), text: tr("Les connexions au partage sont fermées et les fichiers ne sont plus lisibles jusqu'au prochain déverrouillage.") })) lock.mutate(s.name); }}>{tr("Verrouiller")}</Button>)}
                   <Button size="sm" variant="ghost" icon={<Edit3 size={14} />} onClick={() => setEdit(s)}>{tr("Modifier")}</Button>
                   <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={async () => { if (await confirm({ title: tr("Supprimer le partage {0} ?", s.name), text: tr("Le partage ne sera plus accessible. Les fichiers restent sur le volume."), danger: true })) del.mutate(s.name); }} />
                 </div>
@@ -214,6 +263,7 @@ export default function Shares() {
         </Card>
       )}
       {edit !== undefined && <ShareModal initial={edit} onClose={() => setEdit(undefined)} />}
+      {unlocking && <UnlockModal name={unlocking} onClose={() => setUnlocking(null)} />}
     </div>
   );
 }

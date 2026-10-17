@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"strataos/internal/accounts"
+	"strataos/internal/crypt"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
@@ -307,8 +308,8 @@ func Apply(st *store.State) error {
 	b.WriteString("# Managed by StrataOS - manual changes will be overwritten.\n")
 	var skipped []string
 	for _, sh := range st.Shares {
-		if !sh.SMB {
-			continue
+		if !sh.SMB || (sh.Encrypted && !crypt.Mounted(sh.Path)) {
+			continue // a locked encrypted share is never published
 		}
 		// Never publish a share whose folder is (or goes through) a symlink a user
 		// could have planted: Samba would serve whatever it points to.
@@ -401,8 +402,8 @@ func Apply(st *store.State) error {
 	var n strings.Builder
 	n.WriteString("# Managed by StrataOS - manual changes will be overwritten.\n")
 	for _, sh := range st.Shares {
-		if !sh.NFS {
-			continue
+		if !sh.NFS || sh.Encrypted {
+			continue // encrypted shares: SMB, WebDAV, SFTP only
 		}
 		if err := ValidateNFS(sh.NFSClients, sh.NFSOptions); err != nil {
 			skipped = append(skipped, fmt.Sprintf("share %s not exported: %v", sh.Name, err))

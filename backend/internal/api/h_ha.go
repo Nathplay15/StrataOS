@@ -109,7 +109,7 @@ func (s *Server) replicate(ctx context.Context, logf func(string, ...any)) error
 	known := filepath.Join(backup.KeyDir, "known_hosts")
 	var failed []string
 	for _, sh := range shareList {
-		if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.Path, logf); err != nil {
+		if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.DataPath(), logf); err != nil {
 			logf("%v", err)
 			failed = append(failed, sh.Name)
 		}
@@ -595,7 +595,7 @@ func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
 		known := filepath.Join(backup.KeyDir, "known_hosts")
 		j.Logf("Copie des modifications vers %s…", c.PeerHost)
 		for _, sh := range list {
-			if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.Path, j.Logf); err != nil {
+			if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.DataPath(), j.Logf); err != nil {
 				return err
 			}
 		}

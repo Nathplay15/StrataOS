@@ -202,6 +202,8 @@ export interface Share {
   quotaFull?: boolean;
   used?: number;
   createdAt?: string;
+  encrypted?: boolean;
+  locked?: boolean;
 }
 
 export interface Sample {

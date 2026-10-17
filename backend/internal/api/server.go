@@ -94,6 +94,7 @@ func New(c Config) *Server {
 	go s.shareQuotaLoop()
 	go s.energyLoop()
 	go s.versionLinksLoop()
+	go s.lockedSharesNotice()
 	return s
 }
 

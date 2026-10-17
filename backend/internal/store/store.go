@@ -56,6 +56,20 @@ type Share struct {
 	Used       int64     `json:"used,omitempty"`
 	UsedAt     time.Time `json:"usedAt,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
+	// Encrypted: the files live encrypted in CipherDir (gocryptfs) and appear
+	// at Path only while unlocked; Locked is filled in when listed.
+	Encrypted bool   `json:"encrypted,omitempty"`
+	CipherDir string `json:"cipherDir,omitempty"`
+	Locked    bool   `json:"locked,omitempty"`
+}
+
+// DataPath is the folder holding the share's data on disk: the encrypted
+// store for an encrypted share (what replication and backups must copy).
+func (s *Share) DataPath() string {
+	if s.Encrypted && s.CipherDir != "" {
+		return s.CipherDir
+	}
+	return s.Path
 }
 
 // Writable reports whether a permission allows writing, a full share being read-only.

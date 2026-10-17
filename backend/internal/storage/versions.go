@@ -206,3 +206,14 @@ func SyncVersionLinks(mp string) error {
 	}
 	return nil
 }
+
+// MountOf returns the mount point holding p (or its nearest existing parent).
+func MountOf(p string) string {
+	for q := filepath.Clean(p); q != "/" && q != "."; q = filepath.Dir(q) {
+		if _, err := os.Stat(q); err == nil {
+			mp, _ := mountOf(q)
+			return mp
+		}
+	}
+	return ""
+}
