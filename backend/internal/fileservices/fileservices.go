@@ -77,6 +77,7 @@ allow_anon_ssl=NO
 force_local_logins_ssl=%s
 force_local_data_ssl=%s
 xferlog_enable=YES
+syslog_enable=YES
 utf8_filesystem=YES
 secure_chroot_dir=/var/run/vsftpd/empty
 `, StorageRoot, FTPUsers, c.FTPPassiveMin, c.FTPPassiveMax, cert, key, tls, tls)

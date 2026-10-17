@@ -50,7 +50,9 @@ func raiseWatchLimit(n int) {
 	}
 }
 
-func skipWatch(name string) bool { return name == ".recycle" || name == ".strata-versions" || name == "#recycle" || name == "@eaDir" }
+func skipWatch(name string) bool {
+	return name == ".recycle" || name == ".strata-versions" || name == "#recycle" || name == "@eaDir"
+}
 
 // NewWatcher starts following roots and their sub-folders.
 func NewWatcher(roots []string) (*Watcher, error) {

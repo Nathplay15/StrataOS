@@ -118,6 +118,7 @@ func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthC
 	}
 	if !valid {
 		s.store.Log("warning", "auth", login, "Failed WebDAV login from "+ip)
+		s.guardFail(ip, "WebDAV", login)
 		return deny(http.StatusUnauthorized, "invalid credentials")
 	}
 	if u.TOTPSecret != "" {

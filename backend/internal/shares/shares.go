@@ -272,6 +272,7 @@ func smbGlobal(set store.Settings, dir store.Directory) string {
    log file = /var/log/samba/log.%%m
    max log size = 1000
    logging = file
+   log level = 1 auth_json_audit:3@/var/log/samba/strata-auth.log
    load printers = no
    printing = bsd
    printcap name = /dev/null

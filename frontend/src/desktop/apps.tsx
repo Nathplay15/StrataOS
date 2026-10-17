@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -29,6 +29,7 @@ const Schedules = lazy(() => import("../pages/system/Schedules"));
 const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
+const GuardPage = lazy(() => import("../pages/system/Guard"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
@@ -88,6 +89,7 @@ export const APPS: AppDef[] = [
       { id: "directory", label: tr("Domaine / LDAP"), icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
       { id: "schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
+      { id: "guard", label: tr("Blocage d'adresses"), icon: <ShieldBan size={16} />, component: page(GuardPage), path: "/system/guard" },
       { id: "network", label: tr("Réseau"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
       { id: "remote", label: tr("Accès à distance"), icon: <Waypoints size={16} />, component: page(RemotePage), path: "/system/remote" },
       { id: "ha", label: tr("Haute disponibilité"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },

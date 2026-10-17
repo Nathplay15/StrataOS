@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strataos/internal/energy"
+	"strataos/internal/guard"
 	"sync"
 	"time"
 
@@ -229,6 +230,12 @@ type HA struct {
 	Continuous bool `json:"continuous,omitempty"`
 }
 
+// Guard is the automatic blocking of addresses (and countries).
+type Guard struct {
+	Config guard.Config  `json:"config"`
+	Blocks []guard.Block `json:"blocks,omitempty"`
+}
+
 // Energy holds the power saving settings.
 type Energy struct {
 	SpindownMin int             `json:"spindownMin"` // 0 = disks never sleep
@@ -371,6 +378,7 @@ type State struct {
 	DDNS      DDNS          `json:"ddns"`
 	Links     []*ShareLink  `json:"links,omitempty"`
 	Energy    Energy        `json:"energy"`
+	Guard     Guard         `json:"guard"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

@@ -452,6 +452,44 @@ check "wrong passphrase refused" "$(c POST /api/shares/Coffre/unlock -d '{"passp
 check "unlocked with the recovery key" "$(c POST /api/shares/Coffre/unlock -d "{\"recoveryKey\":\"$KEY\"}")" '"ok":true'
 check "files back" "$(vm "smbclient //localhost/Coffre -U '$USER_NAME%$USER_PASS' -c 'get secret-doc.txt /tmp/back.txt' >/dev/null 2>&1; cat /tmp/back.txt")" "top-secret"
 
+section "Address blocking"
+check "blocking on" "$(c PUT /api/guard -d '{"enabled":true,"maxFailures":3,"windowMin":10,"blockMin":5,"neverLan":false,"allow":["10.0.2.2/32"],"geo":{"enabled":false}}')" '"ok":true'
+vm "sudo docker rm -f atk >/dev/null 2>&1; sudo docker run -d --name atk alpine:3.20 sh -c 'apk add -q curl sshpass openssh-client samba-client >/dev/null && sleep 900' >/dev/null"
+for _ in $(seq 1 60); do vm "sudo docker exec atk which smbclient" | grep -q smbclient && break; sleep 2; done
+ATK=$(vm "sudo docker inspect -f '{{.NetworkSettings.IPAddress}}' atk")
+login_atk() { vm "sudo docker exec atk curl -s -m 5 -o /dev/null -w '%{http_code}' -X POST -H 'X-Strata: 1' http://172.17.0.1:7070/api/login -d '{\"username\":\"$ADMIN_USER\",\"password\":\"wrong-$1\"}'; echo \" rc=\$?\""; }
+for i in 1 2 3; do login_atk $i >/dev/null; done
+check "address blocked after failed web logins" "$(c GET /api/guard | py 'print([(b["ip"], b["service"]) for b in d["blocks"]])')" "('$ATK', 'web')"
+check "blocked address cut off" "$(login_atk 4)" "rc=28"
+check "rule in nftables" "$(vm "sudo nft list set inet strata_guard blocked4")" "$ATK"
+check "allowed address still served" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/setup)" "200"
+c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
+check "unblocked" "$(vm "sudo docker exec atk curl -s -m 5 -o /dev/null -w '%{http_code}' http://172.17.0.1:7070/api/setup")" "200"
+vm "sudo docker exec atk sh -c 'for i in 1 2 3; do sshpass -p wrong ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=password -o PubkeyAuthentication=no $USER_NAME@172.17.0.1 true 2>/dev/null; done'"
+for _ in $(seq 1 10); do c GET /api/guard | grep -q 'SSH' && break; sleep 1; done
+check "failed SSH logins detected" "$(c GET /api/guard | py 'print([b["service"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "SSH/SFTP"
+c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
+vm "sudo docker exec atk sh -c 'for i in 1 2 3; do smbclient //172.17.0.1/Photos -U $USER_NAME%wrong -c ls >/dev/null 2>&1; done'"
+for _ in $(seq 1 10); do c GET /api/guard | grep -q 'SMB' && break; sleep 1; done
+check "failed SMB logins detected" "$(c GET /api/guard | py 'print([b["service"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "SMB"
+c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
+vm "sudo docker exec atk sh -c 'for i in 1 2 3; do curl -s -k --ssl-reqd -m 8 ftp://172.17.0.1/ -u $USER_NAME:wrong >/dev/null; done'"
+for _ in $(seq 1 10); do c GET /api/guard | grep -q '"FTP"' && break; sleep 1; done
+check "failed FTP logins detected" "$(c GET /api/guard | py 'print([b["service"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "FTP"
+check "repeat offender blocked longer" "$(c GET /api/guard | py 'print([b["count"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "[4]"
+c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
+# Countries (ranges served by a test server on the host).
+mkdir -p "$TMP/geo"; echo "198.51.100.0/24" > "$TMP/geo/fr4.zone"; echo "2001:db8:100::/48" > "$TMP/geo/fr6.zone"
+(cd "$TMP/geo" && exec python3 -m http.server 8099 --bind 127.0.0.1 >/dev/null 2>&1) & GEO_PID=$!
+vm "sudo mkdir -p /etc/systemd/system/strata.service.d && printf '[Service]\nEnvironment=STRATA_GEO_SOURCES=http://10.0.2.2:8099/{cc}4.zone|http://10.0.2.2:8099/{cc}6.zone\n' | sudo tee /etc/systemd/system/strata.service.d/geo-test.conf >/dev/null && sudo systemctl daemon-reload && sudo systemctl restart strata"
+wait_api
+check "countries restricted" "$(c PUT /api/guard -d '{"enabled":true,"maxFailures":3,"windowMin":10,"blockMin":5,"neverLan":false,"allow":["10.0.2.2/32"],"geo":{"enabled":true,"countries":["fr"]}}')" '"ok":true'
+check "country ranges loaded" "$(vm "sudo nft list set inet strata_guard geo4")" "198.51.100.0/24"
+check "local network kept" "$(vm "sudo docker exec atk curl -s -m 5 -o /dev/null -w '%{http_code}' http://172.17.0.1:7070/api/setup")" "200"
+c PUT /api/guard -d '{"enabled":false,"maxFailures":5,"windowMin":10,"blockMin":60,"neverLan":true,"geo":{"enabled":false}}' >/dev/null
+check "protection off removes the rules" "$(vm "sudo nft list table inet strata_guard 2>&1")" "No such file"
+kill $GEO_PID 2>/dev/null; vm "sudo rm -f /etc/systemd/system/strata.service.d/geo-test.conf; sudo systemctl daemon-reload; sudo docker rm -f atk >/dev/null"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

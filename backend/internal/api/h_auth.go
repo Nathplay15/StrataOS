@@ -162,6 +162,7 @@ func (s *Server) authRoutes() {
 				checkPassword(dummyHash(), req.Password)
 			}
 			s.store.Log("warning", "auth", req.Username, "Failed login from "+ip)
+			s.guardFail(ip, "web", req.Username)
 			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: errBadLogin.Error()})
 			return
 		}
@@ -173,6 +174,7 @@ func (s *Server) authRoutes() {
 			}
 			if !s.checkSecondFactor(u.Username, req.Code) {
 				s.store.Log("warning", "auth", u.Username, "Wrong two-factor code from "+ip)
+				s.guardFail(ip, "web", u.Username)
 				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "code de double authentification incorrect", "twoFactor": true})
 				return
 			}

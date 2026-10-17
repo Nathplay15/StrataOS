@@ -378,6 +378,7 @@ func (s *Server) linkRoutes() {
 			return
 		}
 		if l.PasswordHash == "" || !checkPassword(l.PasswordHash, req.Password) {
+			s.guardFail(ip, "lien de partage", "")
 			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "wrong password"})
 			return
 		}
