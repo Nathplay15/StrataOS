@@ -44,6 +44,7 @@ const HAPage = lazy(() => import("./pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
 const PhotosPage = lazy(() => import("./pages/Photos"));
 const LinksPage = lazy(() => import("./pages/Links"));
+const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
 
 const qc = new QueryClient({
@@ -116,6 +117,7 @@ function Root() {
             <Route path="system/schedules" element={A(<Schedules />)} />
             <Route path="backup" element={A(<Backups />)} />
             <Route path="system/ups" element={A(<UPSPage />)} />
+            <Route path="system/energy" element={A(<EnergyPage />)} />
             <Route path="vms" element={A(<VirtualMachines />)} />
             <Route path="cloudsync" element={A(<CloudSync />)} />
             <Route path="system/fileservices" element={A(<FileServicesPage />)} />

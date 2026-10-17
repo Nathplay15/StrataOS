@@ -37,7 +37,9 @@ type SmartInfo struct {
 	Messages     []string    `json:"messages,omitempty"`
 	// Warnings lists early signs of wear (the disk still passes its overall test).
 	Warnings []string `json:"warnings,omitempty"`
-	nvmeLog  nvmeHealth
+	// Standby: the disk is asleep and was left alone (no data read).
+	Standby bool `json:"standby,omitempty"`
+	nvmeLog nvmeHealth
 }
 
 type nvmeHealth struct {
@@ -106,8 +108,13 @@ func validateBlockDevice(dev string) error {
 	return nil
 }
 
-// Smart reads SMART data of a disk with smartctl.
-func Smart(dev string) (*SmartInfo, error) {
+// Smart reads SMART data of a disk with smartctl (waking it up if needed).
+func Smart(dev string) (*SmartInfo, error) { return smart(dev, false) }
+
+// SmartIfAwake is Smart for periodic checks: a sleeping disk is not woken up.
+func SmartIfAwake(dev string) (*SmartInfo, error) { return smart(dev, true) }
+
+func smart(dev string, noWake bool) (*SmartInfo, error) {
 	if err := validateBlockDevice(dev); err != nil {
 		return nil, err
 	}
@@ -115,10 +122,21 @@ func Smart(dev string) (*SmartInfo, error) {
 		return nil, fmt.Errorf("smartmontools is not installed")
 	}
 	// smartctl exit status is a bitmask; parse output whatever the code.
-	out, _ := sys.RunOpts(nilCtx(), sys.Opts{AllowCodes: []int{-2}}, "smartctl", "-j", "-a", dev)
+	args := []string{"-j", "-a", dev}
+	if noWake {
+		args = append([]string{"-n", "standby"}, args...)
+	}
+	out, _ := sys.RunOpts(nilCtx(), sys.Opts{AllowCodes: []int{-2}}, "smartctl", args...)
 	var j smartctlJSON
 	if err := json.Unmarshal([]byte(out), &j); err != nil {
 		return nil, fmt.Errorf("smartctl: unreadable output")
+	}
+	if noWake {
+		for _, m := range j.Smartctl.Messages {
+			if strings.Contains(m.String, "STANDBY") || strings.Contains(m.String, "SLEEP") {
+				return &SmartInfo{Device: dev, Standby: true, Attributes: []SmartAttr{}}, nil
+			}
+		}
 	}
 	info := &SmartInfo{
 		Device: dev, Available: j.SmartSupport.Available, Enabled: j.SmartSupport.Enabled,

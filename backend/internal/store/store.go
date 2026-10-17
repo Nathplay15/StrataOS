@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strataos/internal/energy"
 	"sync"
 	"time"
 
@@ -211,6 +212,21 @@ type HA struct {
 	AutoReturn  bool `json:"autoReturn,omitempty"`
 }
 
+// Energy holds the power saving settings.
+type Energy struct {
+	SpindownMin int             `json:"spindownMin"` // 0 = disks never sleep
+	Governor    string          `json:"governor,omitempty"`
+	Schedule    energy.Schedule `json:"schedule"`
+	WoL         []string        `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
+	Devices     []WakeDevice    `json:"devices,omitempty"`
+}
+
+// WakeDevice is a machine the NAS can wake up (Wake-on-LAN).
+type WakeDevice struct {
+	Name string `json:"name"`
+	MAC  string `json:"mac"`
+}
+
 // Photos lists the folders indexed by the Photos app and the albums.
 type Photos struct {
 	Folders []string `json:"folders"`
@@ -337,6 +353,7 @@ type State struct {
 	Photos    Photos        `json:"photos"`
 	DDNS      DDNS          `json:"ddns"`
 	Links     []*ShareLink  `json:"links,omitempty"`
+	Energy    Energy        `json:"energy"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

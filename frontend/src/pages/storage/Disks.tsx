@@ -121,7 +121,7 @@ export default function Disks() {
                     {d.healthy === false && <Badge tone="danger" dot>{tr("SMART défaillant")}</Badge>}
                   </div>
                   <div className="mt-4 flex gap-5 text-[12.5px] text-muted">
-                    <span className="flex items-center gap-1.5"><Thermometer size={14} /> {d.temperature ? tr("{0} °C", d.temperature) : "—"}</span>
+                    <span className="flex items-center gap-1.5"><Thermometer size={14} /> {d.standby ? tr("En veille") : d.temperature ? tr("{0} °C", d.temperature) : "—"}</span>
                     <span className="flex items-center gap-1.5"><Activity size={14} /> {d.powerOnHours ? tr("{0} h", d.powerOnHours.toLocaleString(locale)) : "—"}</span>
                   </div>
                   {d.children && d.children.length > 0 && (

@@ -40,12 +40,13 @@ func (s *Server) storageRoutes() {
 			Temperature  int   `json:"temperature"`
 			Healthy      *bool `json:"healthy"`
 			PowerOnHours int   `json:"powerOnHours"`
+			Standby      bool  `json:"standby,omitempty"`
 		}
 		out := make([]diskView, 0, len(disks))
 		for _, d := range disks {
 			v := diskView{BlockDevice: d}
-			if info, err := storage.Smart(d.Path); err == nil {
-				v.Temperature, v.Healthy, v.PowerOnHours = info.Temperature, info.Passed, info.PowerOnHours
+			if info, err := storage.SmartIfAwake(d.Path); err == nil {
+				v.Temperature, v.Healthy, v.PowerOnHours, v.Standby = info.Temperature, info.Passed, info.PowerOnHours, info.Standby
 			}
 			out = append(out, v)
 		}

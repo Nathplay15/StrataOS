@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2 } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -28,6 +28,7 @@ const SettingsPage = lazy(() => import("../pages/system/Settings"));
 const Schedules = lazy(() => import("../pages/system/Schedules"));
 const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
+const EnergyPage = lazy(() => import("../pages/system/Energy"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
@@ -91,6 +92,7 @@ export const APPS: AppDef[] = [
       { id: "remote", label: tr("Accès à distance"), icon: <Waypoints size={16} />, component: page(RemotePage), path: "/system/remote" },
       { id: "ha", label: tr("Haute disponibilité"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },
       { id: "ups", label: tr("Onduleur"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
+      { id: "energy", label: tr("Énergie"), icon: <Leaf size={16} />, component: page(EnergyPage), path: "/system/energy" },
       { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },
       { id: "updates", label: tr("Mises à jour"), icon: <RefreshCcw size={16} />, component: page(Updates), path: "/system/updates" },
       { id: "settings", label: tr("Paramètres"), icon: <Settings size={16} />, component: page(SettingsPage), path: "/system/settings" },

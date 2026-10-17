@@ -395,6 +395,19 @@ u DELETE /api/photos/albums/$AL >/dev/null
 check "deleting the album removes its link" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LA)" "410"
 rm -f "$L3"
 
+section "Energy"
+check "energy status" "$(c GET /api/energy | py 'print(d["hdparm"], len(d["nics"]) > 0, "config" in d)')" "True True True"
+check "invalid schedule refused" "$(c PUT /api/energy -d '{"spindownMin":20,"schedule":{"enabled":true,"days":[1],"shutdown":"25:00","wake":""}}')" "HH:MM"
+check "invalid device refused" "$(c PUT /api/energy -d '{"spindownMin":20,"schedule":{"enabled":false,"days":[]},"devices":[{"name":"pc","mac":"zz"}]}')" "invalid MAC"
+c PUT /api/energy -d '{"spindownMin":20,"schedule":{"enabled":true,"days":[0,1,2,3,4,5,6],"shutdown":"03:30","wake":"07:00"},"devices":[{"name":"Backup server","mac":"AA-BB-CC-DD-EE-01"}]}' >/dev/null
+check "schedule planned" "$(c GET /api/energy | py 'print(d["nextShutdown"][11:16], d["config"]["devices"][0]["mac"])')" "03:30 aa:bb:cc:dd:ee:01"
+vm "rm -f /tmp/wol.txt; sudo setsid nohup timeout 20 python3 -c 'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind((\"\",9));d=s.recv(200);print(len(d), d[6:12].hex(), flush=True)' > /tmp/wol.txt 2>&1 < /dev/null & sleep 1"
+sleep 2; c POST /api/energy/wake -d '{"mac":"aa:bb:cc:dd:ee:01"}' >/dev/null
+for _ in $(seq 1 10); do vm 'cat /tmp/wol.txt' | grep -q 102 && break; sleep 1; done
+check "Wake-on-LAN magic packet sent" "$(vm 'cat /tmp/wol.txt')" "102 aabbccddee01"
+c PUT /api/energy -d '{"spindownMin":0,"schedule":{"enabled":false,"days":[]}}' >/dev/null
+check "schedule off" "$(c GET /api/energy | py 'print("nextShutdown" in d)')" "False"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

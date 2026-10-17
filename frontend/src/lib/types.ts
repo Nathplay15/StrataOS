@@ -44,6 +44,7 @@ export interface Disk extends BlockDevice {
   temperature: number;
   healthy: boolean | null;
   powerOnHours: number;
+  standby?: boolean;
 }
 
 export interface SmartInfo {

@@ -170,7 +170,7 @@ func (s *Server) healthWatcher() {
 		disks, _ := storage.ListDisks()
 		var weak []alert
 		for _, d := range disks {
-			info, err := storage.Smart(d.Path)
+			info, err := storage.SmartIfAwake(d.Path)
 			if err != nil {
 				continue
 			}
