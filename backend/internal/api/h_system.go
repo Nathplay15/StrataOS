@@ -13,6 +13,7 @@ import (
 	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strataos/internal/ha"
+	"strataos/internal/i18n"
 	"strataos/internal/photos"
 	"strataos/internal/vpn"
 	"strings"
@@ -306,6 +307,9 @@ func (s *Server) systemRoutes() {
 		}
 		if strings.ContainsAny(req.NtfyToken+req.NtfyURL+req.TelegramToken, "\n\r ") {
 			return nil, badRequest("invalid characters")
+		}
+		if req.NotifyLang != "" && !i18n.Valid(req.NotifyLang) {
+			return nil, badRequest("invalid language")
 		}
 		switch req.SMBMinProto {
 		case "", "SMB2", "SMB2_10", "SMB3", "SMB3_11":

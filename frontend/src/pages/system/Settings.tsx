@@ -5,7 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Settings, SystemInfo } from "../../lib/types";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
-import { tr, locale } from "../../lib/i18n";
+import { tr, locale, languages } from "../../lib/i18n";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
 
@@ -129,6 +129,11 @@ export default function SettingsPage() {
             <Field label={tr("Mot de passe SMTP")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
             <Field label={tr("Expéditeur")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Destinataire des alertes")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
+            <Field label={tr("Langue des notifications")} hint={tr("Alertes et rapport mensuel, sur tous les canaux")}>
+              <Select value={s.notifyLang || "fr"} onChange={(e) => set("notifyLang", e.target.value)}>
+                {languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </Select>
+            </Field>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line p-4">
             <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Rapport mensuel")} hint={tr("Le 1er de chaque mois à 8 h : espace, santé des disques, sauvegardes, antivirus, mises à jour")} /></div>

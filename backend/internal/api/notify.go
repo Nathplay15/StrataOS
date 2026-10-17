@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"regexp"
 	"strataos/internal/accounts"
+	"strataos/internal/i18n"
 	"strconv"
 	"strings"
 	"sync"
@@ -223,6 +224,7 @@ func (s *Server) notify(subject, msg string) {
 func (s *Server) sendNotification(subject, msg string) error {
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
+	subject, msg = i18n.Lines(set.NotifyLang, subject), i18n.Lines(set.NotifyLang, msg)
 	host, _ := hostname()
 	var errs []string
 	sent := false

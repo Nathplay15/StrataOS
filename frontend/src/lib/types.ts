@@ -357,6 +357,7 @@ export interface Settings {
   telegramToken?: string;
   telegramChatId?: string;
   monthlyReport?: boolean;
+  notifyLang?: string;
   ntfyUrl?: string;
   ntfyToken?: string;
   smbMinProtocol: string;

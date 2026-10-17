@@ -9,6 +9,7 @@ all: deb
 
 frontend:
 	cd frontend && npm ci --no-audit --no-fund && npm run build
+	cd frontend && node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json
 	touch backend/web/dist/.gitkeep  # vite empties the folder; keep it for go:embed in fresh clones
 
 backend:

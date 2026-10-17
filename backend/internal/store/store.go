@@ -98,6 +98,8 @@ type Settings struct {
 	// self-hosted server) and an optional access token.
 	NtfyURL   string `json:"ntfyUrl,omitempty"`
 	NtfyToken string `json:"ntfyToken,omitempty"`
+	// NotifyLang is the language of notifications and reports ("" = fr).
+	NotifyLang string `json:"notifyLang,omitempty"`
 	// MonthlyReport sends a health report on the 1st of each month.
 	MonthlyReport bool   `json:"monthlyReport,omitempty"`
 	SMBMinProto   string `json:"smbMinProtocol"`

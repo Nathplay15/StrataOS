@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strataos/internal/i18n"
 	"strconv"
 	"strings"
 	"time"
@@ -162,9 +163,12 @@ func uniq(l []string) []string {
 func (s *Server) reportRoutes() {
 	s.admin("POST /api/settings/report", func(r *http.Request) (any, error) {
 		subject, body := s.monthlyReport()
+		var lang string
+		s.store.Read(func(st *store.State) { lang = st.Settings.NotifyLang })
+		shown := i18n.Lines(lang, body)
 		if err := s.sendNotification(subject, body); err != nil {
-			return map[string]string{"report": body, "warning": err.Error()}, nil
+			return map[string]string{"report": shown, "warning": err.Error()}, nil
 		}
-		return map[string]string{"report": body}, nil
+		return map[string]string{"report": shown}, nil
 	})
 }
