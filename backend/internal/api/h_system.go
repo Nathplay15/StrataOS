@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strings"
 	"time"
@@ -319,27 +320,28 @@ func (s *Server) systemRoutes() {
 	// Optional components installed through bundled scripts.
 	s.admin("GET /api/system/components", func(r *http.Request) (any, error) {
 		return map[string]bool{
-			"zfs":     storage.ZFSAvailable(),
-			"docker":  sys.Has("docker"),
-			"compose": composeAvailable(),
-			"samba":   sys.Has("smbd"),
-			"nfs":     sys.Has("exportfs"),
-			"btrfs":   sys.Has("mkfs.btrfs"),
-			"lvm":     sys.Has("lvcreate"),
-			"mdadm":   sys.Has("mdadm"),
-			"smart":   sys.Has("smartctl"),
-			"restic":  sys.Has("restic"),
-			"nut":     sys.Has("upsmon"),
-			"vms":     sys.Has("virsh"),
-			"rclone":  sys.Has("rclone"),
-			"ftp":     fileservices.FTPInstalled(),
-			"rsync":   sys.Has("rsync"),
-			"xfs":     sys.Has("mkfs.xfs"),
+			"zfs":       storage.ZFSAvailable(),
+			"docker":    sys.Has("docker"),
+			"compose":   composeAvailable(),
+			"samba":     sys.Has("smbd"),
+			"nfs":       sys.Has("exportfs"),
+			"btrfs":     sys.Has("mkfs.btrfs"),
+			"lvm":       sys.Has("lvcreate"),
+			"mdadm":     sys.Has("mdadm"),
+			"smart":     sys.Has("smartctl"),
+			"restic":    sys.Has("restic"),
+			"nut":       sys.Has("upsmon"),
+			"vms":       sys.Has("virsh"),
+			"rclone":    sys.Has("rclone"),
+			"ftp":       fileservices.FTPInstalled(),
+			"directory": directory.ADInstalled() && directory.LDAPInstalled(),
+			"rsync":     sys.Has("rsync"),
+			"xfs":       sys.Has("mkfs.xfs"),
 		}, nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}

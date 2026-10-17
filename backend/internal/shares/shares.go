@@ -139,6 +139,11 @@ func Prepare(sh *store.Share) error {
 		if strings.HasPrefix(who, "@") {
 			kind, name = "g", who[1:]
 		}
+		// Domain accounts exist only while the NAS is in the domain: an unknown
+		// name would make setfacl reject every entry.
+		if strings.Contains(name, `\`) && !resolvable(kind, name) {
+			continue
+		}
 		specs = append(specs, fmt.Sprintf("%s:%s:%s", kind, name, bits), fmt.Sprintf("d:%s:%s:%s", kind, name, bits))
 	}
 	// Virtual machines may keep their disks or ISO images in a share: QEMU's
@@ -167,7 +172,45 @@ func smbList(sh *store.Share, perm string) []string {
 	return out
 }
 
-func smbGlobal(set store.Settings) string {
+// NetBIOSName is the host name as Windows sees it (upper case, 15 characters).
+func NetBIOSName() string {
+	h, _ := os.Hostname()
+	h, _, _ = strings.Cut(h, ".")
+	h = strings.ToUpper(clean(h))
+	if len(h) > 15 {
+		h = h[:15]
+	}
+	if h == "" {
+		h = "STRATAOS"
+	}
+	return h
+}
+
+// resolvable asks NSS (getent): the static binary's os/user only reads
+// /etc/passwd and /etc/group, not winbind or sssd.
+func resolvable(kind, name string) bool {
+	db := "passwd"
+	if kind == "g" {
+		db = "group"
+	}
+	_, err := sys.Run("getent", db, name)
+	return err == nil
+}
+
+// smbNames formats a user list; domain names (DOMAIN\user, may contain spaces)
+// are quoted.
+func smbNames(l []string) string {
+	out := make([]string, len(l))
+	for i, n := range l {
+		if strings.ContainsAny(n, " \\") {
+			n = `"` + n + `"`
+		}
+		out[i] = n
+	}
+	return strings.Join(out, " ")
+}
+
+func smbGlobal(set store.Settings, dir store.Directory) string {
 	wg := set.Workgroup
 	if wg == "" {
 		wg = "WORKGROUP"
@@ -180,12 +223,37 @@ func smbGlobal(set store.Settings) string {
 	if proto == "" {
 		proto = "SMB2_10"
 	}
+	role := "   server role = standalone server\n"
+	netbios := "%h"
+	if dir.Type == "ad" && !dir.JoinedAt.IsZero() {
+		wg = dir.Workgroup
+		// Member of an Active Directory domain: users and groups come from the
+		// domain through winbind; their IDs are derived from the RIDs.
+		role = fmt.Sprintf(`   security = ads
+   realm = %s
+   kerberos method = secrets and keytab
+   winbind use default domain = no
+   winbind enum users = yes
+   winbind enum groups = yes
+   winbind refresh tickets = yes
+   template shell = /usr/sbin/nologin
+   template homedir = /nonexistent
+   idmap config * : backend = tdb
+   idmap config * : range = 3000-7999
+   idmap config %s : backend = rid
+   idmap config %s : range = 100000-999999
+`, dir.Realm, dir.Workgroup, dir.Workgroup)
+		if dir.Server != "" {
+			role += "   password server = " + clean(dir.Server) + "\n"
+		}
+		// A domain member needs a literal NetBIOS name: "%h" breaks the join.
+		netbios = NetBIOSName()
+	}
 	return fmt.Sprintf(`# Managed by StrataOS - manual changes will be overwritten.
 [global]
    workgroup = %s
    server string = %s
-   server role = standalone server
-   netbios name = %%h
+%s   netbios name = %s
    map to guest = Bad User
    guest account = nobody
    passdb backend = tdbsam
@@ -211,7 +279,7 @@ func smbGlobal(set store.Settings) string {
    fruit:wipe_intentionally_left_blank_rfork = yes
    fruit:delete_empty_adfiles = yes
    include = %s
-`, wg, ss, proto, smbSharesConf)
+`, wg, ss, role, netbios, proto, smbSharesConf)
 }
 
 // clean makes a value safe on a single smb.conf line: no line break, no section
@@ -257,12 +325,12 @@ func Apply(st *store.State) error {
 				valid = []string{"@" + accounts.BaseGroup}
 			}
 			b.WriteString("   read only = yes\n")
-			fmt.Fprintf(&b, "   valid users = %s\n", strings.Join(valid, " "))
+			fmt.Fprintf(&b, "   valid users = %s\n", smbNames(valid))
 			if len(rw) > 0 {
-				fmt.Fprintf(&b, "   write list = %s\n", strings.Join(rw, " "))
+				fmt.Fprintf(&b, "   write list = %s\n", smbNames(rw))
 			}
 			if denied := smbList(sh, "none"); len(denied) > 0 {
-				fmt.Fprintf(&b, "   invalid users = %s\n", strings.Join(denied, " "))
+				fmt.Fprintf(&b, "   invalid users = %s\n", smbNames(denied))
 			}
 		}
 		b.WriteString("   create mask = 0664\n   directory mask = 2775\n   inherit acls = yes\n   map acl inherit = yes\n")
@@ -280,7 +348,7 @@ func Apply(st *store.State) error {
 	}
 	if sys.Has("smbd") || dirExists("/etc/samba") {
 		_ = os.MkdirAll("/etc/samba", 0o755)
-		if err := ensureSmbConf(st.Settings); err != nil {
+		if err := ensureSmbConf(st.Settings, st.Directory); err != nil {
 			return err
 		}
 		if err := sys.WriteFileAtomic(smbSharesConf, []byte(b.String()), 0o644); err != nil {
@@ -343,12 +411,12 @@ func Apply(st *store.State) error {
 	return nil
 }
 
-func ensureSmbConf(set store.Settings) error {
+func ensureSmbConf(set store.Settings, dir store.Directory) error {
 	old, _ := os.ReadFile(smbConf)
 	if len(old) > 0 && !strings.HasPrefix(string(old), "# Managed by StrataOS") {
 		_ = os.WriteFile(smbConf+".pre-strata", old, 0o644)
 	}
-	return sys.WriteFileAtomic(smbConf, []byte(smbGlobal(set)), 0o644)
+	return sys.WriteFileAtomic(smbConf, []byte(smbGlobal(set, dir)), 0o644)
 }
 
 func yesno(b bool) string {

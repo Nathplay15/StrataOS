@@ -275,6 +275,34 @@ check "FTP stopped" "$(vm "systemctl is-active vsftpd")" "inactive"
 check "SFTP access removed" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' sftp://localhost/main/Photos/ -u '$UA'")" "67"
 check "WebDAV off again" "$(curl -s -o /dev/null -w '%{http_code}' -u "$UA" $B/dav/)" "404"
 
+section "Active Directory and LDAP (test servers in containers)"
+DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
+check "directory clients installed" "$(job "$(c POST /api/system/components/directory/install)")" "success"
+DCIP=$(./vm/vm.sh ssh "cat > /tmp/test-dc.sh && sudo bash /tmp/test-dc.sh '$DCPASS'" < vm/test-dc.sh 2>/dev/null | tail -1)
+check "test domain controller" "$DCIP" "172.17."
+vm "sudo resolvectl dns docker0 $DCIP && sudo resolvectl domain docker0 '~strata.test'"
+check "wrong domain password refused" "$(job "$(c POST /api/directory/join -d '{"type":"ad","realm":"strata.test","admin":"Administrator","password":"wrong"}')")" "wrong administrator account or password"
+check "domain joined" "$(job "$(c POST /api/directory/join -d "{\"type\":\"ad\",\"realm\":\"strata.test\",\"admin\":\"Administrator\",\"password\":\"$DCPASS\"}")")" "success"
+check "domain trust valid" "$(c GET /api/directory | py 'print(d["joined"], d["status"]["connected"])')" "True True"
+check "join password not stored" "$(vm "sudo grep -c '$DCPASS' /var/lib/strata/state.json")" "0"
+check "domain users and groups listed" "$(c GET '/api/directory/search?q=' | py 'print(d["users"], d["groups"])')" 'STRATA\\marie'
+SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["permissions"]["@STRATA\\compta"]="rw"; print(json.dumps(s))')
+check "domain group given rights on a share" "$(c PUT /api/shares/Photos -d "$SH")" 'STRATA'
+check "domain user writes over SMB" "$(printf '%s' "$DCPASS" | ./vm/vm.sh ssh 'P=$(cat); umask 077; printf "username = marie\npassword = %s\ndomain = STRATA\n" "$P" > /tmp/m.auth; smbclient //localhost/Photos -A /tmp/m.auth -c "put /etc/hostname from-marie.txt" >/dev/null 2>&1; smbclient //localhost/Media -A /tmp/m.auth -c ls 2>&1 | tail -1; rm -f /tmp/m.auth; sudo stat -c "%U" /srv/strata/main/Photos/from-marie.txt' 2>/dev/null | tr '\n' ' ')" "NT_STATUS_ACCESS_DENIED STRATA\\marie"
+check "domain left" "$(c POST /api/directory/leave -d "{\"admin\":\"Administrator\",\"password\":\"$DCPASS\"}")" '"ok":true'
+check "computer account removed, Samba standalone again" "$(vm "sudo docker exec e2e-dc samba-tool computer list | grep -ci strata-vm; grep -c 'security = ads' /etc/samba/smb.conf" | tr '\n' ' ')" "0 0"
+SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["permissions"].pop("@STRATA\\compta", None); print(json.dumps(s))')
+c PUT /api/shares/Photos -d "$SH" >/dev/null
+LDAPIP=$(./vm/vm.sh ssh "cat > /tmp/test-ldap.sh && sudo bash /tmp/test-ldap.sh '$DCPASS'" < vm/test-ldap.sh 2>/dev/null | tail -1)
+check "LDAP directory joined" "$(job "$(c POST /api/directory/join -d "{\"type\":\"ldap\",\"uri\":\"ldap://$LDAPIP\",\"baseDn\":\"dc=strata,dc=test\",\"bindDn\":\"cn=admin,dc=strata,dc=test\",\"bindPassword\":\"$DCPASS\"}")")" "success"
+check "LDAP bind password masked" "$(c GET /api/directory | py 'print(d["config"]["bindPassword"])')" "********"
+for _ in $(seq 1 20); do c GET '/api/directory/search?q=pa' | grep -q paul && break; sleep 2; done
+check "LDAP users known to the system" "$(vm "id paul")" "projets"
+check "LDAP users listed" "$(c GET '/api/directory/search?q=pa')" "paul"
+check "LDAP left" "$(c POST /api/directory/leave -d '{}')" '"ok":true'
+check "LDAP users gone" "$(vm "id paul 2>&1")" "no such user"
+vm "sudo docker rm -f e2e-dc e2e-ldap >/dev/null; sudo resolvectl revert docker0"
+
 section "Network (trial + automatic rollback)"
 IFACE=$(c GET /api/system/network | py 'print([i["name"] for i in d["status"]["interfaces"] if i["kind"]=="physical"][0])')
 netapply() { c PUT /api/system/network/config -d "{\"config\":$1,\"timeout\":${2:-90}}" | py 'print(d.get("token") or d)'; }

@@ -193,6 +193,7 @@ func (s *Server) routes() {
 	s.cloudRoutes()
 	s.davRoutes()
 	s.fileServiceRoutes()
+	s.directoryRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

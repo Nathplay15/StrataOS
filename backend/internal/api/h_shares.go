@@ -36,12 +36,18 @@ func (s *Server) applyShares() error {
 	return err
 }
 
+var (
+	localNameRe = regexp.MustCompile(`^@?[a-z_][a-z0-9_-]{0,31}$`)
+	// DOMAIN\user or @DOMAIN\group (Active Directory names may contain spaces).
+	domainNameRe = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._-]{0,14}\\[^\\/:*?"<>|,@\x00-\x1f]{1,64}$`)
+)
+
 func validPerms(p map[string]string) error {
 	for who, perm := range p {
 		if perm != "rw" && perm != "ro" && perm != "none" {
 			return badRequest("invalid permission for " + who)
 		}
-		if !regexp.MustCompile(`^@?[a-z_][a-z0-9_-]{0,31}$`).MatchString(who) {
+		if !localNameRe.MatchString(who) && !domainNameRe.MatchString(who) {
 			return badRequest("invalid user or group " + who)
 		}
 	}

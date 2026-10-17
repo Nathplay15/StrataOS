@@ -36,6 +36,7 @@ const UPSPage = lazy(() => import("./pages/system/UPS"));
 const VirtualMachines = lazy(() => import("./pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("./pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("./pages/system/FileServices"));
+const DirectoryPage = lazy(() => import("./pages/system/Directory"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -108,6 +109,7 @@ function Root() {
             <Route path="vms" element={A(<VirtualMachines />)} />
             <Route path="cloudsync" element={A(<CloudSync />)} />
             <Route path="system/fileservices" element={A(<FileServicesPage />)} />
+            <Route path="system/directory" element={A(<DirectoryPage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

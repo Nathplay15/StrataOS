@@ -9,6 +9,37 @@ import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, Page
 
 const empty: Share = { name: "", path: "", description: "", smb: true, nfs: false, guest: false, browseable: true, recycleBin: true, timeMachine: false, permissions: {}, nfsClients: "", nfsOptions: "" };
 
+/** Rights of domain (Active Directory / LDAP) users and groups, with a search box. */
+function DomainPerms({ perms, local, setPerm }: { perms: Record<string, Perm>; local: Set<string>; setPerm: (who: string, p?: Perm) => void }) {
+  const dir = useQuery({ queryKey: ["directory"], queryFn: () => api.get<{ joined: boolean; config: { type: string; workgroup: string } }>("/api/directory") });
+  const [q, setQ] = useState("");
+  const search = useQuery({ queryKey: ["directory-search", q], queryFn: () => api.get<{ users: string[]; groups: string[] }>(`/api/directory/search?q=${encodeURIComponent(q)}`), enabled: !!dir.data?.joined && q.length >= 2 });
+  const extra = Object.keys(perms).filter((k) => !local.has(k));
+  if (!dir.data?.joined && extra.length === 0) return null;
+  const results = [...(search.data?.users ?? []), ...(search.data?.groups ?? []).map((g) => "@" + g)].filter((n) => !(n in perms)).slice(0, 12);
+  return (
+    <div className="mt-3 rounded-xl border border-line">
+      <div className="border-b border-line px-4 py-2.5 text-[12.5px] font-medium text-muted">Comptes de l'annuaire {dir.data?.joined ? `(${dir.data.config.type === "ad" ? dir.data.config.workgroup : "LDAP"})` : "(annuaire quitté)"}</div>
+      {extra.map((who) => (
+        <div key={who} className="flex items-center justify-between gap-3 px-4 py-2.5">
+          <span className="flex items-center gap-2">{who.startsWith("@") ? <UsersIcon size={15} className="text-accent" /> : <UserIcon size={15} className="text-muted" />}{who}</span>
+          <PermPicker value={perms[who]} onChange={(p) => setPerm(who, p)} />
+        </div>
+      ))}
+      {dir.data?.joined && (
+        <div className="space-y-2 px-4 py-3">
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un utilisateur ou un groupe du domaine…" />
+          {results.map((n) => (
+            <button key={n} type="button" onClick={() => { setPerm(n, "ro"); setQ(""); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-panel-2">
+              {n.startsWith("@") ? <UsersIcon size={14} className="text-accent" /> : <UserIcon size={14} className="text-muted" />}{n}<span className="text-muted ml-auto text-[11.5px]">ajouter</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PermPicker({ value, onChange }: { value?: Perm; onChange: (p?: Perm) => void }) {
   const opts: { v?: Perm; label: string; cls: string }[] = [
     { v: "rw", label: "Lecture/écriture", cls: "bg-ok text-white" },
@@ -96,6 +127,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
                 ))}
               </div>
             )}
+            <DomainPerms perms={s.permissions} local={new Set([...(users.data ?? []).map((u) => u.username), ...(groups.data ?? []).map((g) => "@" + g.name)])} setPerm={setPerm} />
             {Object.keys(s.permissions).length === 0 && <div className="mt-2"><Notice>Sans permission explicite, tous les utilisateurs StrataOS ont un accès en lecture seule.</Notice></div>}
           </div>
         )}

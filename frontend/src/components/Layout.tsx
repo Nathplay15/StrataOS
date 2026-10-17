@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree } from "lucide-react";
+  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
@@ -36,6 +36,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/shares", label: "Dossiers partagés", icon: <Share2 size={17} />, admin: true },
       { to: "/users", label: "Utilisateurs", icon: <Users size={17} />, admin: true },
       { to: "/system/fileservices", label: "Services de fichiers", icon: <FolderTree size={17} />, admin: true },
+      { to: "/system/directory", label: "Domaine / LDAP", icon: <BookUser size={17} />, admin: true },
     ],
   },
   {

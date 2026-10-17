@@ -44,6 +44,7 @@ Variables : `VM_MEM` (4096 Mio), `VM_CPUS` (4), `VM_DISKS` (6), `VM_DISK_SIZE` (
 - redémarrage (session, RAID, volumes, conteneurs, services) ;
 - synchronisation cloud (envoi et bidirectionnelle) avec un serveur WebDAV local ;
 - WebDAV, FTPS et SFTP : droits des partages, confinement, corbeille, désactivation ;
+- Active Directory (contrôleur Samba de test, `vm/test-dc.sh`) et LDAP (OpenLDAP de test, `vm/test-ldap.sh`), lancés dans des conteneurs de la VM ;
 - machines virtuelles en KVM imbriqué (création, console VNC par websocket, ressources, suppression) ;
 - démarrage avec un disque RAID débranché, puis remplacement et reconstruction.
 

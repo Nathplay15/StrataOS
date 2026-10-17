@@ -143,6 +143,22 @@ type BackupTask struct {
 	History     []ScheduleRun `json:"history"`
 }
 
+// Directory is the domain the NAS belongs to: Active Directory (Samba/winbind
+// member server) or an LDAP server (sssd).
+type Directory struct {
+	Type      string `json:"type"`      // "" | ad | ldap
+	Realm     string `json:"realm"`     // AD: DNS domain, e.g. CORP.EXAMPLE.COM
+	Workgroup string `json:"workgroup"` // AD: NetBIOS domain name, e.g. CORP
+	Server    string `json:"server"`    // AD: domain controller (optional, DNS otherwise)
+	// LDAP
+	URI          string    `json:"uri,omitempty"`
+	BaseDN       string    `json:"baseDn,omitempty"`
+	BindDN       string    `json:"bindDn,omitempty"`
+	BindPassword string    `json:"bindPassword,omitempty"`
+	StartTLS     bool      `json:"startTls,omitempty"`
+	JoinedAt     time.Time `json:"joinedAt"`
+}
+
 // FileServices are the optional file access protocols.
 type FileServices struct {
 	WebDAV        bool `json:"webdav"`
@@ -183,6 +199,7 @@ type State struct {
 	Backups   []*BackupTask `json:"backups"`
 	Clouds    []*CloudSync  `json:"cloudSyncs"`
 	Files     FileServices  `json:"fileServices"`
+	Directory Directory     `json:"directory"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

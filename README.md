@@ -33,6 +33,7 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Comptes** | Quotas par utilisateur (ext4, XFS, ZFS), double authentification TOTP avec codes de secours et réinitialisation par l'administrateur, certificat HTTPS importé ou Let's Encrypt automatique |
 | **Machines virtuelles** | KVM/libvirt installé en un clic : création guidée (Linux, Windows 10/11 avec TPM 2.0 et UEFI, autre), disques qcow2 dans un dossier partagé, ISO choisie parmi les fichiers des volumes, réseau NAT ou pont sur le réseau local, console graphique dans le navigateur (noVNC), démarrage/arrêt/pause/arrêt forcé, démarrage avec le NAS, changement de CD et de ressources |
 | **Synchronisation cloud** | rclone : Google Drive, OneDrive, Dropbox, S3 (AWS, Wasabi, MinIO, R2…), Backblaze B2, WebDAV/Nextcloud, SFTP ; envoi, téléchargement (avec ou sans miroir) ou bidirectionnelle, exclusions, limite de bande passante, planification, test de connexion et choix du dossier distant, jetons OAuth rafraîchis conservés, identifiants jamais renvoyés au navigateur |
+| **Domaine / LDAP** | Jonction à Active Directory (Samba serveur membre, winbind, Kerberos ; mot de passe administrateur jamais enregistré), droits des partages pour les utilisateurs et groupes du domaine (`DOMAINE\utilisateur`), sortie propre du domaine ; annuaire LDAP via sssd (identités POSIX pour les ACL et NFS) |
 | **Services de fichiers** | WebDAV intégré (HTTPS, droits des partages, corbeille), FTP/FTPS (vsftpd, chiffrement exigible, ports passifs), SFTP confiné au stockage pour les utilisateurs sans accès SSH ; tout passe par les mêmes droits que SMB |
 | **Onduleur** | NUT : onduleur USB/série/SNMP avec détection, client d'un autre serveur NUT (Synology…), partage de l'onduleur sur le réseau, arrêt automatique (batterie faible ou après X minutes), alertes, mode simulation pour tester |
 | **Mises à jour** | Dépôt APT signé (`make repo`), mise à jour de StrataOS en un clic depuis l'interface, exécutée hors du service pour survivre à son redémarrage |
@@ -108,5 +109,4 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- LDAP/Active Directory
 - Interface en anglais

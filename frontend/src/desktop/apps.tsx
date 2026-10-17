@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
+  Activity, AppWindow, BookUser, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
   Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
 } from "lucide-react";
 import type { Me } from "../lib/types";
@@ -31,6 +31,7 @@ const UPSPage = lazy(() => import("../pages/system/UPS"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
+const DirectoryPage = lazy(() => import("../pages/system/Directory"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -78,6 +79,7 @@ export const APPS: AppDef[] = [
       { id: "shares", label: "Dossiers partagés", icon: <Share2 size={16} />, component: page(Shares), path: "/shares" },
       { id: "fileservices", label: "Services de fichiers", icon: <FolderTree size={16} />, component: page(FileServicesPage), path: "/system/fileservices" },
       { id: "users", label: "Utilisateurs et groupes", icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
+      { id: "directory", label: "Domaine / LDAP", icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
       { id: "schedules", label: "Tâches planifiées", icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "network", label: "Réseau", icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
       { id: "ups", label: "Onduleur", icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
