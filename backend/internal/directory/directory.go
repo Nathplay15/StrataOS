@@ -76,6 +76,10 @@ func Validate(c *store.Directory) error {
 	default:
 		return fmt.Errorf("choose Active Directory or LDAP")
 	}
+	c.AdminGroup = strings.TrimSpace(c.AdminGroup)
+	if strings.ContainsAny(c.AdminGroup, "\n\r:,") || len(c.AdminGroup) > 128 {
+		return fmt.Errorf("invalid administrators group")
+	}
 	return nil
 }
 

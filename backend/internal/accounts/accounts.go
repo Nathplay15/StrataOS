@@ -167,7 +167,9 @@ func Delete(name string, removeHome bool) error {
 func UserGroups(name string) []string {
 	u, err := user.Lookup(name)
 	if err != nil {
-		return []string{}
+		// Directory accounts (winbind, sssd): the static binary's os/user only
+		// reads /etc/passwd and /etc/group, ask NSS through id(1).
+		return nssGroups(name)
 	}
 	ids, _ := u.GroupIds()
 	out := []string{}
@@ -177,6 +179,30 @@ func UserGroups(name string) []string {
 			continue
 		}
 		out = append(out, g.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func nssGroups(name string) []string {
+	out := []string{}
+	if strings.HasPrefix(name, "-") {
+		return out
+	}
+	// id -Gn separates names with spaces, which domain group names contain:
+	// resolve the numeric IDs one by one instead.
+	ids, err := sys.Run("id", "-G", name)
+	if err != nil {
+		return out
+	}
+	for _, id := range strings.Fields(ids) {
+		line, err := sys.Run("getent", "group", id)
+		if err != nil {
+			continue
+		}
+		if n, _, ok := strings.Cut(strings.TrimSpace(line), ":"); ok && n != BaseGroup {
+			out = append(out, n)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -287,7 +313,17 @@ func SetGroupMembers(name string, members []string) error {
 func IDs(name string) (int, int, error) {
 	u, err := user.Lookup(name)
 	if err != nil {
-		return 0, 0, err
+		if strings.HasPrefix(name, "-") {
+			return 0, 0, err
+		}
+		line, gerr := sys.Run("getent", "passwd", name)
+		f := strings.Split(strings.TrimSpace(line), ":")
+		if gerr != nil || len(f) < 4 {
+			return 0, 0, err
+		}
+		uid, _ := strconv.Atoi(f[2])
+		gid, _ := strconv.Atoi(f[3])
+		return uid, gid, nil
 	}
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)

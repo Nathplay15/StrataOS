@@ -146,7 +146,17 @@ func (s *Server) authRoutes() {
 				u, found = *p, true
 			}
 		})
-		if !found || u.Disabled || !checkPassword(u.PasswordHash, req.Password) {
+		if (!found || u.Source != "") && !u.Disabled {
+			// Directory account (Active Directory / LDAP).
+			if du, ok := s.directoryLogin(r.Context(), req.Username, req.Password); ok {
+				u, found = du, true
+			} else {
+				found = false
+			}
+		} else if found && !u.Disabled && !checkPassword(u.PasswordHash, req.Password) {
+			found = false
+		}
+		if !found || u.Disabled {
 			if !found {
 				// Constant-ish time to avoid user enumeration.
 				checkPassword(dummyHash(), req.Password)
@@ -204,12 +214,15 @@ func (s *Server) authRoutes() {
 			return nil, err
 		}
 		name := userOf(r)
-		var hash string
+		var hash, source string
 		s.store.Read(func(st *store.State) {
 			if u := st.User(name); u != nil {
-				hash = u.PasswordHash
+				hash, source = u.PasswordHash, u.Source
 			}
 		})
+		if source != "" {
+			return nil, badRequest("this account's password is managed by the directory")
+		}
 		if !checkPassword(hash, req.Current) {
 			return nil, badRequest("current password is incorrect")
 		}

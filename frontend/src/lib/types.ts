@@ -169,6 +169,7 @@ export interface User {
   groups: string[];
   createdAt: string;
   twoFactor?: boolean;
+  source?: string;
 }
 
 export interface Group {

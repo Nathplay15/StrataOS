@@ -15,14 +15,17 @@ import (
 )
 
 type User struct {
-	Username     string    `json:"username"`
-	FullName     string    `json:"fullName"`
-	Email        string    `json:"email"`
-	Role         string    `json:"role"` // admin | user
-	PasswordHash string    `json:"passwordHash"`
-	Disabled     bool      `json:"disabled"`
-	SSH          bool      `json:"ssh"`
-	CreatedAt    time.Time `json:"createdAt"`
+	Username     string `json:"username"`
+	FullName     string `json:"fullName"`
+	Email        string `json:"email"`
+	Role         string `json:"role"` // admin | user
+	PasswordHash string `json:"passwordHash"`
+	Disabled     bool   `json:"disabled"`
+	SSH          bool   `json:"ssh"`
+	// Source is "" for local accounts, "ad" or "ldap" for directory accounts
+	// (created at their first sign-in, password checked by the directory).
+	Source    string    `json:"source,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 	// Two-factor authentication (TOTP). Secrets never leave the server.
 	TOTPSecret    string   `json:"totpSecret,omitempty"`
 	TOTPPending   string   `json:"totpPending,omitempty"`   // being enrolled, not active yet
@@ -151,12 +154,14 @@ type Directory struct {
 	Workgroup string `json:"workgroup"` // AD: NetBIOS domain name, e.g. CORP
 	Server    string `json:"server"`    // AD: domain controller (optional, DNS otherwise)
 	// LDAP
-	URI          string    `json:"uri,omitempty"`
-	BaseDN       string    `json:"baseDn,omitempty"`
-	BindDN       string    `json:"bindDn,omitempty"`
-	BindPassword string    `json:"bindPassword,omitempty"`
-	StartTLS     bool      `json:"startTls,omitempty"`
-	JoinedAt     time.Time `json:"joinedAt"`
+	URI          string `json:"uri,omitempty"`
+	BaseDN       string `json:"baseDn,omitempty"`
+	BindDN       string `json:"bindDn,omitempty"`
+	BindPassword string `json:"bindPassword,omitempty"`
+	StartTLS     bool   `json:"startTls,omitempty"`
+	// AdminGroup: members of this directory group are StrataOS administrators.
+	AdminGroup string    `json:"adminGroup,omitempty"`
+	JoinedAt   time.Time `json:"joinedAt"`
 }
 
 // FileServices are the optional file access protocols.

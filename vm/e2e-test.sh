@@ -282,14 +282,25 @@ DCIP=$(./vm/vm.sh ssh "cat > /tmp/test-dc.sh && sudo bash /tmp/test-dc.sh '$DCPA
 check "test domain controller" "$DCIP" "172.17."
 vm "sudo resolvectl dns docker0 $DCIP && sudo resolvectl domain docker0 '~strata.test'"
 check "wrong domain password refused" "$(job "$(c POST /api/directory/join -d '{"type":"ad","realm":"strata.test","admin":"Administrator","password":"wrong"}')")" "wrong administrator account or password"
-check "domain joined" "$(job "$(c POST /api/directory/join -d "{\"type\":\"ad\",\"realm\":\"strata.test\",\"admin\":\"Administrator\",\"password\":\"$DCPASS\"}")")" "success"
+check "domain joined" "$(job "$(c POST /api/directory/join -d "{\"type\":\"ad\",\"realm\":\"strata.test\",\"admin\":\"Administrator\",\"password\":\"$DCPASS\",\"adminGroup\":\"STRATA\\\\domain admins\"}")")" "success"
 check "domain trust valid" "$(c GET /api/directory | py 'print(d["joined"], d["status"]["connected"])')" "True True"
 check "join password not stored" "$(vm "sudo grep -c '$DCPASS' /var/lib/strata/state.json")" "0"
 check "domain users and groups listed" "$(c GET '/api/directory/search?q=' | py 'print(d["users"], d["groups"])')" 'STRATA\\marie'
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["permissions"]["@STRATA\\compta"]="rw"; print(json.dumps(s))')
 check "domain group given rights on a share" "$(c PUT /api/shares/Photos -d "$SH")" 'STRATA'
 check "domain user writes over SMB" "$(printf '%s' "$DCPASS" | ./vm/vm.sh ssh 'P=$(cat); umask 077; printf "username = marie\npassword = %s\ndomain = STRATA\n" "$P" > /tmp/m.auth; smbclient //localhost/Photos -A /tmp/m.auth -c "put /etc/hostname from-marie.txt" >/dev/null 2>&1; smbclient //localhost/Media -A /tmp/m.auth -c ls 2>&1 | tail -1; rm -f /tmp/m.auth; sudo stat -c "%U" /srv/strata/main/Photos/from-marie.txt' 2>/dev/null | tr '\n' ' ')" "NT_STATUS_ACCESS_DENIED STRATA\\marie"
+J3=$(mktemp)
+d() { local m=$1 p=$2; shift 2; curl -s -b "$J3" -c "$J3" -X "$m" -H 'X-Strata: 1' -H 'Content-Type: application/json' "$B$p" "$@"; }
+check "domain user signs in to the web UI" "$(d POST /api/login -d "{\"username\":\"marie\",\"password\":\"$DCPASS\"}")" '"role":"user"'
+check "domain user: wrong password refused" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/login -d '{"username":"marie","password":"wrong"}')" "invalid"
+check "domain user sees only their shares" "$(d GET '/api/files?path=/srv/strata/tank/media')" "access denied"
+check "domain password not changeable here" "$(d POST /api/me/password -d '{"current":"x","new":"Abcdefgh1"}')" "managed by the directory"
+check "domain admins group gives admin role" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/login -d "{\"username\":\"STRATA\\\\Administrator\",\"password\":\"$DCPASS\"}")" '"role":"admin"'
+c PUT /api/fileservices -d '{"webdav":true,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
+check "domain user over WebDAV" "$(curl -s -o /dev/null -w '%{http_code}' -T "$TMP/dav.txt" -u "marie:$DCPASS" $B/dav/Photos/dav-marie.txt) $(vm "sudo stat -c '%U' /srv/strata/main/Photos/dav-marie.txt")" "201 STRATA\\marie"
+c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
 check "domain left" "$(c POST /api/directory/leave -d "{\"admin\":\"Administrator\",\"password\":\"$DCPASS\"}")" '"ok":true'
+check "domain sessions ended on leave" "$(d GET /api/me)" "authentication required"
 check "computer account removed, Samba standalone again" "$(vm "sudo docker exec e2e-dc samba-tool computer list | grep -ci strata-vm; grep -c 'security = ads' /etc/samba/smb.conf" | tr '\n' ' ')" "0 0"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["permissions"].pop("@STRATA\\compta", None); print(json.dumps(s))')
 c PUT /api/shares/Photos -d "$SH" >/dev/null

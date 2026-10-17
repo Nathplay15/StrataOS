@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"strataos/internal/directory"
@@ -93,6 +94,18 @@ func (s *Server) directoryRoutes() {
 			return nil, err
 		}
 		s.audit(r, "directory", "Left directory "+c.Realm+c.URI)
+		// Directory accounts can no longer sign in: end their sessions now.
+		var gone []string
+		s.store.Read(func(st *store.State) {
+			for _, u := range st.Users {
+				if u.Source != "" {
+					gone = append(gone, u.Username)
+				}
+			}
+		})
+		for _, n := range gone {
+			s.sessions.dropUser(n)
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 		defer cancel()
 		var err error
@@ -105,6 +118,30 @@ func (s *Server) directoryRoutes() {
 			return map[string]string{"warning": err.Error()}, nil
 		}
 		return nil, nil
+	})
+
+	// Settings that can change while joined.
+	s.admin("PUT /api/directory/settings", func(r *http.Request) (any, error) {
+		var req struct {
+			AdminGroup string `json:"adminGroup"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if strings.ContainsAny(req.AdminGroup, "\n\r:,") || len(req.AdminGroup) > 128 {
+			return nil, badRequest("invalid group")
+		}
+		err := s.store.Update(func(st *store.State) error {
+			if st.Directory.JoinedAt.IsZero() {
+				return badRequest("not in a directory")
+			}
+			st.Directory.AdminGroup = strings.TrimSpace(req.AdminGroup)
+			return nil
+		})
+		if err == nil {
+			s.audit(r, "directory", "Directory admin group set to "+req.AdminGroup)
+		}
+		return nil, err
 	})
 
 	s.admin("GET /api/directory/search", func(r *http.Request) (any, error) {

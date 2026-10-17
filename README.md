@@ -111,6 +111,5 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Connexion à l'interface web et à WebDAV avec les comptes du domaine (aujourd'hui : SMB et droits sur les partages)
 - Titres et messages des tâches traduits côté serveur
 - Applications supplémentaires dans l'App Center, mises à jour automatiques des conteneurs

@@ -20,7 +20,7 @@ func (s *Server) applyFileServices() error {
 	s.store.Read(func(st *store.State) {
 		c = st.Files
 		for _, u := range st.Users {
-			if u.Disabled {
+			if u.Disabled || u.Source != "" {
 				continue
 			}
 			users = append(users, u.Username)

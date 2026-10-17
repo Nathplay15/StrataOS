@@ -5,15 +5,15 @@ import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Group, Me, User, UserQuota } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
 
-type Form = { username: string; fullName: string; email: string; role: "admin" | "user"; password: string; groups: string[]; ssh: boolean; docker: boolean; disabled: boolean };
+type Form = { source?: string; username: string; fullName: string; email: string; role: "admin" | "user"; password: string; groups: string[]; ssh: boolean; docker: boolean; disabled: boolean };
 
 function UserModal({ user, groups, onClose }: { user: User | null; groups: Group[]; onClose: () => void }) {
   const editing = !!user;
   const [f, setF] = useState<Form>(user ? { ...user, password: "" } : { username: "", fullName: "", email: "", role: "user", password: "", groups: [], ssh: false, docker: false, disabled: false });
-  const save = useAction(() => (editing ? api.put(`/api/users/${user!.username}`, f) : api.post("/api/users", f)), { success: editing ? tr("Utilisateur mis à jour") : tr("Utilisateur créé"), onDone: onClose });
+  const save = useAction(() => (editing ? api.put(`/api/users/${encodeURIComponent(user!.username)}`, f) : api.post("/api/users", f)), { success: editing ? tr("Utilisateur mis à jour") : tr("Utilisateur créé"), onDone: onClose });
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
   return (
     <Modal open onClose={onClose} title={editing ? tr("Modifier {0}", user!.username) : tr("Nouvel utilisateur")} footer={<>
@@ -32,6 +32,7 @@ function UserModal({ user, groups, onClose }: { user: User | null; groups: Group
             </Select>
           </Field>
         </div>
+        {f.source ? <Notice>{tr("Compte de l'annuaire : son mot de passe et ses groupes se gèrent dans l'annuaire (Active Directory / LDAP).")}</Notice> : <>
         <Field label={editing ? tr("Nouveau mot de passe (laisser vide pour ne pas changer)") : tr("Mot de passe")} hint={tr("Utilisé pour l'interface web, SMB et SSH. 8 caractères minimum.")}>
           <Input type="password" autoComplete="new-password" value={f.password} onChange={(e) => set("password", e.target.value)} />
         </Field>
@@ -43,6 +44,7 @@ function UserModal({ user, groups, onClose }: { user: User | null; groups: Group
             </div>
           </div>
         )}
+        </>}
         {editing && (
           <div>
             <div className="mb-2 text-[12.5px] font-medium text-muted">{tr("Quotas d'espace disque")}</div>
@@ -50,8 +52,8 @@ function UserModal({ user, groups, onClose }: { user: User | null; groups: Group
           </div>
         )}
         <div className="space-y-3 rounded-xl border border-line p-4">
-          <Switch checked={f.ssh} onChange={(v) => set("ssh", v)} label={tr("Accès SSH")} hint={tr("Shell /bin/bash au lieu de nologin")} />
-          <Switch checked={f.docker} onChange={(v) => set("docker", v)} label={tr("Accès Docker")} hint={tr("Membre du groupe docker (équivalent root !)")} />
+          {!f.source && <Switch checked={f.ssh} onChange={(v) => set("ssh", v)} label={tr("Accès SSH")} hint={tr("Shell /bin/bash au lieu de nologin")} />}
+          {!f.source && <Switch checked={f.docker} onChange={(v) => set("docker", v)} label={tr("Accès Docker")} hint={tr("Membre du groupe docker (équivalent root !)")} />}
           {editing && <Switch checked={f.disabled} onChange={(v) => set("disabled", v)} label={tr("Compte désactivé")} />}
         </div>
         <ErrorBox error={save.error} />
@@ -61,9 +63,9 @@ function UserModal({ user, groups, onClose }: { user: User | null; groups: Group
 }
 
 function QuotaEditor({ user }: { user: string }) {
-  const { data, isLoading } = useQuery({ queryKey: ["user-quotas", user], queryFn: () => api.get<UserQuota[]>(`/api/users/${user}/quotas`) });
+  const { data, isLoading } = useQuery({ queryKey: ["user-quotas", user], queryFn: () => api.get<UserQuota[]>(`/api/users/${encodeURIComponent(user)}/quotas`) });
   const [edit, setEdit] = useState<Record<string, string>>({});
-  const save = useAction((q: UserQuota) => api.put(`/api/users/${user}/quotas`, { kind: q.kind, target: q.target, limit: edit[q.kind + q.target] ? Math.round(parseFloat(edit[q.kind + q.target].replace(",", ".")) * 1024 ** 3) : 0 }), { success: tr("Quota enregistré") });
+  const save = useAction((q: UserQuota) => api.put(`/api/users/${encodeURIComponent(user)}/quotas`, { kind: q.kind, target: q.target, limit: edit[q.kind + q.target] ? Math.round(parseFloat(edit[q.kind + q.target].replace(",", ".")) * 1024 ** 3) : 0 }), { success: tr("Quota enregistré") });
   if (isLoading) return <Spinner />;
   if (!data?.length) return <div className="text-muted text-[12.5px]">{tr("Aucun volume.")}</div>;
   return (
@@ -121,8 +123,8 @@ export default function Users({ me }: { me: Me }) {
   const [editGroup, setEditGroup] = useState<Group | null | undefined>(undefined);
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
-  const delUser = useAction((p: { name: string; home: boolean }) => api.del(`/api/users/${p.name}${p.home ? "?removeHome=1" : ""}`), { success: tr("Utilisateur supprimé") });
-  const reset2fa = useAction((n: string) => api.post(`/api/users/${n}/2fa/reset`), { success: tr("Double authentification réinitialisée") });
+  const delUser = useAction((p: { name: string; home: boolean }) => api.del(`/api/users/${encodeURIComponent(p.name)}${p.home ? "?removeHome=1" : ""}`), { success: tr("Utilisateur supprimé") });
+  const reset2fa = useAction((n: string) => api.post(`/api/users/${encodeURIComponent(n)}/2fa/reset`), { success: tr("Double authentification réinitialisée") });
   const delGroup = useAction((n: string) => api.del(`/api/groups/${n}`), { success: tr("Groupe supprimé") });
   const userGroups = (groups.data ?? []).filter((g) => !g.system);
 
@@ -150,7 +152,7 @@ export default function Users({ me }: { me: Me }) {
                       </td>
                       <td>{u.role === "admin" ? <Badge tone="accent"><Shield size={11} /> {" "}{tr("Admin")}</Badge> : <Badge>{tr("Utilisateur")}</Badge>}{u.disabled && <span className="ml-1"><Badge tone="danger">{tr("Désactivé")}</Badge></span>}</td>
                       <td className="text-[12.5px]">{u.groups.join(", ") || <span className="text-muted">—</span>}</td>
-                      <td className="space-x-1">{u.ssh && <Badge>SSH</Badge>}{u.docker && <Badge>{tr("Docker")}</Badge>}<Badge>SMB</Badge>{u.twoFactor && <Badge tone="ok">2FA</Badge>}</td>
+                      <td className="space-x-1">{u.source && <Badge tone="accent">{u.source === "ad" ? "Active Directory" : "LDAP"}</Badge>}{u.ssh && <Badge>SSH</Badge>}{u.docker && <Badge>{tr("Docker")}</Badge>}<Badge>SMB</Badge>{u.twoFactor && <Badge tone="ok">2FA</Badge>}</td>
                       <td className="text-muted text-[12.5px]">{dateTime(u.createdAt)}</td>
                       <td className="text-right whitespace-nowrap">
                         <Button size="sm" variant="ghost" icon={<Edit3 size={14} />} onClick={() => setEditUser(u)} />

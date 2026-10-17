@@ -23,6 +23,7 @@ type userView struct {
 	Groups    []string  `json:"groups"`
 	CreatedAt time.Time `json:"createdAt"`
 	TwoFactor bool      `json:"twoFactor"`
+	Source    string    `json:"source,omitempty"`
 }
 
 func (s *Server) addToDockerGroup(name string) error {
@@ -51,7 +52,7 @@ func (s *Server) userRoutes() {
 		out := []userView{}
 		for _, u := range users {
 			groups := accounts.UserGroups(u.Username)
-			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != ""}
+			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != "", Source: u.Source}
 			for _, g := range groups {
 				if g == "docker" {
 					v.Docker = true
@@ -141,11 +142,22 @@ func (s *Server) userRoutes() {
 			if wasAdmin && !willAdmin && s.adminCount(st) <= 1 {
 				return badRequest("at least one active administrator is required")
 			}
+			if u.Source != "" {
+				// Directory account: the Linux identity and password belong to the directory.
+				req.SSH, req.Password = false, ""
+			}
 			u.FullName, u.Email, u.Role, u.Disabled, u.SSH = req.FullName, req.Email, req.Role, req.Disabled, req.SSH
 			return nil
 		})
 		if err != nil {
 			return nil, err
+		}
+		if prev.Source != "" {
+			if prev.Role != req.Role || req.Disabled {
+				s.sessions.dropUser(name)
+			}
+			s.audit(r, "users", "Updated directory user "+name)
+			return nil, nil
 		}
 		if err := accounts.Update(name, req.FullName, req.SSH); err != nil {
 			return nil, err
@@ -181,6 +193,7 @@ func (s *Server) userRoutes() {
 		if name == userOf(r) {
 			return nil, badRequest("you cannot delete your own account")
 		}
+		var source string
 		err := s.store.Update(func(st *store.State) error {
 			u := st.User(name)
 			if u == nil {
@@ -189,9 +202,12 @@ func (s *Server) userRoutes() {
 			if u.Role == "admin" && s.adminCount(st) <= 1 {
 				return badRequest("at least one administrator is required")
 			}
+			source = u.Source
 			st.Users = slices.DeleteFunc(st.Users, func(x *store.User) bool { return x.Username == name })
-			for _, sh := range st.Shares {
-				delete(sh.Permissions, name)
+			if source == "" {
+				for _, sh := range st.Shares {
+					delete(sh.Permissions, name)
+				}
 			}
 			return nil
 		})
@@ -199,6 +215,11 @@ func (s *Server) userRoutes() {
 			return nil, err
 		}
 		s.sessions.dropUser(name)
+		if source != "" {
+			// Only the StrataOS profile goes away; the directory account stays.
+			s.audit(r, "users", "Removed directory user "+name)
+			return nil, nil
+		}
 		if err := accounts.Delete(name, r.URL.Query().Get("removeHome") == "1"); err != nil {
 			return nil, err
 		}

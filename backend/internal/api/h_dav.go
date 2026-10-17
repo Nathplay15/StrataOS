@@ -27,45 +27,51 @@ import (
 // may write. Every operation goes through os.Root on the share folder.
 
 // davAuthCache remembers recently verified credentials: DAV clients send the
-// password with every request and bcrypt costs ~200 ms.
+// password with every request, and bcrypt or a directory check is slow.
 type davAuthCache struct {
 	mu  sync.Mutex
 	key []byte
-	ok  map[string]time.Time
+	ok  map[string]davCached
+}
+
+type davCached struct {
+	user    string // account the login resolved to (DOMAIN\name for AD)
+	expires time.Time
 }
 
 func newDavAuthCache() *davAuthCache {
 	k := make([]byte, 32)
 	_, _ = rand.Read(k)
-	return &davAuthCache{key: k, ok: map[string]time.Time{}}
+	return &davAuthCache{key: k, ok: map[string]davCached{}}
 }
 
-func (c *davAuthCache) id(user, pass, hash string) string {
+func (c *davAuthCache) id(login, pass, hash string) string {
 	m := hmac.New(sha256.New, c.key)
-	m.Write([]byte(user + "\x00" + pass + "\x00" + hash))
+	m.Write([]byte(login + "\x00" + pass + "\x00" + hash))
 	return string(m.Sum(nil))
 }
 
-func (c *davAuthCache) check(id string) bool {
+func (c *davAuthCache) check(id string) (string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	t, ok := c.ok[id]
-	return ok && time.Now().Before(t)
+	e, ok := c.ok[id]
+	return e.user, ok && time.Now().Before(e.expires)
 }
 
-func (c *davAuthCache) add(id string) {
+func (c *davAuthCache) add(id, user string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
-	for k, t := range c.ok {
-		if now.After(t) {
+	for k, e := range c.ok {
+		if now.After(e.expires) {
 			delete(c.ok, k)
 		}
 	}
-	c.ok[id] = now.Add(5 * time.Minute)
+	c.ok[id] = davCached{user: user, expires: now.Add(5 * time.Minute)}
 }
 
-// davAuth checks HTTP Basic credentials against the StrataOS accounts.
+// davAuth checks HTTP Basic credentials against the StrataOS accounts and,
+// when the NAS is in a directory, against Active Directory / LDAP.
 func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthCache) (store.User, bool) {
 	deny := func(status int, msg string) (store.User, bool) {
 		if status == http.StatusUnauthorized {
@@ -74,30 +80,44 @@ func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthC
 		http.Error(w, msg, status)
 		return store.User{}, false
 	}
-	name, pass, ok := r.BasicAuth()
+	login, pass, ok := r.BasicAuth()
 	if !ok {
 		return deny(http.StatusUnauthorized, "authentication required")
 	}
-	name = strings.ToLower(strings.TrimSpace(name))
-	var u store.User
-	var found bool
-	s.store.Read(func(st *store.State) {
-		if p := st.User(name); p != nil {
-			u, found = *p, true
+	login = strings.ToLower(strings.TrimSpace(login))
+	lookup := func(name string) (store.User, bool) {
+		var u store.User
+		var found bool
+		s.store.Read(func(st *store.State) {
+			if p := st.User(name); p != nil {
+				u, found = *p, true
+			}
+		})
+		return u, found
+	}
+	u, found := lookup(login)
+	key := cache.id(login, pass, u.PasswordHash)
+	if name, hit := cache.check(key); hit {
+		if cu, ok := lookup(name); ok && !cu.Disabled && cu.TOTPSecret == "" {
+			return cu, true
 		}
-	})
-	if found && !u.Disabled && cache.check(cache.id(name, pass, u.PasswordHash)) {
-		return u, true
 	}
 	ip := clientIP(r)
 	if !s.limiter.attempt(ip) {
 		return deny(http.StatusTooManyRequests, "too many failed attempts, try again in a few minutes")
 	}
-	if !found || u.Disabled || !checkPassword(u.PasswordHash, pass) {
-		if !found {
+	valid := false
+	switch {
+	case found && u.Source == "":
+		valid = !u.Disabled && checkPassword(u.PasswordHash, pass)
+	default:
+		u, valid = s.directoryLogin(r.Context(), login, pass)
+		if !valid && !found {
 			checkPassword(dummyHash(), pass)
 		}
-		s.store.Log("warning", "auth", name, "Failed WebDAV login from "+ip)
+	}
+	if !valid {
+		s.store.Log("warning", "auth", login, "Failed WebDAV login from "+ip)
 		return deny(http.StatusUnauthorized, "invalid credentials")
 	}
 	if u.TOTPSecret != "" {
@@ -105,7 +125,7 @@ func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthC
 		return deny(http.StatusForbidden, "two-factor authentication is enabled for this account: WebDAV is not available")
 	}
 	s.limiter.reset(ip)
-	cache.add(cache.id(name, pass, u.PasswordHash))
+	cache.add(key, u.Username)
 	return u, true
 }
 
