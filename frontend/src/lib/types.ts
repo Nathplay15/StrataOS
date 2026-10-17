@@ -61,6 +61,7 @@ export interface SmartInfo {
   attributes: { id: number; name: string; value: number; worst: number; thresh: number; raw: string; failed?: string }[];
   nvme?: Record<string, unknown>;
   messages?: string[];
+  warnings?: string[];
 }
 
 export interface RaidArray {
@@ -348,6 +349,10 @@ export interface Settings {
   smtpPassword: string;
   smtpFrom: string;
   notifyEmail: string;
+  telegramToken?: string;
+  telegramChatId?: string;
+  ntfyUrl?: string;
+  ntfyToken?: string;
   smbMinProtocol: string;
   trashDays: number;
 }

@@ -105,6 +105,14 @@ export default function SettingsPage() {
         </Card>
         <Card title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Tester")}</Button>}>
           <div className="grid gap-4 sm:grid-cols-2">
+            <TelegramFields s={s} set={set} />
+            <Field label={tr("Notifications push (ntfy)")} className="sm:col-span-2" hint={tr("Installez l'application ntfy (Android, iPhone) et abonnez-vous à ce sujet. Un nom long et impossible à deviner protège vos alertes sur le serveur public ntfy.sh.")}>
+              <div className="flex gap-2">
+                <Input className="mono" value={s.ntfyUrl ?? ""} onChange={(e) => set("ntfyUrl", e.target.value)} placeholder="https://ntfy.sh/…" />
+                <Button onClick={() => set("ntfyUrl", `https://ntfy.sh/strata-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 20)}`)}>{tr("Générer")}</Button>
+              </div>
+            </Field>
+            {s.ntfyUrl && <Field label={tr("Jeton d'accès ntfy (optionnel)")} hint={tr("Pour un serveur ntfy protégé")}><Input type="password" value={s.ntfyToken ?? ""} onChange={(e) => set("ntfyToken", e.target.value)} /></Field>}
             <Field label={tr("Webhook (Discord, Slack, ntfy, Gotify…)")} className="sm:col-span-2" hint={tr("Reçoit un POST JSON (title, message, text, content).")}><Input value={s.webhookUrl} onChange={(e) => set("webhookUrl", e.target.value)} /></Field>
             <Field label={tr("Serveur SMTP")}><Input value={s.smtpHost} onChange={(e) => set("smtpHost", e.target.value)} /></Field>
             <Field label={tr("Port")}><Input type="number" value={s.smtpPort} onChange={(e) => set("smtpPort", +e.target.value)} /></Field>
@@ -121,7 +129,7 @@ export default function SettingsPage() {
             <Field label={tr("Expéditeur")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Destinataire des alertes")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
           </div>
-          <p className="mt-3 text-[12.5px] text-muted">{tr("Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant, volume plein à 90 %, échec d'une tâche.")}</p>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein à 90 %, virus détecté, échec d'une tâche, coupure de courant.")}</p>
         </Card>
         <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date et heure")}</span>}>
           <div className="flex items-end gap-2">
@@ -144,6 +152,30 @@ export default function SettingsPage() {
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function TelegramFields({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const chats = useAction(() => api.post<{ id: string; name: string; type: string }[]>("/api/settings/telegram-chats", { token: s.telegramToken }));
+  return (
+    <div className="space-y-3 rounded-xl border border-line p-4 sm:col-span-2">
+      <div className="font-medium text-[13px]">{tr("Bot Telegram")}</div>
+      <div className="text-muted text-[12.5px]">{tr("1. Dans Telegram, écrivez à @BotFather, envoyez /newbot et copiez le jeton. 2. Envoyez un message à votre bot (ou ajoutez-le à un groupe). 3. Cliquez sur « Trouver la conversation ».")}</div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={tr("Jeton du bot")}><Input type="password" autoComplete="off" value={s.telegramToken ?? ""} onChange={(e) => set("telegramToken", e.target.value)} placeholder="123456789:AA…" /></Field>
+        <Field label={tr("Identifiant de la conversation")}>
+          <div className="flex gap-2">
+            <Input className="mono" value={s.telegramChatId ?? ""} onChange={(e) => set("telegramChatId", e.target.value)} />
+            <Button disabled={!s.telegramToken} loading={chats.isPending} onClick={() => chats.mutate()}>{tr("Trouver la conversation")}</Button>
+          </div>
+        </Field>
+      </div>
+      {chats.data && (chats.data.length === 0 ? <Notice tone="warn">{tr("Aucun message reçu par le bot : envoyez-lui d'abord un message, puis réessayez.")}</Notice> : (
+        <div className="flex flex-wrap gap-2">
+          {chats.data.map((c) => <Button key={c.id} size="sm" variant={s.telegramChatId === c.id ? "primary" : "secondary"} onClick={() => set("telegramChatId", c.id)}>{c.name || c.id} <span className="text-muted">({c.type})</span></Button>)}
+        </div>
+      ))}
     </div>
   );
 }

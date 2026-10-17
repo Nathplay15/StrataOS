@@ -81,10 +81,17 @@ type Settings struct {
 	SMTPPassword string `json:"smtpPassword,omitempty"`
 	SMTPFrom     string `json:"smtpFrom"`
 	NotifyEmail  string `json:"notifyEmail"`
-	SMBMinProto  string `json:"smbMinProtocol"`
-	TrashDays    int    `json:"trashDays"`
-	ACMEDomain   string `json:"acmeDomain"`
-	ACMEEmail    string `json:"acmeEmail"`
+	// Telegram bot (token from @BotFather) and the chat that receives alerts.
+	TelegramToken  string `json:"telegramToken,omitempty"`
+	TelegramChatID string `json:"telegramChatId,omitempty"`
+	// Push notifications through ntfy: topic URL (https://ntfy.sh/<topic> or a
+	// self-hosted server) and an optional access token.
+	NtfyURL     string `json:"ntfyUrl,omitempty"`
+	NtfyToken   string `json:"ntfyToken,omitempty"`
+	SMBMinProto string `json:"smbMinProtocol"`
+	TrashDays   int    `json:"trashDays"`
+	ACMEDomain  string `json:"acmeDomain"`
+	ACMEEmail   string `json:"acmeEmail"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).

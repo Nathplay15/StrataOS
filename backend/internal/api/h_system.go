@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strings"
@@ -273,8 +274,10 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		if set.SMTPPassword != "" {
-			set.SMTPPassword = "********"
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken} {
+			if *p != "" {
+				*p = "********"
+			}
 		}
 		return set, nil
 	})
@@ -291,6 +294,13 @@ func (s *Server) systemRoutes() {
 		default:
 			return nil, badRequest("invalid SMTP security mode")
 		}
+		req.TelegramToken, req.TelegramChatID, req.NtfyURL, req.NtfyToken = strings.TrimSpace(req.TelegramToken), strings.TrimSpace(req.TelegramChatID), strings.TrimSpace(req.NtfyURL), strings.TrimSpace(req.NtfyToken)
+		if req.TelegramChatID != "" && !regexp.MustCompile(`^-?[0-9]{1,20}$|^@[A-Za-z0-9_]{4,64}$`).MatchString(req.TelegramChatID) {
+			return nil, badRequest("invalid Telegram chat ID")
+		}
+		if strings.ContainsAny(req.NtfyToken+req.NtfyURL+req.TelegramToken, "\n\r ") {
+			return nil, badRequest("invalid characters")
+		}
 		switch req.SMBMinProto {
 		case "", "SMB2", "SMB2_10", "SMB3", "SMB3_11":
 		default:
@@ -299,6 +309,12 @@ func (s *Server) systemRoutes() {
 		err := s.store.Update(func(st *store.State) error {
 			if req.SMTPPassword == "********" {
 				req.SMTPPassword = st.Settings.SMTPPassword
+			}
+			if req.TelegramToken == "********" {
+				req.TelegramToken = st.Settings.TelegramToken
+			}
+			if req.NtfyToken == "********" {
+				req.NtfyToken = st.Settings.NtfyToken
 			}
 			if req.SessionHours <= 0 || req.SessionHours > 24*30 {
 				req.SessionHours = 12
@@ -312,6 +328,23 @@ func (s *Server) systemRoutes() {
 		s.applyShares()
 		s.audit(r, "system", "Settings updated")
 		return nil, nil
+	})
+	// Chats that wrote to the Telegram bot (token typed in the form, or the saved one).
+	s.admin("POST /api/settings/telegram-chats", func(r *http.Request) (any, error) {
+		var req struct {
+			Token string `json:"token"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if req.Token == "" || req.Token == "********" {
+			s.store.Read(func(st *store.State) { req.Token = st.Settings.TelegramToken })
+		}
+		chats, err := telegramChats(strings.TrimSpace(req.Token))
+		if err != nil {
+			return nil, badRequest(err.Error())
+		}
+		return chats, nil
 	})
 	s.admin("POST /api/settings/test-notification", func(r *http.Request) (any, error) {
 		return nil, s.sendNotification("Test de notification", "Les notifications StrataOS fonctionnent.")

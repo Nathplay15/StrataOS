@@ -6,11 +6,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"mime"
 	"net"
 	"net/http"
 	"net/smtp"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,6 +111,10 @@ func (s *Server) volumeSummaries(raids []storage.RaidArray, pools []storage.ZPoo
 
 func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volumeSummary) []alert {
 	out := []alert{}
+	// Disk health, refreshed by the health watcher (SMART is too slow to read per request).
+	if d := s.diskAlerts.Load(); d != nil {
+		out = append(out, (*d)...)
+	}
 	for _, r := range raids {
 		switch r.Health {
 		case "degraded", "failed":
@@ -159,21 +166,36 @@ func (s *Server) healthWatcher() {
 			}
 		}
 		disks, _ := storage.ListDisks()
+		var weak []alert
 		for _, d := range disks {
 			info, err := storage.Smart(d.Path)
-			if err != nil || info.Passed == nil || *info.Passed {
+			if err != nil {
 				continue
 			}
-			msg := fmt.Sprintf("Le disque %s (%s %s) échoue au contrôle de santé SMART : remplacez-le", d.Path, d.Model, d.Serial)
-			cur[msg] = true
-			if !known[msg] {
-				s.store.Log("error", "health", "", msg)
-				s.notify("Disque défaillant", msg)
+			if info.Passed != nil && !*info.Passed {
+				msg := fmt.Sprintf("Le disque %s (%s %s) échoue au contrôle de santé SMART : remplacez-le", d.Path, d.Model, d.Serial)
+				cur[msg] = true
+				weak = append(weak, alert{"error", msg})
+				if !known[msg] {
+					s.store.Log("error", "health", "", msg)
+					s.notify("Disque défaillant", msg)
+				}
+				continue
+			}
+			if len(info.Warnings) > 0 {
+				msg := fmt.Sprintf("Le disque %s (%s %s) faiblit : %s. Vérifiez vos sauvegardes et prévoyez son remplacement", d.Path, d.Model, d.Serial, strings.Join(info.Warnings, ", "))
+				cur[msg] = true
+				weak = append(weak, alert{"warning", msg})
+				if !known[msg] {
+					s.store.Log("warning", "health", "", msg)
+					s.notify("Disque qui faiblit", msg)
+				}
 			}
 		}
 		mu.Lock()
 		known = cur
 		mu.Unlock()
+		s.diskAlerts.Store(&weak)
 	}
 	time.Sleep(30 * time.Second)
 	// First pass after boot: recover storage, then regenerate Samba/NFS config so an
@@ -214,6 +236,18 @@ func (s *Server) sendNotification(subject, msg string) error {
 			if resp.StatusCode >= 300 {
 				errs = append(errs, fmt.Sprintf("webhook: HTTP %d", resp.StatusCode))
 			}
+		}
+	}
+	if set.TelegramToken != "" && set.TelegramChatID != "" {
+		sent = true
+		if err := sendTelegram(set.TelegramToken, set.TelegramChatID, "🖥 "+host+"\n<b>"+html.EscapeString(subject)+"</b>\n"+html.EscapeString(msg)); err != nil {
+			errs = append(errs, "telegram: "+err.Error())
+		}
+	}
+	if set.NtfyURL != "" {
+		sent = true
+		if err := sendNtfy(set.NtfyURL, set.NtfyToken, "["+host+"] "+subject, msg); err != nil {
+			errs = append(errs, "ntfy: "+err.Error())
 		}
 	}
 	if set.SMTPHost != "" && set.NotifyEmail != "" {
@@ -306,4 +340,111 @@ func sendMail(host string, port int, security string, auth smtp.Auth, from, to s
 		return err
 	}
 	return c.Quit()
+}
+
+// telegramBase is replaced in tests.
+var telegramBase = "https://api.telegram.org"
+
+var telegramTokenRe = regexp.MustCompile(`^[0-9]{5,15}:[A-Za-z0-9_-]{20,64}$`)
+
+func telegramAPI(token, method string) (string, error) {
+	if !telegramTokenRe.MatchString(token) {
+		return "", fmt.Errorf("invalid bot token (format 123456:ABC…)")
+	}
+	return telegramBase + "/bot" + token + "/" + method, nil
+}
+
+func sendTelegram(token, chat, text string) error {
+	u, err := telegramAPI(token, "sendMessage")
+	if err != nil {
+		return err
+	}
+	body, _ := json.Marshal(map[string]any{"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": true})
+	cl := &http.Client{Timeout: 15 * time.Second}
+	resp, err := cl.Post(u, "application/json", bytes.NewReader(body))
+	if err != nil {
+		// The URL holds the token: never let it reach logs or the UI.
+		return fmt.Errorf("Telegram unreachable")
+	}
+	defer resp.Body.Close()
+	var r struct {
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&r)
+	if !r.OK {
+		return fmt.Errorf("%s", r.Description)
+	}
+	return nil
+}
+
+// telegramChats lists the chats that recently wrote to the bot, to find the chat ID.
+func telegramChats(token string) ([]map[string]any, error) {
+	u, err := telegramAPI(token, "getUpdates")
+	if err != nil {
+		return nil, err
+	}
+	cl := &http.Client{Timeout: 15 * time.Second}
+	resp, err := cl.Get(u)
+	if err != nil {
+		return nil, fmt.Errorf("Telegram unreachable")
+	}
+	defer resp.Body.Close()
+	var r struct {
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+		Result      []struct {
+			Message *struct {
+				Chat struct {
+					ID        int64  `json:"id"`
+					Type      string `json:"type"`
+					Title     string `json:"title"`
+					Username  string `json:"username"`
+					FirstName string `json:"first_name"`
+				} `json:"chat"`
+			} `json:"message"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil || !r.OK {
+		return nil, fmt.Errorf("Telegram refused the token: %s", r.Description)
+	}
+	seen := map[int64]bool{}
+	out := []map[string]any{}
+	for _, u := range r.Result {
+		if u.Message == nil || seen[u.Message.Chat.ID] {
+			continue
+		}
+		c := u.Message.Chat
+		seen[c.ID] = true
+		name := c.Title
+		if name == "" {
+			name = strings.TrimSpace(c.FirstName + " @" + c.Username)
+		}
+		out = append(out, map[string]any{"id": strconv.FormatInt(c.ID, 10), "name": name, "type": c.Type})
+	}
+	return out, nil
+}
+
+func sendNtfy(topicURL, token, title, msg string) error {
+	u, err := url.Parse(topicURL)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(strings.Trim(u.Path, "/")) == 0 {
+		return fmt.Errorf("the ntfy address must be like https://ntfy.sh/my-topic")
+	}
+	req, _ := http.NewRequest("POST", topicURL, strings.NewReader(msg))
+	req.Header.Set("Title", mime.QEncoding.Encode("utf-8", title))
+	req.Header.Set("Priority", "high")
+	req.Header.Set("Tags", "floppy_disk")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	cl := &http.Client{Timeout: 15 * time.Second}
+	resp, err := cl.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }

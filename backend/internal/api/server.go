@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"strataos/internal/certs"
@@ -45,6 +46,8 @@ type Server struct {
 	dataDir  string
 	mux      *http.ServeMux
 	certs    *certs.Manager
+	// diskAlerts: failing or weakening disks found by the last health check.
+	diskAlerts atomic.Pointer[[]alert]
 }
 
 type Config struct {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"strataos/internal/sys"
 )
@@ -34,6 +35,18 @@ type SmartInfo struct {
 	NVMe         any         `json:"nvme,omitempty"`
 	SelfTest     any         `json:"selfTest,omitempty"`
 	Messages     []string    `json:"messages,omitempty"`
+	// Warnings lists early signs of wear (the disk still passes its overall test).
+	Warnings []string `json:"warnings,omitempty"`
+	nvmeLog  nvmeHealth
+}
+
+type nvmeHealth struct {
+	CriticalWarning int `json:"critical_warning"`
+	AvailableSpare  int `json:"available_spare"`
+	SpareThreshold  int `json:"available_spare_threshold"`
+	PercentageUsed  int `json:"percentage_used"`
+	MediaErrors     int `json:"media_errors"`
+	present         bool
 }
 
 type smartctlJSON struct {
@@ -125,6 +138,9 @@ func Smart(dev string) (*SmartInfo, error) {
 		_ = json.Unmarshal(j.NVMeLog, &v)
 		info.NVMe = v
 		info.Available = true
+		if json.Unmarshal(j.NVMeLog, &info.nvmeLog) == nil {
+			info.nvmeLog.present = true
+		}
 	}
 	if len(j.AtaSelfTestLog) > 0 {
 		var v any
@@ -134,7 +150,68 @@ func Smart(dev string) (*SmartInfo, error) {
 	for _, m := range j.Smartctl.Messages {
 		info.Messages = append(info.Messages, m.String)
 	}
+	info.Warnings = SmartWarnings(info)
 	return info, nil
+}
+
+// rawCount reads the leading number of a raw SMART value ("8", "12 (Min/Max…)").
+func rawCount(raw string) int {
+	n := 0
+	for _, c := range strings.TrimSpace(raw) {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int(c-'0')
+		if n > 1<<30 {
+			break
+		}
+	}
+	return n
+}
+
+// SmartWarnings returns the early signs that a disk is getting weak, before
+// its overall SMART test fails. Counts are part of the text, so a growing
+// count produces a new alert.
+func SmartWarnings(info *SmartInfo) []string {
+	var w []string
+	counters := map[int]string{
+		5:   "%d secteur(s) réalloué(s)",
+		197: "%d secteur(s) en attente de réallocation",
+		198: "%d secteur(s) illisible(s)",
+		187: "%d erreur(s) non corrigée(s)",
+		10:  "%d échec(s) de démarrage du moteur",
+		184: "%d erreur(s) de transfert interne",
+	}
+	for _, a := range info.Attributes {
+		if f, ok := counters[a.ID]; ok {
+			if n := rawCount(a.Raw); n > 0 {
+				w = append(w, fmt.Sprintf(f, n))
+			}
+			continue
+		}
+		// A pre-failure attribute close to its threshold.
+		if a.Thresh > 0 && a.Value > 0 && a.Value <= a.Thresh+5 && a.Failed == "" {
+			w = append(w, fmt.Sprintf("attribut %s proche de son seuil (%d / %d)", a.Name, a.Value, a.Thresh))
+		}
+	}
+	if n := info.nvmeLog; n.present {
+		if n.CriticalWarning != 0 {
+			w = append(w, fmt.Sprintf("avertissement critique NVMe (code %d)", n.CriticalWarning))
+		}
+		if n.MediaErrors > 0 {
+			w = append(w, fmt.Sprintf("%d erreur(s) de support", n.MediaErrors))
+		}
+		if n.PercentageUsed >= 90 {
+			w = append(w, fmt.Sprintf("usure du SSD à %d %%", n.PercentageUsed))
+		}
+		if n.SpareThreshold > 0 && n.AvailableSpare <= n.SpareThreshold {
+			w = append(w, fmt.Sprintf("réserve de cellules épuisée (%d %%)", n.AvailableSpare))
+		}
+	}
+	if info.Temperature >= 60 {
+		w = append(w, fmt.Sprintf("température élevée (%d °C)", info.Temperature))
+	}
+	return w
 }
 
 // SmartTest starts a short or long self-test.

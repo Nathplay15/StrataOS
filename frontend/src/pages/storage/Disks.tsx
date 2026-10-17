@@ -5,8 +5,8 @@ import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Disk, SmartInfo } from "../../lib/types";
 import { bytes } from "../../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Modal, PageHeader, Spinner, useUI } from "../../components/ui";
-import { tr, locale } from "../../lib/i18n";
+import { useUI, Badge, Button, Card, Empty, ErrorBox, Modal, Notice, PageHeader, Spinner } from "../../components/ui";
+import { tr, locale, srv } from "../../lib/i18n";
 
 const usageLabel: Record<string, [string, "neutral" | "ok" | "warn" | "danger" | "accent"]> = {
   free: [tr("Libre"), "ok"],
@@ -37,19 +37,20 @@ function SmartModal({ disk, onClose }: { disk: Disk | null; onClose: () => void 
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-4">
             {[
-              [tr("État"), data.passed === null ? tr("Inconnu") : data.passed ? tr("Sain") : tr("DÉFAILLANT")],
+              [tr("État"), data.passed === null ? tr("Inconnu") : !data.passed ? tr("DÉFAILLANT") : data.warnings?.length ? tr("À surveiller") : tr("Sain")],
               [tr("Température"), data.temperature ? tr("{0} °C", data.temperature) : "—"],
               [tr("Heures de fonctionnement"), data.powerOnHours ? tr("{0} h", data.powerOnHours.toLocaleString(locale)) : "—"],
               [tr("Cycles d'alimentation"), data.powerCycles || "—"],
             ].map(([k, v]) => (
               <div key={String(k)} className="rounded-xl bg-panel-2 p-3">
                 <div className="text-muted text-[12px]">{k}</div>
-                <div className={`font-semibold ${v === tr("DÉFAILLANT") ? "text-danger" : ""}`}>{v}</div>
+                <div className={`font-semibold ${v === tr("DÉFAILLANT") ? "text-danger" : v === tr("À surveiller") ? "text-warn" : ""}`}>{v}</div>
               </div>
             ))}
           </div>
           <div className="text-[13px] text-muted">{data.model} {" "}{tr("· S/N")}{" "}{data.serial} {" "}{tr("· firmware")}{" "}{data.firmware}</div>
           {data.messages?.map((m) => <div key={m} className="text-warn text-[12.5px]">{m}</div>)}
+          {!!data.warnings?.length && <Notice tone="warn"><b>{tr("Signes d'usure :")}</b>{" "}{data.warnings.map((w) => srv(w)).join(", ")}. {tr("Vérifiez vos sauvegardes et prévoyez le remplacement du disque.")}</Notice>}
           {data.attributes.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-line">
               <table className="table">
