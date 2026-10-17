@@ -316,6 +316,7 @@ check "mass encryption detected, account blocked" "$(c GET /api/ransomware | py 
 check "blocked account refused on the shares" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "ACCESS_DENIED"
 check "ransomware alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Rançongiciel suspecté"
 c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
+for _ in $(seq 1 10); do vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1" | grep -q attack && break; sleep 1; done
 check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "attack"
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
@@ -428,7 +429,7 @@ check "recommended plan" "$(c POST /api/schedules/defaults)" '"created":'
 VID=$(c GET /api/storage/volumes | py 'print([v["id"] for v in d if v["name"]=="fast"][0])')
 SID=$(c POST /api/schedules -d "{\"name\":\"t\",\"type\":\"snapshot\",\"cron\":\"0 * * * *\",\"enabled\":true,\"targetKind\":\"btrfs\",\"target\":\"$VID\",\"keepCount\":2}" | py 'print(d["id"])')
 for _ in 1 2 3; do job "$(c POST /api/schedules/$SID/run)" >/dev/null; sleep 1.1; done
-check "btrfs retention keeps 2" "$(c GET /api/storage/volumes/$VID/btrfs | py 'print(sum(1 for s in d["subvolumes"] if s["snapshot"]))')" "2"
+check "btrfs retention keeps 2" "$(c GET /api/storage/volumes/$VID/btrfs | py 'print(sum(1 for s in d["subvolumes"] if s["snapshot"] and not s.get("lockedUntil")))')" "2"
 for id in $(c GET /api/schedules | py 'print(" ".join(s["id"] for s in d if s["type"]!="snapshot"))'); do
   name=$(c GET /api/schedules | py "print([s['name'] for s in d if s['id']=='$id'][0])")
   check "task: $name" "$(job "$(c POST /api/schedules/$id/run)")" "success"

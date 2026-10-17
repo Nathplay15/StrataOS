@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"strataos/internal/store"
@@ -95,6 +96,11 @@ func parseAudit(l string) (user, ip, share, target string, ok bool) {
 	return f[0], f[1], f[2], target, f[0] != ""
 }
 
+var (
+	ransomWake      = make(chan struct{}, 1) // settings changed
+	ransomFollowing atomic.Bool              // the audit journal is being read
+)
+
 // ransomLoop follows the Samba audit journal while the protection is on.
 func (s *Server) ransomLoop() {
 	w := newRansomWindow()
@@ -102,17 +108,24 @@ func (s *Server) ransomLoop() {
 		var c store.Ransomware
 		s.store.Read(func(st *store.State) { c = st.Ransom })
 		if !c.Enabled || !sys.Has("journalctl") {
-			time.Sleep(10 * time.Second)
+			select {
+			case <-ransomWake:
+			case <-time.After(10 * time.Second):
+			}
 			continue
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		cmd := exec.CommandContext(ctx, "journalctl", "-f", "-n", "0", "-o", "cat", "SYSLOG_IDENTIFIER=smbd_audit")
+		// From a moment ago rather than "-n 0": lines written while journalctl
+		// opens the journal would be missed.
+		since := fmt.Sprintf("@%d", time.Now().Add(-2*time.Second).Unix())
+		cmd := exec.CommandContext(ctx, "journalctl", "-f", "--since", since, "-o", "cat", "SYSLOG_IDENTIFIER=smbd_audit")
 		out, err := cmd.StdoutPipe()
 		if err != nil || cmd.Start() != nil {
 			cancel()
 			time.Sleep(30 * time.Second)
 			continue
 		}
+		ransomFollowing.Store(true)
 		// Stop following when the protection is turned off.
 		go func() {
 			for {
@@ -143,6 +156,7 @@ func (s *Server) ransomLoop() {
 		}
 		cancel()
 		_ = cmd.Wait()
+		ransomFollowing.Store(false)
 		time.Sleep(2 * time.Second)
 	}
 }
@@ -215,6 +229,14 @@ func (s *Server) ransomRoutes() {
 		})
 		if err != nil {
 			return nil, err
+		}
+		// Watch the audit journal before Samba starts writing it.
+		select {
+		case ransomWake <- struct{}{}:
+		default:
+		}
+		for i := 0; req.Enabled && !ransomFollowing.Load() && i < 30; i++ {
+			time.Sleep(100 * time.Millisecond)
 		}
 		s.audit(r, "ransomware", fmt.Sprintf("Ransomware protection: enabled=%v threshold=%d block=%v", req.Enabled, req.Threshold, req.Block))
 		return nil, s.applyShares()
