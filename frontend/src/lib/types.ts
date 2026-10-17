@@ -450,3 +450,9 @@ export interface UserQuota extends QuotaTarget {
   used: number;
   limit: number;
 }
+
+export type ShareLink = {
+  id: string; owner: string; path?: string; album?: string; dir: boolean; download: boolean; upload: boolean;
+  expires?: string; maxDownloads?: number; downloads: number; uploads: number; created: string; lastUsed?: string;
+  password: boolean; name: string;
+};

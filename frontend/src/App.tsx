@@ -43,6 +43,8 @@ const AntivirusPage = lazy(() => import("./pages/system/Antivirus"));
 const HAPage = lazy(() => import("./pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
 const PhotosPage = lazy(() => import("./pages/Photos"));
+const LinksPage = lazy(() => import("./pages/Links"));
+const PublicLink = lazy(() => import("./pages/PublicLink"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -97,6 +99,7 @@ function Root() {
             <Route path="storage/lvm" element={A(<Lvm />)} />
             <Route path="files" element={<Files />} />
             <Route path="photos" element={<PhotosPage me={me} />} />
+            <Route path="links" element={<LinksPage me={me} />} />
             <Route path="shares" element={A(<Shares />)} />
             <Route path="users" element={A(<Users me={me} />)} />
             <Route path="apps" element={A(<AppStore />)} />
@@ -128,13 +131,20 @@ function Root() {
   );
 }
 
+// Share links (/s/<id>) open without an account.
+const publicLink = /^\/s\/([A-Za-z0-9_-]{10,64})\/?$/.exec(location.pathname)?.[1];
+
 export function App() {
   return (
     <QueryClientProvider client={qc}>
       <UIProvider>
-        <BrowserRouter>
-          <Root />
-        </BrowserRouter>
+        {publicLink ? (
+          <Suspense fallback={<Spinner />}><PublicLink id={publicLink} /></Suspense>
+        ) : (
+          <BrowserRouter>
+            <Root />
+          </BrowserRouter>
+        )}
       </UIProvider>
     </QueryClientProvider>
   );

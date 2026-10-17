@@ -354,6 +354,34 @@ u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}"
 check "users see only their shares" "$(u GET /api/photos | py 'print(d["total"], any("secret" in i["path"] for i in d["items"]))')" "3 False"
 check "no thumbnail of a forbidden share" "$(curl -s -b "$J2" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/tank/media/photos/secret.png")" "404"
 
+section "Share links"
+L3=$(mktemp)  # visitor cookie jar
+vm "echo hello-link | sudo tee /srv/strata/main/Photos/link.txt >/dev/null; sudo mkdir -p /srv/strata/main/Photos/drop; sudo chown $USER_NAME /srv/strata/main/Photos/drop"
+LF=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/link.txt","download":true,"password":"pass-1234","expiresDays":1,"maxDownloads":1}' | py 'print(d["id"])')
+check "link created by a user" "$(u GET /api/links | py 'print([(l["name"], l["password"], "passwordHash" in l) for l in d])')" "('link.txt', True, False)"
+check "visitor sees a protected link" "$(curl -s $B/api/s/$LF)" '"unlocked":false'
+check "download refused without the password" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LF/download)" "401"
+check "wrong password refused" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/s/$LF/unlock -d '{"password":"nope"}')" "wrong password"
+curl -s -c "$L3" -X POST -H 'X-Strata: 1' $B/api/s/$LF/unlock -d '{"password":"pass-1234"}' >/dev/null
+check "download with the password" "$(curl -s -b "$L3" $B/api/s/$LF/download)" "hello-link"
+check "download limit enforced" "$(curl -s -b "$L3" $B/api/s/$LF/download)" "download limit"
+check "forged cookie refused" "$(curl -s -o /dev/null -w '%{http_code}' -b "strata_link_$LF=00" $B/api/s/$LF/files)" "401"
+LD=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/drop","download":false,"upload":true}' | py 'print(d["id"])')
+vm "echo one > /tmp/a.txt"; ./vm/vm.sh ssh 'cat /tmp/a.txt' > "$TMP/a.txt" 2>/dev/null
+curl -s -X POST -H 'X-Strata: 1' -F "f=@$TMP/a.txt;filename=a.txt" $B/api/s/$LD/upload >/dev/null
+check "drop box never overwrites" "$(curl -s -X POST -H 'X-Strata: 1' -F "f=@$TMP/a.txt;filename=../../a.txt" $B/api/s/$LD/upload)" '"names":["a (2).txt"]'
+check "dropped files owned by the link owner" "$(vm "sudo stat -c %U '/srv/strata/main/Photos/drop/a (2).txt'")" "$USER_NAME"
+check "drop box content stays hidden" "$(curl -s $B/api/s/$LD/files)" '"entries":[]'
+check "cross-site upload refused" "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: http://evil.example' -F "f=@$TMP/a.txt" $B/api/s/$LD/upload)" "403"
+LP=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/vacances","download":true}' | py 'print(d["id"])')
+check "folder listed" "$(curl -s $B/api/s/$LP/files | py 'print(sorted(e["name"] for e in d["entries"]))')" "img1.jpg"
+check "no way out of the folder" "$(curl -s "$B/api/s/$LP/download?path=../../../../etc/passwd" | head -c 200)" "file not found"
+check "photo thumbnail through the link" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "$B/api/s/$LP/thumb?path=img2.jpg&size=s")" "200 image/jpeg"
+check "link to a share the user cannot read refused" "$(u POST /api/links -d '{"path":"/srv/strata/tank/media/photos/secret.png","download":true}')" "access denied"
+u DELETE /api/links/$LP >/dev/null
+check "removed link stops working" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LP)" "410"
+rm -f "$L3"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

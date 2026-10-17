@@ -211,9 +211,38 @@ type HA struct {
 	AutoReturn  bool `json:"autoReturn,omitempty"`
 }
 
-// Photos lists the folders indexed by the Photos app.
+// Photos lists the folders indexed by the Photos app and the albums.
 type Photos struct {
 	Folders []string `json:"folders"`
+	Albums  []*Album `json:"albums,omitempty"`
+}
+
+// Album is a named selection of photos of one user.
+type Album struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Owner   string    `json:"owner"`
+	Items   []string  `json:"items"` // file paths
+	Created time.Time `json:"created"`
+}
+
+// ShareLink gives access to a file, a folder or an album without an account.
+// It acts with the rights of its owner, checked again on every request.
+type ShareLink struct {
+	ID           string    `json:"id"` // random, part of the URL
+	Owner        string    `json:"owner"`
+	Path         string    `json:"path,omitempty"`
+	Album        string    `json:"album,omitempty"` // album ID instead of a path
+	Dir          bool      `json:"dir"`
+	Download     bool      `json:"download"` // files can be seen and downloaded
+	Upload       bool      `json:"upload"`   // folders only: visitors can drop files
+	PasswordHash string    `json:"passwordHash,omitempty"`
+	Expires      time.Time `json:"expires,omitzero"`
+	MaxDownloads int       `json:"maxDownloads,omitempty"`
+	Downloads    int       `json:"downloads"`
+	Uploads      int       `json:"uploads"`
+	Created      time.Time `json:"created"`
+	LastUsed     time.Time `json:"lastUsed,omitzero"`
 }
 
 // VPN is the WireGuard server of the NAS.
@@ -307,6 +336,7 @@ type State struct {
 	VPN       VPN           `json:"vpn"`
 	Photos    Photos        `json:"photos"`
 	DDNS      DDNS          `json:"ddns"`
+	Links     []*ShareLink  `json:"links,omitempty"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

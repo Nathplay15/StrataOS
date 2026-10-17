@@ -28,7 +28,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   if (!res.ok) {
     const msg = (data && typeof data === "object" && "error" in data ? String((data as { error: string }).error) : res.statusText) || "Erreur";
-    if (res.status === 401 && !path.startsWith("/api/login") && !path.startsWith("/api/me")) {
+    if (res.status === 401 && !path.startsWith("/api/login") && !path.startsWith("/api/me") && !path.startsWith("/api/s/")) {
       window.dispatchEvent(new Event("strata:unauthorized"));
     }
     throw new ApiError(res.status, msg, data && typeof data === "object" ? (data as Record<string, unknown>) : {});

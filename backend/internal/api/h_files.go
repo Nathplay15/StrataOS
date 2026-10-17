@@ -79,6 +79,11 @@ func relTo(root, abs string) string {
 
 // locate validates p and returns where and how the caller may operate on it.
 func (s *Server) locate(r *http.Request, p string) (target, error) {
+	return s.locateFor(userOf(r), isAdmin(r), p)
+}
+
+// locateFor is locate for a given account (share links act as their owner).
+func (s *Server) locateFor(me string, admin bool, p string) (target, error) {
 	if p == "" {
 		p = storage.MountRoot
 	}
@@ -86,10 +91,9 @@ func (s *Server) locate(r *http.Request, p string) (target, error) {
 	if clean != storage.MountRoot && !strings.HasPrefix(clean, storage.MountRoot+"/") {
 		return target{}, &Error{Status: http.StatusForbidden, Msg: "outside of the NAS storage"}
 	}
-	if isAdmin(r) {
+	if admin {
 		return target{root: storage.MountRoot, rel: relTo(storage.MountRoot, clean), abs: clean, acc: access{read: true, write: true}}, nil
 	}
-	me := userOf(r)
 	groups := accounts.UserGroups(me)
 	var best *store.Share
 	var bestPerm string
@@ -153,7 +157,12 @@ func (s *Server) chownForUser(r *http.Request, rt *os.Root, rel string) {
 	if isAdmin(r) {
 		return
 	}
-	uid, _, err := accounts.IDs(userOf(r))
+	s.chownTo(userOf(r), rt, rel)
+}
+
+// chownTo gives a new file to an account (group of the parent folder).
+func (s *Server) chownTo(user string, rt *os.Root, rel string) {
+	uid, _, err := accounts.IDs(user)
 	if err != nil {
 		return
 	}
@@ -387,72 +396,84 @@ func (s *Server) fileRoutes() {
 			writeErr(w, firstErr(err, errForbidden))
 			return
 		}
-		rt, err := t.open()
+		s.serveTarget(w, r, t, nil)
+	})
+}
+
+// serveTarget sends a file (inline previews for safe types when inline=1) or
+// a folder as a ZIP. onFile, when set, is called before a file is sent.
+func (s *Server) serveTarget(w http.ResponseWriter, r *http.Request, t target, onFile func()) {
+	rt, err := t.open()
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	defer rt.Close()
+	f, err := rt.Open(t.rel)
+	if err != nil {
+		writeErr(w, notFound("file not found"))
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		writeErr(w, notFound("file not found"))
+		return
+	}
+	name := filepath.Base(t.abs)
+	// User content must never run script on the UI origin.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if !st.IsDir() {
+		ext := strings.ToLower(filepath.Ext(name))
+		ctype, inline := inlineTypes[ext]
+		disp := "attachment"
+		if inline && r.URL.Query().Get("inline") == "1" {
+			disp = "inline"
+			w.Header().Set("Content-Type", ctype)
+			if ext != ".pdf" { // the browser PDF viewer does not work in a sandbox
+				w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'")
+			}
+		} else {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		}
+		w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": name}))
+		if onFile != nil {
+			onFile()
+		}
+		http.ServeContent(w, r, name, st.ModTime(), f)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name + ".zip"}))
+	if onFile != nil {
+		onFile()
+	}
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+	rfs := rt.FS()
+	_ = fs.WalkDir(rfs, t.rel, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !d.Type().IsRegular() {
+			return nil // symlinks and special files are skipped
+		}
+		info, err := d.Info()
 		if err != nil {
-			writeErr(w, err)
-			return
+			return nil
 		}
-		defer rt.Close()
-		f, err := rt.Open(t.rel)
+		hdr, _ := zip.FileInfoHeader(info)
+		hdr.Name = path.Join(name, relTo(t.rel, p))
+		hdr.Method = zip.Deflate
+		fw, err := zw.CreateHeader(hdr)
 		if err != nil {
-			writeErr(w, notFound("file not found"))
-			return
-		}
-		defer f.Close()
-		st, err := f.Stat()
-		if err != nil {
-			writeErr(w, notFound("file not found"))
-			return
-		}
-		name := filepath.Base(t.abs)
-		// User content must never run script on the UI origin.
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if !st.IsDir() {
-			ext := strings.ToLower(filepath.Ext(name))
-			ctype, inline := inlineTypes[ext]
-			disp := "attachment"
-			if inline && r.URL.Query().Get("inline") == "1" {
-				disp = "inline"
-				w.Header().Set("Content-Type", ctype)
-				if ext != ".pdf" { // the browser PDF viewer does not work in a sandbox
-					w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'")
-				}
-			} else {
-				w.Header().Set("Content-Type", "application/octet-stream")
-				w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-			}
-			w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": name}))
-			http.ServeContent(w, r, name, st.ModTime(), f)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name + ".zip"}))
-		zw := zip.NewWriter(w)
-		defer zw.Close()
-		rfs := rt.FS()
-		_ = fs.WalkDir(rfs, t.rel, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !d.Type().IsRegular() {
-				return nil // symlinks and special files are skipped
-			}
-			info, err := d.Info()
-			if err != nil {
-				return nil
-			}
-			hdr, _ := zip.FileInfoHeader(info)
-			hdr.Name = path.Join(name, relTo(t.rel, p))
-			hdr.Method = zip.Deflate
-			fw, err := zw.CreateHeader(hdr)
-			if err != nil {
-				return err
-			}
-			src, err := rfs.Open(p)
-			if err != nil {
-				return nil
-			}
-			_, err = io.Copy(fw, src)
-			src.Close()
 			return err
-		})
+		}
+		src, err := rfs.Open(p)
+		if err != nil {
+			return nil
+		}
+		_, err = io.Copy(fw, src)
+		src.Close()
+		return err
 	})
 }
 
