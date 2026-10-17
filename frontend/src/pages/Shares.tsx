@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Group, Perm, Share, User } from "../lib/types";
 import { bytes, cx } from "../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
 
 const empty: Share = { name: "", path: "", description: "", smb: true, nfs: false, guest: false, browseable: true, recycleBin: true, timeMachine: false, permissions: {}, nfsClients: "", nfsOptions: "" };
@@ -102,6 +102,11 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
           <Switch checked={s.guest} onChange={(v) => set("guest", v)} label={tr("Accès invité")} hint={tr("Lecture/écriture sans mot de passe")} />
         </div>
 
+        <div className="grid gap-4 rounded-xl border border-line p-4 sm:grid-cols-2">
+          <Field label={tr("Quota (Go)")} hint={tr("0 = illimité. Alerte à 90 % et 100 %, mesuré toutes les 30 minutes")}><Input type="number" min={0} step="1" value={s.quotaGb ?? 0} onChange={(e) => set("quotaGb", Math.max(0, +e.target.value))} /></Field>
+          <div className="pt-6"><Switch checked={!!s.quotaBlock} disabled={!s.quotaGb} onChange={(v) => set("quotaBlock", v)} label={tr("Lecture seule quand le quota est atteint")} hint={tr("Pour tous les protocoles, jusqu'à ce que de la place soit libérée")} /></div>
+        </div>
+
         {s.nfs && (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Clients NFS autorisés")} hint={tr("ex. 192.168.1.0/24 10.0.0.5 — vide = tous")}><Input value={s.nfsClients} onChange={(e) => set("nfsClients", e.target.value)} /></Field>
@@ -177,7 +182,14 @@ export default function Shares() {
                     {s.recycleBin && <Badge>{tr("Corbeille")}</Badge>}
                     {s.timeMachine && <Badge>{tr("Time Machine")}</Badge>}
                     {!s.browseable && <Badge>{tr("Masqué")}</Badge>}
+                    {s.quotaFull && <Badge tone="danger">{tr("Quota atteint : lecture seule")}</Badge>}
                   </div>
+                  {!!s.quotaGb && (
+                    <div className="mt-3">
+                      <div className="mb-1 flex justify-between text-[12px]"><span className="text-muted">{tr("Quota")}</span><span>{bytes(s.used ?? 0)} / {s.quotaGb} Go</span></div>
+                      <Progress value={Math.min(100, ((s.used ?? 0) / (s.quotaGb * 1e9)) * 100)} tone={(s.used ?? 0) >= s.quotaGb * 1e9 ? "danger" : (s.used ?? 0) >= s.quotaGb * 0.9e9 ? "warn" : "ok"} />
+                    </div>
+                  )}
                   <div className="mt-3 text-[12px] text-muted">
                     {Object.entries(s.permissions).length === 0 ? tr("Lecture seule pour tous les utilisateurs") : Object.entries(s.permissions).map(([k, v]) => `${k} (${v})`).join(", ")}
                   </div>

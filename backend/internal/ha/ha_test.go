@@ -13,7 +13,7 @@ func TestKeepalived(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := RenderKeepalived(c, "10.0.0.1")
-	for _, want := range []string{"priority 150", "nopreempt", "state BACKUP", "unicast_peer {\n        10.0.0.2", "10.0.0.100/24 dev eth0", "virtual_router_id 51", "vrrp_startup_delay 0"} {
+	for _, want := range []string{"priority 150", "nopreempt", "state BACKUP", "unicast_peer {\n        10.0.0.2", "10.0.0.100/24 dev eth0", "virtual_router_id 51"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("primary config lacks %q", want)
 		}

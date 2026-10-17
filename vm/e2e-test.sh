@@ -353,6 +353,22 @@ u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}"
 check "users see only their shares" "$(u GET /api/photos | py 'print(d["total"], any("secret" in i["path"] for i in d["items"]))')" "3 False"
 check "no thumbnail of a forbidden share" "$(curl -s -b "$J2" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/tank/media/photos/secret.png")" "404"
 
+section "Share quota and monthly report"
+vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
+SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')
+c PUT /api/shares/Photos -d "$SH" >/dev/null
+for _ in $(seq 1 20); do c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])' | grep -q True && break; sleep 2; done
+check "share over quota becomes read-only" "$(c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])')" "True"
+check "SMB writes refused" "$(vm "echo x > /tmp/q.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/q.txt q.txt' 2>&1")" "ACCESS_DENIED"
+check "quota alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "a atteint son quota"
+vm "sudo rm /srv/strata/main/Photos/big.bin"
+c PUT /api/shares/Photos -d "$SH" >/dev/null
+for _ in $(seq 1 20); do c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])' | grep -q None && break; sleep 2; done
+check "writes back once space is freed" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/q.txt q.txt' 2>&1")" "putting file"
+SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=0; s["quotaBlock"]=False; print(json.dumps(s))')
+c PUT /api/shares/Photos -d "$SH" >/dev/null
+check "monthly report" "$(c POST /api/settings/report | py 'print(d["report"])')" "Sauvegardes (30 jours)"
+
 section "Active Directory and LDAP (test servers in containers)"
 DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
 check "directory clients installed" "$(job "$(c POST /api/system/components/directory/install)")" "success"

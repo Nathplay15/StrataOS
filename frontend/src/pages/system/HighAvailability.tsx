@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, Copy, KeyRound, Plug, RefreshCcw, Server, ServerCog, Unlink } from "lucide-react";
+import { ArrowLeftRight, Copy, KeyRound, Plug, RefreshCcw, Server, ServerCog, Unlink, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, dateTime } from "../../lib/format";
 import { Badge, Button, Card, ErrorBox, Field, Input, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
 
-type Config = { role: "" | "primary" | "secondary"; peerHost: string; peerName: string; vip: string; interface: string; vrid: number; interval: number; lastSync: string; lastResult: string; pairedAt: string };
+type Config = { maintenance?: boolean; autoReturn?: boolean; role: "" | "primary" | "secondary"; peerHost: string; peerName: string; vip: string; interface: string; vrid: number; interval: number; lastSync: string; lastResult: string; pairedAt: string };
 type Data = { installed: boolean; config: Config; state: string; pairingCode?: string; pairingExpires?: string; interfaces?: Record<string, string> };
 
 export default function HighAvailability() {
@@ -19,6 +19,8 @@ export default function HighAvailability() {
   const pair = useAction(() => api.post("/api/ha/pair", f), { success: tr("NAS appairés : la première réplication démarre") });
   const sync = useAction(() => api.post("/api/ha/sync"));
   const back = useAction(() => api.post("/api/ha/switchback"));
+  const maint = useAction(() => api.post("/api/ha/maintenance"));
+  const endMaint = useAction(() => api.post("/api/ha/maintenance/end"), { success: tr("Maintenance terminée : la main revient automatiquement à ce NAS") });
   const unpair = useAction(() => api.post<{ warning?: string } | null>("/api/ha/unpair"), { success: (r) => r?.warning ?? tr("Appairage supprimé") });
   useEffect(() => {
     if (data?.interfaces && !f.interface) {
@@ -39,7 +41,7 @@ export default function HighAvailability() {
     return (
       <div>
         {header}
-        <ErrorBox error={sync.error || back.error || unpair.error} />
+        <ErrorBox error={sync.error || back.error || unpair.error || maint.error || endMaint.error} />
         <div className="space-y-5">
           <Card title={tr("État")} actions={<Badge tone={active ? "ok" : "neutral"} dot>{active ? tr("Actif : sert l'adresse {0}", c.vip) : data.state === "FAULT" ? tr("En défaut") : tr("En attente")}</Badge>}>
             <div className="grid gap-4 text-[13px] sm:grid-cols-3">
@@ -49,10 +51,14 @@ export default function HighAvailability() {
               <div><div className="text-muted text-[12px]">{tr("Dernière réplication")}</div><div>{c.lastSync && !c.lastSync.startsWith("0001") ? `${dateTime(c.lastSync)} (${ago(c.lastSync)})` : "—"}</div></div>
               <div className="sm:col-span-2"><div className="text-muted text-[12px]">{tr("Résultat")}</div><div className={c.lastResult && c.lastResult !== "OK" ? "text-danger" : ""}>{c.lastResult ? srv(c.lastResult) : "—"}</div></div>
             </div>
-            {c.role === "secondary" && active && <div className="mt-4"><Notice tone="warn">{tr("Ce NAS secondaire sert actuellement les partages : le principal ne répondait plus. Une fois le principal réparé et redémarré, rendez-lui la main : les modifications faites ici lui seront d'abord copiées.")}</Notice></div>}
-            {c.role === "primary" && !active && <div className="mt-4"><Notice tone="warn">{tr("Le secondaire sert les partages depuis une panne de ce NAS. Rendez la main depuis le secondaire pour que ce NAS reprenne son rôle (ses données seront mises à jour).")}</Notice></div>}
+            {c.role === "secondary" && active && !c.autoReturn && <div className="mt-4"><Notice tone="warn">{tr("Ce NAS secondaire sert actuellement les partages : le principal ne répondait plus. Une fois le principal réparé et redémarré, rendez-lui la main : les modifications faites ici lui seront d'abord copiées.")}</Notice></div>}
+            {c.role === "primary" && !active && c.maintenance && <div className="mt-4"><Notice>{tr("Maintenance en cours : le secondaire sert les partages. Vous pouvez redémarrer ou éteindre ce NAS ; à son retour, la main lui revient automatiquement après recopie des modifications.")}</Notice></div>}
+            {c.role === "secondary" && active && c.autoReturn && <div className="mt-4"><Notice>{tr("Maintenance du principal : ce NAS sert les partages et rendra la main automatiquement dès le retour du principal.")}</Notice></div>}
+            {c.role === "primary" && !active && !c.maintenance && <div className="mt-4"><Notice tone="warn">{tr("Le secondaire sert les partages depuis une panne de ce NAS. Rendez la main depuis le secondaire pour que ce NAS reprenne son rôle (ses données seront mises à jour).")}</Notice></div>}
             <div className="mt-5 flex flex-wrap gap-2">
               {c.role === "primary" && <Button icon={<RefreshCcw size={15} />} disabled={!active} loading={sync.isPending} onClick={() => sync.mutate()}>{tr("Répliquer maintenant")}</Button>}
+              {c.role === "primary" && active && <Button icon={<Wrench size={15} />} loading={maint.isPending} onClick={async () => { if (await confirm({ title: tr("Passer en maintenance ?"), text: tr("Une dernière réplication est faite, puis le secondaire prend le relais. Vous pourrez redémarrer ce NAS ; au retour, la main lui revient automatiquement."), confirm: tr("Passer en maintenance") })) maint.mutate(); }}>{tr("Maintenance")}</Button>}
+              {c.role === "primary" && !active && c.maintenance && <Button variant="primary" icon={<ArrowLeftRight size={15} />} loading={endMaint.isPending} onClick={() => endMaint.mutate()}>{tr("Terminer la maintenance")}</Button>}
               {c.role === "secondary" && <Button variant="primary" icon={<ArrowLeftRight size={15} />} disabled={!active} loading={back.isPending} onClick={async () => { if (await confirm({ title: tr("Rendre la main au principal ?"), text: tr("Les fichiers modifiés ici sont copiés vers le principal, puis l'adresse partagée lui revient. Les postes peuvent perdre la connexion quelques secondes."), confirm: tr("Rendre la main") })) back.mutate(); }}>{tr("Rendre la main au principal")}</Button>}
               <div className="flex-1" />
               <Button variant="danger" icon={<Unlink size={15} />} onClick={async () => { if (await confirm({ title: tr("Supprimer l'appairage ?"), text: tr("Les deux NAS redeviennent indépendants ; l'adresse partagée n'est plus servie. Les données déjà répliquées restent sur le secondaire."), danger: true })) unpair.mutate(); }}>{tr("Désappairer")}</Button>

@@ -238,6 +238,22 @@ func (s *Server) changePassword(name, pw string) error {
 	if err := accounts.ValidPassword(pw); err != nil {
 		return badRequest(err.Error())
 	}
+	// After a system restore point, accounts created later exist in StrataOS
+	// but not in the system: setting the password recreates them.
+	if !accounts.LinuxUserExists(name) {
+		var u store.User
+		s.store.Read(func(st *store.State) {
+			if x := st.User(name); x != nil {
+				u = *x
+			}
+		})
+		if u.Username != "" && u.Source == "" {
+			if err := accounts.Create(name, u.FullName, pw, nil, u.SSH); err != nil {
+				return err
+			}
+			s.store.Log("info", "users", name, "System account recreated")
+		}
+	}
 	if err := accounts.SetPassword(name, pw); err != nil {
 		return err
 	}

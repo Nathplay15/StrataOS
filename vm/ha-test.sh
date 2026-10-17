@@ -79,6 +79,18 @@ check "hand back" "$(job 7080 "$(api 7080 POST /api/ha/switchback)")" "success"
 for _ in $(seq 1 30); do [ "$(state 7070)" = MASTER ] && break; sleep 1; done
 check "primary active again" "$(state 7070) $(state 7080)" "MASTER BACKUP"
 check "changes made during the outage kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 2"
+section "Planned maintenance"
+check "maintenance hands over" "$(job 7070 "$(api 7070 POST /api/ha/maintenance)")" "success"
+for _ in $(seq 1 30); do [ "$(state 7080)" = MASTER ] && break; sleep 1; done
+check "secondary serves during maintenance" "$(state 7080) $(state 7070)" "MASTER "
+B ssh "echo 'version 3' > /tmp/v3"
+for _ in $(seq 1 20); do B ssh "smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v3 rapport.txt' >/dev/null 2>&1" && break; sleep 2; done
+check "write during maintenance" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 3"
+check "end of maintenance" "$(api 7070 POST /api/ha/maintenance/end)" '"ok":true'
+# The secondary restarts keepalived after copying, then waits 30 s (startup delay).
+for _ in $(seq 1 60); do [ "$(state 7070) $(state 7080)" = "MASTER BACKUP" ] && break; sleep 2; done
+check "address back to the primary automatically" "$(state 7070) $(state 7080)" "MASTER BACKUP"
+check "changes made during maintenance kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 3"
 check "unpaired" "$(api 7070 POST /api/ha/unpair)" '"ok":true'
 check "both independent again" "$(api 7080 GET /api/ha | py 'print(d["config"]["role"] or "none")') $(A ssh 'systemctl is-active keepalived')" "none inactive"
 

@@ -168,6 +168,23 @@ func (s *Server) haLoop() {
 			last = cur
 			_ = s.applyShares()
 		}
+		if c.Role == "primary" && cur == "MASTER" && c.Maintenance {
+			_ = s.store.Update(func(st *store.State) error { st.HA.Maintenance = false; return nil })
+			s.store.Log("info", "ha", "", "Maintenance terminée : ce NAS sert de nouveau l'adresse partagée")
+		}
+		// Planned maintenance: give the address back as soon as the primary is back.
+		if tick%5 == 0 && c.Role == "secondary" && cur == "MASTER" && c.AutoReturn {
+			p, _ := s.peer()
+			var st struct {
+				State string `json:"state"`
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if p.Call(ctx, "status", nil, &st) == nil && st.State == "BACKUP" {
+				s.store.Log("info", "ha", "", "Le principal est de retour : retour automatique après la maintenance")
+				_, _ = s.startHandBack("ha")
+			}
+			cancel()
+		}
 		if tick%30 == 0 && c.Role == "primary" && cur == "MASTER" && time.Since(c.LastSync) >= time.Duration(c.Interval)*time.Minute {
 			if _, err := s.runReplication("scheduler"); err != nil {
 				slog.Debug("ha replication", "err", err)
@@ -283,35 +300,48 @@ func (s *Server) haRoutes() {
 	// On the secondary while it is active: copy the data back to the primary,
 	// then release the shared address so the primary takes it again.
 	s.admin("POST /api/ha/switchback", func(r *http.Request) (any, error) {
-		p, c := s.peer()
+		_, c := s.peer()
 		if c.Role != "secondary" || ha.State() != "MASTER" {
 			return nil, badRequest("only an active secondary can hand control back")
 		}
 		s.audit(r, "ha", "Handing control back to "+c.PeerHost)
-		return s.jobs.Start("ha", "Retour au NAS principal", userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			var st struct {
-				State string `json:"state"`
+		return s.startHandBack(userOf(r))
+	})
+
+	// On the active primary: final replication, then hand the address over to
+	// the secondary for a planned reboot; it comes back automatically.
+	s.admin("POST /api/ha/maintenance", func(r *http.Request) (any, error) {
+		p, c := s.peer()
+		if c.Role != "primary" || ha.State() != "MASTER" {
+			return nil, badRequest("only the active primary can enter maintenance")
+		}
+		s.audit(r, "ha", "Maintenance: handing the address over to "+c.PeerHost)
+		return s.jobs.Start("ha", "Maintenance du NAS principal", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Dernière réplication avant la maintenance…")
+			if err := s.replicate(ctx, j.Logf); err != nil {
+				return err
 			}
-			if err := p.Call(ctx, "status", nil, &st); err != nil {
-				return fmt.Errorf("the primary %s does not answer: %w", c.PeerHost, err)
+			if err := p.Call(ctx, "maintenance", map[string]bool{"autoReturn": true}, nil); err != nil {
+				return fmt.Errorf("the secondary does not answer: %w", err)
 			}
-			var list []store.Share
-			s.store.Read(func(x *store.State) {
-				for _, sh := range x.Shares {
-					list = append(list, *sh)
-				}
-			})
-			key := filepath.Join(backup.KeyDir, "id_ed25519")
-			known := filepath.Join(backup.KeyDir, "known_hosts")
-			j.Logf("Copie des modifications vers %s…", c.PeerHost)
-			for _, sh := range list {
-				if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.Path, j.Logf); err != nil {
-					return err
-				}
-			}
-			j.Logf("Libération de l'adresse %s", c.VIP)
-			return ha.Release()
+			_ = s.store.Update(func(st *store.State) error { st.HA.Maintenance = true; return nil })
+			j.Logf("Le secondaire prend le relais ; ce NAS peut être redémarré.")
+			_, err := sys.Run("systemctl", "stop", "keepalived.service")
+			return err
 		}), nil
+	})
+
+	// Ends the maintenance without rebooting: the primary takes part in VRRP
+	// again and the secondary hands back automatically.
+	s.admin("POST /api/ha/maintenance/end", func(r *http.Request) (any, error) {
+		var c store.HA
+		s.store.Read(func(st *store.State) { c = st.HA })
+		if c.Role != "primary" {
+			return nil, badRequest("not a primary")
+		}
+		s.audit(r, "ha", "Maintenance finished")
+		_, err := sys.Run("systemctl", "start", "keepalived.service")
+		return nil, err
 	})
 
 	s.admin("POST /api/ha/unpair", func(r *http.Request) (any, error) {
@@ -498,11 +528,52 @@ func (s *Server) haRoutes() {
 		return map[string]any{"problems": problems}, nil
 	})
 
+	peerHandle("POST /api/ha/peer/maintenance", true, func(r *http.Request) (any, error) {
+		err := s.store.Update(func(st *store.State) error { st.HA.AutoReturn = true; return nil })
+		s.store.Log("info", "ha", "", "Maintenance of the primary: this NAS serves the shares until it is back")
+		return nil, err
+	})
+
 	peerHandle("POST /api/ha/peer/unpair", true, func(r *http.Request) (any, error) {
 		s.haReset()
 		s.store.Log("warning", "ha", "", "Unpaired by the other NAS")
 		return nil, nil
 	})
+}
+
+// startHandBack copies the changes made on the active secondary to the
+// primary, then releases the shared address so the primary takes it again.
+func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
+	if _, busy := running.LoadOrStore("ha-handback", true); busy {
+		return jobs.Snapshot{}, &Error{Status: http.StatusConflict, Msg: "already handing back"}
+	}
+	p, c := s.peer()
+	return s.jobs.Start("ha", "Retour au NAS principal", user, func(ctx context.Context, j *jobs.Job) error {
+		defer running.Delete("ha-handback")
+		var st struct {
+			State string `json:"state"`
+		}
+		if err := p.Call(ctx, "status", nil, &st); err != nil {
+			return fmt.Errorf("the primary %s does not answer: %w", c.PeerHost, err)
+		}
+		var list []store.Share
+		s.store.Read(func(x *store.State) {
+			for _, sh := range x.Shares {
+				list = append(list, *sh)
+			}
+		})
+		key := filepath.Join(backup.KeyDir, "id_ed25519")
+		known := filepath.Join(backup.KeyDir, "known_hosts")
+		j.Logf("Copie des modifications vers %s…", c.PeerHost)
+		for _, sh := range list {
+			if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.Path, j.Logf); err != nil {
+				return err
+			}
+		}
+		_ = s.store.Update(func(x *store.State) error { x.HA.AutoReturn = false; return nil })
+		j.Logf("Libération de l'adresse %s", c.VIP)
+		return ha.Release()
+	}), nil
 }
 
 func (s *Server) haReset() {

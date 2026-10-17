@@ -139,15 +139,18 @@ func RenderKeepalived(c store.HA, self string) string {
 	if c.Role == "primary" {
 		prio, delay = 150, 0
 	}
+	startup := ""
+	if delay > 0 {
+		// The secondary waits before taking part, so that the primary (higher
+		// priority) wins the first election when both start together.
+		startup = fmt.Sprintf("    vrrp_startup_delay %d\n", delay)
+	}
 	return fmt.Sprintf(`# Managed by StrataOS — changes are overwritten.
 global_defs {
     router_id strata_%s
     script_user root
     enable_script_security
-    # The secondary waits before taking part, so that the primary (higher
-    # priority) wins the first election when both start together.
-    vrrp_startup_delay %d
-}
+%s}
 
 vrrp_instance STRATA {
     state BACKUP
@@ -169,7 +172,7 @@ vrrp_instance STRATA {
     }
     notify %s
 }
-`, c.Role, delay, c.Interface, c.VRID, prio, c.AuthPass, self, c.PeerHost, c.VIP, c.Interface, NotifyScript)
+`, c.Role, startup, c.Interface, c.VRID, prio, c.AuthPass, self, c.PeerHost, c.VIP, c.Interface, NotifyScript)
 }
 
 // ApplyKeepalived writes the configuration and (re)starts keepalived, or stops

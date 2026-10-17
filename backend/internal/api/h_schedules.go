@@ -65,6 +65,16 @@ func (s *Server) schedulerLoop() {
 		for _, id := range s.dueClouds(tick) {
 			s.runCloud(id, "", false)
 		}
+		if tick.Day() == 1 && tick.Hour() == 8 && tick.Minute() == 0 {
+			var on bool
+			s.store.Read(func(st *store.State) { on = st.Settings.MonthlyReport })
+			if on {
+				go func() {
+					subject, body := s.monthlyReport()
+					s.notify(subject, body)
+				}()
+			}
+		}
 		if tick.Hour() == 3 && tick.Minute() == 30 {
 			go s.purgeRecycleBins()
 		}

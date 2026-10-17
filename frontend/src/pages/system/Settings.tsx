@@ -4,7 +4,7 @@ import { Bell, Clock, Settings as Cog, Lock, Share2, Shield, Wrench } from "luci
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Settings, SystemInfo } from "../../lib/types";
-import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
+import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, locale } from "../../lib/i18n";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
@@ -80,6 +80,7 @@ export default function SettingsPage() {
   const test = useAction(() => api.post("/api/settings/test-notification"), { success: tr("Notification envoyée") });
   const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Fuseau horaire mis à jour") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
+  const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Rapport envoyé") });
   if (isLoading || !s) return <Spinner />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS({ ...s, [k]: v });
   return (
@@ -129,6 +130,11 @@ export default function SettingsPage() {
             <Field label={tr("Expéditeur")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Destinataire des alertes")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line p-4">
+            <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Rapport mensuel")} hint={tr("Le 1er de chaque mois à 8 h : espace, santé des disques, sauvegardes, antivirus, mises à jour")} /></div>
+            <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Envoyer maintenant")}</Button>
+          </div>
+          {report.data && <pre className="mono mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[12px]">{report.data.report}</pre>}
           <p className="mt-3 text-[12.5px] text-muted">{tr("Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein à 90 %, virus détecté, échec d'une tâche, coupure de courant.")}</p>
         </Card>
         <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date et heure")}</span>}>

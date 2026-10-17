@@ -14,6 +14,7 @@ import (
 	"net/smtp"
 	"net/url"
 	"regexp"
+	"strataos/internal/accounts"
 	"strconv"
 	"strings"
 	"sync"
@@ -201,6 +202,7 @@ func (s *Server) healthWatcher() {
 	// First pass after boot: recover storage, then regenerate Samba/NFS config so an
 	// upgraded StrataOS applies its current templates.
 	s.recoverStorage()
+	s.checkMissingAccounts()
 	s.reapplySharePermissions()
 	_ = s.applyShares()
 	_ = s.applyFileServices()
@@ -447,4 +449,23 @@ func sendNtfy(topicURL, token, title, msg string) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// checkMissingAccounts reports StrataOS users without a system account (after
+// going back to a system restore point): their password must be set again.
+func (s *Server) checkMissingAccounts() {
+	var missing []string
+	s.store.Read(func(st *store.State) {
+		for _, u := range st.Users {
+			if u.Source == "" && !accounts.LinuxUserExists(u.Username) {
+				missing = append(missing, u.Username)
+			}
+		}
+	})
+	if len(missing) == 0 {
+		return
+	}
+	msg := "Comptes absents du système (retour à un point de restauration ?) : " + strings.Join(missing, ", ") + ". Redéfinissez leur mot de passe dans Utilisateurs pour les recréer."
+	s.store.Log("warning", "users", "", msg)
+	s.notify("Comptes à recréer", msg)
 }

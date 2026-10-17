@@ -47,8 +47,18 @@ type Share struct {
 	Permissions map[string]string `json:"permissions"`
 	NFSClients  string            `json:"nfsClients"` // e.g. "192.168.1.0/24"
 	NFSOptions  string            `json:"nfsOptions"` // e.g. "rw,sync,no_subtree_check"
-	CreatedAt   time.Time         `json:"createdAt"`
+	// Quota: size limit in GB (0 = none); with QuotaBlock the share becomes
+	// read-only while full. Used/QuotaFull are measured by StrataOS.
+	QuotaGB    float64   `json:"quotaGb,omitempty"`
+	QuotaBlock bool      `json:"quotaBlock,omitempty"`
+	QuotaFull  bool      `json:"quotaFull,omitempty"`
+	Used       int64     `json:"used,omitempty"`
+	UsedAt     time.Time `json:"usedAt,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
+
+// Writable reports whether a permission allows writing, a full share being read-only.
+func (s *Share) Writable(perm string) bool { return perm == "rw" && !s.QuotaFull }
 
 type Volume struct {
 	ID         string    `json:"id"`
@@ -86,12 +96,14 @@ type Settings struct {
 	TelegramChatID string `json:"telegramChatId,omitempty"`
 	// Push notifications through ntfy: topic URL (https://ntfy.sh/<topic> or a
 	// self-hosted server) and an optional access token.
-	NtfyURL     string `json:"ntfyUrl,omitempty"`
-	NtfyToken   string `json:"ntfyToken,omitempty"`
-	SMBMinProto string `json:"smbMinProtocol"`
-	TrashDays   int    `json:"trashDays"`
-	ACMEDomain  string `json:"acmeDomain"`
-	ACMEEmail   string `json:"acmeEmail"`
+	NtfyURL   string `json:"ntfyUrl,omitempty"`
+	NtfyToken string `json:"ntfyToken,omitempty"`
+	// MonthlyReport sends a health report on the 1st of each month.
+	MonthlyReport bool   `json:"monthlyReport,omitempty"`
+	SMBMinProto   string `json:"smbMinProtocol"`
+	TrashDays     int    `json:"trashDays"`
+	ACMEDomain    string `json:"acmeDomain"`
+	ACMEEmail     string `json:"acmeEmail"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).
@@ -190,6 +202,11 @@ type HA struct {
 	LastSync   time.Time `json:"lastSync"`
 	LastResult string    `json:"lastResult"`
 	PairedAt   time.Time `json:"pairedAt"`
+	// Maintenance: the primary handed the address over on purpose (planned
+	// reboot); AutoReturn: the secondary gives it back as soon as the primary
+	// is back, after copying the changes.
+	Maintenance bool `json:"maintenance,omitempty"`
+	AutoReturn  bool `json:"autoReturn,omitempty"`
 }
 
 // Photos lists the folders indexed by the Photos app.

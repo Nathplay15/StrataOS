@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strataos/internal/system"
 	"time"
 
 	"strataos/internal/accounts"
@@ -35,10 +36,18 @@ func main() {
 	dataDir := flag.String("data", env("STRATA_DATA", "/var/lib/strata"), "state directory")
 	debug := flag.Bool("debug", os.Getenv("STRATA_DEBUG") != "", "verbose logging")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	prepareData := flag.Bool("prepare-data", false, "on a Btrfs system, move the state directory to its own subvolume (outside restore points) and exit")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println(version)
+		return
+	}
+	if *prepareData {
+		if err := system.SeparateStrataData(*dataDir); err != nil {
+			fmt.Fprintln(os.Stderr, "prepare-data:", err)
+			os.Exit(1)
+		}
 		return
 	}
 	level := slog.LevelInfo

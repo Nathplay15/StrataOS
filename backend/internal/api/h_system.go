@@ -119,6 +119,7 @@ func (s *Server) systemRoutes() {
 	s.admin("POST /api/system/updates/upgrade", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "System upgrade started")
 		return s.jobs.Start("apt", "Mise à jour du système", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			s.restorePointBeforeUpdate(j)
 			return aptRun(ctx, j, "apt-get", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "full-upgrade")
 		}), nil
 	})
@@ -126,6 +127,7 @@ func (s *Server) systemRoutes() {
 	s.admin("POST /api/system/updates/strata", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "StrataOS update started from "+s.version)
 		return s.jobs.Start("apt", "Mise à jour de StrataOS", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			s.restorePointBeforeUpdate(j)
 			if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
 				return err
 			}

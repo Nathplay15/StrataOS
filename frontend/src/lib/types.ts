@@ -196,6 +196,10 @@ export interface Share {
   permissions: Record<string, Perm>;
   nfsClients: string;
   nfsOptions: string;
+  quotaGb?: number;
+  quotaBlock?: boolean;
+  quotaFull?: boolean;
+  used?: number;
   createdAt?: string;
 }
 
@@ -352,6 +356,7 @@ export interface Settings {
   notifyEmail: string;
   telegramToken?: string;
   telegramChatId?: string;
+  monthlyReport?: boolean;
   ntfyUrl?: string;
   ntfyToken?: string;
   smbMinProtocol: string;

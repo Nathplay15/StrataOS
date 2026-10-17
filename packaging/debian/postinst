@@ -14,6 +14,10 @@ case "$1" in
     sed -i -E '/^HOMEHOST/d; /^ARRAY/ s/ spares=[0-9]+//' /etc/mdadm/mdadm.conf
     sed -i '1i HOMEHOST <ignore>' /etc/mdadm/mdadm.conf
     command -v update-initramfs >/dev/null && update-initramfs -u >/dev/null 2>&1 || true
+    # On a Btrfs system (StrataOS ISO), the settings live in their own subvolume
+    # so that system restore points never roll them back.
+    if [ -d /run/systemd/system ]; then systemctl stop strata.service >/dev/null 2>&1 || true; fi
+    /usr/bin/strata -prepare-data || echo "warning: settings left on the system subvolume"
     # Enabling works without a running systemd too (installation from the ISO,
     # inside the installer's chroot): the services then start at first boot.
     systemctl enable strata.service >/dev/null 2>&1 || true

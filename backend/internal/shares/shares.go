@@ -129,6 +129,9 @@ func Prepare(sh *store.Share) error {
 	specs := []string{"u::rwx", "g::" + groupBits, "o::" + other, "d:u::rwx", "d:g::" + groupBits, "d:o::" + other}
 	for who, perm := range sh.Permissions {
 		bits := "---"
+		if perm == "rw" && sh.QuotaFull {
+			perm = "ro"
+		}
 		switch perm {
 		case "rw":
 			bits = "rwx"
@@ -164,6 +167,9 @@ func Prepare(sh *store.Share) error {
 func smbList(sh *store.Share, perm string) []string {
 	var out []string
 	for who, p := range sh.Permissions {
+		if p == "rw" && sh.QuotaFull {
+			p = "ro" // full share: read-only for everyone
+		}
 		if p == perm {
 			out = append(out, who)
 		}
@@ -318,7 +324,7 @@ func Apply(st *store.State) error {
 		rw, ro := smbList(sh, "rw"), smbList(sh, "ro")
 		valid := append(append([]string{}, rw...), ro...)
 		if sh.Guest {
-			b.WriteString("   guest ok = yes\n   read only = no\n")
+			b.WriteString("   guest ok = yes\n   read only = " + yesno(sh.QuotaFull) + "\n")
 		} else {
 			b.WriteString("   guest ok = no\n")
 			if len(valid) == 0 {
@@ -395,6 +401,10 @@ func Apply(st *store.State) error {
 		opts := sh.NFSOptions
 		if opts == "" {
 			opts = "rw,sync,no_subtree_check,root_squash"
+		}
+		if sh.QuotaFull {
+			opts = strings.Replace(","+opts+",", ",rw,", ",ro,", 1)
+			opts = strings.Trim(opts, ",")
 		}
 		var parts []string
 		for _, c := range clients {
