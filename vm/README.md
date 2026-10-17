@@ -33,7 +33,7 @@ Variables : `VM_MEM` (4096 Mio), `VM_CPUS` (4), `VM_DISKS` (6), `VM_DISK_SIZE` (
 
 ## Test d'intégration
 
-`make vm-test` recrée une VM neuve, installe le paquet puis lance `./vm/e2e-test.sh` (environ 10 minutes). Le script vérifie, avec des assertions :
+`make vm-test` recrée une VM neuve, installe le paquet puis lance `./vm/e2e-test.sh` (environ 40 minutes). Le script vérifie, avec des assertions :
 
 - assistant d'installation, authentification, protection CSRF ;
 - RAID 5, ext4, Btrfs RAID 1, LVM, refus d'effacer le disque système ;
@@ -42,8 +42,27 @@ Variables : `VM_MEM` (4096 Mio), `VM_CPUS` (4), `VM_DISKS` (6), `VM_DISK_SIZE` (
 - Docker et installation d'une app ;
 - tâches planifiées et rétention des snapshots ;
 - redémarrage (session, RAID, volumes, conteneurs, services) ;
+- synchronisation cloud (envoi et bidirectionnelle) avec un serveur WebDAV local ;
+- WebDAV, FTPS et SFTP : droits des partages, confinement, corbeille, désactivation ;
+- machines virtuelles en KVM imbriqué (création, console VNC par websocket, ressources, suppression) ;
 - démarrage avec un disque RAID débranché, puis remplacement et reconstruction.
 
 Le résultat est écrit dans `vm/last-test.log`. Les identifiants de test sont définis en tête du script.
 
 Options utiles pour tester à la main : `VM_DETACH="2 5" ./vm/vm.sh start` démarre sans les disques 2 et 5 ; `./vm/vm.sh replace-disk 2` (VM arrêtée) remplace le disque 2 par un disque vierge.
+
+## Tester l'ISO d'installation
+
+`vm/iso-test.sh` installe l'ISO dans une VM vierge (disque système de 16 Go, ports 7071 pour l'interface et 2223 pour SSH) et attend que l'interface web réponde :
+
+```bash
+make iso
+./vm/iso-test.sh dist/strataos-0.2.0-amd64.iso 2 uefi   # 2 disques de données en plus, démarrage UEFI
+./vm/iso-test.sh screenshot ecran.png                  # capture de l'écran de la VM
+./vm/iso-test.sh key ret                               # envoie une touche (syntaxe sendkey de QEMU)
+./vm/iso-test.sh stop
+```
+
+Avec des disques en plus, l'installeur demande le disque système (répondre avec `key ret`, le disque de 16 Go est le premier). Le journal du script d'installation reste dans `/var/log/strataos-install.log` de la machine installée.
+
+Machines virtuelles : la virtualisation imbriquée doit être activée sur l'hôte (`cat /sys/module/kvm_amd/parameters/nested` ou `kvm_intel`, doit afficher `1`/`Y`).

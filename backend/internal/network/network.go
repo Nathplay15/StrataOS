@@ -42,6 +42,15 @@ type Bond struct {
 	IP
 }
 
+// Bridge is a software switch: virtual machines plugged into it appear directly on
+// the local network.
+type Bridge struct {
+	Name    string   `json:"name"` // br0
+	Members []string `json:"members"`
+	STP     bool     `json:"stp"`
+	IP
+}
+
 type VLAN struct {
 	Parent string `json:"parent"`
 	ID     int    `json:"id"`
@@ -52,21 +61,23 @@ func (v VLAN) Name() string { return fmt.Sprintf("%s.%d", v.Parent, v.ID) }
 
 // Config is the network configuration owned by StrataOS. Links not listed are left alone.
 type Config struct {
-	Interfaces []Iface `json:"interfaces"`
-	Bonds      []Bond  `json:"bonds"`
-	VLANs      []VLAN  `json:"vlans"`
+	Interfaces []Iface  `json:"interfaces"`
+	Bonds      []Bond   `json:"bonds"`
+	Bridges    []Bridge `json:"bridges"`
+	VLANs      []VLAN   `json:"vlans"`
 }
 
 var (
 	// Paths are variables so tests can point them elsewhere.
-	NetworkdDir = "/etc/systemd/network"
-	InterfacesF = "/etc/network/interfaces"
-	ResolvConf  = "/etc/resolv.conf"
-	StateDir    = "/var/lib/strata/network"
-	filePrefix  = "05-strata-"
-	ifNameRe    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_\-]{0,14}$`)
-	bondNameRe  = regexp.MustCompile(`^bond[0-9]{1,3}$`)
-	bondModes   = map[string]bool{"active-backup": true, "802.3ad": true, "balance-alb": true, "balance-tlb": true, "balance-rr": true, "balance-xor": true, "broadcast": true}
+	NetworkdDir  = "/etc/systemd/network"
+	InterfacesF  = "/etc/network/interfaces"
+	ResolvConf   = "/etc/resolv.conf"
+	StateDir     = "/var/lib/strata/network"
+	filePrefix   = "05-strata-"
+	ifNameRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_\-]{0,14}$`)
+	bondNameRe   = regexp.MustCompile(`^bond[0-9]{1,3}$`)
+	bridgeNameRe = regexp.MustCompile(`^br[0-9]{1,3}$`)
+	bondModes    = map[string]bool{"active-backup": true, "802.3ad": true, "balance-alb": true, "balance-tlb": true, "balance-rr": true, "balance-xor": true, "broadcast": true}
 )
 
 func validIP(ip IP, name string) error {
@@ -148,6 +159,34 @@ func Validate(c *Config, physical []string) error {
 			return err
 		}
 	}
+	for _, br := range c.Bridges {
+		if !bridgeNameRe.MatchString(br.Name) {
+			return fmt.Errorf("bridge names are br0, br1…")
+		}
+		for _, m := range br.Members {
+			isBond := false
+			for _, b := range c.Bonds {
+				isBond = isBond || b.Name == m
+			}
+			if !phys[m] && !isBond {
+				return fmt.Errorf("%s: unknown member %q", br.Name, m)
+			}
+			if isBond {
+				// The bond carries no IP itself once it is a bridge port.
+				used[m] = br.Name
+				continue
+			}
+			if err := claim(m, br.Name); err != nil {
+				return err
+			}
+		}
+		if err := validIP(br.IP, br.Name); err != nil {
+			return err
+		}
+		if err := claim(br.Name, "bridge"); err != nil {
+			return err
+		}
+	}
 	for _, v := range c.VLANs {
 		if v.ID < 1 || v.ID > 4094 {
 			return fmt.Errorf("VLAN ids go from 1 to 4094")
@@ -156,11 +195,14 @@ func Validate(c *Config, physical []string) error {
 		for _, b := range c.Bonds {
 			parentOK = parentOK || b.Name == v.Parent
 		}
+		for _, br := range c.Bridges {
+			parentOK = parentOK || br.Name == v.Parent
+		}
 		if !parentOK {
 			return fmt.Errorf("VLAN %d: unknown parent %q", v.ID, v.Parent)
 		}
 		switch used[v.Parent] {
-		case "interface", "bond":
+		case "interface", "bond", "bridge":
 		case "":
 			return fmt.Errorf("VLAN %d: let StrataOS manage %s first (the VLAN is attached to its configuration)", v.ID, v.Parent)
 		default:
@@ -210,6 +252,15 @@ func linkSection(b *strings.Builder, ip IP) {
 	}
 }
 
+// macOf returns the MAC address of a link (replaced in tests).
+var macOf = func(name string) string {
+	b, err := os.ReadFile("/sys/class/net/" + name + "/address")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // Render produces the systemd-networkd files (name -> content) for a configuration.
 func Render(c Config) map[string]string {
 	files := map[string]string{}
@@ -251,6 +302,22 @@ func Render(c Config) map[string]string {
 				extra = "PrimarySlave=yes\n"
 			}
 			files[filePrefix+m+".network"] = fmt.Sprintf("# Managed by StrataOS\n[Match]\nName=%s\n\n[Network]\nBond=%s\n%s", m, bd.Name, extra)
+		}
+	}
+	for _, br := range c.Bridges {
+		// The bridge takes the MAC of its first port, so the DHCP server hands
+		// out the same address as before the port was bridged.
+		mac := ""
+		if len(br.Members) > 0 {
+			if m := macOf(br.Members[0]); m != "" {
+				mac = "MACAddress=" + m + "\n"
+			}
+		}
+		files[filePrefix+br.Name+".netdev"] = fmt.Sprintf("# Managed by StrataOS\n[NetDev]\nName=%s\nKind=bridge\n%s\n[Bridge]\nSTP=%v\n", br.Name, mac, br.STP)
+		network(br.Name, br.IP, "")
+		for _, m := range br.Members {
+			// A bond used as bridge port keeps its own .netdev but gets no IP.
+			files[filePrefix+m+".network"] = fmt.Sprintf("# Managed by StrataOS\n[Match]\nName=%s\n\n[Network]\nBridge=%s\n", m, br.Name)
 		}
 	}
 	for _, v := range c.VLANs {
@@ -393,6 +460,12 @@ func links(c Config) []string {
 	for _, b := range c.Bonds {
 		set[b.Name] = true
 		for _, m := range b.Members {
+			set[m] = true
+		}
+	}
+	for _, br := range c.Bridges {
+		set[br.Name] = true
+		for _, m := range br.Members {
 			set[m] = true
 		}
 	}
@@ -559,7 +632,7 @@ func activate(names []string, mgr string) {
 	_, _ = sys.Run("systemctl", "enable", "--now", "systemd-networkd.service")
 	// Links that are no longer bonds/VLANs must disappear before reconfiguration.
 	for _, n := range names {
-		if strings.HasPrefix(n, "bond") || strings.Contains(n, ".") {
+		if strings.HasPrefix(n, "bond") || bridgeNameRe.MatchString(n) || strings.Contains(n, ".") {
 			if _, err := os.Stat(filepath.Join(NetworkdDir, filePrefix+n+".netdev")); err != nil {
 				_, _ = sys.Run("ip", "link", "delete", n)
 			}

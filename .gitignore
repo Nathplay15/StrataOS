@@ -11,3 +11,5 @@ packaging/keys/keyid
 frontend/*.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
 .claude/
+vm/state-iso/
+vm/state-iso.log

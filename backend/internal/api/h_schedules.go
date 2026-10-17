@@ -60,6 +60,9 @@ func (s *Server) schedulerLoop() {
 		for _, id := range s.dueBackups(tick) {
 			s.runBackup(id, "", false)
 		}
+		for _, id := range s.dueClouds(tick) {
+			s.runCloud(id, "", false)
+		}
 		if tick.Hour() == 3 && tick.Minute() == 30 {
 			go s.purgeRecycleBins()
 		}

@@ -107,6 +107,7 @@ func (s *Server) userRoutes() {
 			return nil
 		})
 		s.audit(r, "users", "Created user "+req.Username)
+		go s.applyFileServices()
 		return nil, err
 	})
 
@@ -171,6 +172,7 @@ func (s *Server) userRoutes() {
 		}
 		s.applyShares()
 		s.audit(r, "users", "Updated user "+name)
+		go s.applyFileServices()
 		return nil, nil
 	})
 
@@ -202,6 +204,7 @@ func (s *Server) userRoutes() {
 		}
 		s.applyShares()
 		s.audit(r, "users", "Deleted user "+name)
+		go s.applyFileServices()
 		return nil, nil
 	})
 

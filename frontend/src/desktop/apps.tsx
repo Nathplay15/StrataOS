@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
+  Activity, AppWindow, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
   Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
 } from "lucide-react";
 import type { Me } from "../lib/types";
@@ -28,6 +28,9 @@ const SettingsPage = lazy(() => import("../pages/system/Settings"));
 const Schedules = lazy(() => import("../pages/system/Schedules"));
 const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
+const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
+const CloudSync = lazy(() => import("../pages/system/CloudSync"));
+const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -73,6 +76,7 @@ export const APPS: AppDef[] = [
     id: "control", title: "Panneau de configuration", icon: SlidersHorizontal, colors: ["#64748b", "#334155"], admin: true, size: [1120, 760],
     sections: [
       { id: "shares", label: "Dossiers partagés", icon: <Share2 size={16} />, component: page(Shares), path: "/shares" },
+      { id: "fileservices", label: "Services de fichiers", icon: <FolderTree size={16} />, component: page(FileServicesPage), path: "/system/fileservices" },
       { id: "users", label: "Utilisateurs et groupes", icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
       { id: "schedules", label: "Tâches planifiées", icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "network", label: "Réseau", icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
@@ -83,6 +87,7 @@ export const APPS: AppDef[] = [
     ],
   },
   { id: "backup", title: "Sauvegarde", icon: DatabaseBackup, colors: ["#14b8a6", "#0d9488"], admin: true, size: [1040, 720], component: page(Backups), path: "/backup" },
+  { id: "cloudsync", title: "Synchronisation cloud", icon: CloudCog, colors: ["#38bdf8", "#0ea5e9"], admin: true, size: [1040, 720], component: page(CloudSync), path: "/cloudsync" },
   { id: "appcenter", title: "App Center", icon: AppWindow, colors: ["#ec4899", "#f43f5e"], admin: true, size: [1120, 760], component: page(AppStore), path: "/apps" },
   {
     id: "docker", title: "Docker", icon: Container, colors: ["#06b6d4", "#0284c7"], admin: true, size: [1120, 720],
@@ -92,6 +97,7 @@ export const APPS: AppDef[] = [
       { id: "images", label: "Images et réseaux", icon: <Layers size={16} />, component: page(Images), path: "/docker/images" },
     ],
   },
+  { id: "vms", title: "Machines virtuelles", icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
   { id: "monitor", title: "Moniteur de ressources", icon: Activity, colors: ["#22c55e", "#059669"], admin: true, size: [1040, 720], component: page(Monitor), path: "/system/monitor" },
   { id: "logs", title: "Journaux", icon: FileText, colors: ["#a855f7", "#7c3aed"], admin: true, size: [1040, 680], component: page(Logs), path: "/system/logs" },
   { id: "terminal", title: "Terminal", icon: SquareTerminal, colors: ["#334155", "#0f172a"], admin: true, size: [900, 560], component: page(TerminalPage), path: "/system/terminal" },

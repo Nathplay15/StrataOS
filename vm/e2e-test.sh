@@ -34,6 +34,7 @@ section() { printf '\n\033[1;36m== %s\033[0m\n' "$1"; }
 
 section "Setup & auth"
 check "setup wizard" "$(c POST /api/setup -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\",\"fullName\":\"Test\",\"hostname\":\"strata-vm\"}")" '"role":"admin"'
+check "first admin can use sudo" "$(vm "id $ADMIN_USER")" "(sudo)"
 check "setup cannot run twice" "$(c POST /api/setup -d '{"username":"x","password":"xxxxxxxxx"}')" "already"
 check "bad password rejected" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"wrong\"}")" "invalid"
 check "cross-origin write rejected" "$(curl -s -b "$J" -X POST -H 'Origin: http://evil.test' $B/api/groups -d '{"name":"x"}')" "cross-origin"
@@ -190,6 +191,89 @@ c POST /api/ups/simulate -d '{"status":"OL","charge":100}' >/dev/null
 for _ in $(seq 1 15); do c GET /api/system/events | grep -q "Courant rétabli" && break; sleep 2; done
 check "power restored alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Courant rétabli"
 c PUT /api/ups -d '{"mode":"off","share":false,"shutdownAfter":0}' >/dev/null
+
+section "Virtual machines (nested KVM)"
+check "virtualisation installed" "$(job "$(c POST /api/system/components/vms/install)")" "success"
+check "KVM available" "$(c GET /api/vms | py 'print(d["installed"], d["kvm"])')" "True True"
+check "VM name validated" "$(c POST /api/vms -d '{"name":"../x","storage":"/srv/strata/main/Photos"}')" "invalid"
+check "VM storage confined" "$(job "$(c POST /api/vms -d '{"name":"evil","os":"other","vcpus":1,"memoryMb":256,"diskGb":1,"storage":"/etc","network":"nat","firmware":"bios"}')")" "inside a volume"
+check "VM created" "$(job "$(c POST /api/vms -d '{"name":"e2e-vm","os":"other","vcpus":1,"memoryMb":512,"diskGb":2,"storage":"/srv/strata/main/Photos","network":"nat","firmware":"uefi"}')")" "success"
+check "VM running" "$(c GET /api/vms | py 'print([v["state"] for v in d["vms"] if v["name"]=="e2e-vm"])')" "running"
+check "VM disk in the share" "$(vm "sudo ls /srv/strata/main/Photos/e2e-vm")" "disk0.qcow2"
+check "VNC console over websocket" "$(python3 - "$J" <<'PY'
+import socket, sys, base64, os
+jar = [l.split("\t") for l in open(sys.argv[1]) if "\t" in l and not l.startswith("# ")]
+cookie = "; ".join(f"{f[5]}={f[6].strip()}" for f in jar)
+s = socket.create_connection(("localhost", 7070), timeout=10)
+key = base64.b64encode(os.urandom(16)).decode()
+s.sendall(f"GET /api/vms/e2e-vm/vnc HTTP/1.1\r\nHost: localhost:7070\r\nOrigin: http://localhost:7070\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\nCookie: {cookie}\r\n\r\n".encode())
+data = b""
+while b"RFB" not in data and len(data) < 4096:
+    chunk = s.recv(4096)
+    if not chunk:
+        break
+    data += chunk
+print("RFB" if b"RFB 003" in data else data[:200])
+PY
+)" "RFB"
+check "VM forced off" "$(c POST /api/vms/e2e-vm/destroy)" '"ok":true'
+check "VM resources changed offline" "$(c POST /api/vms/e2e-vm/resources -d '{"vcpus":2,"memoryMb":768}')" '"ok":true'
+check "new resources" "$(c GET /api/vms | py 'print([(v["vcpus"], v["memoryMb"]) for v in d["vms"] if v["name"]=="e2e-vm"])')" "(2, 768)"
+check "VM deleted" "$(c DELETE '/api/vms/e2e-vm?disks=1')" '"ok":true'
+check "VM files removed" "$(vm "sudo ls /srv/strata/main/Photos/e2e-vm 2>&1")" "No such file"
+
+section "Cloud sync (rclone, local WebDAV server)"
+DAVPASS=$(head -c 12 /dev/urandom | base64 | tr -d '/+=')
+vm "sudo mkdir -p /tmp/davroot/bi && echo cloud | sudo tee /tmp/davroot/bi/from-cloud.txt >/dev/null && sudo systemd-run --unit=e2e-dav rclone serve webdav /tmp/davroot --addr 127.0.0.1:8088 --user dav --pass '$DAVPASS' --dir-cache-time 1s >/dev/null 2>&1; sudo mkdir -p /srv/strata/main/Photos/bi && echo nas | sudo tee /srv/strata/main/Photos/bi/from-nas.txt >/dev/null"
+check "rclone installed with the package" "$(c GET /api/cloudsync | py 'print(d["installed"])')" "True"
+DAV='"provider":"webdav","params":{"url":"http://127.0.0.1:8088","vendor":"owncloud","user":"dav"}'
+check "connection test" "$(c POST /api/cloudsync/test -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "Connexion réussie"
+check "wrong password rejected" "$(c POST /api/cloudsync/test -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"wrong\"},\"localPath\":\"/srv/strata/main/Photos\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "error"
+check "local folder confined" "$(c POST /api/cloudsync -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"x\"},\"localPath\":\"/etc\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "inside a volume"
+UP=$(c POST /api/cloudsync -d "{\"name\":\"up\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos/album\",\"remotePath\":\"up\",\"direction\":\"upload\",\"mirror\":true,\"cron\":\"0 */6 * * *\",\"enabled\":true}" | py 'print(d["id"])')
+check "secrets never sent back" "$(c GET /api/cloudsync | py 'print([t["secrets"] for t in d["tasks"]])')" "'pass': '********'"
+check "upload sync" "$(job "$(c POST /api/cloudsync/$UP/run)")" "success"
+check "files in the cloud" "$(vm "sudo find /tmp/davroot/up -type f")" "photo.txt"
+BI=$(c POST /api/cloudsync -d "{\"name\":\"bi\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos/bi\",\"remotePath\":\"bi\",\"direction\":\"bisync\",\"cron\":\"\",\"enabled\":true}" | py 'print(d["id"])')
+check "two-way sync: first merge" "$(job "$(c POST /api/cloudsync/$BI/run)")" "success"
+check "both sides merged" "$(vm "sudo ls /srv/strata/main/Photos/bi /tmp/davroot/bi | sort -u | tr '\n' ' '")" "from-cloud.txt from-nas.txt"
+vm "sudo rm /srv/strata/main/Photos/bi/from-nas.txt; echo new | sudo tee /tmp/davroot/bi/new-cloud.txt >/dev/null"
+sleep 2
+check "two-way sync: changes" "$(job "$(c POST /api/cloudsync/$BI/run)")" "success"
+check "deletion propagated to the cloud" "$(vm "sudo ls /tmp/davroot/bi | tr '\n' ' '")" "from-cloud.txt new-cloud.txt "
+check "new cloud file on the NAS, share ACL inherited" "$(vm "sudo getfacl -p /srv/strata/main/Photos/bi/new-cloud.txt | grep famille")" "group:famille:rw"
+c DELETE /api/cloudsync/$UP >/dev/null; c DELETE /api/cloudsync/$BI >/dev/null
+check "tasks deleted, files kept" "$(c GET /api/cloudsync | py 'print(len(d["tasks"]))') $(vm "sudo ls /srv/strata/main/Photos/bi | wc -l")" "0 2"
+vm "sudo systemctl stop e2e-dav"
+
+section "File services (WebDAV, FTPS, SFTP)"
+UA="$USER_NAME:$USER_PASS"
+check "WebDAV off by default" "$(curl -s -o /dev/null -w '%{http_code}' -u "$UA" $B/dav/)" "404"
+check "FTP server installed" "$(job "$(c POST /api/system/components/ftp/install)")" "success"
+check "services enabled" "$(c PUT /api/fileservices -d '{"webdav":true,"ftp":true,"ftpRequireTls":true,"sftp":true}')" '"ok":true'
+check "WebDAV lists the user's shares" "$(curl -s -X PROPFIND -H 'Depth: 1' -u "$UA" $B/dav/)" "/dav/Photos/"
+check "WebDAV hides other shares" "$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -u "$UA" $B/dav/Media/)" "404"
+check "WebDAV bad password" "$(curl -s -o /dev/null -w '%{http_code}' -u "$USER_NAME:wrong" $B/dav/)" "401"
+echo dav > "$TMP/dav.txt"
+check "WebDAV upload" "$(curl -s -o /dev/null -w '%{http_code}' -T "$TMP/dav.txt" -u "$UA" $B/dav/Photos/up-dav.txt)" "201"
+check "WebDAV file owned by the user" "$(vm "sudo stat -c '%U %a' /srv/strata/main/Photos/up-dav.txt")" "$USER_NAME 660"
+check "WebDAV files never rendered as pages" "$(curl -s -D - -o /dev/null -u "$UA" $B/dav/Photos/up-dav.txt)" "sandbox"
+check "WebDAV traversal blocked" "$(curl -s --path-as-is -o /dev/null -w '%{http_code}' -u "$UA" "$B/dav/Photos/%2e%2e/%2e%2e/%2e%2e/etc/passwd")" "404"
+check "WebDAV recycle bin out of reach" "$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -u "$UA" $B/dav/Photos/.recycle/)" "404"
+curl -s -o /dev/null -X DELETE -u "$UA" $B/dav/Photos/up-dav.txt
+check "WebDAV delete goes to the recycle bin" "$(vm "sudo ls /srv/strata/main/Photos/.recycle/$USER_NAME/")" "up-dav.txt"
+check "plain FTP refused (TLS required)" "$(vm "curl -s -o /dev/null -w '%{http_code}' ftp://localhost/ -u '$UA'")" "530"
+check "FTPS upload" "$(vm "echo f > /tmp/f.txt; curl -s --ssl-reqd -k -T /tmp/f.txt ftp://localhost/main/Photos/up-ftp.txt -u '$UA' && sudo stat -c '%U %a' /srv/strata/main/Photos/up-ftp.txt")" "$USER_NAME 660"
+check "FTP: no write outside the user's shares" "$(vm "curl -s -o /dev/null -w '%{http_code}' --ssl-reqd -k -T /tmp/f.txt ftp://localhost/tank/media/x.txt -u '$UA'")" "553"
+check "FTP confined to the storage" "$(vm "curl -s -o /dev/null -w '%{http_code}' --ssl-reqd -k --path-as-is ftp://localhost/../../etc/passwd -u '$UA'")" "550"
+check "SFTP-only group" "$(vm "id $USER_NAME")" "strata-sftp"
+check "SFTP upload" "$(vm "echo s > /tmp/s.txt; curl -s -k -T /tmp/s.txt sftp://localhost/main/Photos/up-sftp.txt -u '$UA' && sudo stat -c '%U' /srv/strata/main/Photos/up-sftp.txt")" "$USER_NAME"
+check "SFTP confined to the storage" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' sftp://localhost/etc/passwd -u '$UA'")" "78"
+check "SFTP: no write outside the user's shares" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' -T /tmp/s.txt sftp://localhost/tank/media/x.txt -u '$UA'")" "9"
+check "services disabled" "$(c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}')" '"ok":true'
+check "FTP stopped" "$(vm "systemctl is-active vsftpd")" "inactive"
+check "SFTP access removed" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' sftp://localhost/main/Photos/ -u '$UA'")" "67"
+check "WebDAV off again" "$(curl -s -o /dev/null -w '%{http_code}' -u "$UA" $B/dav/)" "404"
 
 section "Network (trial + automatic rollback)"
 IFACE=$(c GET /api/system/network | py 'print([i["name"] for i in d["status"]["interfaces"] if i["kind"]=="physical"][0])')

@@ -181,6 +181,7 @@ func (s *Server) healthWatcher() {
 	s.recoverStorage()
 	s.reapplySharePermissions()
 	_ = s.applyShares()
+	_ = s.applyFileServices()
 	for {
 		check()
 		time.Sleep(5 * time.Minute)

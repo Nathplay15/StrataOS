@@ -33,6 +33,9 @@ const SettingsPage = lazy(() => import("./pages/system/Settings"));
 const Schedules = lazy(() => import("./pages/system/Schedules"));
 const Backups = lazy(() => import("./pages/system/Backups"));
 const UPSPage = lazy(() => import("./pages/system/UPS"));
+const VirtualMachines = lazy(() => import("./pages/vms/VirtualMachines"));
+const CloudSync = lazy(() => import("./pages/system/CloudSync"));
+const FileServicesPage = lazy(() => import("./pages/system/FileServices"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -102,6 +105,9 @@ function Root() {
             <Route path="system/schedules" element={A(<Schedules />)} />
             <Route path="backup" element={A(<Backups />)} />
             <Route path="system/ups" element={A(<UPSPage />)} />
+            <Route path="vms" element={A(<VirtualMachines />)} />
+            <Route path="cloudsync" element={A(<CloudSync />)} />
+            <Route path="system/fileservices" element={A(<FileServicesPage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

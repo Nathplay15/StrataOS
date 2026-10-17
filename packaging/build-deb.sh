@@ -16,6 +16,9 @@ install -Dm644 packaging/avahi/strata.service "$ROOT/etc/avahi/services/strata.s
 install -Dm755 packaging/scripts/install-zfs.sh "$ROOT/usr/lib/strata/scripts/install-zfs.sh"
 install -Dm755 packaging/scripts/install-docker.sh "$ROOT/usr/lib/strata/scripts/install-docker.sh"
 install -Dm755 packaging/scripts/install-nut.sh "$ROOT/usr/lib/strata/scripts/install-nut.sh"
+install -Dm755 packaging/scripts/install-vms.sh "$ROOT/usr/lib/strata/scripts/install-vms.sh"
+install -Dm755 packaging/scripts/install-rclone.sh "$ROOT/usr/lib/strata/scripts/install-rclone.sh"
+install -Dm755 packaging/scripts/install-ftp.sh "$ROOT/usr/lib/strata/scripts/install-ftp.sh"
 install -Dm755 packaging/scripts/upssched-cmd "$ROOT/usr/lib/strata/scripts/upssched-cmd"
 # APT repository for StrataOS updates (see packaging/make-repo.sh).
 if [ -f packaging/keys/strataos-archive.gpg ]; then

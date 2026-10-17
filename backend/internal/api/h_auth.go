@@ -1,12 +1,15 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
+	"os/user"
 	"strings"
 	"time"
 
 	"strataos/internal/accounts"
 	"strataos/internal/store"
+	"strataos/internal/sys"
 	"strataos/internal/system"
 )
 
@@ -79,6 +82,14 @@ func (s *Server) authRoutes() {
 		if err := accounts.Create(req.Username, req.FullName, req.Password, nil, true); err != nil {
 			writeErr(w, err)
 			return
+		}
+		// The first administrator also gets sudo: on systems installed from the StrataOS
+		// ISO, root has no password and this account is the console/SSH way in.
+		// (sudo is a reserved group that StrataOS never lets users pick.)
+		if _, err := user.LookupGroup("sudo"); err == nil {
+			if _, err := sys.Run("usermod", "-a", "-G", "sudo", req.Username); err != nil {
+				slog.Warn("add first admin to sudo", "err", err)
+			}
 		}
 		_ = s.addToDockerGroup(req.Username)
 		hash, err := hashPassword(req.Password)

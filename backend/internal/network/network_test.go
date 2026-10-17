@@ -126,3 +126,34 @@ func TestConfirmWaitsForActivation(t *testing.T) {
 		t.Fatalf("pending not cleared")
 	}
 }
+
+func TestBridge(t *testing.T) {
+	old := macOf
+	macOf = func(n string) string { return map[string]string{"bond0": "52:54:00:00:00:01"}[n] }
+	defer func() { macOf = old }()
+	c := Config{
+		Bonds:   []Bond{{Name: "bond0", BondMode: "active-backup", Members: []string{"eth1", "eth2"}, IP: IP{Mode: "none"}}},
+		Bridges: []Bridge{{Name: "br0", Members: []string{"bond0"}, IP: IP{Mode: "dhcp"}}},
+		VLANs:   []VLAN{{Parent: "br0", ID: 30, IP: IP{Mode: "none"}}},
+	}
+	if err := Validate(&c, phys); err != nil {
+		t.Fatalf("bridge over bond rejected: %v", err)
+	}
+	f := Render(c)
+	if !strings.Contains(f["05-strata-br0.netdev"], "MACAddress=52:54:00:00:00:01") {
+		t.Errorf("bridge MAC: %s", f["05-strata-br0.netdev"])
+	}
+	if !strings.Contains(f["05-strata-br0.netdev"], "Kind=bridge") || !strings.Contains(f["05-strata-bond0.network"], "Bridge=br0") || strings.Contains(f["05-strata-bond0.network"], "DHCP") {
+		t.Errorf("bad bridge rendering: %v", f)
+	}
+	if !strings.Contains(f["05-strata-br0.network"], "VLAN=br0.30") {
+		t.Errorf("VLAN not attached to the bridge:\n%s", f["05-strata-br0.network"])
+	}
+	bad := Config{Interfaces: []Iface{{Name: "eth0", IP: IP{Mode: "dhcp"}}}, Bridges: []Bridge{{Name: "br0", Members: []string{"eth0"}, IP: IP{Mode: "dhcp"}}}}
+	if Validate(&bad, phys) == nil {
+		t.Error("interface configured twice (alone and as bridge port) accepted")
+	}
+	if Validate(&Config{Bridges: []Bridge{{Name: "virbr0", IP: IP{Mode: "dhcp"}}}}, phys) == nil {
+		t.Error("bad bridge name accepted")
+	}
+}

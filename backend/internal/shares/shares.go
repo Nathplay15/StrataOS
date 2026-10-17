@@ -141,6 +141,11 @@ func Prepare(sh *store.Share) error {
 		}
 		specs = append(specs, fmt.Sprintf("%s:%s:%s", kind, name, bits), fmt.Sprintf("d:%s:%s:%s", kind, name, bits))
 	}
+	// Virtual machines may keep their disks or ISO images in a share: QEMU's
+	// account may cross the share root (search only, it cannot list it).
+	if _, err := user.Lookup("libvirt-qemu"); err == nil {
+		specs = append(specs, "u:libvirt-qemu:--x")
+	}
 	specs = append(specs, "m::rwx", "d:m::rwx")
 	// setfacl gets the already-open directory through /proc, never the raw path.
 	byFD := fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), f.Fd())

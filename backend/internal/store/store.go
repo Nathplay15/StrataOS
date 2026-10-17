@@ -143,12 +143,46 @@ type BackupTask struct {
 	History     []ScheduleRun `json:"history"`
 }
 
+// FileServices are the optional file access protocols.
+type FileServices struct {
+	WebDAV        bool `json:"webdav"`
+	FTP           bool `json:"ftp"`
+	FTPRequireTLS bool `json:"ftpRequireTls"`
+	FTPPassiveMin int  `json:"ftpPassiveMin"`
+	FTPPassiveMax int  `json:"ftpPassiveMax"`
+	SFTP          bool `json:"sftp"`
+}
+
+// CloudSync keeps a folder of the NAS in sync with a cloud storage (rclone).
+type CloudSync struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"` // s3 | b2 | drive | onedrive | dropbox | webdav | sftp
+	// Params holds the provider settings, Secrets the credentials (never sent back to the UI).
+	Params     map[string]string `json:"params"`
+	Secrets    map[string]string `json:"secrets,omitempty"`
+	LocalPath  string            `json:"localPath"`  // folder under /srv/strata
+	RemotePath string            `json:"remotePath"` // bucket/folder or folder in the cloud
+	Direction  string            `json:"direction"`  // upload | download | bisync
+	Mirror     bool              `json:"mirror"`     // one-way: also delete what was deleted at the source
+	Excludes   []string          `json:"excludes,omitempty"`
+	BWLimit    string            `json:"bwLimit,omitempty"` // e.g. 10M
+	Cron       string            `json:"cron"`
+	Enabled    bool              `json:"enabled"`
+	// Synced is set once a two-way sync has been initialised (rclone bisync --resync).
+	Synced    bool          `json:"synced,omitempty"`
+	CreatedAt time.Time     `json:"createdAt"`
+	History   []ScheduleRun `json:"history"`
+}
+
 type State struct {
 	Users     []*User       `json:"users"`
 	Shares    []*Share      `json:"shares"`
 	Volumes   []*Volume     `json:"volumes"`
 	Schedules []*Schedule   `json:"schedules"`
 	Backups   []*BackupTask `json:"backups"`
+	Clouds    []*CloudSync  `json:"cloudSyncs"`
+	Files     FileServices  `json:"fileServices"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`
@@ -252,6 +286,15 @@ func (st *State) Backup(id string) *BackupTask {
 	for _, b := range st.Backups {
 		if b.ID == id {
 			return b
+		}
+	}
+	return nil
+}
+
+func (st *State) Cloud(id string) *CloudSync {
+	for _, c := range st.Clouds {
+		if c.ID == id {
+			return c
 		}
 	}
 	return nil

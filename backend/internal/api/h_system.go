@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strataos/internal/fileservices"
 	"strings"
 	"time"
 
@@ -329,13 +330,16 @@ func (s *Server) systemRoutes() {
 			"smart":   sys.Has("smartctl"),
 			"restic":  sys.Has("restic"),
 			"nut":     sys.Has("upsmon"),
+			"vms":     sys.Has("virsh"),
+			"rclone":  sys.Has("rclone"),
+			"ftp":     fileservices.FTPInstalled(),
 			"rsync":   sys.Has("rsync"),
 			"xfs":     sys.Has("mkfs.xfs"),
 		}, nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}

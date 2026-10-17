@@ -198,7 +198,7 @@ function RestoreModal({ b, onClose }: { b: BackupTask; onClose: () => void }) {
   );
 }
 
-function HistoryModal({ b, onClose }: { b: BackupTask; onClose: () => void }) {
+export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "history">; onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={`Historique — ${b.name}`} wide>
       {b.history.length === 0 ? <Empty icon={<History />} title="Jamais exécutée" /> : (

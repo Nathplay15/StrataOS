@@ -29,8 +29,11 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Système** | Tableau de bord temps réel, moniteur (CPU par cœur, RAM, réseau, E/S disques, capteurs), services, réseau, nom d'hôte, fuseau horaire, mises à jour apt, journaux systemd, journal d'audit, terminal root web, redémarrage/arrêt |
 | **Tâches planifiées** | Snapshots automatiques ZFS (récursifs) et Btrfs (volume ou sous-volume) avec rétention par nombre et/ou par âge, scrubs RAID mdadm / ZFS / Btrfs, tests SMART courts et longs ; planification quotidienne, hebdomadaire, mensuelle ou cron, aperçu des prochaines exécutions, historique, exécution manuelle, plan de maintenance recommandé en un clic |
 | **Sauvegarde** | Copie rsync (volume, disque USB, serveur SSH), sauvegarde versionnée chiffrée restic (dossier local, SFTP, S3/B2/MinIO, serveur REST) avec rétention et restauration depuis l'interface, réplication ZFS incrémentale (pool local ou distant via SSH), planification, clé SSH propre à StrataOS |
-| **Réseau** | Adresse fixe / DHCP / sans IP par interface, agrégation de liens (actif/secours, LACP 802.3ad, équilibrage…), VLAN, MTU, DNS ; chaque changement est appliqué **à l'essai** et annulé automatiquement s'il n'est pas confirmé (même après un redémarrage du service) |
+| **Réseau** | Adresse fixe / DHCP / sans IP par interface, agrégation de liens (actif/secours, LACP 802.3ad, équilibrage…), ponts (bridges) pour les machines virtuelles, VLAN, MTU, DNS ; chaque changement est appliqué **à l'essai** et annulé automatiquement s'il n'est pas confirmé (même après un redémarrage du service) |
 | **Comptes** | Quotas par utilisateur (ext4, XFS, ZFS), double authentification TOTP avec codes de secours et réinitialisation par l'administrateur, certificat HTTPS importé ou Let's Encrypt automatique |
+| **Machines virtuelles** | KVM/libvirt installé en un clic : création guidée (Linux, Windows 10/11 avec TPM 2.0 et UEFI, autre), disques qcow2 dans un dossier partagé, ISO choisie parmi les fichiers des volumes, réseau NAT ou pont sur le réseau local, console graphique dans le navigateur (noVNC), démarrage/arrêt/pause/arrêt forcé, démarrage avec le NAS, changement de CD et de ressources |
+| **Synchronisation cloud** | rclone : Google Drive, OneDrive, Dropbox, S3 (AWS, Wasabi, MinIO, R2…), Backblaze B2, WebDAV/Nextcloud, SFTP ; envoi, téléchargement (avec ou sans miroir) ou bidirectionnelle, exclusions, limite de bande passante, planification, test de connexion et choix du dossier distant, jetons OAuth rafraîchis conservés, identifiants jamais renvoyés au navigateur |
+| **Services de fichiers** | WebDAV intégré (HTTPS, droits des partages, corbeille), FTP/FTPS (vsftpd, chiffrement exigible, ports passifs), SFTP confiné au stockage pour les utilisateurs sans accès SSH ; tout passe par les mêmes droits que SMB |
 | **Onduleur** | NUT : onduleur USB/série/SNMP avec détection, client d'un autre serveur NUT (Synology…), partage de l'onduleur sur le réseau, arrêt automatique (batterie faible ou après X minutes), alertes, mode simulation pour tester |
 | **Mises à jour** | Dépôt APT signé (`make repo`), mise à jour de StrataOS en un clic depuis l'interface, exécutée hors du service pour survivre à son redémarrage |
 | **Alertes** | RAID dégradé, pool ZFS en erreur, disque SMART défaillant, volume plein à 90 %, tâche échouée → webhook (Discord, Slack, ntfy, Gotify…) et/ou e-mail SMTP |
@@ -72,12 +75,21 @@ make vet          # go vet + typecheck TypeScript
 make test         # tests unitaires Go (cron, rétention, corbeille, validation ZFS…)
 make vm-test      # test complet sur une VM neuve (~35 min), voir vm/README.md
 make repo REPO_URL=https://apt.exemple.fr   # paquet + dépôt APT signé dans dist/apt
+make iso          # ISO d'installation : dist/strataos-<version>-amd64.iso (Docker requis)
 ```
 
-## Installer sur un Debian 13
+## Installer avec l'ISO
+
+`make iso` part de l'image netinst officielle de Debian 13 (`vm/images/`) et y ajoute une entrée **Installer StrataOS**, choisie automatiquement après 10 s (BIOS) ou 5 s (UEFI). L'installation est automatique en français : réseau DHCP, nom `strataos`, Debian minimal + SSH, puis le paquet StrataOS. Seule question posée quand la machine a plusieurs disques : celui qui recevra le système (**il est entièrement effacé**, les autres disques ne sont pas touchés).
+
+Au redémarrage, l'écran de la machine affiche l'adresse de l'interface web, où l'assistant crée le compte administrateur (qui reçoit aussi `sudo` pour SSH). Le compte root est verrouillé.
+
+Gravez l'ISO sur une clé USB avec Balena Etcher, Rufus (mode DD) ou `dd`.
+
+## Installer sur un Debian 13 existant
 
 ```bash
-sudo apt install ./strataos_0.1.0_amd64.deb
+sudo apt install ./strataos_0.2.0_amd64.deb
 ```
 
 Les dépendances (mdadm, lvm2, btrfs-progs, xfsprogs, smartmontools, samba, nfs-kernel-server, docker.io, docker-compose, avahi, wsdd2…) sont installées automatiquement. Ouvrez ensuite `http://<ip>:7070` : l'assistant crée le compte administrateur. ZFS s'installe depuis **Stockage → ZFS** (section contrib de Debian, module DKMS).
@@ -96,7 +108,5 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- ISO d'installation (Debian 13 + StrataOS, assistant au premier démarrage)
-- Synchronisation cloud bidirectionnelle (rclone), LDAP/Active Directory
-- WebDAV, FTP/SFTP, machines virtuelles (KVM), pont réseau (bridge)
+- LDAP/Active Directory
 - Interface en anglais

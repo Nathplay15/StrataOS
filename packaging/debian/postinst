@@ -14,18 +14,24 @@ case "$1" in
     sed -i -E '/^HOMEHOST/d; /^ARRAY/ s/ spares=[0-9]+//' /etc/mdadm/mdadm.conf
     sed -i '1i HOMEHOST <ignore>' /etc/mdadm/mdadm.conf
     command -v update-initramfs >/dev/null && update-initramfs -u >/dev/null 2>&1 || true
+    # Enabling works without a running systemd too (installation from the ISO,
+    # inside the installer's chroot): the services then start at first boot.
+    systemctl enable strata.service >/dev/null 2>&1 || true
+    systemctl enable smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
+    systemctl enable wsdd2.service >/dev/null 2>&1 || true
+    systemctl enable docker.service >/dev/null 2>&1 || true
+    # samba (Recommends) pulls in the AD domain controller unit: StrataOS is a standalone server.
+    if ! grep -qi "server role *= *active directory" /etc/samba/smb.conf 2>/dev/null; then
+      systemctl disable samba-ad-dc.service >/dev/null 2>&1 || true
+      systemctl mask samba-ad-dc.service >/dev/null 2>&1 || true
+    fi
     if [ -d /run/systemd/system ]; then
       systemctl daemon-reload
-      systemctl enable strata.service >/dev/null 2>&1 || true
+      systemctl stop samba-ad-dc.service >/dev/null 2>&1 || true
       systemctl restart strata.service || true
-      systemctl enable --now smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
-      systemctl enable --now wsdd2.service >/dev/null 2>&1 || true
-      # samba (Recommends) pulls in the AD domain controller unit: StrataOS is a standalone server.
-      if ! grep -qi "server role *= *active directory" /etc/samba/smb.conf 2>/dev/null; then
-        systemctl disable --now samba-ad-dc.service >/dev/null 2>&1 || true
-        systemctl mask samba-ad-dc.service >/dev/null 2>&1 || true
-      fi
-      systemctl enable --now docker.service >/dev/null 2>&1 || true
+      systemctl start smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
+      systemctl start wsdd2.service >/dev/null 2>&1 || true
+      systemctl start docker.service >/dev/null 2>&1 || true
       systemctl reload avahi-daemon.service >/dev/null 2>&1 || true
     fi
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')

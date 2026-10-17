@@ -67,6 +67,18 @@ func New(dir string) (*Manager, error) {
 	return m, nil
 }
 
+// Files returns the PEM files of the imported certificate, or of the self-signed one,
+// for other services (FTPS).
+func (m *Manager) Files() (cert, key string) {
+	m.mu.RLock()
+	custom := m.custom != nil
+	m.mu.RUnlock()
+	if custom {
+		return filepath.Join(m.dir, "custom.pem"), filepath.Join(m.dir, "custom.key")
+	}
+	return filepath.Join(m.dir, "cert.pem"), filepath.Join(m.dir, "key.pem")
+}
+
 // GetCertificate picks Let's Encrypt for its domain, then the imported certificate, then self-signed.
 func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	m.mu.RLock()

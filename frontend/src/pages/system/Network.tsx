@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Link2, Network as NetIcon, Plus, RotateCcw, Trash2, Undo2 } from "lucide-react";
+import { CheckCircle2, Link2, Waypoints, Network as NetIcon, Plus, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
@@ -10,8 +10,9 @@ type Status = { interfaces: Link[]; gateway: string; dns: string[]; hostname: st
 type IP = { mode: "dhcp" | "static" | "none"; addresses?: string[]; gateway?: string; dns?: string[]; mtu?: number };
 type Iface = IP & { name: string };
 type Bond = IP & { name: string; bondMode: string; members: string[] };
+type Bridge = IP & { name: string; members: string[]; stp: boolean };
 type VLAN = IP & { parent: string; id: number };
-type Config = { interfaces: Iface[]; bonds: Bond[]; vlans: VLAN[] };
+type Config = { interfaces: Iface[]; bonds: Bond[]; bridges: Bridge[]; vlans: VLAN[] };
 type Pending = { deadline: string; links: string[]; token?: string };
 type Net = { status: Status; manager: string; config: Config; pending: Pending | null };
 
@@ -123,20 +124,21 @@ export default function NetworkPage() {
   const apply = useAction(() => api.put<Pending>("/api/system/network/config", { config: cfg, timeout: 120 }), {
     onDone: (p) => {
       const port = location.port ? `:${location.port}` : "";
-      const statics = [...(cfg?.interfaces ?? []), ...(cfg?.bonds ?? []), ...(cfg?.vlans ?? [])].filter((x) => x.mode === "static").flatMap((x) => x.addresses ?? []);
+      const statics = [...(cfg?.interfaces ?? []), ...(cfg?.bonds ?? []), ...(cfg?.bridges ?? []), ...(cfg?.vlans ?? [])].filter((x) => x.mode === "static").flatMap((x) => x.addresses ?? []);
       const addrs = statics.map((a) => a.split("/")[0]).filter((a) => a !== location.hostname);
       setTrial({ p, urls: addrs.map((a) => `${location.protocol}//${a}${port}/?netconfirm=${p.token}`) });
     },
   });
   useEffect(() => {
-    if (data && !cfg) setCfg(structuredClone(data.config));
+    if (data && !cfg) setCfg(structuredClone({ ...data.config, bridges: data.config.bridges ?? [] }));
   }, [data, cfg]);
 
-  const physical = useMemo(() => (data?.status.interfaces ?? []).filter((i) => i.kind === "physical" && !i.name.startsWith("bond")), [data]);
+  const physical = useMemo(() => (data?.status.interfaces ?? []).filter((i) => i.kind === "physical" && !i.name.startsWith("bond") && !/^br\d/.test(i.name)), [data]);
   if (isLoading || !data || !cfg) return <div><PageHeader title="Réseau" icon={<NetIcon size={20} />} /><ErrorBox error={error} /><Spinner /></div>;
 
-  const dirty = JSON.stringify(cfg) !== JSON.stringify(data.config);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify({ ...data.config, bridges: data.config.bridges ?? [] });
   const members = new Set(cfg.bonds.flatMap((b) => b.members));
+  const bridged = new Set(cfg.bridges.flatMap((b) => b.members));
   const managed = (name: string) => cfg.interfaces.find((i) => i.name === name);
   const setIface = (name: string, ip: IP | null) =>
     setCfg({
@@ -144,7 +146,7 @@ export default function NetworkPage() {
       interfaces: ip ? [...cfg.interfaces.filter((i) => i.name !== name), { ...ip, name }].sort((a, b) => a.name.localeCompare(b.name)) : cfg.interfaces.filter((i) => i.name !== name),
       vlans: ip ? cfg.vlans : cfg.vlans.filter((v) => v.parent !== name),
     });
-  const parents = [...cfg.interfaces.map((i) => i.name), ...cfg.bonds.map((b) => b.name)];
+  const parents = [...cfg.interfaces.map((i) => i.name), ...cfg.bonds.filter((b) => !bridged.has(b.name)).map((b) => b.name), ...cfg.bridges.map((b) => b.name)];
   const nm = data.manager === "NetworkManager";
 
   const doApply = async () => {
@@ -153,8 +155,8 @@ export default function NetworkPage() {
 
   return (
     <div>
-      <PageHeader title="Réseau" subtitle="Interfaces, agrégation de liens, VLAN et nom du NAS" icon={<NetIcon size={20} />} actions={<>
-        {dirty && <Button icon={<Undo2 size={15} />} onClick={() => setCfg(structuredClone(data.config))}>Annuler les modifications</Button>}
+      <PageHeader title="Réseau" subtitle="Interfaces, agrégation de liens, ponts, VLAN et nom du NAS" icon={<NetIcon size={20} />} actions={<>
+        {dirty && <Button icon={<Undo2 size={15} />} onClick={() => setCfg(structuredClone({ ...data.config, bridges: data.config.bridges ?? [] }))}>Annuler les modifications</Button>}
         <Button variant="primary" disabled={!dirty || nm || !!data.pending} loading={apply.isPending} onClick={doApply}>Appliquer</Button>
       </>} />
       <ErrorBox error={error || apply.error} />
@@ -184,7 +186,7 @@ export default function NetworkPage() {
           <div className="space-y-4">
             {physical.map((l) => {
               const m = managed(l.name);
-              const inBond = cfg.bonds.find((b) => b.members.includes(l.name));
+              const inBond = cfg.bonds.find((b) => b.members.includes(l.name)) ?? cfg.bridges.find((b) => b.members.includes(l.name));
               return (
                 <div key={l.name} className="rounded-xl border border-line p-4">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -232,7 +234,39 @@ export default function NetworkPage() {
                       ))}
                     </div>
                     {b.bondMode === "active-backup" && b.members.length > 0 && <div className="text-muted text-[12px]">Port principal : <span className="mono">{b.members[0]}</span></div>}
-                    <IPEditor ip={b} onChange={(ip) => upd(ip)} />
+                    {bridged.has(b.name) ? <div className="text-muted text-[12px]">Port du pont {cfg.bridges.find((x) => x.members.includes(b.name))?.name} : l'adresse IP est portée par le pont.</div> : <IPEditor ip={b} onChange={(ip) => upd(ip)} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card title="Ponts (bridges)" actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => {
+          let n = 0;
+          while (cfg.bridges.some((b) => b.name === `br${n}`)) n++;
+          setCfg({ ...cfg, bridges: [...cfg.bridges, { name: `br${n}`, members: [], stp: false, mode: "dhcp" }] });
+        }}>Ajouter</Button>}>
+          {cfg.bridges.length === 0 ? <div className="text-muted text-[13px]">Un pont relie les machines virtuelles directement au réseau local : elles obtiennent leur propre adresse sur votre box, comme un PC branché sur le switch.</div> : (
+            <div className="space-y-4">
+              {cfg.bridges.map((br, bi) => {
+                const upd = (x: Partial<Bridge>) => setCfg({ ...cfg, bridges: cfg.bridges.map((y, i) => (i === bi ? { ...y, ...x } : y)), interfaces: x.members ? cfg.interfaces.filter((i) => !x.members!.includes(i.name)) : cfg.interfaces, bonds: x.members ? cfg.bonds.map((b) => (x.members!.includes(b.name) ? { ...b, mode: "none" as const, addresses: [], gateway: "", dns: [] } : b)) : cfg.bonds, vlans: x.members ? cfg.vlans.filter((v) => !x.members!.includes(v.parent)) : cfg.vlans });
+                const candidates = [...physical.map((l) => l.name).filter((n) => !members.has(n)), ...cfg.bonds.map((b) => b.name)].filter((n) => !bridged.has(n) || br.members.includes(n));
+                return (
+                  <div key={bi} className="space-y-3 rounded-xl border border-line p-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex items-center gap-2 font-semibold"><Waypoints size={16} className="text-accent" />{br.name}</span>
+                      <Checkbox checked={br.stp} onChange={(v) => upd({ stp: v })} label="Spanning Tree (STP)" />
+                      <div className="flex-1" />
+                      <IconButton title="Supprimer" onClick={() => setCfg({ ...cfg, bridges: cfg.bridges.filter((_, i) => i !== bi), vlans: cfg.vlans.filter((v) => v.parent !== br.name) })}><Trash2 size={15} /></IconButton>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      {candidates.map((n) => (
+                        <Checkbox key={n} checked={br.members.includes(n)} onChange={(v) => upd({ members: v ? [...br.members, n] : br.members.filter((x) => x !== n) })} label={<span className="mono">{n}</span>} />
+                      ))}
+                    </div>
+                    {br.members.length > 0 && <div className="text-muted text-[12px]">Le pont reprend l'adresse MAC de <span className="mono">{br.members[0]}</span> : en DHCP, le NAS garde la même adresse IP.</div>}
+                    <IPEditor ip={br} onChange={(ip) => upd(ip)} />
                   </div>
                 );
               })}

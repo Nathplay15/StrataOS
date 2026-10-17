@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend backend build deb repo dev clean test vm-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend backend build deb repo iso dev clean test vm-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -19,6 +19,10 @@ build: frontend backend
 
 deb: build
 	ARCH=$(ARCH) REPO_URL=$(REPO_URL) ./packaging/build-deb.sh
+
+# Installer ISO (Debian 13 netinst + automated StrataOS installation), built with Docker.
+iso: deb
+	./packaging/iso/build-iso.sh
 
 # Signed APT repository in dist/apt (serve it, and build with REPO_URL=<its URL>).
 repo:
