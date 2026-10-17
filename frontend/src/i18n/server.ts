@@ -80,6 +80,10 @@ export const serverTexts: [string, string][] = [
   ["Annuaire LDAP connecté", "LDAP directory connected"],
   ["{0} application(s) vérifiée(s), {1} mise(s) à jour : {2}", "{0} app(s) checked, {1} updated: {2}"],
   ["{0} application(s) vérifiée(s), {1} mise(s) à jour", "{0} app(s) checked, {1} updated"],
+  ["Aucun virus trouvé dans {0}", "No virus found in {0}"],
+  ["{0} fichier(s) infecté(s) mis en quarantaine : {1}", "{0} infected file(s) quarantined: {1}"],
+  ["{0} fichier(s) infecté(s) laissé(s) en place : {1}", "{0} infected file(s) left in place: {1}"],
+  ["Analyse de {0}…", "Scanning {0}…"],
   // Labels sent by the server
   ["Partage {0}", "Share {0}"],
   ["Clé d'accès", "Access key"],

@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strataos/internal/antivirus"
 	"sync"
 	"time"
 
@@ -94,6 +96,10 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 		run := store.ScheduleRun{Started: start, Duration: time.Since(start).Seconds(), Status: "success", Message: msg, Manual: manual}
 		if err != nil {
 			run.Status, run.Message = "failed", err.Error()
+			if errors.Is(err, antivirus.ErrInfected) {
+				s.store.Log("error", "antivirus", "", err.Error())
+				s.notify("Virus détecté", err.Error())
+			}
 		} else {
 			j.Logf("%s", msg)
 		}
@@ -107,6 +113,11 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 			return nil
 		}); uerr != nil {
 			slog.Error("save schedule history", "err", uerr)
+		}
+		if errors.Is(err, antivirus.ErrInfected) {
+			// Already reported as "virus found": no second "task failed" alert.
+			j.Logf("%s", err.Error())
+			return nil
 		}
 		return err
 	}), nil

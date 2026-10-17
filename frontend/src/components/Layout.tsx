@@ -39,6 +39,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/users", label: tr("Utilisateurs"), icon: <Users size={17} />, admin: true },
       { to: "/system/fileservices", label: tr("Services de fichiers"), icon: <FolderTree size={17} />, admin: true },
       { to: "/system/directory", label: tr("Domaine / LDAP"), icon: <BookUser size={17} />, admin: true },
+      { to: "/system/antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={17} />, admin: true },
     ],
   },
   {

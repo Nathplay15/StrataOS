@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
+  Activity, AppWindow, BookUser, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
   Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
 } from "lucide-react";
 import type { Me } from "../lib/types";
@@ -33,6 +33,7 @@ const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
 const DirectoryPage = lazy(() => import("../pages/system/Directory"));
+const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -82,6 +83,7 @@ export const APPS: AppDef[] = [
       { id: "users", label: tr("Utilisateurs et groupes"), icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
       { id: "directory", label: tr("Domaine / LDAP"), icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
       { id: "schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
+      { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
       { id: "network", label: tr("Réseau"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
       { id: "ups", label: tr("Onduleur"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
       { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },

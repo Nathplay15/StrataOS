@@ -37,9 +37,10 @@ Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisé
 | **Synchronisation cloud** | rclone : Google Drive, OneDrive, Dropbox, S3 (AWS, Wasabi, MinIO, R2…), Backblaze B2, WebDAV/Nextcloud, SFTP ; envoi, téléchargement (avec ou sans miroir) ou bidirectionnelle, exclusions, limite de bande passante, planification, test de connexion et choix du dossier distant, jetons OAuth rafraîchis conservés, identifiants jamais renvoyés au navigateur |
 | **Domaine / LDAP** | Jonction à Active Directory (Samba serveur membre, winbind, Kerberos ; mot de passe administrateur jamais enregistré), droits des partages pour les utilisateurs et groupes du domaine (`DOMAINE\utilisateur`), connexion à l'interface web et à WebDAV avec les comptes de l'annuaire (groupe d'administrateurs configurable), sortie propre du domaine ; annuaire LDAP via sssd (identités POSIX pour les ACL et NFS) |
 | **Services de fichiers** | WebDAV intégré (HTTPS, droits des partages, corbeille), FTP/FTPS (vsftpd, chiffrement exigible, ports passifs), SFTP confiné au stockage pour les utilisateurs sans accès SSH ; tout passe par les mêmes droits que SMB |
+| **Antivirus** | ClamAV installé en un clic, signatures mises à jour automatiquement, analyses planifiées (un partage ou tout le stockage) en priorité basse, quarantaine avec restauration, alerte « virus détecté » |
 | **Onduleur** | NUT : onduleur USB/série/SNMP avec détection, client d'un autre serveur NUT (Synology…), partage de l'onduleur sur le réseau, arrêt automatique (batterie faible ou après X minutes), alertes, mode simulation pour tester |
 | **Mises à jour** | Dépôt APT signé (`make repo`), mise à jour de StrataOS en un clic depuis l'interface, exécutée hors du service pour survivre à son redémarrage |
-| **Alertes** | RAID dégradé, pool ZFS en erreur, disque SMART défaillant, volume plein à 90 %, tâche échouée → webhook (Discord, Slack, ntfy, Gotify…) et/ou e-mail SMTP |
+| **Alertes** | RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit (secteurs réalloués, usure SSD…), virus détecté, volume plein à 90 %, tâche échouée → webhook (Discord, Slack, ntfy, Gotify…) e-mail SMTP, bot Telegram et/ou notifications push ntfy |
 | **Résilience** | Récupération automatique au démarrage : grappe RAID démarrée en mode dégradé s'il manque un disque, volumes remontés, NFS relancé, alertes ; disques identifiés par UUID / by-id (jamais par `/dev/sdX`, qui change d'un démarrage à l'autre) ; remplacement de disque guidé (RAID et ZFS) |
 | **Sécurité** | Sessions HttpOnly/SameSite persistantes (jetons hachés), protection CSRF, gestionnaire de fichiers confiné par `os.Root` (aucune sortie via `..` ou liens symboliques), contenus utilisateurs jamais exécutés dans l'origine de l'interface (CSP sandbox), ACL disque alignées sur les droits des partages (SMB, NFS et SSH), bcrypt, limitation des tentatives de connexion, HTTPS auto-signé, audit de toutes les actions |
 
@@ -111,6 +112,5 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Antivirus des dossiers partagés (ClamAV) planifiable
 - Réplication et bascule entre deux NAS StrataOS (haute disponibilité)
-- Notifications push sur mobile (ntfy intégré) et application mobile de fichiers
+- Application mobile de fichiers

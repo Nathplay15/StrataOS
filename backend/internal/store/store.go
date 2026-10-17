@@ -98,20 +98,22 @@ type Settings struct {
 type Schedule struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Type    string `json:"type"` // snapshot | scrub | smart
+	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
 	// TargetKind is zfs | btrfs | mdadm | disks; Target is a dataset, pool, volume ID,
 	// array name, or "all" / a disk path for SMART tests.
-	TargetKind string        `json:"targetKind"`
-	Target     string        `json:"target"`
-	Subvolume  string        `json:"subvolume,omitempty"` // btrfs: snapshot only this subvolume
-	Recursive  bool          `json:"recursive,omitempty"` // zfs: include child datasets
-	KeepCount  int           `json:"keepCount,omitempty"` // retention: newest N snapshots
-	KeepDays   int           `json:"keepDays,omitempty"`  // retention: snapshots younger than N days
-	SmartTest  string        `json:"smartTest,omitempty"` // short | long
-	CreatedAt  time.Time     `json:"createdAt"`
-	History    []ScheduleRun `json:"history"`
+	TargetKind string `json:"targetKind"`
+	Target     string `json:"target"`
+	Subvolume  string `json:"subvolume,omitempty"` // btrfs: snapshot only this subvolume
+	Recursive  bool   `json:"recursive,omitempty"` // zfs: include child datasets
+	KeepCount  int    `json:"keepCount,omitempty"` // retention: newest N snapshots
+	KeepDays   int    `json:"keepDays,omitempty"`  // retention: snapshots younger than N days
+	SmartTest  string `json:"smartTest,omitempty"` // short | long
+	// Antivirus: what to do with infected files (report | quarantine).
+	AVAction  string        `json:"avAction,omitempty"`
+	CreatedAt time.Time     `json:"createdAt"`
+	History   []ScheduleRun `json:"history"`
 }
 
 type ScheduleRun struct {

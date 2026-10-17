@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"strataos/internal/antivirus"
 	"strataos/internal/docker"
 	"strataos/internal/storage"
 	"strataos/internal/store"
@@ -72,6 +73,21 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 		if s.SmartTest != "short" && s.SmartTest != "long" {
 			return fmt.Errorf("SMART test type must be short or long")
 		}
+	case "antivirus":
+		s.TargetKind = "path"
+		t, err := antivirus.ValidTarget(s.Target)
+		if err != nil {
+			return err
+		}
+		if s.Target != "all" {
+			s.Target = t
+		}
+		if s.Target == "" {
+			s.Target = "all"
+		}
+		if s.AVAction != "report" {
+			s.AVAction = "quarantine"
+		}
 	case "appupdate":
 		s.TargetKind = "stacks"
 		if s.Target == "" {
@@ -106,6 +122,8 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 		return smart(&s, logf)
 	case "appupdate":
 		return appUpdate(ctx, &s, logf)
+	case "antivirus":
+		return antivirus.Scan(ctx, s.Target, s.AVAction != "report", logf)
 	}
 	return "", fmt.Errorf("unknown task type %q", s.Type)
 }

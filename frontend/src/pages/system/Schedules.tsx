@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, CalendarClock, Camera, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, Bug, CalendarClock, Camera, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
@@ -15,6 +15,7 @@ const typeInfo = {
   scrub: { label: tr("Vérification"), icon: <ShieldCheck size={15} />, tone: "ok" as const },
   smart: { label: tr("Test SMART"), icon: <Activity size={15} />, tone: "warn" as const },
   appupdate: { label: tr("Mise à jour des applications"), icon: <AppWindow size={15} />, tone: "accent" as const },
+  antivirus: { label: tr("Analyse antivirus"), icon: <Bug size={15} />, tone: "danger" as const },
 };
 
 const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -126,7 +127,9 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   const set = (k: Partial<Schedule>) => setS((p) => ({ ...p, ...k }));
   const stacks = useQuery({ queryKey: ["stacks"], queryFn: () => api.get<{ name: string }[]>("/api/docker/stacks"), enabled: s.type === "appupdate" });
   const stackOptions: ScheduleTarget[] = [{ kind: "stacks", value: "all", label: tr("Toutes les applications en marche") }, ...(stacks.data ?? []).map((x) => ({ kind: "stacks" as const, value: x.name, label: x.name }))];
-  const options = s.type === "snapshot" ? targets.snapshot : s.type === "scrub" ? targets.scrub : s.type === "appupdate" ? stackOptions : [];
+  const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<{ name: string; path: string }[]>("/api/shares"), enabled: s.type === "antivirus" });
+  const pathOptions: ScheduleTarget[] = [{ kind: "path", value: "all", label: tr("Tout le stockage") }, ...(shares.data ?? []).map((x) => ({ kind: "path" as const, value: x.path, label: tr("Partage {0}", x.name) }))];
+  const options = s.type === "snapshot" ? targets.snapshot : s.type === "scrub" ? targets.scrub : s.type === "appupdate" ? stackOptions : s.type === "antivirus" ? pathOptions : [];
   const current = options.find((o) => o.kind === s.targetKind && o.value === s.target);
   const selectedDisks = s.target === "all" ? [] : s.target.split(/[\s,]+/).filter(Boolean);
 
@@ -161,7 +164,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS ou Btrfs, avec rétention"), scrub: tr("RAID, pool ZFS, Btrfs"), smart: tr("Autodiagnostic des disques"), appupdate: tr("Nouvelles images Docker, sans perte de données") }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS ou Btrfs, avec rétention"), scrub: tr("RAID, pool ZFS, Btrfs"), smart: tr("Autodiagnostic des disques"), appupdate: tr("Nouvelles images Docker, sans perte de données"), antivirus: tr("ClamAV, avec mise en quarantaine") }[t]}</div>
               </div>
             </button>
           ))}
@@ -210,6 +213,14 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
           </div>
         )}
 
+        {s.type === "antivirus" && (
+          <Field label={tr("Fichiers infectés")}>
+            <Select value={s.avAction ?? "quarantine"} onChange={(e) => set({ avAction: e.target.value as "report" | "quarantine" })}>
+              <option value="quarantine">{tr("Mettre en quarantaine (restaurables depuis Antivirus)")}</option>
+              <option value="report">{tr("Signaler seulement")}</option>
+            </Select>
+          </Field>
+        )}
         {s.type === "snapshot" && (
           <div className="space-y-3 rounded-xl border border-line p-4">
             <div className="font-medium text-[13px]">{tr("Rétention")}</div>
@@ -256,6 +267,7 @@ function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
 function targetLabel(s: Schedule, targets?: Targets) {
   if (s.type === "smart") return s.target === "all" ? tr("Tous les disques") : s.target;
   if (s.type === "appupdate") return s.target === "all" ? tr("Toutes les applications en marche") : s.target;
+  if (s.type === "antivirus") return s.target === "all" ? tr("Tout le stockage") : s.target;
   const list = s.type === "snapshot" ? targets?.snapshot : targets?.scrub;
   const t = list?.find((o) => o.kind === s.targetKind && o.value === s.target);
   return (t?.label ?? s.target) + (s.subvolume ? ` / ${s.subvolume}` : "");
@@ -297,7 +309,7 @@ export default function Schedules() {
                     <tr key={s.id} className={s.enabled ? "" : "opacity-60"}>
                       <td>
                         <div className="flex items-center gap-2.5">
-                          <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", { accent: "bg-accent-soft text-accent", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" }[ti.tone])}>{ti.icon}</span>
+                          <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", { accent: "bg-accent-soft text-accent", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn", danger: "bg-danger/10 text-danger" }[ti.tone])}>{ti.icon}</span>
                           <div>
                             <div className="whitespace-nowrap font-medium">{s.name}</div>
                             <div className="whitespace-nowrap text-muted text-[11.5px]">{ti.label}{s.type === "snapshot" && ` · garder ${[s.keepCount ? tr("{0} derniers", s.keepCount) : "", s.keepDays ? tr("{0} j", s.keepDays) : ""].filter(Boolean).join(" / ")}`}{s.type === "smart" && ` · ${s.smartTest === "long" ? "long" : "court"}`}</div>

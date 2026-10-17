@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strataos/internal/antivirus"
 	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strings"
@@ -368,13 +369,14 @@ func (s *Server) systemRoutes() {
 			"rclone":    sys.Has("rclone"),
 			"ftp":       fileservices.FTPInstalled(),
 			"directory": directory.ADInstalled() && directory.LDAPInstalled(),
+			"antivirus": antivirus.Installed(),
 			"rsync":     sys.Has("rsync"),
 			"xfs":       sys.Has("mkfs.xfs"),
 		}, nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}
