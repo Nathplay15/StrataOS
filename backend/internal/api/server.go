@@ -210,6 +210,7 @@ func (s *Server) routes() {
 	s.restoreRoutes()
 	s.reportRoutes()
 	s.linkRoutes()
+	s.albumRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

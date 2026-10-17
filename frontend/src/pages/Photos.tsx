@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, Images, Play, Plug, RefreshCcw, Settings2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Me, Share } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
-import { Button, Card, Checkbox, Empty, ErrorBox, Modal, Notice, PageHeader, Spinner } from "../components/ui";
+import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, useUI } from "../components/ui";
+import { ShareLinkModal } from "../components/ShareLinkModal";
 import { locale, tr } from "../lib/i18n";
 
 type Item = { path: string; date: number; mtime: number; size: number; video?: boolean };
+type Album = { id: string; name: string; count: number; cover?: string; created: string; shared: boolean };
 type Page = { installed: boolean; total: number; items: Item[]; running: boolean; updated: string; folders?: string[] };
 
 const PAGE = 300;
@@ -67,18 +69,118 @@ function FoldersModal({ current, onClose }: { current: string[]; onClose: () => 
   );
 }
 
+function AddToAlbum({ items, onClose }: { items: string[]; onClose: () => void }) {
+  const albums = useQuery({ queryKey: ["albums"], queryFn: () => api.get<Album[]>("/api/photos/albums") });
+  const [target, setTarget] = useState<string>("new");
+  const [name, setName] = useState("");
+  const save = useAction(() => (target === "new" ? api.post("/api/photos/albums", { name, items }) : api.put(`/api/photos/albums/${target}`, { add: items })), { success: tr("{0} photo(s) ajoutée(s) à l'album", items.length), onDone: onClose });
+  return (
+    <Modal open onClose={onClose} title={tr("Ajouter à un album")} footer={<><Button onClick={onClose}>{tr("Annuler")}</Button><Button variant="primary" loading={save.isPending} disabled={target === "new" && !name.trim()} onClick={() => save.mutate()}>{tr("Ajouter")}</Button></>}>
+      <div className="space-y-2">
+        {albums.data?.map((a) => (
+          <label key={a.id} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-panel-2">
+            <input type="radio" checked={target === a.id} onChange={() => setTarget(a.id)} />
+            <span className="flex-1">{a.name}</span><span className="text-muted text-[12px]">{a.count}</span>
+          </label>
+        ))}
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-panel-2">
+          <input type="radio" checked={target === "new"} onChange={() => setTarget("new")} />
+          <span>{tr("Nouvel album")}</span>
+        </label>
+        {target === "new" && <Input autoFocus placeholder={tr("Nom de l'album")} value={name} onChange={(e) => setName(e.target.value)} />}
+        <ErrorBox error={save.error} />
+      </div>
+    </Modal>
+  );
+}
+
+function Grid({ groups, selected, onToggle, onOpen }: { groups: { label: string; start: number; items: Item[] }[]; selected: string[] | null; onToggle: (p: string) => void; onOpen: (i: number) => void }) {
+  return (
+    <div className="space-y-6">
+      {groups.map((g) => (
+        <section key={g.label + g.start}>
+          <h3 className="sticky top-0 z-10 -mx-1 mb-2 bg-bg/90 px-1 py-1.5 text-[14px] font-semibold capitalize backdrop-blur">{g.label}</h3>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-1">
+            {g.items.map((it, k) => {
+              const on = selected?.includes(it.path);
+              return (
+                <button key={it.path} onClick={() => (selected ? onToggle(it.path) : onOpen(g.start + k))} className={`group relative aspect-square overflow-hidden rounded-md bg-panel-2 ${on ? "ring-3 ring-accent" : ""}`}>
+                  <img src={thumb(it.path)} alt="" loading="lazy" className={`h-full w-full object-cover transition ${on ? "scale-90" : "group-hover:scale-105"}`} />
+                  {it.video && <span className="absolute right-1.5 bottom-1.5 rounded-full bg-black/60 p-1 text-white"><Play size={12} /></span>}
+                  {selected && <span className={`absolute top-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${on ? "border-accent bg-accent text-white" : "border-white/80 bg-black/30"}`}>{on && <Check size={12} />}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
+  const { data, isLoading } = useQuery({ queryKey: ["albums"], queryFn: () => api.get<Album[]>("/api/photos/albums") });
+  const [name, setName] = useState<string | null>(null);
+  const create = useAction(() => api.post("/api/photos/albums", { name, items: [] }), { onDone: () => setName(null) });
+  if (isLoading) return <Spinner />;
+  return (
+    <div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+        {data?.map((a) => (
+          <button key={a.id} onClick={() => onOpen(a)} className="group text-left">
+            <div className="relative aspect-square overflow-hidden rounded-xl bg-panel-2">
+              {a.cover ? <img src={thumb(a.cover)} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-muted"><Images size={36} /></div>}
+              {a.shared && <span className="absolute top-2 right-2 rounded-full bg-black/60 p-1.5 text-white" title={tr("Partagé par un lien")}><Link2 size={13} /></span>}
+            </div>
+            <div className="mt-2 truncate font-medium text-[13.5px]">{a.name}</div>
+            <div className="text-muted text-[12px]">{tr("{0} élément(s)", a.count)}</div>
+          </button>
+        ))}
+        <button onClick={() => setName("")} className="flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line text-muted hover:border-accent hover:text-accent">
+          <Plus size={28} /><span className="text-[13px]">{tr("Nouvel album")}</span>
+        </button>
+      </div>
+      <Modal open={name !== null} onClose={() => setName(null)} title={tr("Nouvel album")} footer={<><Button onClick={() => setName(null)}>{tr("Annuler")}</Button><Button variant="primary" disabled={!name?.trim()} loading={create.isPending} onClick={() => create.mutate()}>{tr("Créer")}</Button></>}>
+        <Field label={tr("Nom de l'album")}><Input autoFocus value={name ?? ""} onChange={(e) => setName(e.target.value)} /></Field>
+        <p className="mt-3 text-muted text-[12.5px]">{tr("Ajoutez ensuite des photos depuis la chronologie avec « Sélectionner ».")}</p>
+        <ErrorBox error={create.error} />
+      </Modal>
+    </div>
+  );
+}
+
 export default function Photos({ me }: { me: Me }) {
   const admin = me.role === "admin";
+  const { confirm } = useUI();
+  const [tab, setTab] = useState<"all" | "albums">("all");
+  const [album, setAlbum] = useState<Album | null>(null);
+  const [search, setSearch] = useState("");
+  const [qText, setQText] = useState("");
+  useEffect(() => { const t = setTimeout(() => setQText(search.trim()), 350); return () => clearTimeout(t); }, [search]);
   const [limit, setLimit] = useState(PAGE);
-  const { data, isLoading, error } = useQuery({ queryKey: ["photos", limit], queryFn: () => api.get<Page>(`/api/photos${q({ offset: 0, limit })}`), refetchInterval: (d) => (d.state.data?.running ? 4000 : 60000) });
+  const showGrid = tab === "all" || !!album;
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["photos", limit, album?.id ?? "", album ? "" : qText],
+    queryFn: () => api.get<Page>(`/api/photos${q({ offset: 0, limit, album: album?.id, q: album ? undefined : qText })}`),
+    refetchInterval: (d) => (d.state.data?.running ? 4000 : 60000),
+    enabled: showGrid,
+  });
   const install = useAction(() => api.post("/api/system/components/photos/install"));
   const reindex = useAction(() => api.post("/api/photos/reindex"));
   const [folders, setFolders] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const removeItems = useAction((items: string[]) => api.put(`/api/photos/albums/${album!.id}`, { remove: items }), { onDone: () => setSelected(null) });
+  const rename = useAction(() => api.put(`/api/photos/albums/${album!.id}`, { name: renaming }), { onDone: () => { setAlbum({ ...album!, name: renaming!.trim() }); setRenaming(null); } });
+  const delAlbum = useAction(() => api.del(`/api/photos/albums/${album!.id}`), { success: tr("Album supprimé"), onDone: () => setAlbum(null) });
   const sentinel = useRef<HTMLDivElement>(null);
   const items = useMemo(() => data?.items ?? [], [data]);
   const more = data && items.length < data.total;
 
+  useEffect(() => { setSelected(null); setLimit(PAGE); }, [tab, album?.id, qText]);
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !more) return;
@@ -98,41 +200,68 @@ export default function Photos({ me }: { me: Me }) {
     return out;
   }, [items]);
   const onIndex = useCallback((i: number) => setOpen(i), []);
+  const toggle = (p: string) => setSelected((s) => (s ? (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]) : [p]));
 
-  const header = <PageHeader title={tr("Photos")} subtitle={data ? tr("{0} photos et vidéos", data.total) : undefined} icon={<Images size={20} />} actions={admin && data && <>
-    <Button size="sm" icon={<RefreshCcw size={14} />} loading={reindex.isPending || data.running} onClick={() => reindex.mutate()}>{data.running ? tr("Indexation…") : tr("Réindexer")}</Button>
-    <Button size="sm" icon={<Settings2 size={14} />} onClick={() => setFolders(true)}>{tr("Dossiers")}</Button>
+  const header = <PageHeader title={album ? album.name : tr("Photos")} subtitle={data && showGrid ? tr("{0} photos et vidéos", data.total) : undefined} icon={<Images size={20} />} actions={<>
+    {album && <>
+      <Button size="sm" icon={<ArrowLeft size={14} />} onClick={() => setAlbum(null)}>{tr("Albums")}</Button>
+      <Button size="sm" icon={<Link2 size={14} />} onClick={() => setSharing(true)}>{tr("Partager")}</Button>
+      <Button size="sm" icon={<Pencil size={14} />} onClick={() => setRenaming(album.name)} title={tr("Renommer")} />
+      <Button size="sm" icon={<Trash2 size={14} />} title={tr("Supprimer l'album")} onClick={async () => { if (await confirm({ title: tr("Supprimer l'album ?"), text: tr("Les photos restent dans leurs dossiers ; seuls l'album et ses liens de partage sont supprimés."), danger: true })) delAlbum.mutate(); }} />
+    </>}
+    {!album && admin && data && tab === "all" && <>
+      <Button size="sm" icon={<RefreshCcw size={14} />} loading={reindex.isPending || data.running} onClick={() => reindex.mutate()}>{data.running ? tr("Indexation…") : tr("Réindexer")}</Button>
+      <Button size="sm" icon={<Settings2 size={14} />} onClick={() => setFolders(true)}>{tr("Dossiers")}</Button>
+    </>}
   </>} />;
 
-  if (isLoading || !data) return <div>{header}<ErrorBox error={error} /><Spinner /></div>;
-  if (!data.installed && admin) return <div>{header}<Card><Empty icon={<Plug />} title={tr("Les outils de vignettes ne sont pas installés")} text={tr("libvips (avec le format HEIC des iPhone) et ffmpeg pour les vidéos.")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Installer")}</Button>} /></Card></div>;
+  const tabs = !album && (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="flex rounded-lg border border-line p-0.5 text-[13px]">
+        {(["all", "albums"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{t === "all" ? tr("Chronologie") : tr("Albums")}</button>)}
+      </div>
+      {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="pl-8" placeholder={tr("Rechercher un dossier ou un fichier")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
+    </div>
+  );
+
+  const selectBar = showGrid && data && data.total > 0 && (
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+      {selected ? <>
+        <span>{tr("{0} sélectionnée(s)", selected.length)}</span>
+        <Button size="sm" variant="ghost" onClick={() => setSelected(items.map((i) => i.path))}>{tr("Tout sélectionner")}</Button>
+        <div className="flex-1" />
+        {album ? <Button size="sm" icon={<X size={14} />} disabled={!selected.length} loading={removeItems.isPending} onClick={() => removeItems.mutate(selected)}>{tr("Retirer de l'album")}</Button>
+          : <Button size="sm" variant="primary" icon={<FolderPlus size={14} />} disabled={!selected.length} onClick={() => setAdding(true)}>{tr("Ajouter à un album")}</Button>}
+        <Button size="sm" onClick={() => setSelected(null)}>{tr("Annuler")}</Button>
+      </> : <><div className="flex-1" /><Button size="sm" icon={<Check size={14} />} onClick={() => setSelected([])}>{tr("Sélectionner")}</Button></>}
+    </div>
+  );
+
+  if (showGrid && (isLoading || !data)) return <div>{header}{tabs}<ErrorBox error={error} /><Spinner /></div>;
+  if (showGrid && data && !data.installed && admin) return <div>{header}<Card><Empty icon={<Plug />} title={tr("Les outils de vignettes ne sont pas installés")} text={tr("libvips (avec le format HEIC des iPhone) et ffmpeg pour les vidéos.")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Installer")}</Button>} /></Card></div>;
 
   return (
     <div>
       {header}
-      {admin && data.folders?.length === 0 && <Card><Empty icon={<Images />} title={tr("Aucun dossier de photos")} text={tr("Choisissez les dossiers partagés qui contiennent vos photos.")} action={<Button variant="primary" onClick={() => setFolders(true)}>{tr("Choisir les dossiers")}</Button>} /></Card>}
-      {data.total === 0 && !(admin && data.folders?.length === 0) && <Card><Empty icon={<Images />} title={data.running ? tr("Indexation en cours…") : tr("Aucune photo")} text={tr("Déposez des photos dans un dossier de photos (Fichiers, SMB, WebDAV…) ; elles apparaissent ici après l'indexation.")} /></Card>}
-      {data.total > 0 && (
-        <div className="space-y-6">
-          {groups.map((g) => (
-            <section key={g.label + g.start}>
-              <h3 className="sticky top-0 z-10 -mx-1 mb-2 bg-bg/90 px-1 py-1.5 text-[14px] font-semibold capitalize backdrop-blur">{g.label}</h3>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-1">
-                {g.items.map((it, k) => (
-                  <button key={it.path} onClick={() => setOpen(g.start + k)} className="group relative aspect-square overflow-hidden rounded-md bg-panel-2">
-                    <img src={thumb(it.path)} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
-                    {it.video && <span className="absolute right-1.5 bottom-1.5 rounded-full bg-black/60 p-1 text-white"><Play size={12} /></span>}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-          {more && <div ref={sentinel} className="py-6"><Spinner /></div>}
-        </div>
-      )}
-      {!admin && data.total > 0 && <div className="mt-6"><Notice>{tr("Pour sauvegarder automatiquement les photos du téléphone, utilisez une application de synchronisation (PhotoSync, FolderSync…) vers WebDAV ou SFTP, dans un dossier de photos.")}</Notice></div>}
+      {tabs}
+      <ErrorBox error={error} />
+      {tab === "albums" && !album && <AlbumsView onOpen={(a) => setAlbum(a)} />}
+      {showGrid && data && <>
+        {!album && admin && data.folders?.length === 0 && <Card><Empty icon={<Images />} title={tr("Aucun dossier de photos")} text={tr("Choisissez les dossiers partagés qui contiennent vos photos.")} action={<Button variant="primary" onClick={() => setFolders(true)}>{tr("Choisir les dossiers")}</Button>} /></Card>}
+        {data.total === 0 && !(admin && data.folders?.length === 0 && !album) && <Card><Empty icon={<Images />} title={album ? tr("Album vide") : qText ? tr("Aucun résultat") : data.running ? tr("Indexation en cours…") : tr("Aucune photo")} text={album ? tr("Ajoutez des photos depuis la chronologie avec « Sélectionner ».") : qText ? undefined : tr("Déposez des photos dans un dossier de photos (Fichiers, SMB, WebDAV…) ; elles apparaissent ici après l'indexation.")} /></Card>}
+        {selectBar}
+        {data.total > 0 && <Grid groups={groups} selected={selected} onToggle={toggle} onOpen={setOpen} />}
+        {more && <div ref={sentinel} className="py-6"><Spinner /></div>}
+        {!admin && !album && data.total > 0 && <div className="mt-6"><Notice>{tr("Pour sauvegarder automatiquement les photos du téléphone, utilisez une application de synchronisation (PhotoSync, FolderSync…) vers WebDAV ou SFTP, dans un dossier de photos.")}</Notice></div>}
+      </>}
       {open !== null && <Viewer items={items} index={open} onIndex={onIndex} onClose={() => setOpen(null)} />}
-      {folders && <FoldersModal current={data.folders ?? []} onClose={() => setFolders(false)} />}
+      {folders && <FoldersModal current={data?.folders ?? []} onClose={() => setFolders(false)} />}
+      {adding && selected && <AddToAlbum items={selected} onClose={() => { setAdding(false); setSelected(null); }} />}
+      {sharing && album && <ShareLinkModal album={album.id} name={album.name} onClose={() => setSharing(false)} />}
+      <Modal open={renaming !== null} onClose={() => setRenaming(null)} title={tr("Renommer l'album")} footer={<><Button onClick={() => setRenaming(null)}>{tr("Annuler")}</Button><Button variant="primary" disabled={!renaming?.trim()} loading={rename.isPending} onClick={() => rename.mutate()}>{tr("Renommer")}</Button></>}>
+        <Input autoFocus value={renaming ?? ""} onChange={(e) => setRenaming(e.target.value)} />
+        <ErrorBox error={rename.error} />
+      </Modal>
     </div>
   );
 }

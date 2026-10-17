@@ -380,6 +380,19 @@ check "photo thumbnail through the link" "$(curl -s -o /dev/null -w '%{http_code
 check "link to a share the user cannot read refused" "$(u POST /api/links -d '{"path":"/srv/strata/tank/media/photos/secret.png","download":true}')" "access denied"
 u DELETE /api/links/$LP >/dev/null
 check "removed link stops working" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LP)" "410"
+AL=$(u POST /api/photos/albums -d '{"name":"Été 2018","items":["/srv/strata/main/Photos/vacances/img1.jpg","/srv/strata/main/Photos/vacances/img2.jpg"]}' | py 'print(d["id"])')
+check "album created" "$(u GET /api/photos/albums | py 'print([(a["name"], a["count"]) for a in d])')" "('Été 2018', 2)"
+check "forbidden photo refused in an album" "$(u PUT /api/photos/albums/$AL -d '{"add":["/srv/strata/tank/media/photos/secret.png"]}')" "photo not found"
+check "album content" "$(u GET "/api/photos?album=$AL" | py 'print(d["total"])')" "2"
+check "photo search" "$(u GET "/api/photos?q=img" | py 'print(d["total"])')" "2"
+check "albums are private" "$(c GET "/api/photos?album=$AL")" "album not found"
+LA=$(u POST /api/links -d "{\"album\":\"$AL\"}" | py 'print(d["id"])')
+check "shared album opened by a visitor" "$(curl -s $B/api/s/$LA | py 'print(d["album"], d["name"])')" "True Été 2018"
+check "album photos listed" "$(curl -s $B/api/s/$LA/files | py 'print(len(d["photos"]))')" "2"
+check "album photo downloaded" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/vacances/img1.jpg")" "200"
+check "photo outside the album refused" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/vacances/clip.mp4")" "404"
+u DELETE /api/photos/albums/$AL >/dev/null
+check "deleting the album removes its link" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LA)" "410"
 rm -f "$L3"
 
 section "Share quota and monthly report"

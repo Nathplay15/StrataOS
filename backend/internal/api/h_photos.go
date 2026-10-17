@@ -77,7 +77,26 @@ func (s *Server) photoLoop() {
 func (s *Server) photoRoutes() {
 	s.user("GET /api/photos", func(r *http.Request) (any, error) {
 		roots := s.readableRoots(r)
-		list := photos.Default.List(func(p string) bool { return under(roots, p) })
+		allow := func(p string) bool { return under(roots, p) }
+		if id := r.URL.Query().Get("album"); id != "" {
+			a, err := s.album(r, id)
+			if err != nil {
+				return nil, err
+			}
+			in := make(map[string]bool, len(a.Items))
+			for _, p := range a.Items {
+				in[p] = true
+			}
+			allow = func(p string) bool { return in[p] && under(roots, p) }
+		}
+		if q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))); q != "" {
+			prev := allow
+			allow = func(p string) bool {
+				// Folder or file names, relative to the share (not /srv/strata/…).
+				return prev(p) && strings.Contains(strings.ToLower(strings.TrimPrefix(p, storage.MountRoot)), q)
+			}
+		}
+		list := photos.Default.List(allow)
 		off, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 		lim, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		if lim <= 0 || lim > 1000 {
