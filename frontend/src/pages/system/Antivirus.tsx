@@ -75,7 +75,7 @@ function RansomwareCard() {
   return (
     <Card title={<span className="flex items-center gap-2"><ShieldAlert size={16} className="text-accent" />{tr("Protection anti-rançongiciel")}</span>} actions={<Button size="sm" variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>{tr("Enregistrer")}</Button>}>
       <div className="space-y-4">
-        <Switch checked={c.enabled} onChange={(v) => setC({ ...c, enabled: v })} label={tr("Surveiller les partages SMB")} hint={tr("Détecte les renommages et suppressions en masse et les extensions typiques des rançongiciels (.locked, .encrypted, .wncry…)")} />
+        <Switch checked={c.enabled} onChange={(v) => setC({ ...c, enabled: v })} label={tr("Surveiller les partages (SMB, WebDAV, SFTP, FTP)")} hint={tr("Détecte les renommages et suppressions en masse et les extensions typiques des rançongiciels (.locked, .encrypted, .wncry…) ; le compte est bloqué sur tous ces protocoles")} />
         {c.enabled && (
           <>
             <Field label={tr("Seuil (fichiers renommés ou supprimés par minute et par compte)")} className="max-w-sm"><Input type="number" min={5} value={c.threshold} onChange={(e) => setC({ ...c, threshold: Math.max(5, +e.target.value) })} /></Field>

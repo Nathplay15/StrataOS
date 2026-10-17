@@ -318,6 +318,20 @@ check "ransomware alert" "$(c GET /api/system/events | py '[print(e["message"]) 
 c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 for _ in $(seq 1 10); do vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1" | grep -q attack && break; sleep 1; done
 check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "attack"
+# SFTP and WebDAV (seen through fanotify and inside StrataOS).
+Q=""; prev=doc.txt; for i in $(seq 1 25); do Q+=" -Q '-rename /main/Photos/sftpatk/$prev /main/Photos/sftpatk/f$i.locked'"; prev=f$i.locked; done
+vm "echo x > /tmp/f.txt; curl -s -k --ftp-create-dirs -T /tmp/f.txt sftp://localhost/main/Photos/sftpatk/doc.txt -u '$USER_NAME:$USER_PASS' $Q >/dev/null 2>&1"
+for _ in $(seq 1 15); do c GET /api/ransomware | grep -q "$USER_NAME" && break; sleep 1; done
+check "mass renames over SFTP detected" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
+check "blocked account refused over SFTP" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' sftp://localhost/main/Photos/ -u '$USER_NAME:$USER_PASS'")" "67"
+c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
+check "SFTP back after unblocking" "$(vm "curl -s -k -o /dev/null -w '%{exitcode}' sftp://localhost/main/Photos/ -u '$USER_NAME:$USER_PASS'")" "0"
+echo x > "$TMP/w.txt"; for i in $(seq 1 25); do curl -s -u "$USER_NAME:$USER_PASS" -T "$TMP/w.txt" $B/dav/Photos/w$i.txt >/dev/null; curl -s -u "$USER_NAME:$USER_PASS" -X MOVE -H "Destination: /dav/Photos/w$i.txt.crypt" $B/dav/Photos/w$i.txt >/dev/null; done
+for _ in $(seq 1 10); do c GET /api/ransomware | grep -q "$USER_NAME" && break; sleep 1; done
+check "mass renames over WebDAV detected" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
+check "blocked account refused over WebDAV" "$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -u "$USER_NAME:$USER_PASS" $B/dav/Photos/)" "403"
+c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
+vm "sudo rm -rf /srv/strata/main/Photos/sftpatk /srv/strata/main/Photos/w*.crypt"
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
 

@@ -47,6 +47,14 @@ func newRansomWindow() *ransomWindow {
 	return &ransomWindow{ops: map[string][]ransomOp{}, alerted: map[string]time.Time{}}
 }
 
+// reset forgets a user (after an unblock: the protection is armed again).
+func (w *ransomWindow) reset(user string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.ops, user)
+	delete(w.alerted, user)
+}
+
 // add records one operation and reports whether the user must be flagged.
 func (w *ransomWindow) add(user, target string, now time.Time, threshold int) (bool, string) {
 	w.mu.Lock()
@@ -101,9 +109,33 @@ var (
 	ransomFollowing atomic.Bool              // the audit journal is being read
 )
 
+// ransomW counts the operations of every protocol.
+var ransomW = newRansomWindow()
+
+// ransomObserve records a rename (target = new name) or a deletion.
+func (s *Server) ransomObserve(user, ip, share, target string) {
+	var c store.Ransomware
+	s.store.Read(func(st *store.State) { c = st.Ransom })
+	if !c.Enabled || user == "" || slices.Contains(c.Blocked, user) {
+		return
+	}
+	threshold := c.Threshold
+	if threshold <= 0 {
+		threshold = 150
+	}
+	if flag, reason := ransomW.add(user, target, time.Now(), threshold); flag {
+		go s.ransomAlert(user, ip, share, reason)
+	}
+}
+
+func (s *Server) ransomBlocked(user string) bool {
+	var b bool
+	s.store.Read(func(st *store.State) { b = slices.Contains(st.Ransom.Blocked, user) })
+	return b
+}
+
 // ransomLoop follows the Samba audit journal while the protection is on.
 func (s *Server) ransomLoop() {
-	w := newRansomWindow()
 	for {
 		var c store.Ransomware
 		s.store.Read(func(st *store.State) { c = st.Ransom })
@@ -145,14 +177,7 @@ func (s *Server) ransomLoop() {
 			if !ok {
 				continue
 			}
-			var threshold int
-			s.store.Read(func(st *store.State) { threshold = st.Ransom.Threshold })
-			if threshold <= 0 {
-				threshold = 150
-			}
-			if flag, reason := w.add(user, target, time.Now(), threshold); flag {
-				go s.ransomAlert(user, ip, share, reason)
-			}
+			s.ransomObserve(user, ip, share, target)
 		}
 		cancel()
 		_ = cmd.Wait()
@@ -176,6 +201,9 @@ func (s *Server) ransomAlert(user, ip, share, reason string) {
 		})
 		_ = s.applyShares()
 		closeSMBSessions(user) // sessions opened meanwhile
+		// SFTP and FTP: lock the password and end the running sessions.
+		_, _ = sys.Run("usermod", "-L", user)
+		_, _ = sys.Run("pkill", "-KILL", "-u", user)
 		msg += ". Le compte est bloqué sur les partages : vérifiez le poste, puis débloquez-le dans Antivirus"
 	}
 	slog.Warn("ransomware suspected", "user", user, "ip", ip, "share", share)
@@ -248,13 +276,21 @@ func (s *Server) ransomRoutes() {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
+		disabled := false
 		err := s.store.Update(func(st *store.State) error {
 			st.Ransom.Blocked = slices.DeleteFunc(st.Ransom.Blocked, func(u string) bool { return u == req.User })
+			if u := st.User(req.User); u != nil {
+				disabled = u.Disabled
+			}
 			return nil
 		})
 		if err != nil {
 			return nil, err
 		}
+		if !disabled {
+			_, _ = sys.Run("usermod", "-U", req.User)
+		}
+		ransomW.reset(req.User)
 		s.audit(r, "ransomware", "Unblocked "+req.User)
 		return nil, s.applyShares()
 	})

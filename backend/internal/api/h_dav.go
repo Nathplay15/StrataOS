@@ -143,6 +143,10 @@ func (s *Server) davRoutes() {
 		if !ok {
 			return
 		}
+		if s.ransomBlocked(u.Username) {
+			http.Error(w, "account blocked by the ransomware protection", http.StatusForbidden)
+			return
+		}
 		// Files are served from the web interface's origin: never let one run as a page.
 		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 		if r.Method == http.MethodGet {
@@ -150,7 +154,7 @@ func (s *Server) davRoutes() {
 		}
 		h := &webdav.Handler{
 			Prefix:     "/dav",
-			FileSystem: &davFS{s: s, user: u.Username, admin: u.Role == "admin", groups: accounts.UserGroups(u.Username)},
+			FileSystem: &davFS{s: s, ip: clientIP(r), user: u.Username, admin: u.Role == "admin", groups: accounts.UserGroups(u.Username)},
 			LockSystem: locks,
 		}
 		h.ServeHTTP(w, r)
@@ -159,6 +163,7 @@ func (s *Server) davRoutes() {
 
 type davFS struct {
 	s      *Server
+	ip     string
 	user   string
 	admin  bool
 	groups []string
@@ -309,6 +314,7 @@ func (f *davFS) RemoveAll(ctx context.Context, name string) error {
 	if _, err := rt.Lstat(p.rel); err != nil {
 		return err
 	}
+	f.s.ransomObserve(f.user, f.ip, p.share.Name, p.rel)
 	if p.share.RecycleBin {
 		// Same place Samba uses: .recycle/<user>/<path>, never overwritten.
 		dst := path.Join(".recycle", f.user, p.rel)
@@ -347,7 +353,11 @@ func (f *davFS) Rename(ctx context.Context, oldName, newName string) error {
 		return err
 	}
 	defer rt.Close()
-	return rt.Rename(a.rel, b.rel)
+	if err := rt.Rename(a.rel, b.rel); err != nil {
+		return err
+	}
+	f.s.ransomObserve(f.user, f.ip, a.share.Name, b.rel)
+	return nil
 }
 
 func (f *davFS) Stat(ctx context.Context, name string) (os.FileInfo, error) {

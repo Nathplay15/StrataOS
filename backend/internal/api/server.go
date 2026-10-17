@@ -88,6 +88,7 @@ func New(c Config) *Server {
 	go s.haLoop()
 	go s.haContinuousLoop()
 	go s.ransomLoop()
+	go s.ransomFileServicesLoop()
 	go s.ddnsLoop()
 	go s.photoLoop()
 	go s.shareQuotaLoop()
