@@ -1,3 +1,5 @@
+import { locale, tr } from "./i18n";
+
 export function bytes(n: number | undefined, digits = 1): string {
   if (n === undefined || n === null || isNaN(n)) return "—";
   if (n < 1024) return `${Math.round(n)} o`;
@@ -30,16 +32,16 @@ export function duration(seconds: number): string {
 export function dateTime(v: string | number | undefined): string {
   if (!v) return "—";
   const d = typeof v === "number" ? new Date(v) : new Date(v);
-  return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  return d.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
 }
 
 export function ago(v: string | number): string {
   const t = typeof v === "number" ? v : new Date(v).getTime();
   const s = (Date.now() - t) / 1000;
-  if (s < 60) return "à l'instant";
-  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
-  return `il y a ${Math.floor(s / 86400)} j`;
+  if (s < 60) return tr("à l'instant");
+  if (s < 3600) return tr("il y a {0} min", Math.floor(s / 60));
+  if (s < 86400) return tr("il y a {0} h", Math.floor(s / 3600));
+  return tr("il y a {0} j", Math.floor(s / 86400));
 }
 
 /** Parses "10G", "500 MB", "2T" into bytes. */

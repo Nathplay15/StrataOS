@@ -6,6 +6,7 @@ import type { Me, Overview, Sample, SystemInfo } from "../lib/types";
 import { bytes, duration, pct, rate } from "../lib/format";
 import { Card, Empty, Health, PageHeader, Progress, Spinner, Stat } from "../components/ui";
 import { AreaChart, Ring } from "../components/charts";
+import { tr } from "../lib/i18n";
 
 export default function Dashboard({ me }: { me: Me }) {
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info"), refetchInterval: 30000 });
@@ -20,7 +21,7 @@ export default function Dashboard({ me }: { me: Me }) {
 
   return (
     <div>
-      <PageHeader title={`Bonjour ${me.fullName || me.username}`} subtitle={i ? `${i.hostname} · ${i.os} · actif depuis ${duration(i.uptime)}` : "Chargement…"} />
+      <PageHeader title={tr("Bonjour {0}", me.fullName || me.username)} subtitle={i ? tr("{0} · {1} · actif depuis {2}", i.hostname, i.os, duration(i.uptime)) : tr("Chargement…")} />
 
       {o && o.alerts.length > 0 && (
         <div className="mb-5 space-y-2">
@@ -34,53 +35,53 @@ export default function Dashboard({ me }: { me: Me }) {
       )}
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Disques" value={o?.disks ?? "—"} sub={`${o?.raids ?? 0} RAID · ${o?.pools ?? 0} pool ZFS`} icon={<HardDrive size={20} />} />
-        <Stat label="Partages" value={o?.shares ?? "—"} sub={`${o?.users ?? 0} utilisateurs`} icon={<Share2 size={20} />} tone="ok" />
-        <Stat label="Conteneurs" value={o ? `${o.containers.running}/${o.containers.total}` : "—"} sub="en cours d'exécution" icon={<Container size={20} />} tone="accent" />
-        <Stat label="Température max" value={hottest ? `${hottest.toFixed(0)} °C` : "—"} sub={i?.cpuModel} icon={<Thermometer size={20} />} tone={hottest > 80 ? "danger" : hottest > 65 ? "warn" : "ok"} />
+        <Stat label={tr("Disques")} value={o?.disks ?? "—"} sub={tr("{0} RAID · {1} pool ZFS", o?.raids ?? 0, o?.pools ?? 0)} icon={<HardDrive size={20} />} />
+        <Stat label={tr("Partages")} value={o?.shares ?? "—"} sub={tr("{0} utilisateurs", o?.users ?? 0)} icon={<Share2 size={20} />} tone="ok" />
+        <Stat label={tr("Conteneurs")} value={o ? `${o.containers.running}/${o.containers.total}` : "—"} sub={tr("en cours d'exécution")} icon={<Container size={20} />} tone="accent" />
+        <Stat label={tr("Température max")} value={hottest ? `${hottest.toFixed(0)} °C` : "—"} sub={i?.cpuModel} icon={<Thermometer size={20} />} tone={hottest > 80 ? "danger" : hottest > 65 ? "warn" : "ok"} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">
-        <Card title="Ressources" className="xl:col-span-1">
+        <Card title={tr("Ressources")} className="xl:col-span-1">
           {!last ? (
             <Spinner />
           ) : (
             <div className="flex flex-wrap justify-around gap-6 py-2">
-              <Ring value={last.cpu} label="Processeur" sub={`${i?.cores ?? "?"} cœurs · charge ${i?.load[0].toFixed(2) ?? "—"}`} />
-              <Ring value={pct(last.memUsed, last.memTotal)} label="Mémoire" sub={`${bytes(last.memUsed)} / ${bytes(last.memTotal)}`} color="var(--accent-2)" />
+              <Ring value={last.cpu} label={tr("Processeur")} sub={tr("{0} cœurs · charge {1}", i?.cores ?? "?", i?.load[0].toFixed(2) ?? "—")} />
+              <Ring value={pct(last.memUsed, last.memTotal)} label={tr("Mémoire")} sub={`${bytes(last.memUsed)} / ${bytes(last.memTotal)}`} color="var(--accent-2)" />
             </div>
           )}
         </Card>
-        <Card title="Activité réseau" className="xl:col-span-2">
+        <Card title={tr("Activité réseau")} className="xl:col-span-2">
           <AreaChart
             height={150}
             format={rate}
             series={[
-              { label: "Réception", color: "var(--accent)", values: h.map((s) => s.netRx) },
-              { label: "Émission", color: "var(--accent-2)", values: h.map((s) => s.netTx) },
+              { label: tr("Réception"), color: "var(--accent)", values: h.map((s) => s.netRx) },
+              { label: tr("Émission"), color: "var(--accent-2)", values: h.map((s) => s.netTx) },
             ]}
           />
         </Card>
-        <Card title="Processeur" className="xl:col-span-2">
+        <Card title={tr("Processeur")} className="xl:col-span-2">
           <AreaChart height={150} max={100} format={(v) => `${v.toFixed(0)} %`} series={[{ label: "CPU", color: "var(--accent)", values: h.map((s) => s.cpu) }]} />
         </Card>
-        <Card title="Disques (E/S)">
+        <Card title={tr("Disques (E/S)")}>
           <AreaChart
             height={150}
             format={rate}
             series={[
-              { label: "Lecture", color: "var(--ok)", values: h.map((s) => s.diskRead) },
-              { label: "Écriture", color: "var(--warn)", values: h.map((s) => s.diskWrite) },
+              { label: tr("Lecture"), color: "var(--ok)", values: h.map((s) => s.diskRead) },
+              { label: tr("Écriture"), color: "var(--warn)", values: h.map((s) => s.diskWrite) },
             ]}
           />
         </Card>
       </div>
 
-      <Card title="Volumes de stockage" className="mt-5" actions={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent text-[13px]">Gérer</AppLink>}>
+      <Card title={tr("Volumes de stockage")} className="mt-5" actions={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent text-[13px]">{tr("Gérer")}</AppLink>}>
         {!o ? (
           <Spinner />
         ) : o.volumes.length === 0 ? (
-          <Empty icon={<Database size={22} />} title="Aucun volume" text="Créez un RAID ou un pool, puis un volume pour commencer à stocker des données." action={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent">Créer un volume →</AppLink>} />
+          <Empty icon={<Database size={22} />} title={tr("Aucun volume")} text={tr("Créez un RAID ou un pool, puis un volume pour commencer à stocker des données.")} action={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent">{tr("Créer un volume →")}</AppLink>} />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {o.volumes.map((v) => {
@@ -99,8 +100,8 @@ export default function Dashboard({ me }: { me: Me }) {
                   </div>
                   <Progress value={p} />
                   <div className="mt-2 flex justify-between text-[12px] text-muted">
-                    <span>{bytes(v.used)} utilisés</span>
-                    <span>{bytes(v.free)} libres sur {bytes(v.total)}</span>
+                    <span>{bytes(v.used)} {" "}{tr("utilisés")}</span>
+                    <span>{bytes(v.free)} {" "}{tr("libres sur")}{" "}{bytes(v.total)}</span>
                   </div>
                 </div>
               );
@@ -110,16 +111,16 @@ export default function Dashboard({ me }: { me: Me }) {
       </Card>
 
       {i && (
-        <Card title="Système" className="mt-5">
+        <Card title={tr("Système")} className="mt-5">
           <dl className="grid gap-x-8 gap-y-3 text-[13px] sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ["Matériel", [i.vendor, i.product].filter(Boolean).join(" ") || "—"],
-              ["Processeur", i.cpuModel],
-              ["Noyau", i.kernel],
-              ["Fuseau", i.timezone],
-              ["Mémoire", bytes(i.memTotal)],
-              ["Swap", `${bytes(i.swapTotal - i.swapFree)} / ${bytes(i.swapTotal)}`],
-              ["Charge", i.load.map((l) => l.toFixed(2)).join(" · ")],
+              [tr("Matériel"), [i.vendor, i.product].filter(Boolean).join(" ") || "—"],
+              [tr("Processeur"), i.cpuModel],
+              [tr("Noyau"), i.kernel],
+              [tr("Fuseau"), i.timezone],
+              [tr("Mémoire"), bytes(i.memTotal)],
+              [tr("Swap"), `${bytes(i.swapTotal - i.swapFree)} / ${bytes(i.swapTotal)}`],
+              [tr("Charge"), i.load.map((l) => l.toFixed(2)).join(" · ")],
               ["StrataOS", i.version],
             ].map(([k, v]) => (
               <div key={k}>

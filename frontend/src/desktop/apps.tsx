@@ -4,6 +4,7 @@ import {
   Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
 } from "lucide-react";
 import type { Me } from "../lib/types";
+import { tr } from "../lib/i18n";
 
 const Dashboard = lazy(() => import("../pages/Dashboard"));
 const Disks = lazy(() => import("../pages/storage/Disks"));
@@ -61,48 +62,48 @@ export interface AppDef {
 const page = (C: ComponentType<object>): PageComponent => C as PageComponent;
 
 export const APPS: AppDef[] = [
-  { id: "overview", title: "Vue d'ensemble", icon: LayoutDashboard, colors: ["#6366f1", "#8b5cf6"], admin: false, size: [1080, 760], component: Dashboard as PageComponent, path: "/" },
-  { id: "files", title: "Fichiers", icon: FolderOpen, colors: ["#f59e0b", "#f97316"], admin: false, size: [1000, 660], component: page(Files), path: "/files" },
+  { id: "overview", title: tr("Vue d'ensemble"), icon: LayoutDashboard, colors: ["#6366f1", "#8b5cf6"], admin: false, size: [1080, 760], component: Dashboard as PageComponent, path: "/" },
+  { id: "files", title: tr("Fichiers"), icon: FolderOpen, colors: ["#f59e0b", "#f97316"], admin: false, size: [1000, 660], component: page(Files), path: "/files" },
   {
-    id: "storage", title: "Gestionnaire de stockage", icon: HardDrive, colors: ["#0ea5e9", "#2563eb"], admin: true, size: [1120, 760],
+    id: "storage", title: tr("Gestionnaire de stockage"), icon: HardDrive, colors: ["#0ea5e9", "#2563eb"], admin: true, size: [1120, 760],
     sections: [
-      { id: "volumes", label: "Volumes", icon: <Database size={16} />, component: page(Volumes), path: "/storage/volumes" },
+      { id: "volumes", label: tr("Volumes"), icon: <Database size={16} />, component: page(Volumes), path: "/storage/volumes" },
       { id: "raid", label: "RAID", icon: <Layers size={16} />, component: page(Raid), path: "/storage/raid" },
       { id: "zfs", label: "ZFS", icon: <Boxes size={16} />, component: page(Zfs), path: "/storage/zfs" },
       { id: "lvm", label: "LVM", icon: <Server size={16} />, component: page(Lvm), path: "/storage/lvm" },
-      { id: "disks", label: "Disques", icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
+      { id: "disks", label: tr("Disques"), icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
     ],
   },
   {
-    id: "control", title: "Panneau de configuration", icon: SlidersHorizontal, colors: ["#64748b", "#334155"], admin: true, size: [1120, 760],
+    id: "control", title: tr("Panneau de configuration"), icon: SlidersHorizontal, colors: ["#64748b", "#334155"], admin: true, size: [1120, 760],
     sections: [
-      { id: "shares", label: "Dossiers partagés", icon: <Share2 size={16} />, component: page(Shares), path: "/shares" },
-      { id: "fileservices", label: "Services de fichiers", icon: <FolderTree size={16} />, component: page(FileServicesPage), path: "/system/fileservices" },
-      { id: "users", label: "Utilisateurs et groupes", icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
-      { id: "directory", label: "Domaine / LDAP", icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
-      { id: "schedules", label: "Tâches planifiées", icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
-      { id: "network", label: "Réseau", icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
-      { id: "ups", label: "Onduleur", icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
-      { id: "services", label: "Services", icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },
-      { id: "updates", label: "Mises à jour", icon: <RefreshCcw size={16} />, component: page(Updates), path: "/system/updates" },
-      { id: "settings", label: "Paramètres", icon: <Settings size={16} />, component: page(SettingsPage), path: "/system/settings" },
+      { id: "shares", label: tr("Dossiers partagés"), icon: <Share2 size={16} />, component: page(Shares), path: "/shares" },
+      { id: "fileservices", label: tr("Services de fichiers"), icon: <FolderTree size={16} />, component: page(FileServicesPage), path: "/system/fileservices" },
+      { id: "users", label: tr("Utilisateurs et groupes"), icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
+      { id: "directory", label: tr("Domaine / LDAP"), icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
+      { id: "schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
+      { id: "network", label: tr("Réseau"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
+      { id: "ups", label: tr("Onduleur"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
+      { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },
+      { id: "updates", label: tr("Mises à jour"), icon: <RefreshCcw size={16} />, component: page(Updates), path: "/system/updates" },
+      { id: "settings", label: tr("Paramètres"), icon: <Settings size={16} />, component: page(SettingsPage), path: "/system/settings" },
     ],
   },
-  { id: "backup", title: "Sauvegarde", icon: DatabaseBackup, colors: ["#14b8a6", "#0d9488"], admin: true, size: [1040, 720], component: page(Backups), path: "/backup" },
-  { id: "cloudsync", title: "Synchronisation cloud", icon: CloudCog, colors: ["#38bdf8", "#0ea5e9"], admin: true, size: [1040, 720], component: page(CloudSync), path: "/cloudsync" },
-  { id: "appcenter", title: "App Center", icon: AppWindow, colors: ["#ec4899", "#f43f5e"], admin: true, size: [1120, 760], component: page(AppStore), path: "/apps" },
+  { id: "backup", title: tr("Sauvegarde"), icon: DatabaseBackup, colors: ["#14b8a6", "#0d9488"], admin: true, size: [1040, 720], component: page(Backups), path: "/backup" },
+  { id: "cloudsync", title: tr("Synchronisation cloud"), icon: CloudCog, colors: ["#38bdf8", "#0ea5e9"], admin: true, size: [1040, 720], component: page(CloudSync), path: "/cloudsync" },
+  { id: "appcenter", title: tr("App Center"), icon: AppWindow, colors: ["#ec4899", "#f43f5e"], admin: true, size: [1120, 760], component: page(AppStore), path: "/apps" },
   {
-    id: "docker", title: "Docker", icon: Container, colors: ["#06b6d4", "#0284c7"], admin: true, size: [1120, 720],
+    id: "docker", title: tr("Docker"), icon: Container, colors: ["#06b6d4", "#0284c7"], admin: true, size: [1120, 720],
     sections: [
-      { id: "containers", label: "Conteneurs", icon: <Container size={16} />, component: page(Containers), path: "/docker/containers" },
-      { id: "stacks", label: "Stacks Compose", icon: <Package size={16} />, component: page(Stacks), path: "/docker/stacks" },
-      { id: "images", label: "Images et réseaux", icon: <Layers size={16} />, component: page(Images), path: "/docker/images" },
+      { id: "containers", label: tr("Conteneurs"), icon: <Container size={16} />, component: page(Containers), path: "/docker/containers" },
+      { id: "stacks", label: tr("Stacks Compose"), icon: <Package size={16} />, component: page(Stacks), path: "/docker/stacks" },
+      { id: "images", label: tr("Images et réseaux"), icon: <Layers size={16} />, component: page(Images), path: "/docker/images" },
     ],
   },
-  { id: "vms", title: "Machines virtuelles", icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
-  { id: "monitor", title: "Moniteur de ressources", icon: Activity, colors: ["#22c55e", "#059669"], admin: true, size: [1040, 720], component: page(Monitor), path: "/system/monitor" },
-  { id: "logs", title: "Journaux", icon: FileText, colors: ["#a855f7", "#7c3aed"], admin: true, size: [1040, 680], component: page(Logs), path: "/system/logs" },
-  { id: "terminal", title: "Terminal", icon: SquareTerminal, colors: ["#334155", "#0f172a"], admin: true, size: [900, 560], component: page(TerminalPage), path: "/system/terminal" },
+  { id: "vms", title: tr("Machines virtuelles"), icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
+  { id: "monitor", title: tr("Moniteur de ressources"), icon: Activity, colors: ["#22c55e", "#059669"], admin: true, size: [1040, 720], component: page(Monitor), path: "/system/monitor" },
+  { id: "logs", title: tr("Journaux"), icon: FileText, colors: ["#a855f7", "#7c3aed"], admin: true, size: [1040, 680], component: page(Logs), path: "/system/logs" },
+  { id: "terminal", title: tr("Terminal"), icon: SquareTerminal, colors: ["#334155", "#0f172a"], admin: true, size: [900, 560], component: page(TerminalPage), path: "/system/terminal" },
 ];
 
 export const appById = (id: string) => APPS.find((a) => a.id === id);

@@ -6,6 +6,8 @@
 
 ## Interface
 
+Disponible en français et en anglais (choix dans le menu utilisateur ou sur l'écran de connexion ; par défaut, la langue du navigateur). Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/en.json` contient leur traduction (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent).
+
 Sur ordinateur, StrataOS s'affiche comme un **bureau** à la manière de Synology DSM ou fnOS : icônes d'applications, fenêtres déplaçables et redimensionnables (plusieurs à la fois, aimantation sur les bords, agrandir/réduire), barre des tâches, menu principal avec recherche, widgets (état, ressources, stockage, applications), fonds d'écran (clic droit sur le bureau), raccourcis vers les applications installées depuis l'App Center. Les pages sont regroupées en suites : **Gestionnaire de stockage**, **Panneau de configuration**, **Docker**.
 
 Sur mobile et petits écrans, l'interface classique (menu latéral) est utilisée. On bascule de l'une à l'autre depuis le menu utilisateur (« Interface classique » / « Mode bureau »).
@@ -109,4 +111,3 @@ Voir [vm/README.md](vm/README.md) pour les détails.
 
 ## Feuille de route
 
-- Interface en anglais

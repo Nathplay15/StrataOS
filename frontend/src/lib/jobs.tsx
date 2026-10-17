@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import type { Job } from "./types";
 import { useUI } from "../components/ui";
+import { jobTitle, tr } from "./i18n";
 
 interface JobsCtx {
   jobs: Job[];
@@ -35,8 +36,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       const prev = seen.current.get(j.id);
       if (prev === "running" && j.status !== "running") {
         finished = true;
-        if (j.status === "success") toast(`${j.title} : terminé`);
-        else toast(`${j.title} : ${j.error ?? "échec"}`, "error");
+        if (j.status === "success") toast(tr("{0} : terminé", jobTitle(j.title)));
+        else toast(tr("{0} : {1}", jobTitle(j.title), j.error ?? tr("échec")), "error");
       }
       seen.current.set(j.id, j.status);
     }
@@ -54,7 +55,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       }
       seen.current.set(job.id, "running");
       setWatching((w) => w + 1);
-      toast(`${job.title} : démarré`, "info");
+      toast(tr("{0} : démarré", jobTitle(job.title)), "info");
       qc.invalidateQueries({ queryKey: ["jobs"] });
     },
     [qc, toast],

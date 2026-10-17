@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { bytes, cx } from "../lib/format";
 import type { Disk, RaidArray, VG } from "../lib/types";
 import { Badge, Spinner } from "./ui";
+import { tr } from "../lib/i18n";
 
 export interface Candidate {
   path: string;
@@ -24,11 +25,11 @@ export function useCandidates(includeVirtual: boolean) {
   }
   if (includeVirtual) {
     for (const r of raids.data ?? []) {
-      if (!r.fsType) list.push({ path: `/dev/md/${r.label || r.name}`, label: `RAID ${r.level} « ${r.label || r.name} »`, size: r.size, sub: r.device, kind: "raid" });
+      if (!r.fsType) list.push({ path: `/dev/md/${r.label || r.name}`, label: tr("RAID {0} « {1} »", r.level, r.label || r.name), size: r.size, sub: r.device, kind: "raid" });
     }
     for (const vg of lvm.data ?? []) {
       for (const lv of vg.lvs) {
-        if (!lv.fsType && !lv.snapshot) list.push({ path: lv.path, label: `LV ${vg.name}/${lv.name}`, size: lv.size, sub: lv.path, kind: "lv" });
+        if (!lv.fsType && !lv.snapshot) list.push({ path: lv.path, label: tr("LV {0}/{1}", vg.name, lv.name), size: lv.size, sub: lv.path, kind: "lv" });
       }
     }
   }
@@ -40,7 +41,7 @@ export function DiskPicker({ value, onChange, includeVirtual = false, exclude = 
   if (loading) return <Spinner />;
   const items = list.filter((c) => !exclude.includes(c.path) || value.includes(c.path));
   if (items.length === 0) {
-    return <div className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-muted text-[13px]">Aucun disque libre. Effacez un disque depuis la page Disques pour le réutiliser.</div>;
+    return <div className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-muted text-[13px]">{tr("Aucun disque libre. Effacez un disque depuis la page Disques pour le réutiliser.")}</div>;
   }
   const toggle = (p: string) => {
     if (single) onChange(value.includes(p) ? [] : [p]);

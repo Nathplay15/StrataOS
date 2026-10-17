@@ -5,6 +5,8 @@ import { api, ApiError } from "../lib/api";
 import type { Me } from "../lib/types";
 import { Button, Checkbox, ErrorBox, Field, Input } from "../components/ui";
 import { useTheme } from "../components/Layout";
+import { tr } from "../lib/i18n";
+import { LangSwitch } from "../components/LangSwitch";
 
 function Shell({ children, subtitle }: { children: ReactNode; subtitle: string }) {
   useTheme();
@@ -18,6 +20,7 @@ function Shell({ children, subtitle }: { children: ReactNode; subtitle: string }
           <p className="text-muted">{subtitle}</p>
         </div>
         <div className="card p-7">{children}</div>
+        <div className="mt-4 flex justify-center"><LangSwitch className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] text-muted hover:bg-panel-2 hover:text-fg" /></div>
       </div>
     </div>
   );
@@ -49,30 +52,30 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
     }
   };
   return (
-    <Shell subtitle={`Connexion à ${hostname}`}>
+    <Shell subtitle={tr("Connexion à {0}", hostname)}>
       <form onSubmit={submit} className="space-y-4">
         {!needCode ? (
           <>
-            <Field label="Nom d'utilisateur">
+            <Field label={tr("Nom d'utilisateur")}>
               <Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
             </Field>
-            <Field label="Mot de passe">
+            <Field label={tr("Mot de passe")}>
               <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
-            <Checkbox checked={remember} onChange={setRemember} label={<span className="text-[13px] text-muted">Rester connecté 30 jours</span>} />
+            <Checkbox checked={remember} onChange={setRemember} label={<span className="text-[13px] text-muted">{tr("Rester connecté 30 jours")}</span>} />
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 font-medium"><ShieldCheck size={17} className="text-accent" /> Double authentification</div>
-            <Field label="Code de votre application d'authentification" hint="6 chiffres, ou un code de secours (xxxxx-xxxxx)">
+            <div className="flex items-center gap-2 font-medium"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Double authentification")}</div>
+            <Field label={tr("Code de votre application d'authentification")} hint={tr("6 chiffres, ou un code de secours (xxxxx-xxxxx)")}>
               <Input autoFocus inputMode="numeric" autoComplete="one-time-code" className="mono text-center text-[18px] tracking-[0.3em]" value={code} onChange={(e) => setCode(e.target.value)} />
             </Field>
-            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={() => { setNeedCode(false); setErr(null); }}>← Revenir</button>
+            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={() => { setNeedCode(false); setErr(null); }}>{tr("← Revenir")}</button>
           </>
         )}
         <ErrorBox error={err} />
         <Button variant="primary" className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
-          {needCode ? "Vérifier" : "Se connecter"}
+          {needCode ? tr("Vérifier") : tr("Se connecter")}
         </Button>
       </form>
     </Shell>
@@ -89,7 +92,7 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (step === 0) return setStep(1);
-    if (f.password !== f.confirm) return setErr(new Error("Les mots de passe ne correspondent pas"));
+    if (f.password !== f.confirm) return setErr(new Error(tr("Les mots de passe ne correspondent pas")));
     setBusy(true);
     setErr(null);
     try {
@@ -102,7 +105,7 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
   };
 
   return (
-    <Shell subtitle="Bienvenue ! Configurons votre NAS.">
+    <Shell subtitle={tr("Bienvenue ! Configurons votre NAS.")}>
       <form onSubmit={submit} className="space-y-4">
         <div className="mb-2 flex gap-2">
           {[0, 1].map((i) => (
@@ -111,36 +114,36 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
         </div>
         {step === 0 ? (
           <>
-            <h2 className="font-semibold">Votre serveur</h2>
-            <Field label="Nom du NAS" hint="Visible sur le réseau (SMB, mDNS)">
+            <h2 className="font-semibold">{tr("Votre serveur")}</h2>
+            <Field label={tr("Nom du NAS")} hint={tr("Visible sur le réseau (SMB, mDNS)")}>
               <Input value={f.hostname} onChange={set("hostname")} />
             </Field>
-            <Field label="Fuseau horaire">
+            <Field label={tr("Fuseau horaire")}>
               <Input value={f.timezone} onChange={set("timezone")} />
             </Field>
           </>
         ) : (
           <>
-            <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck size={17} className="text-accent" /> Compte administrateur</h2>
-            <Field label="Nom d'utilisateur" hint="Lettres minuscules, chiffres, - et _">
+            <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Compte administrateur")}</h2>
+            <Field label={tr("Nom d'utilisateur")} hint={tr("Lettres minuscules, chiffres, - et _")}>
               <Input autoFocus value={f.username} onChange={set("username")} />
             </Field>
-            <Field label="Nom complet">
+            <Field label={tr("Nom complet")}>
               <Input value={f.fullName} onChange={set("fullName")} />
             </Field>
-            <Field label="Mot de passe" hint="8 caractères minimum. Sert aussi pour SMB et SSH.">
+            <Field label={tr("Mot de passe")} hint={tr("8 caractères minimum. Sert aussi pour SMB et SSH.")}>
               <Input type="password" autoComplete="new-password" value={f.password} onChange={set("password")} />
             </Field>
-            <Field label="Confirmation">
+            <Field label={tr("Confirmation")}>
               <Input type="password" autoComplete="new-password" value={f.confirm} onChange={set("confirm")} />
             </Field>
           </>
         )}
         <ErrorBox error={err} />
         <div className="flex gap-2">
-          {step === 1 && <Button type="button" onClick={() => setStep(0)}>Retour</Button>}
+          {step === 1 && <Button type="button" onClick={() => setStep(0)}>{tr("Retour")}</Button>}
           <Button variant="primary" className="flex-1" loading={busy} type="submit" icon={<ArrowRight size={15} />} disabled={step === 1 && (!f.username || f.password.length < 8)}>
-            {step === 0 ? "Continuer" : "Terminer l'installation"}
+            {step === 0 ? tr("Continuer") : tr("Terminer l'installation")}
           </Button>
         </div>
       </form>

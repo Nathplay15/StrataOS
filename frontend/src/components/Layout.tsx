@@ -12,55 +12,57 @@ import { useJobs } from "../lib/jobs";
 import type { Me } from "../lib/types";
 import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, Progress, useUI } from "./ui";
+import { tr, jobTitle } from "../lib/i18n";
+import { LangSwitch } from "./LangSwitch";
 
 type NavItem = { to: string; label: string; icon: ReactNode; admin?: boolean };
 
 const nav: { title: string; items: NavItem[] }[] = [
-  { title: "", items: [{ to: "/", label: "Tableau de bord", icon: <LayoutDashboard size={17} /> }] },
+  { title: "", items: [{ to: "/", label: tr("Tableau de bord"), icon: <LayoutDashboard size={17} /> }] },
   {
-    title: "Stockage",
+    title: tr("Stockage"),
     items: [
-      { to: "/storage/disks", label: "Disques", icon: <HardDrive size={17} />, admin: true },
+      { to: "/storage/disks", label: tr("Disques"), icon: <HardDrive size={17} />, admin: true },
       { to: "/storage/raid", label: "RAID", icon: <Layers size={17} />, admin: true },
-      { to: "/storage/volumes", label: "Volumes", icon: <Database size={17} />, admin: true },
+      { to: "/storage/volumes", label: tr("Volumes"), icon: <Database size={17} />, admin: true },
       { to: "/storage/zfs", label: "ZFS", icon: <Boxes size={17} />, admin: true },
       { to: "/storage/lvm", label: "LVM", icon: <Server size={17} />, admin: true },
-      { to: "/backup", label: "Sauvegarde", icon: <DatabaseBackup size={17} />, admin: true },
-      { to: "/cloudsync", label: "Synchronisation cloud", icon: <CloudCog size={17} />, admin: true },
+      { to: "/backup", label: tr("Sauvegarde"), icon: <DatabaseBackup size={17} />, admin: true },
+      { to: "/cloudsync", label: tr("Synchronisation cloud"), icon: <CloudCog size={17} />, admin: true },
     ],
   },
   {
-    title: "Partage",
+    title: tr("Partage"),
     items: [
-      { to: "/files", label: "Fichiers", icon: <FolderOpen size={17} /> },
-      { to: "/shares", label: "Dossiers partagés", icon: <Share2 size={17} />, admin: true },
-      { to: "/users", label: "Utilisateurs", icon: <Users size={17} />, admin: true },
-      { to: "/system/fileservices", label: "Services de fichiers", icon: <FolderTree size={17} />, admin: true },
-      { to: "/system/directory", label: "Domaine / LDAP", icon: <BookUser size={17} />, admin: true },
+      { to: "/files", label: tr("Fichiers"), icon: <FolderOpen size={17} /> },
+      { to: "/shares", label: tr("Dossiers partagés"), icon: <Share2 size={17} />, admin: true },
+      { to: "/users", label: tr("Utilisateurs"), icon: <Users size={17} />, admin: true },
+      { to: "/system/fileservices", label: tr("Services de fichiers"), icon: <FolderTree size={17} />, admin: true },
+      { to: "/system/directory", label: tr("Domaine / LDAP"), icon: <BookUser size={17} />, admin: true },
     ],
   },
   {
-    title: "Applications",
+    title: tr("Applications"),
     items: [
-      { to: "/apps", label: "App Center", icon: <AppWindow size={17} />, admin: true },
-      { to: "/docker/containers", label: "Conteneurs", icon: <Container size={17} />, admin: true },
-      { to: "/docker/stacks", label: "Stacks Compose", icon: <Package size={17} />, admin: true },
-      { to: "/docker/images", label: "Images & réseaux", icon: <Layers size={17} />, admin: true },
-      { to: "/vms", label: "Machines virtuelles", icon: <Monitor size={17} />, admin: true },
+      { to: "/apps", label: tr("App Center"), icon: <AppWindow size={17} />, admin: true },
+      { to: "/docker/containers", label: tr("Conteneurs"), icon: <Container size={17} />, admin: true },
+      { to: "/docker/stacks", label: tr("Stacks Compose"), icon: <Package size={17} />, admin: true },
+      { to: "/docker/images", label: tr("Images & réseaux"), icon: <Layers size={17} />, admin: true },
+      { to: "/vms", label: tr("Machines virtuelles"), icon: <Monitor size={17} />, admin: true },
     ],
   },
   {
-    title: "Système",
+    title: tr("Système"),
     items: [
-      { to: "/system/monitor", label: "Moniteur", icon: <Activity size={17} />, admin: true },
-      { to: "/system/schedules", label: "Tâches planifiées", icon: <CalendarClock size={17} />, admin: true },
-      { to: "/system/services", label: "Services", icon: <Cpu size={17} />, admin: true },
-      { to: "/system/network", label: "Réseau", icon: <Network size={17} />, admin: true },
-      { to: "/system/ups", label: "Onduleur", icon: <BatteryCharging size={17} />, admin: true },
-      { to: "/system/updates", label: "Mises à jour", icon: <RefreshCcw size={17} />, admin: true },
-      { to: "/system/logs", label: "Journaux", icon: <FileText size={17} />, admin: true },
-      { to: "/system/terminal", label: "Terminal", icon: <SquareTerminal size={17} />, admin: true },
-      { to: "/system/settings", label: "Paramètres", icon: <Settings size={17} />, admin: true },
+      { to: "/system/monitor", label: tr("Moniteur"), icon: <Activity size={17} />, admin: true },
+      { to: "/system/schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={17} />, admin: true },
+      { to: "/system/services", label: tr("Services"), icon: <Cpu size={17} />, admin: true },
+      { to: "/system/network", label: tr("Réseau"), icon: <Network size={17} />, admin: true },
+      { to: "/system/ups", label: tr("Onduleur"), icon: <BatteryCharging size={17} />, admin: true },
+      { to: "/system/updates", label: tr("Mises à jour"), icon: <RefreshCcw size={17} />, admin: true },
+      { to: "/system/logs", label: tr("Journaux"), icon: <FileText size={17} />, admin: true },
+      { to: "/system/terminal", label: tr("Terminal"), icon: <SquareTerminal size={17} />, admin: true },
+      { to: "/system/settings", label: tr("Paramètres"), icon: <Settings size={17} />, admin: true },
     ],
   },
 ];
@@ -105,19 +107,19 @@ export function JobsMenu() {
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(!open)} className="relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-muted hover:bg-panel-2 hover:text-fg">
         {running.length > 0 ? <Loader2 size={17} className="animate-spin text-accent" /> : <ListChecks size={17} />}
-        <span className="hidden text-[13px] sm:inline">Tâches</span>
+        <span className="hidden text-[13px] sm:inline">{tr("Tâches")}</span>
         {running.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-white">{running.length}</span>}
       </button>
       {open && (
         <div className="card absolute right-0 top-11 z-40 w-[380px] max-w-[calc(100vw-2rem)] p-2">
-          <div className="px-2 py-1.5 text-[12px] font-medium text-muted">Tâches en arrière-plan</div>
-          {jobs.length === 0 && <div className="px-2 py-6 text-center text-muted text-[13px]">Aucune tâche récente</div>}
+          <div className="px-2 py-1.5 text-[12px] font-medium text-muted">{tr("Tâches en arrière-plan")}</div>
+          {jobs.length === 0 && <div className="px-2 py-6 text-center text-muted text-[13px]">{tr("Aucune tâche récente")}</div>}
           <div className="max-h-[420px] overflow-y-auto">
             {jobs.slice(0, 20).map((j) => (
               <button key={j.id} onClick={() => setDetail(j.id)} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-panel-2">
                 {j.status === "running" ? <Loader2 size={16} className="mt-0.5 animate-spin text-accent" /> : j.status === "success" ? <CheckCircle2 size={16} className="mt-0.5 text-ok" /> : <XCircle size={16} className="mt-0.5 text-danger" />}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">{j.title}</div>
+                  <div className="truncate text-[13px]">{jobTitle(j.title)}</div>
                   <div className="text-[11.5px] text-muted">{ago(j.started)}{j.error ? ` · ${j.error}` : ""}</div>
                   {j.status === "running" && <Progress className="mt-1.5" value={j.progress} indeterminate={j.progress < 0} />}
                 </div>
@@ -126,12 +128,12 @@ export function JobsMenu() {
           </div>
         </div>
       )}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={job?.title ?? "Tâche"} wide>
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={job ? jobTitle(job.title) : tr("Tâche")} wide>
         {job && (
           <div className="space-y-3">
             {job.status === "running" && <Progress value={job.progress} indeterminate={job.progress < 0} />}
             {job.error && <div className="text-danger text-[13px]">{job.error}</div>}
-            <pre className="mono max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{job.log || "(aucune sortie)"}</pre>
+            <pre className="mono max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{job.log || tr("(aucune sortie)")}</pre>
           </div>
         )}
       </Modal>
@@ -148,7 +150,7 @@ export function PasswordModal({ open, onClose }: { open: boolean; onClose: () =>
     setBusy(true);
     try {
       await api.post("/api/me/password", { current: cur, new: pw });
-      toast("Mot de passe modifié");
+      toast(tr("Mot de passe modifié"));
       onClose();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -157,10 +159,10 @@ export function PasswordModal({ open, onClose }: { open: boolean; onClose: () =>
     }
   };
   return (
-    <Modal open={open} onClose={onClose} title="Changer mon mot de passe" footer={<><Button onClick={onClose}>Annuler</Button><Button variant="primary" loading={busy} onClick={submit} disabled={pw.length < 8}>Enregistrer</Button></>}>
+    <Modal open={open} onClose={onClose} title={tr("Changer mon mot de passe")} footer={<><Button onClick={onClose}>{tr("Annuler")}</Button><Button variant="primary" loading={busy} onClick={submit} disabled={pw.length < 8}>{tr("Enregistrer")}</Button></>}>
       <div className="space-y-4">
-        <Field label="Mot de passe actuel"><Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
-        <Field label="Nouveau mot de passe" hint="8 caractères minimum"><Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
+        <Field label={tr("Mot de passe actuel")}><Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+        <Field label={tr("Nouveau mot de passe")} hint={tr("8 caractères minimum")}><Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
       </div>
     </Modal>
   );
@@ -185,7 +187,7 @@ export function Layout({ me }: { me: Me }) {
     window.location.href = "/";
   };
   const power = async (action: "reboot" | "poweroff") => {
-    const ok = await confirm({ title: action === "reboot" ? "Redémarrer le NAS ?" : "Éteindre le NAS ?", text: "Les partages et les applications seront interrompus.", danger: true, confirm: action === "reboot" ? "Redémarrer" : "Éteindre" });
+    const ok = await confirm({ title: action === "reboot" ? tr("Redémarrer le NAS ?") : tr("Éteindre le NAS ?"), text: tr("Les partages et les applications seront interrompus."), danger: true, confirm: action === "reboot" ? tr("Redémarrer") : tr("Éteindre") });
     if (ok) await api.post(`/api/system/power/${action}`);
   };
 
@@ -194,7 +196,7 @@ export function Layout({ me }: { me: Me }) {
       <div className="flex items-center gap-2.5 px-5 py-5">
         <img src={logo} alt="" className="h-9 w-9" />
         <div>
-          <div className="font-semibold tracking-tight text-[16px]">Strata<span className="text-accent">OS</span></div>
+          <div className="font-semibold tracking-tight text-[16px]">{tr("Strata")}<span className="text-accent">OS</span></div>
           <div className="text-[11px] text-muted">{info?.hostname ?? "NAS"}</div>
         </div>
       </div>
@@ -232,12 +234,12 @@ export function Layout({ me }: { me: Me }) {
       )}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line bg-panel/80 px-4 backdrop-blur">
-          <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileNav(true)} aria-label="Menu">
+          <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileNav(true)} aria-label={tr("Menu")}>
             {mobileNav ? <X size={18} /> : <Menu size={18} />}
           </button>
           <div className="flex-1" />
           <JobsMenu />
-          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-panel-2 hover:text-fg" title="Thème">
+          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-panel-2 hover:text-fg" title={tr("Thème")}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <div className="relative">
@@ -250,19 +252,20 @@ export function Layout({ me }: { me: Me }) {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
                 <div className="card absolute right-0 top-11 z-40 w-56 p-1.5 text-[13px]">
-                  <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? "Administrateur" : "Utilisateur"}</div>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> Mot de passe</button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> Double authentification</button>
-                  <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> Mode bureau</button>
+                  <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrateur") : tr("Utilisateur")}</div>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Mot de passe")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Double authentification")}</button>
+                  <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> {" "}{tr("Mode bureau")}</button>
                   {me.role === "admin" && (
                     <>
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); power("reboot"); }}><RefreshCcw size={15} /> Redémarrer</button>
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); power("poweroff"); }}><Power size={15} /> Éteindre</button>
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/system/settings"); }}><Settings size={15} /> Paramètres</button>
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); power("reboot"); }}><RefreshCcw size={15} /> {" "}{tr("Redémarrer")}</button>
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); power("poweroff"); }}><Power size={15} /> {" "}{tr("Éteindre")}</button>
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/system/settings"); }}><Settings size={15} /> {" "}{tr("Paramètres")}</button>
                     </>
                   )}
+                  <LangSwitch className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" />
                   <div className="my-1 border-t border-line" />
-                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-danger hover:bg-panel-2" onClick={logout}><LogOut size={15} /> Déconnexion</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-danger hover:bg-panel-2" onClick={logout}><LogOut size={15} /> {" "}{tr("Déconnexion")}</button>
                 </div>
               </>
             )}

@@ -4,6 +4,7 @@ import { CheckCircle2, Link2, Waypoints, Network as NetIcon, Plus, RotateCcw, Tr
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
+import { tr, locale } from "../../lib/i18n";
 
 type Link = { name: string; mac: string; state: string; mtu: number; addresses: string[]; speed: number; kind: string };
 type Status = { interfaces: Link[]; gateway: string; dns: string[]; hostname: string };
@@ -17,13 +18,13 @@ type Pending = { deadline: string; links: string[]; token?: string };
 type Net = { status: Status; manager: string; config: Config; pending: Pending | null };
 
 const bondModes: [string, string][] = [
-  ["active-backup", "Actif/secours (tolérance de panne, aucun réglage du switch)"],
-  ["802.3ad", "LACP 802.3ad (agrégation, switch compatible requis)"],
-  ["balance-alb", "Équilibrage adaptatif (sans switch spécial)"],
-  ["balance-tlb", "Équilibrage en émission"],
+  ["active-backup", tr("Actif/secours (tolérance de panne, aucun réglage du switch)")],
+  ["802.3ad", tr("LACP 802.3ad (agrégation, switch compatible requis)")],
+  ["balance-alb", tr("Équilibrage adaptatif (sans switch spécial)")],
+  ["balance-tlb", tr("Équilibrage en émission")],
   ["balance-rr", "Round-robin"],
   ["balance-xor", "XOR"],
-  ["broadcast", "Diffusion"],
+  ["broadcast", tr("Diffusion")],
 ];
 
 const list = (s: string) => s.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
@@ -31,21 +32,21 @@ const list = (s: string) => s.split(/[\s,]+/).map((x) => x.trim()).filter(Boolea
 function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Field label="Adressage">
+      <Field label={tr("Adressage")}>
         <Select value={ip.mode} onChange={(e) => onChange({ ...ip, mode: e.target.value as IP["mode"] })}>
-          <option value="dhcp">DHCP (automatique)</option>
-          <option value="static">Adresse fixe</option>
-          <option value="none">Aucune adresse IP</option>
+          <option value="dhcp">{tr("DHCP (automatique)")}</option>
+          <option value="static">{tr("Adresse fixe")}</option>
+          <option value="none">{tr("Aucune adresse IP")}</option>
         </Select>
       </Field>
       {ip.mode === "static" && (
         <>
-          <Field label="Adresse(s) / masque" hint="ex. 192.168.1.20/24"><Input className="mono" value={(ip.addresses ?? []).join(" ")} onChange={(e) => onChange({ ...ip, addresses: list(e.target.value) })} /></Field>
-          <Field label="Passerelle"><Input className="mono" value={ip.gateway ?? ""} onChange={(e) => onChange({ ...ip, gateway: e.target.value.trim() })} /></Field>
+          <Field label={tr("Adresse(s) / masque")} hint={tr("ex. 192.168.1.20/24")}><Input className="mono" value={(ip.addresses ?? []).join(" ")} onChange={(e) => onChange({ ...ip, addresses: list(e.target.value) })} /></Field>
+          <Field label={tr("Passerelle")}><Input className="mono" value={ip.gateway ?? ""} onChange={(e) => onChange({ ...ip, gateway: e.target.value.trim() })} /></Field>
         </>
       )}
-      {ip.mode !== "none" && <Field label="DNS" hint="optionnel, séparés par des espaces"><Input className="mono" value={(ip.dns ?? []).join(" ")} onChange={(e) => onChange({ ...ip, dns: list(e.target.value) })} /></Field>}
-      <Field label="MTU" hint="vide = défaut, 9000 = jumbo frames"><Input type="number" value={ip.mtu || ""} onChange={(e) => onChange({ ...ip, mtu: +e.target.value || 0 })} /></Field>
+      {ip.mode !== "none" && <Field label="DNS" hint={tr("optionnel, séparés par des espaces")}><Input className="mono" value={(ip.dns ?? []).join(" ")} onChange={(e) => onChange({ ...ip, dns: list(e.target.value) })} /></Field>}
+      <Field label="MTU" hint={tr("vide = défaut, 9000 = jumbo frames")}><Input type="number" value={ip.mtu || ""} onChange={(e) => onChange({ ...ip, mtu: +e.target.value || 0 })} /></Field>
     </div>
   );
 }
@@ -72,7 +73,7 @@ function TrialModal({ pending, newURLs, onClose }: { pending: Pending; newURLs: 
           const r = await fetch("/api/system/network/confirm", { method: "POST", headers: { "Content-Type": "application/json", "X-Strata": "1" }, body: JSON.stringify({ token: pending.token }), signal: AbortSignal.timeout(4000) });
           if (r.ok) {
             setState("confirmed");
-            toast("Nouvelle configuration réseau confirmée");
+            toast(tr("Nouvelle configuration réseau confirmée"));
             qc.invalidateQueries();
             return;
           }
@@ -89,22 +90,23 @@ function TrialModal({ pending, newURLs, onClose }: { pending: Pending; newURLs: 
   }, [pending.token, qc, toast]);
   const expired = left <= 0 && state !== "confirmed";
   return (
-    <Modal open onClose={onClose} title="Test de la nouvelle configuration réseau" footer={state === "confirmed" || expired ? <Button variant="primary" onClick={onClose}>Fermer</Button> : undefined}>
+    <Modal open onClose={onClose} title={tr("Test de la nouvelle configuration réseau")} footer={state === "confirmed" || expired ? <Button variant="primary" onClick={onClose}>{tr("Fermer")}</Button> : undefined}>
       {state === "confirmed" ? (
-        <div className="flex items-center gap-3 text-ok"><CheckCircle2 size={22} /> Configuration conservée : le NAS est joignable.</div>
+        <div className="flex items-center gap-3 text-ok"><CheckCircle2 size={22} /> {" "}{tr("Configuration conservée : le NAS est joignable.")}</div>
       ) : expired ? (
-        <Notice tone="warn">Délai écoulé : l'ancienne configuration a été restaurée.</Notice>
+        <Notice tone="warn">{tr("Délai écoulé : l'ancienne configuration a été restaurée.")}</Notice>
       ) : (
         <div className="space-y-4">
           <div className="text-center">
             <div className="text-[34px] font-semibold tabular-nums">{left} s</div>
-            <div className="text-muted text-[13px]">avant le retour automatique à l'ancienne configuration</div>
+            <div className="text-muted text-[13px]">{tr("avant le retour automatique à l'ancienne configuration")}</div>
           </div>
-          {state === "waiting" ? <Spinner label="Vérification que le NAS reste joignable…" /> : (
+          {state === "waiting" ? <Spinner label={tr("Vérification que le NAS reste joignable…")} /> : (
             <Notice tone="warn">
-              Le NAS ne répond plus à cette adresse. S'il a changé d'adresse, ouvrez l'un de ces liens <b>avant la fin du délai</b> pour confirmer :
+              
+              {tr("Le NAS ne répond plus à cette adresse. S'il a changé d'adresse, ouvrez l'un de ces liens")}{" "}<b>{tr("avant la fin du délai")}</b> {" "}{tr("pour confirmer :")}
               <div className="mt-2 space-y-1">{newURLs.map((u) => <a key={u} href={u} className="mono block text-accent underline">{u.split("?")[0]}</a>)}</div>
-              {newURLs.length === 0 && <div className="mt-2">Sinon, attendez : l'ancienne configuration reviendra seule.</div>}
+              {newURLs.length === 0 && <div className="mt-2">{tr("Sinon, attendez : l'ancienne configuration reviendra seule.")}</div>}
             </Notice>
           )}
         </div>
@@ -119,8 +121,8 @@ export default function NetworkPage() {
   const [cfg, setCfg] = useState<Config | null>(null);
   const [host, setHost] = useState<string | null>(null);
   const [trial, setTrial] = useState<{ p: Pending; urls: string[] } | null>(null);
-  const saveHost = useAction((h: string) => api.put("/api/system/hostname", { hostname: h }), { success: "Nom d'hôte modifié", onDone: () => setHost(null) });
-  const rollback = useAction(() => api.post("/api/system/network/rollback"), { success: "Ancienne configuration restaurée" });
+  const saveHost = useAction((h: string) => api.put("/api/system/hostname", { hostname: h }), { success: tr("Nom d'hôte modifié"), onDone: () => setHost(null) });
+  const rollback = useAction(() => api.post("/api/system/network/rollback"), { success: tr("Ancienne configuration restaurée") });
   const apply = useAction(() => api.put<Pending>("/api/system/network/config", { config: cfg, timeout: 120 }), {
     onDone: (p) => {
       const port = location.port ? `:${location.port}` : "";
@@ -134,7 +136,7 @@ export default function NetworkPage() {
   }, [data, cfg]);
 
   const physical = useMemo(() => (data?.status.interfaces ?? []).filter((i) => i.kind === "physical" && !i.name.startsWith("bond") && !/^br\d/.test(i.name)), [data]);
-  if (isLoading || !data || !cfg) return <div><PageHeader title="Réseau" icon={<NetIcon size={20} />} /><ErrorBox error={error} /><Spinner /></div>;
+  if (isLoading || !data || !cfg) return <div><PageHeader title={tr("Réseau")} icon={<NetIcon size={20} />} /><ErrorBox error={error} /><Spinner /></div>;
 
   const dirty = JSON.stringify(cfg) !== JSON.stringify({ ...data.config, bridges: data.config.bridges ?? [] });
   const members = new Set(cfg.bonds.flatMap((b) => b.members));
@@ -150,39 +152,39 @@ export default function NetworkPage() {
   const nm = data.manager === "NetworkManager";
 
   const doApply = async () => {
-    if (await confirm({ title: "Appliquer la configuration réseau ?", text: <>Elle sera appliquée <b>à l'essai</b> pendant 2 minutes. Si le NAS ne peut pas être joint pour la confirmer (adresse erronée, câble, switch…), l'ancienne configuration revient automatiquement.</>, confirm: "Appliquer à l'essai" })) apply.mutate();
+    if (await confirm({ title: tr("Appliquer la configuration réseau ?"), text: <>{tr("Elle sera appliquée")}{" "}<b>{tr("à l'essai")}</b> {" "}{tr("pendant 2 minutes. Si le NAS ne peut pas être joint pour la confirmer (adresse erronée, câble, switch…), l'ancienne configuration revient automatiquement.")}</>, confirm: tr("Appliquer à l'essai") })) apply.mutate();
   };
 
   return (
     <div>
-      <PageHeader title="Réseau" subtitle="Interfaces, agrégation de liens, ponts, VLAN et nom du NAS" icon={<NetIcon size={20} />} actions={<>
-        {dirty && <Button icon={<Undo2 size={15} />} onClick={() => setCfg(structuredClone({ ...data.config, bridges: data.config.bridges ?? [] }))}>Annuler les modifications</Button>}
-        <Button variant="primary" disabled={!dirty || nm || !!data.pending} loading={apply.isPending} onClick={doApply}>Appliquer</Button>
+      <PageHeader title={tr("Réseau")} subtitle={tr("Interfaces, agrégation de liens, ponts, VLAN et nom du NAS")} icon={<NetIcon size={20} />} actions={<>
+        {dirty && <Button icon={<Undo2 size={15} />} onClick={() => setCfg(structuredClone({ ...data.config, bridges: data.config.bridges ?? [] }))}>{tr("Annuler les modifications")}</Button>}
+        <Button variant="primary" disabled={!dirty || nm || !!data.pending} loading={apply.isPending} onClick={doApply}>{tr("Appliquer")}</Button>
       </>} />
       <ErrorBox error={error || apply.error} />
-      {nm && <div className="mb-4"><Notice tone="warn">NetworkManager gère le réseau de cette machine : StrataOS ne modifie pas la configuration. Désactivez NetworkManager pour gérer le réseau depuis cette page.</Notice></div>}
+      {nm && <div className="mb-4"><Notice tone="warn">{tr("NetworkManager gère le réseau de cette machine : StrataOS ne modifie pas la configuration. Désactivez NetworkManager pour gérer le réseau depuis cette page.")}</Notice></div>}
       {data.pending && !trial && (
         <div className="mb-4"><Notice tone="warn">
-          <div className="flex flex-wrap items-center gap-3">Une configuration réseau est à l'essai jusqu'à {new Date(data.pending.deadline).toLocaleTimeString("fr-FR")}.
-            <Button size="sm" icon={<RotateCcw size={14} />} loading={rollback.isPending} onClick={() => rollback.mutate()}>Restaurer maintenant</Button>
+          <div className="flex flex-wrap items-center gap-3">{tr("Une configuration réseau est à l'essai jusqu'à")}{" "}{new Date(data.pending.deadline).toLocaleTimeString(locale)}.
+            <Button size="sm" icon={<RotateCcw size={14} />} loading={rollback.isPending} onClick={() => rollback.mutate()}>{tr("Restaurer maintenant")}</Button>
           </div>
         </Notice></div>
       )}
 
       <div className="space-y-5">
-        <Card title="Général">
+        <Card title={tr("Général")}>
           <div className="grid gap-5 sm:grid-cols-4">
             <div className="flex items-end gap-2 sm:col-span-2">
-              <Field label="Nom d'hôte" className="flex-1"><Input value={host ?? data.status.hostname} onChange={(e) => setHost(e.target.value)} /></Field>
-              <Button disabled={!host || host === data.status.hostname} loading={saveHost.isPending} onClick={() => saveHost.mutate(host!)}>Enregistrer</Button>
+              <Field label={tr("Nom d'hôte")} className="flex-1"><Input value={host ?? data.status.hostname} onChange={(e) => setHost(e.target.value)} /></Field>
+              <Button disabled={!host || host === data.status.hostname} loading={saveHost.isPending} onClick={() => saveHost.mutate(host!)}>{tr("Enregistrer")}</Button>
             </div>
-            <div><div className="text-muted text-[12px]">Passerelle actuelle</div><div className="mono mt-2">{data.status.gateway || "—"}</div></div>
-            <div><div className="text-muted text-[12px]">DNS actuels</div><div className="mono mt-2 truncate">{data.status.dns.join(", ") || "—"}</div></div>
+            <div><div className="text-muted text-[12px]">{tr("Passerelle actuelle")}</div><div className="mono mt-2">{data.status.gateway || "—"}</div></div>
+            <div><div className="text-muted text-[12px]">{tr("DNS actuels")}</div><div className="mono mt-2 truncate">{data.status.dns.join(", ") || "—"}</div></div>
           </div>
-          <div className="mt-3 text-[12px] text-muted">Gestionnaire réseau détecté : <b>{data.manager}</b></div>
+          <div className="mt-3 text-[12px] text-muted">{tr("Gestionnaire réseau détecté :")}{" "}<b>{data.manager}</b></div>
         </Card>
 
-        <Card title="Interfaces">
+        <Card title={tr("Interfaces")}>
           <div className="space-y-4">
             {physical.map((l) => {
               const m = managed(l.name);
@@ -192,13 +194,13 @@ export default function NetworkPage() {
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{l.name}</span>
                     <Badge tone={l.state === "UP" ? "ok" : "neutral"} dot>{l.state}</Badge>
-                    {l.speed > 0 && <Badge tone="accent">{l.speed >= 1000 ? `${l.speed / 1000} Gb/s` : `${l.speed} Mb/s`}</Badge>}
-                    <span className="mono text-muted text-[12px]">{l.mac} · {l.addresses.join(", ") || "sans adresse"}</span>
+                    {l.speed > 0 && <Badge tone="accent">{l.speed >= 1000 ? tr("{0} Gb/s", l.speed / 1000) : tr("{0} Mb/s", l.speed)}</Badge>}
+                    <span className="mono text-muted text-[12px]">{l.mac} · {l.addresses.join(", ") || tr("sans adresse")}</span>
                     <div className="flex-1" />
-                    {inBond ? <Badge>membre de {inBond.name}</Badge> : (
+                    {inBond ? <Badge>{tr("membre de")}{" "}{inBond.name}</Badge> : (
                       <Select className="!w-auto !py-1 !text-[12.5px]" value={m ? "managed" : "system"} onChange={(e) => setIface(l.name, e.target.value === "managed" ? { mode: "dhcp" } : null)}>
-                        <option value="system">Configuration du système</option>
-                        <option value="managed">Gérée par StrataOS</option>
+                        <option value="system">{tr("Configuration du système")}</option>
+                        <option value="managed">{tr("Gérée par StrataOS")}</option>
                       </Select>
                     )}
                   </div>
@@ -209,12 +211,12 @@ export default function NetworkPage() {
           </div>
         </Card>
 
-        <Card title="Agrégation de liens (bonding)" actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => {
+        <Card title={tr("Agrégation de liens (bonding)")} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => {
           let n = 0;
           while (cfg.bonds.some((b) => b.name === `bond${n}`)) n++;
           setCfg({ ...cfg, bonds: [...cfg.bonds, { name: `bond${n}`, bondMode: "active-backup", members: [], mode: "dhcp" }] });
-        }}>Ajouter</Button>}>
-          {cfg.bonds.length === 0 ? <div className="text-muted text-[13px]">Combinez plusieurs ports réseau pour la tolérance de panne ou plus de débit.</div> : (
+        }}>{tr("Ajouter")}</Button>}>
+          {cfg.bonds.length === 0 ? <div className="text-muted text-[13px]">{tr("Combinez plusieurs ports réseau pour la tolérance de panne ou plus de débit.")}</div> : (
             <div className="space-y-4">
               {cfg.bonds.map((b, bi) => {
                 const upd = (x: Partial<Bond>) => setCfg({ ...cfg, bonds: cfg.bonds.map((y, i) => (i === bi ? { ...y, ...x } : y)), interfaces: x.members ? cfg.interfaces.filter((i) => !x.members!.includes(i.name)) : cfg.interfaces });
@@ -226,15 +228,15 @@ export default function NetworkPage() {
                         {bondModes.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </Select>
                       <div className="flex-1" />
-                      <IconButton title="Supprimer" onClick={() => setCfg({ ...cfg, bonds: cfg.bonds.filter((_, i) => i !== bi), vlans: cfg.vlans.filter((v) => v.parent !== b.name) })}><Trash2 size={15} /></IconButton>
+                      <IconButton title={tr("Supprimer")} onClick={() => setCfg({ ...cfg, bonds: cfg.bonds.filter((_, i) => i !== bi), vlans: cfg.vlans.filter((v) => v.parent !== b.name) })}><Trash2 size={15} /></IconButton>
                     </div>
                     <div className="flex flex-wrap gap-4">
                       {physical.filter((l) => !members.has(l.name) || b.members.includes(l.name)).map((l) => (
                         <Checkbox key={l.name} checked={b.members.includes(l.name)} onChange={(v) => upd({ members: v ? [...b.members, l.name] : b.members.filter((x) => x !== l.name) })} label={<span className="mono">{l.name}</span>} />
                       ))}
                     </div>
-                    {b.bondMode === "active-backup" && b.members.length > 0 && <div className="text-muted text-[12px]">Port principal : <span className="mono">{b.members[0]}</span></div>}
-                    {bridged.has(b.name) ? <div className="text-muted text-[12px]">Port du pont {cfg.bridges.find((x) => x.members.includes(b.name))?.name} : l'adresse IP est portée par le pont.</div> : <IPEditor ip={b} onChange={(ip) => upd(ip)} />}
+                    {b.bondMode === "active-backup" && b.members.length > 0 && <div className="text-muted text-[12px]">{tr("Port principal :")}{" "}<span className="mono">{b.members[0]}</span></div>}
+                    {bridged.has(b.name) ? <div className="text-muted text-[12px]">{tr("Port du pont")}{" "}{cfg.bridges.find((x) => x.members.includes(b.name))?.name} {" "}{tr(": l'adresse IP est portée par le pont.")}</div> : <IPEditor ip={b} onChange={(ip) => upd(ip)} />}
                   </div>
                 );
               })}
@@ -242,12 +244,12 @@ export default function NetworkPage() {
           )}
         </Card>
 
-        <Card title="Ponts (bridges)" actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => {
+        <Card title={tr("Ponts (bridges)")} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => {
           let n = 0;
           while (cfg.bridges.some((b) => b.name === `br${n}`)) n++;
           setCfg({ ...cfg, bridges: [...cfg.bridges, { name: `br${n}`, members: [], stp: false, mode: "dhcp" }] });
-        }}>Ajouter</Button>}>
-          {cfg.bridges.length === 0 ? <div className="text-muted text-[13px]">Un pont relie les machines virtuelles directement au réseau local : elles obtiennent leur propre adresse sur votre box, comme un PC branché sur le switch.</div> : (
+        }}>{tr("Ajouter")}</Button>}>
+          {cfg.bridges.length === 0 ? <div className="text-muted text-[13px]">{tr("Un pont relie les machines virtuelles directement au réseau local : elles obtiennent leur propre adresse sur votre box, comme un PC branché sur le switch.")}</div> : (
             <div className="space-y-4">
               {cfg.bridges.map((br, bi) => {
                 const upd = (x: Partial<Bridge>) => setCfg({ ...cfg, bridges: cfg.bridges.map((y, i) => (i === bi ? { ...y, ...x } : y)), interfaces: x.members ? cfg.interfaces.filter((i) => !x.members!.includes(i.name)) : cfg.interfaces, bonds: x.members ? cfg.bonds.map((b) => (x.members!.includes(b.name) ? { ...b, mode: "none" as const, addresses: [], gateway: "", dns: [] } : b)) : cfg.bonds, vlans: x.members ? cfg.vlans.filter((v) => !x.members!.includes(v.parent)) : cfg.vlans });
@@ -256,16 +258,16 @@ export default function NetworkPage() {
                   <div key={bi} className="space-y-3 rounded-xl border border-line p-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="flex items-center gap-2 font-semibold"><Waypoints size={16} className="text-accent" />{br.name}</span>
-                      <Checkbox checked={br.stp} onChange={(v) => upd({ stp: v })} label="Spanning Tree (STP)" />
+                      <Checkbox checked={br.stp} onChange={(v) => upd({ stp: v })} label={tr("Spanning Tree (STP)")} />
                       <div className="flex-1" />
-                      <IconButton title="Supprimer" onClick={() => setCfg({ ...cfg, bridges: cfg.bridges.filter((_, i) => i !== bi), vlans: cfg.vlans.filter((v) => v.parent !== br.name) })}><Trash2 size={15} /></IconButton>
+                      <IconButton title={tr("Supprimer")} onClick={() => setCfg({ ...cfg, bridges: cfg.bridges.filter((_, i) => i !== bi), vlans: cfg.vlans.filter((v) => v.parent !== br.name) })}><Trash2 size={15} /></IconButton>
                     </div>
                     <div className="flex flex-wrap gap-4">
                       {candidates.map((n) => (
                         <Checkbox key={n} checked={br.members.includes(n)} onChange={(v) => upd({ members: v ? [...br.members, n] : br.members.filter((x) => x !== n) })} label={<span className="mono">{n}</span>} />
                       ))}
                     </div>
-                    {br.members.length > 0 && <div className="text-muted text-[12px]">Le pont reprend l'adresse MAC de <span className="mono">{br.members[0]}</span> : en DHCP, le NAS garde la même adresse IP.</div>}
+                    {br.members.length > 0 && <div className="text-muted text-[12px]">{tr("Le pont reprend l'adresse MAC de")}{" "}<span className="mono">{br.members[0]}</span> {" "}{tr(": en DHCP, le NAS garde la même adresse IP.")}</div>}
                     <IPEditor ip={br} onChange={(ip) => upd(ip)} />
                   </div>
                 );
@@ -274,19 +276,19 @@ export default function NetworkPage() {
           )}
         </Card>
 
-        <Card title="VLAN" actions={<Button size="sm" icon={<Plus size={14} />} disabled={parents.length === 0} onClick={() => setCfg({ ...cfg, vlans: [...cfg.vlans, { parent: parents[0], id: 10, mode: "dhcp" }] })}>Ajouter</Button>}>
-          {parents.length === 0 && <div className="text-muted text-[13px]">Passez d'abord une interface en « Gérée par StrataOS » pour y créer des VLAN.</div>}
+        <Card title="VLAN" actions={<Button size="sm" icon={<Plus size={14} />} disabled={parents.length === 0} onClick={() => setCfg({ ...cfg, vlans: [...cfg.vlans, { parent: parents[0], id: 10, mode: "dhcp" }] })}>{tr("Ajouter")}</Button>}>
+          {parents.length === 0 && <div className="text-muted text-[13px]">{tr("Passez d'abord une interface en « Gérée par StrataOS » pour y créer des VLAN.")}</div>}
           <div className="space-y-4">
             {cfg.vlans.map((v, vi) => {
               const upd = (x: Partial<VLAN>) => setCfg({ ...cfg, vlans: cfg.vlans.map((y, i) => (i === vi ? { ...y, ...x } : y)) });
               return (
                 <div key={vi} className="space-y-3 rounded-xl border border-line p-4">
                   <div className="flex flex-wrap items-end gap-3">
-                    <Field label="Interface parente"><Select value={v.parent} onChange={(e) => upd({ parent: e.target.value })}>{parents.map((p) => <option key={p}>{p}</option>)}</Select></Field>
-                    <Field label="Identifiant VLAN"><Input type="number" min={1} max={4094} value={v.id} onChange={(e) => upd({ id: +e.target.value })} /></Field>
+                    <Field label={tr("Interface parente")}><Select value={v.parent} onChange={(e) => upd({ parent: e.target.value })}>{parents.map((p) => <option key={p}>{p}</option>)}</Select></Field>
+                    <Field label={tr("Identifiant VLAN")}><Input type="number" min={1} max={4094} value={v.id} onChange={(e) => upd({ id: +e.target.value })} /></Field>
                     <span className="mono pb-2 text-muted">{v.parent}.{v.id}</span>
                     <div className="flex-1" />
-                    <IconButton title="Supprimer" onClick={() => setCfg({ ...cfg, vlans: cfg.vlans.filter((_, i) => i !== vi) })}><Trash2 size={15} /></IconButton>
+                    <IconButton title={tr("Supprimer")} onClick={() => setCfg({ ...cfg, vlans: cfg.vlans.filter((_, i) => i !== vi) })}><Trash2 size={15} /></IconButton>
                   </div>
                   <IPEditor ip={v} onChange={(ip) => upd(ip)} />
                 </div>

@@ -6,6 +6,7 @@ import { useAction } from "../../lib/hooks";
 import { bytes } from "../../lib/format";
 import type { Share } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
+import { tr } from "../../lib/i18n";
 
 type Disk = { device: string; target: string; bus: string; source: string; size?: number };
 type NIC = { type: string; source: string; mac: string; model: string; ip?: string };
@@ -13,11 +14,11 @@ type VM = { name: string; state: string; vcpus: number; memoryMb: number; autost
 type VMData = { installed: boolean; kvm: boolean; vms: VM[]; bridges?: string[]; stats?: Record<string, [number, number]> };
 
 const stateLabel: Record<string, [string, "ok" | "warn" | "neutral" | "danger"]> = {
-  running: ["En marche", "ok"],
-  paused: ["En pause", "warn"],
-  "shut off": ["Arrêtée", "neutral"],
-  crashed: ["Plantée", "danger"],
-  "in shutdown": ["Arrêt en cours", "warn"],
+  running: [tr("En marche"), "ok"],
+  paused: [tr("En pause"), "warn"],
+  "shut off": [tr("Arrêtée"), "neutral"],
+  crashed: [tr("Plantée"), "danger"],
+  "in shutdown": [tr("Arrêt en cours"), "warn"],
 };
 
 export default function VirtualMachines() {
@@ -27,24 +28,24 @@ export default function VirtualMachines() {
   const [console, setConsole] = useState<string | null>(null);
   const [editing, setEditing] = useState<VM | null>(null);
 
-  const header = (actions?: React.ReactNode) => <PageHeader title="Machines virtuelles" subtitle="Machines KVM avec console dans le navigateur" icon={<Monitor size={20} />} actions={actions} />;
+  const header = (actions?: React.ReactNode) => <PageHeader title={tr("Machines virtuelles")} subtitle={tr("Machines KVM avec console dans le navigateur")} icon={<Monitor size={20} />} actions={actions} />;
   if (isLoading || !data) return <div>{header()}<ErrorBox error={error} /><Spinner /></div>;
   if (!data.installed) {
     return (
       <div>
         {header()}
-        <Card><Empty icon={<Plug />} title="La virtualisation n'est pas installée" text="Installe QEMU/KVM, libvirt et le firmware UEFI (OVMF)." action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>Installer</Button>} /></Card>
+        <Card><Empty icon={<Plug />} title={tr("La virtualisation n'est pas installée")} text={tr("Installe QEMU/KVM, libvirt et le firmware UEFI (OVMF).")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Installer")}</Button>} /></Card>
       </div>
     );
   }
 
   return (
     <div>
-      {header(<Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreating(true)}>Créer une VM</Button>)}
+      {header(<Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreating(true)}>{tr("Créer une VM")}</Button>)}
       <ErrorBox error={error} />
-      {!data.kvm && <div className="mb-4"><Notice tone="warn">L'accélération matérielle (/dev/kvm) est indisponible : activez la virtualisation (VT-x / AMD-V) dans le BIOS. Les VM fonctionneront très lentement.</Notice></div>}
+      {!data.kvm && <div className="mb-4"><Notice tone="warn">{tr("L'accélération matérielle (/dev/kvm) est indisponible : activez la virtualisation (VT-x / AMD-V) dans le BIOS. Les VM fonctionneront très lentement.")}</Notice></div>}
       {data.vms.length === 0 ? (
-        <Card><Empty icon={<Monitor />} title="Aucune machine virtuelle" text="Déposez une image ISO dans un dossier partagé puis créez votre première VM." action={<Button variant="primary" onClick={() => setCreating(true)}>Créer une VM</Button>} /></Card>
+        <Card><Empty icon={<Monitor />} title={tr("Aucune machine virtuelle")} text={tr("Déposez une image ISO dans un dossier partagé puis créez votre première VM.")} action={<Button variant="primary" onClick={() => setCreating(true)}>{tr("Créer une VM")}</Button>} /></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {data.vms.map((vm) => <VMCard key={vm.name} vm={vm} mem={data.stats?.[vm.name]?.[1]} onConsole={() => setConsole(vm.name)} onEdit={() => setEditing(vm)} />)}
@@ -59,8 +60,8 @@ export default function VirtualMachines() {
 
 function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsole: () => void; onEdit: () => void }) {
   const { confirm } = useUI();
-  const act = useAction((a: string) => api.post(`/api/vms/${encodeURIComponent(vm.name)}/${a}`), { success: "Commande envoyée" });
-  const del = useAction((disks: boolean) => api.del(`/api/vms/${encodeURIComponent(vm.name)}${disks ? "?disks=1" : ""}`), { success: "VM supprimée" });
+  const act = useAction((a: string) => api.post(`/api/vms/${encodeURIComponent(vm.name)}/${a}`), { success: tr("Commande envoyée") });
+  const del = useAction((disks: boolean) => api.del(`/api/vms/${encodeURIComponent(vm.name)}${disks ? "?disks=1" : ""}`), { success: tr("VM supprimée") });
   const [label, tone] = stateLabel[vm.state] ?? [vm.state, "neutral"];
   const running = vm.state === "running";
   const disk = vm.disks.find((d) => d.device === "disk");
@@ -68,7 +69,7 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
   const ip = vm.nics.find((n) => n.ip)?.ip;
 
   const remove = async () => {
-    if (!(await confirm({ title: `Supprimer ${vm.name} ?`, text: "La VM est retirée. Ses disques virtuels sont aussi effacés.", confirm: "Supprimer", danger: true, typeToConfirm: vm.name }))) return;
+    if (!(await confirm({ title: tr("Supprimer {0} ?", vm.name), text: tr("La VM est retirée. Ses disques virtuels sont aussi effacés."), confirm: tr("Supprimer"), danger: true, typeToConfirm: vm.name }))) return;
     del.mutate(true);
   };
 
@@ -79,29 +80,29 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><Monitor size={22} /></div>
           <div>
             <div className="font-semibold">{vm.name}</div>
-            <div className="text-muted text-[12px]">{vm.os === "windows" ? "Windows" : vm.os === "linux" ? "Linux" : "Autre"} · {vm.firmware.toUpperCase()}{vm.autostart && " · démarrage auto"}</div>
+            <div className="text-muted text-[12px]">{vm.os === "windows" ? tr("Windows") : vm.os === "linux" ? tr("Linux") : tr("Autre")} · {vm.firmware.toUpperCase()}{vm.autostart && ` · ${tr("démarrage auto")}`}</div>
           </div>
         </div>
         <Badge tone={tone} dot>{label}</Badge>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-[12.5px] sm:grid-cols-4">
         <div><div className="text-muted flex items-center gap-1"><Cpu size={12} />vCPU</div><b>{vm.vcpus}</b></div>
-        <div><div className="text-muted">Mémoire</div><b>{vm.memoryMb >= 1024 ? `${(vm.memoryMb / 1024).toFixed(1)} Gio` : `${vm.memoryMb} Mio`}</b>{running && mem ? <span className="text-muted"> ({bytes(mem * 1024)})</span> : null}</div>
-        <div><div className="text-muted flex items-center gap-1"><HardDrive size={12} />Disque</div><b>{disk?.size ? bytes(disk.size) : "—"}</b></div>
-        <div><div className="text-muted">Adresse IP</div><b className="mono">{ip ?? (running ? "…" : "—")}</b></div>
+        <div><div className="text-muted">{tr("Mémoire")}</div><b>{vm.memoryMb >= 1024 ? tr("{0} Gio", (vm.memoryMb / 1024).toFixed(1)) : tr("{0} Mio", vm.memoryMb)}</b>{running && mem ? <span className="text-muted"> ({bytes(mem * 1024)})</span> : null}</div>
+        <div><div className="text-muted flex items-center gap-1"><HardDrive size={12} />{tr("Disque")}</div><b>{disk?.size ? bytes(disk.size) : "—"}</b></div>
+        <div><div className="text-muted">{tr("Adresse IP")}</div><b className="mono">{ip ?? (running ? "…" : "—")}</b></div>
       </div>
       {cd && <div className="text-muted mt-3 flex items-center gap-1.5 truncate text-[12px]"><Disc3 size={13} />{cd.source.split("/").pop()}</div>}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        {!running && vm.state !== "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("start")}>Démarrer</Button>}
-        {running && <Button size="sm" variant="primary" icon={<MonitorPlay size={14} />} onClick={onConsole}>Console</Button>}
-        {running && <Button size="sm" icon={<Power size={14} />} onClick={() => act.mutate("shutdown")}>Arrêter</Button>}
-        {running && <Button size="sm" icon={<RotateCcw size={14} />} onClick={() => act.mutate("reboot")}>Redémarrer</Button>}
-        {running && <IconButton title="Mettre en pause" onClick={() => act.mutate("suspend")}><Pause size={15} /></IconButton>}
-        {vm.state === "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("resume")}>Reprendre</Button>}
-        {(running || vm.state === "paused" || vm.state === "in shutdown") && <IconButton title="Forcer l'arrêt" onClick={async () => (await confirm({ title: "Forcer l'arrêt ?", text: "Équivaut à débrancher la prise : les données non enregistrées dans la VM sont perdues.", confirm: "Forcer", danger: true })) && act.mutate("destroy")}><Square size={15} /></IconButton>}
+        {!running && vm.state !== "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("start")}>{tr("Démarrer")}</Button>}
+        {running && <Button size="sm" variant="primary" icon={<MonitorPlay size={14} />} onClick={onConsole}>{tr("Console")}</Button>}
+        {running && <Button size="sm" icon={<Power size={14} />} onClick={() => act.mutate("shutdown")}>{tr("Arrêter")}</Button>}
+        {running && <Button size="sm" icon={<RotateCcw size={14} />} onClick={() => act.mutate("reboot")}>{tr("Redémarrer")}</Button>}
+        {running && <IconButton title={tr("Mettre en pause")} onClick={() => act.mutate("suspend")}><Pause size={15} /></IconButton>}
+        {vm.state === "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("resume")}>{tr("Reprendre")}</Button>}
+        {(running || vm.state === "paused" || vm.state === "in shutdown") && <IconButton title={tr("Forcer l'arrêt")} onClick={async () => (await confirm({ title: tr("Forcer l'arrêt ?"), text: tr("Équivaut à débrancher la prise : les données non enregistrées dans la VM sont perdues."), confirm: tr("Forcer"), danger: true })) && act.mutate("destroy")}><Square size={15} /></IconButton>}
         <div className="flex-1" />
-        <IconButton title="Paramètres" onClick={onEdit}><Settings2 size={15} /></IconButton>
-        <IconButton title="Supprimer" disabled={running} onClick={remove}><Trash2 size={15} /></IconButton>
+        <IconButton title={tr("Paramètres")} onClick={onEdit}><Settings2 size={15} /></IconButton>
+        <IconButton title={tr("Supprimer")} disabled={running} onClick={remove}><Trash2 size={15} /></IconButton>
       </div>
     </Card>
   );
@@ -118,48 +119,48 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   }, [shares.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Modal open onClose={onClose} title="Nouvelle machine virtuelle" wide footer={<><Button onClick={onClose}>Annuler</Button><Button variant="primary" loading={create.isPending} disabled={!f.name || !f.storage} onClick={() => create.mutate()}>Créer et démarrer</Button></>}>
+    <Modal open onClose={onClose} title={tr("Nouvelle machine virtuelle")} wide footer={<><Button onClick={onClose}>{tr("Annuler")}</Button><Button variant="primary" loading={create.isPending} disabled={!f.name || !f.storage} onClick={() => create.mutate()}>{tr("Créer et démarrer")}</Button></>}>
       <ErrorBox error={create.error} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nom"><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-serveur" autoFocus /></Field>
-        <Field label="Système invité">
+        <Field label={tr("Nom")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-serveur" autoFocus /></Field>
+        <Field label={tr("Système invité")}>
           <Select value={f.os} onChange={(e) => set({ os: e.target.value, ...(e.target.value === "windows" ? { memoryMb: Math.max(f.memoryMb, 4096), diskGb: Math.max(f.diskGb, 64), firmware: "uefi" } : {}) })}>
-            <option value="linux">Linux</option>
-            <option value="windows">Windows 10 / 11</option>
-            <option value="other">Autre</option>
+            <option value="linux">{tr("Linux")}</option>
+            <option value="windows">{tr("Windows 10 / 11")}</option>
+            <option value="other">{tr("Autre")}</option>
           </Select>
         </Field>
-        <Field label="Processeurs virtuels"><Input type="number" min={1} max={64} value={f.vcpus} onChange={(e) => set({ vcpus: +e.target.value })} /></Field>
-        <Field label="Mémoire (Mio)"><Input type="number" min={256} step={256} value={f.memoryMb} onChange={(e) => set({ memoryMb: +e.target.value })} /></Field>
-        <Field label="Taille du disque (Gio)" hint="Alloué au fur et à mesure (qcow2)"><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>
-        <Field label="Emplacement des disques" hint="Dossier partagé qui contiendra la VM">
+        <Field label={tr("Processeurs virtuels")}><Input type="number" min={1} max={64} value={f.vcpus} onChange={(e) => set({ vcpus: +e.target.value })} /></Field>
+        <Field label={tr("Mémoire (Mio)")}><Input type="number" min={256} step={256} value={f.memoryMb} onChange={(e) => set({ memoryMb: +e.target.value })} /></Field>
+        <Field label={tr("Taille du disque (Gio)")} hint={tr("Alloué au fur et à mesure (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>
+        <Field label={tr("Emplacement des disques")} hint={tr("Dossier partagé qui contiendra la VM")}>
           <Select value={f.storage} onChange={(e) => set({ storage: e.target.value })}>
-            {shares.data?.length === 0 && <option value="">Aucun dossier partagé</option>}
+            {shares.data?.length === 0 && <option value="">{tr("Aucun dossier partagé")}</option>}
             {shares.data?.map((s) => <option key={s.name} value={s.path}>{s.name} ({s.path})</option>)}
           </Select>
         </Field>
-        <Field label="Image d'installation (ISO)" hint="Fichiers .iso trouvés dans les volumes" className="sm:col-span-2">
+        <Field label={tr("Image d'installation (ISO)")} hint={tr("Fichiers .iso trouvés dans les volumes")} className="sm:col-span-2">
           <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
-            <option value="">Aucune</option>
+            <option value="">{tr("Aucune")}</option>
             {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
           </Select>
         </Field>
-        <Field label="Réseau">
+        <Field label={tr("Réseau")}>
           <Select value={f.network} onChange={(e) => set({ network: e.target.value })}>
-            <option value="nat">NAT (réseau privé derrière le NAS)</option>
-            {bridges.map((b) => <option key={b} value={b}>Pont {b} (sur le réseau local)</option>)}
+            <option value="nat">{tr("NAT (réseau privé derrière le NAS)")}</option>
+            {bridges.map((b) => <option key={b} value={b}>{tr("Pont")}{" "}{b} {" "}{tr("(sur le réseau local)")}</option>)}
           </Select>
         </Field>
-        <Field label="Firmware">
+        <Field label={tr("Firmware")}>
           <Select value={f.firmware} onChange={(e) => set({ firmware: e.target.value })}>
             <option value="uefi">UEFI</option>
-            <option value="bios">BIOS (ancien)</option>
+            <option value="bios">{tr("BIOS (ancien)")}</option>
           </Select>
         </Field>
       </div>
-      {bridges.length === 0 && <div className="mt-4"><Notice>Pour que la VM apparaisse directement sur votre réseau local, créez un pont dans Panneau de configuration → Réseau.</Notice></div>}
-      {f.os === "windows" && <div className="mt-4"><Notice>Windows 11 : une puce TPM 2.0 virtuelle et le démarrage sécurisé sont fournis. Le disque est en SATA pour que l'installeur le voie sans pilote supplémentaire.</Notice></div>}
-      <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label="Démarrer la VM avec le NAS" /></div>
+      {bridges.length === 0 && <div className="mt-4"><Notice>{tr("Pour que la VM apparaisse directement sur votre réseau local, créez un pont dans Panneau de configuration → Réseau.")}</Notice></div>}
+      {f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11 : une puce TPM 2.0 virtuelle et le démarrage sécurisé sont fournis. Le disque est en SATA pour que l'installeur le voie sans pilote supplémentaire.")}</Notice></div>}
+      <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Démarrer la VM avec le NAS")} /></div>
     </Modal>
   );
 }
@@ -170,36 +171,36 @@ function EditVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
   const [iso, setIso] = useState(cd?.source ?? "");
   const [res, setRes] = useState({ vcpus: vm.vcpus, memoryMb: vm.memoryMb });
   const base = `/api/vms/${encodeURIComponent(vm.name)}`;
-  const media = useAction(() => api.post(`${base}/media`, { iso }), { success: "Lecteur CD mis à jour" });
-  const auto = useAction((v: boolean) => api.post(`${base}/autostart`, { autostart: v }), { success: "Démarrage automatique modifié" });
-  const resources = useAction(() => api.post(`${base}/resources`, res), { success: "Ressources modifiées", onDone: onClose });
+  const media = useAction(() => api.post(`${base}/media`, { iso }), { success: tr("Lecteur CD mis à jour") });
+  const auto = useAction((v: boolean) => api.post(`${base}/autostart`, { autostart: v }), { success: tr("Démarrage automatique modifié") });
+  const resources = useAction(() => api.post(`${base}/resources`, res), { success: tr("Ressources modifiées"), onDone: onClose });
   const off = vm.state === "shut off";
 
   return (
-    <Modal open onClose={onClose} title={`Paramètres de ${vm.name}`}>
+    <Modal open onClose={onClose} title={tr("Paramètres de {0}", vm.name)}>
       <div className="space-y-5">
         <ErrorBox error={media.error || auto.error || resources.error} />
-        <Switch checked={vm.autostart} onChange={(v) => auto.mutate(v)} label="Démarrer avec le NAS" />
+        <Switch checked={vm.autostart} onChange={(v) => auto.mutate(v)} label={tr("Démarrer avec le NAS")} />
         {cd && (
           <div className="flex items-end gap-2">
-            <Field label="Lecteur CD" className="flex-1">
+            <Field label={tr("Lecteur CD")} className="flex-1">
               <Select value={iso} onChange={(e) => setIso(e.target.value)}>
-                <option value="">Éjecté</option>
+                <option value="">{tr("Éjecté")}</option>
                 {cd.source && !isos.data?.includes(cd.source) && <option value={cd.source}>{cd.source}</option>}
                 {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
               </Select>
             </Field>
-            <Button loading={media.isPending} onClick={() => media.mutate()}>Appliquer</Button>
+            <Button loading={media.isPending} onClick={() => media.mutate()}>{tr("Appliquer")}</Button>
           </div>
         )}
         <div className="space-y-3 rounded-xl border border-line p-4">
-          <div className="font-medium text-[13px]">Ressources</div>
-          {!off && <Notice>Arrêtez la VM pour modifier ses processeurs et sa mémoire.</Notice>}
+          <div className="font-medium text-[13px]">{tr("Ressources")}</div>
+          {!off && <Notice>{tr("Arrêtez la VM pour modifier ses processeurs et sa mémoire.")}</Notice>}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="vCPU"><Input type="number" min={1} disabled={!off} value={res.vcpus} onChange={(e) => setRes({ ...res, vcpus: +e.target.value })} /></Field>
-            <Field label="Mémoire (Mio)"><Input type="number" min={256} step={256} disabled={!off} value={res.memoryMb} onChange={(e) => setRes({ ...res, memoryMb: +e.target.value })} /></Field>
+            <Field label={tr("Mémoire (Mio)")}><Input type="number" min={256} step={256} disabled={!off} value={res.memoryMb} onChange={(e) => setRes({ ...res, memoryMb: +e.target.value })} /></Field>
           </div>
-          <Button variant="primary" disabled={!off} loading={resources.isPending} onClick={() => resources.mutate()}>Enregistrer</Button>
+          <Button variant="primary" disabled={!off} loading={resources.isPending} onClick={() => resources.mutate()}>{tr("Enregistrer")}</Button>
         </div>
       </div>
     </Modal>
@@ -219,15 +220,15 @@ function Console({ name, onClose }: { name: string; onClose: () => void }) {
       const r = new RFB(box.current, wsURL(`/api/vms/${encodeURIComponent(name)}/vnc`), { wsProtocols: ["binary"] });
       r.scaleViewport = true;
       r.addEventListener("connect", () => { setStatus(""); r.focus(); });
-      r.addEventListener("disconnect", () => setStatus("Déconnecté"));
+      r.addEventListener("disconnect", () => setStatus(tr("Déconnecté")));
       rfb.current = r;
     });
     return () => { cancelled = true; rfb.current?.disconnect(); };
   }, [name]);
 
   return (
-    <Modal open onClose={onClose} wide="xl" title={<span className="flex items-center gap-2"><MonitorPlay size={17} />Console de {name}{status && <span className="text-muted text-[12px] font-normal">— {status}</span>}</span>}
-      footer={<><Button onClick={() => rfb.current?.sendCtrlAltDel()}>Envoyer Ctrl+Alt+Suppr</Button><Button variant="primary" onClick={onClose}>Fermer</Button></>}>
+    <Modal open onClose={onClose} wide="xl" title={<span className="flex items-center gap-2"><MonitorPlay size={17} />{tr("Console de")}{" "}{name}{status && <span className="text-muted text-[12px] font-normal">— {status}</span>}</span>}
+      footer={<><Button onClick={() => rfb.current?.sendCtrlAltDel()}>{tr("Envoyer Ctrl+Alt+Suppr")}</Button><Button variant="primary" onClick={onClose}>{tr("Fermer")}</Button></>}>
       <div ref={box} className="h-[65vh] w-full overflow-hidden rounded-lg bg-black" />
     </Modal>
   );

@@ -4,6 +4,7 @@ import { cx } from "../lib/format";
 import { Spinner } from "../components/ui";
 import { AppIcon, type AppDef } from "./apps";
 import { InWindow, TASKBAR, useWM, type Geometry, type Win } from "./wm";
+import { tr } from "../lib/i18n";
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 const edges: { e: Edge; cls: string; cursor: string }[] = [
@@ -102,9 +103,9 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
         <AppIcon app={app} size={22} />
         <span className={cx("flex-1 truncate text-[13px] font-medium", !focused && "text-muted")}>{app.title}</span>
         <div className="flex items-center gap-0.5" onPointerDown={(e) => e.stopPropagation()}>
-          <WinBtn title="Réduire" onClick={() => wm.minimize(win.app)}><Minus size={14} /></WinBtn>
-          <WinBtn title={win.maximized ? "Restaurer" : "Agrandir"} onClick={() => wm.toggleMaximize(win.app)}>{win.maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</WinBtn>
-          <WinBtn title="Fermer" danger onClick={() => wm.close(win.app)}><X size={15} /></WinBtn>
+          <WinBtn title={tr("Réduire")} onClick={() => wm.minimize(win.app)}><Minus size={14} /></WinBtn>
+          <WinBtn title={win.maximized ? tr("Restaurer") : tr("Agrandir")} onClick={() => wm.toggleMaximize(win.app)}>{win.maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</WinBtn>
+          <WinBtn title={tr("Fermer")} danger onClick={() => wm.close(win.app)}><X size={15} /></WinBtn>
         </div>
       </header>
       <div className="relative min-h-0 flex-1">

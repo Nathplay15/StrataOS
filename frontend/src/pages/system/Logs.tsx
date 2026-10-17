@@ -5,6 +5,7 @@ import { api, q } from "../../lib/api";
 import type { LogEntry, StrataEvent } from "../../lib/types";
 import { dateTime } from "../../lib/format";
 import { Badge, Card, Empty, ErrorBox, Input, PageHeader, Select, Spinner, Tabs } from "../../components/ui";
+import { tr, locale } from "../../lib/i18n";
 
 const prio = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"];
 
@@ -18,21 +19,21 @@ function Journal() {
     <>
       <div className="mb-4 flex flex-wrap gap-2">
         <Select className="!w-56" value={unit} onChange={(e) => setUnit(e.target.value)}>
-          <option value="">Tous les services</option>
+          <option value="">{tr("Tous les services")}</option>
           {["strata", "smbd", "nfs-server", "docker", "ssh", "mdmonitor", "zfs-zed", "smartmontools", "kernel"].map((u) => <option key={u} value={u === "kernel" ? "" : u}>{u}</option>)}
         </Select>
         <Select className="!w-48" value={priority} onChange={(e) => setPriority(+e.target.value)}>
           {prio.map((p, i) => <option key={p} value={i}>≤ {p}</option>)}
         </Select>
-        <Input className="!w-64" placeholder="Rechercher (Entrée)" value={grep} onChange={(e) => setGrep(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setSearch(grep)} />
+        <Input className="!w-64" placeholder={tr("Rechercher (Entrée)")} value={grep} onChange={(e) => setGrep(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setSearch(grep)} />
       </div>
       <ErrorBox error={error} />
       <Card pad={false}>
-        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<FileText />} title="Aucune entrée" /> : (
+        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<FileText />} title={tr("Aucune entrée")} /> : (
           <div className="mono max-h-[70vh] overflow-auto text-[12px]">
             {data.map((l, i) => (
               <div key={i} className="flex gap-3 border-b border-line px-4 py-1.5 hover:bg-panel-2">
-                <span className="shrink-0 text-muted">{new Date(l.time).toLocaleString("fr-FR")}</span>
+                <span className="shrink-0 text-muted">{new Date(l.time).toLocaleString(locale)}</span>
                 <span className={`w-16 shrink-0 ${l.priority <= 3 ? "text-danger" : l.priority === 4 ? "text-warn" : "text-muted"}`}>{prio[l.priority]}</span>
                 <span className="w-32 shrink-0 truncate text-accent">{l.ident || l.unit}</span>
                 <span className="whitespace-pre-wrap break-all">{l.message}</span>
@@ -49,10 +50,10 @@ function Events() {
   const { data, isLoading } = useQuery({ queryKey: ["events"], queryFn: () => api.get<StrataEvent[]>("/api/system/events"), refetchInterval: 10000 });
   return (
     <Card pad={false}>
-      {isLoading ? <Spinner /> : !data?.length ? <Empty title="Aucun événement" /> : (
+      {isLoading ? <Spinner /> : !data?.length ? <Empty title={tr("Aucun événement")} /> : (
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>Date</th><th>Niveau</th><th>Catégorie</th><th>Utilisateur</th><th>Message</th></tr></thead>
+            <thead><tr><th>{tr("Date")}</th><th>{tr("Niveau")}</th><th>{tr("Catégorie")}</th><th>{tr("Utilisateur")}</th><th>{tr("Message")}</th></tr></thead>
             <tbody>
               {data.map((e, i) => (
                 <tr key={i}>
@@ -73,8 +74,8 @@ export default function Logs() {
   const [tab, setTab] = useState<"events" | "journal">("events");
   return (
     <div>
-      <PageHeader title="Journaux" subtitle="Audit des actions et journal système" icon={<FileText size={20} />} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "events", label: "Événements StrataOS" }, { id: "journal", label: "Journal système" }]} />
+      <PageHeader title={tr("Journaux")} subtitle={tr("Audit des actions et journal système")} icon={<FileText size={20} />} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "events", label: tr("Événements StrataOS") }, { id: "journal", label: tr("Journal système") }]} />
       {tab === "events" ? <Events /> : <Journal />}
     </div>
   );

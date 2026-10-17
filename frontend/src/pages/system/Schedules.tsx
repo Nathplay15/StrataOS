@@ -6,13 +6,14 @@ import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
 import { ago, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
+import { tr } from "../../lib/i18n";
 
 type Targets = { snapshot: ScheduleTarget[]; scrub: ScheduleTarget[]; disks: ScheduleTarget[] };
 
 const typeInfo = {
-  snapshot: { label: "Snapshot", icon: <Camera size={15} />, tone: "accent" as const },
-  scrub: { label: "Vérification", icon: <ShieldCheck size={15} />, tone: "ok" as const },
-  smart: { label: "Test SMART", icon: <Activity size={15} />, tone: "warn" as const },
+  snapshot: { label: tr("Snapshot"), icon: <Camera size={15} />, tone: "accent" as const },
+  scrub: { label: tr("Vérification"), icon: <ShieldCheck size={15} />, tone: "ok" as const },
+  smart: { label: tr("Test SMART"), icon: <Activity size={15} />, tone: "warn" as const },
 };
 
 const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -55,11 +56,11 @@ const hm = (h: number, m: number) => `${String(h).padStart(2, "0")}:${String(m).
 export function describeCron(cron: string): string {
   const p = fromCron(cron);
   switch (p.freq) {
-    case "hourly": return p.every > 1 ? `Toutes les ${p.every} h à :${String(p.minute).padStart(2, "0")}` : `Toutes les heures à :${String(p.minute).padStart(2, "0")}`;
-    case "daily": return `Tous les jours à ${hm(p.hour, p.minute)}`;
-    case "weekly": return `Chaque ${days[p.weekday]} à ${hm(p.hour, p.minute)}`;
-    case "monthly": return `Le ${p.monthday} de chaque mois à ${hm(p.hour, p.minute)}`;
-    default: return `cron « ${cron} »`;
+    case "hourly": return p.every > 1 ? tr("Toutes les {0} h à :{1}", p.every, String(p.minute).padStart(2, "0")) : tr("Toutes les heures à :{0}", String(p.minute).padStart(2, "0"));
+    case "daily": return tr("Tous les jours à {0}", hm(p.hour, p.minute));
+    case "weekly": return tr("Chaque {0} à {1}", days[p.weekday], hm(p.hour, p.minute));
+    case "monthly": return tr("Le {0} de chaque mois à {1}", p.monthday, hm(p.hour, p.minute));
+    default: return tr("cron « {0} »", cron);
   }
 }
 
@@ -68,7 +69,7 @@ export function ScheduleEditor({ plan, onChange }: { plan: Plan; onChange: (p: P
   const preview = useQuery({ queryKey: ["cron-preview", cron], queryFn: () => api.get<string[]>(`/api/schedules/preview${q({ cron })}`), retry: false });
   const set = (k: Partial<Plan>) => onChange({ ...plan, ...k });
   const time = (
-    <Field label="Heure">
+    <Field label={tr("Heure")}>
       <Input type="time" value={hm(plan.hour, plan.minute)} onChange={(e) => { const [h, m] = e.target.value.split(":").map(Number); if (!isNaN(h)) set({ hour: h, minute: m }); }} />
     </Field>
   );
@@ -84,29 +85,29 @@ export function ScheduleEditor({ plan, onChange }: { plan: Plan; onChange: (p: P
       <div className="grid gap-3 sm:grid-cols-2">
         {plan.freq === "hourly" && (
           <>
-            <Field label="Toutes les (heures)"><Input type="number" min={1} max={23} value={plan.every} onChange={(e) => set({ every: Math.max(1, +e.target.value) })} /></Field>
-            <Field label="À la minute"><Input type="number" min={0} max={59} value={plan.minute} onChange={(e) => set({ minute: Math.min(59, Math.max(0, +e.target.value)) })} /></Field>
+            <Field label={tr("Toutes les (heures)")}><Input type="number" min={1} max={23} value={plan.every} onChange={(e) => set({ every: Math.max(1, +e.target.value) })} /></Field>
+            <Field label={tr("À la minute")}><Input type="number" min={0} max={59} value={plan.minute} onChange={(e) => set({ minute: Math.min(59, Math.max(0, +e.target.value)) })} /></Field>
           </>
         )}
         {plan.freq === "daily" && time}
         {plan.freq === "weekly" && (
           <>
-            <Field label="Jour"><Select value={plan.weekday} onChange={(e) => set({ weekday: +e.target.value })}>{days.map((d, i) => <option key={d} value={i}>{d}</option>)}</Select></Field>
+            <Field label={tr("Jour")}><Select value={plan.weekday} onChange={(e) => set({ weekday: +e.target.value })}>{days.map((d, i) => <option key={d} value={i}>{d}</option>)}</Select></Field>
             {time}
           </>
         )}
         {plan.freq === "monthly" && (
           <>
-            <Field label="Jour du mois" hint="1 à 28 pour tomber chaque mois"><Input type="number" min={1} max={31} value={plan.monthday} onChange={(e) => set({ monthday: Math.min(31, Math.max(1, +e.target.value)) })} /></Field>
+            <Field label={tr("Jour du mois")} hint={tr("1 à 28 pour tomber chaque mois")}><Input type="number" min={1} max={31} value={plan.monthday} onChange={(e) => set({ monthday: Math.min(31, Math.max(1, +e.target.value)) })} /></Field>
             {time}
           </>
         )}
         {plan.freq === "custom" && (
-          <Field label="Expression cron" className="sm:col-span-2" hint="minute heure jour mois jour-semaine — ex. 0 */6 * * * (toutes les 6 h), 30 1 * * 1-5"><Input className="mono" value={plan.cron} onChange={(e) => set({ cron: e.target.value })} /></Field>
+          <Field label={tr("Expression cron")} className="sm:col-span-2" hint={tr("minute heure jour mois jour-semaine — ex. 0 */6 * * * (toutes les 6 h), 30 1 * * 1-5")}><Input className="mono" value={plan.cron} onChange={(e) => set({ cron: e.target.value })} /></Field>
         )}
       </div>
       <div className="text-[12px] text-muted">
-        {preview.error ? <span className="text-danger">{(preview.error as Error).message}</span> : preview.data?.length ? <>Prochaines exécutions : {preview.data.slice(0, 3).map((d) => dateTime(d)).join(" · ")}</> : null}
+        {preview.error ? <span className="text-danger">{(preview.error as Error).message}</span> : preview.data?.length ? <>{tr("Prochaines exécutions :")}{" "}{preview.data.slice(0, 3).map((d) => dateTime(d)).join(" · ")}</> : null}
       </div>
     </div>
   );
@@ -143,12 +144,12 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   }, [s.type, s.target, s.smartTest, named]);
 
   const payload = { ...s, cron: toCron(plan) };
-  const save = useAction(() => (editing ? api.put(`/api/schedules/${s.id}`, payload) : api.post("/api/schedules", payload)), { success: editing ? "Tâche mise à jour" : "Tâche créée", onDone: onClose });
+  const save = useAction(() => (editing ? api.put(`/api/schedules/${s.id}`, payload) : api.post("/api/schedules", payload)), { success: editing ? tr("Tâche mise à jour") : tr("Tâche créée"), onDone: onClose });
 
   return (
-    <Modal open onClose={onClose} title={editing ? `Modifier « ${s.name} »` : "Nouvelle tâche planifiée"} wide footer={<>
-      <Button onClick={onClose}>Annuler</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? "Enregistrer" : "Créer"}</Button>
+    <Modal open onClose={onClose} title={editing ? tr("Modifier « {0} »", s.name) : tr("Nouvelle tâche planifiée")} wide footer={<>
+      <Button onClick={onClose}>{tr("Annuler")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Enregistrer") : tr("Créer")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-2 sm:grid-cols-3">
@@ -157,20 +158,20 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: "ZFS ou Btrfs, avec rétention", scrub: "RAID, pool ZFS, Btrfs", smart: "Autodiagnostic des disques" }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS ou Btrfs, avec rétention"), scrub: tr("RAID, pool ZFS, Btrfs"), smart: tr("Autodiagnostic des disques") }[t]}</div>
               </div>
             </button>
           ))}
         </div>
 
-        <Field label="Nom"><Input value={s.name} onChange={(e) => { setNamed(true); set({ name: e.target.value }); }} /></Field>
+        <Field label={tr("Nom")}><Input value={s.name} onChange={(e) => { setNamed(true); set({ name: e.target.value }); }} /></Field>
 
         {s.type !== "smart" ? (
           options.length === 0 ? (
-            <Notice tone="warn">{s.type === "snapshot" ? "Aucun dataset ZFS ni volume Btrfs : les snapshots nécessitent l'un des deux." : "Aucune grappe RAID, pool ZFS ou volume Btrfs à vérifier."}</Notice>
+            <Notice tone="warn">{s.type === "snapshot" ? tr("Aucun dataset ZFS ni volume Btrfs : les snapshots nécessitent l'un des deux.") : tr("Aucune grappe RAID, pool ZFS ou volume Btrfs à vérifier.")}</Notice>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Cible" className={s.targetKind === "btrfs" && s.type === "snapshot" ? "" : "sm:col-span-2"}>
+              <Field label={tr("Cible")} className={s.targetKind === "btrfs" && s.type === "snapshot" ? "" : "sm:col-span-2"}>
                 <Select value={`${s.targetKind}|${s.target}`} onChange={(e) => { const [k, ...v] = e.target.value.split("|"); set({ targetKind: k as Schedule["targetKind"], target: v.join("|"), subvolume: "" }); }}>
                   {options.map((o) => <option key={`${o.kind}|${o.value}`} value={`${o.kind}|${o.value}`}>{o.label}</option>)}
                 </Select>
@@ -178,7 +179,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {s.type === "snapshot" && s.targetKind === "btrfs" && (
                 <Field label="Sous-volume">
                   <Select value={s.subvolume ?? ""} onChange={(e) => set({ subvolume: e.target.value })}>
-                    <option value="">Volume entier</option>
+                    <option value="">{tr("Volume entier")}</option>
                     {current?.subvolumes?.map((sv) => <option key={sv} value={sv}>{sv}</option>)}
                   </Select>
                 </Field>
@@ -188,13 +189,13 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
         ) : (
           <div className="space-y-3">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Type de test">
+              <Field label={tr("Type de test")}>
                 <Select value={s.smartTest} onChange={(e) => set({ smartTest: e.target.value as "short" | "long" })}>
-                  <option value="short">Court (~2 min)</option>
-                  <option value="long">Long (lecture complète, plusieurs heures)</option>
+                  <option value="short">{tr("Court (~2 min)")}</option>
+                  <option value="long">{tr("Long (lecture complète, plusieurs heures)")}</option>
                 </Select>
               </Field>
-              <div className="pt-7"><Switch checked={s.target === "all"} onChange={(v) => set({ target: v ? "all" : targets.disks[0]?.value ?? "" })} label="Tous les disques" /></div>
+              <div className="pt-7"><Switch checked={s.target === "all"} onChange={(v) => set({ target: v ? "all" : targets.disks[0]?.value ?? "" })} label={tr("Tous les disques")} /></div>
             </div>
             {s.target !== "all" && (
               <div className="grid gap-2 sm:grid-cols-2">
@@ -208,21 +209,21 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
 
         {s.type === "snapshot" && (
           <div className="space-y-3 rounded-xl border border-line p-4">
-            <div className="font-medium text-[13px]">Rétention</div>
+            <div className="font-medium text-[13px]">{tr("Rétention")}</div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Garder les N derniers" hint="0 = pas de limite en nombre"><Input type="number" min={0} value={s.keepCount ?? 0} onChange={(e) => set({ keepCount: Math.max(0, +e.target.value) })} /></Field>
-              <Field label="Garder pendant (jours)" hint="0 = pas de limite en âge"><Input type="number" min={0} value={s.keepDays ?? 0} onChange={(e) => set({ keepDays: Math.max(0, +e.target.value) })} /></Field>
+              <Field label={tr("Garder les N derniers")} hint={tr("0 = pas de limite en nombre")}><Input type="number" min={0} value={s.keepCount ?? 0} onChange={(e) => set({ keepCount: Math.max(0, +e.target.value) })} /></Field>
+              <Field label={tr("Garder pendant (jours)")} hint={tr("0 = pas de limite en âge")}><Input type="number" min={0} value={s.keepDays ?? 0} onChange={(e) => set({ keepDays: Math.max(0, +e.target.value) })} /></Field>
             </div>
-            {s.targetKind === "zfs" && <Switch checked={!!s.recursive} onChange={(v) => set({ recursive: v })} label="Inclure les datasets enfants" hint="Snapshot récursif atomique (zfs snapshot -r)" />}
-            <div className="text-[12px] text-muted">Seuls les snapshots créés par cette tâche sont supprimés ; le plus récent est toujours conservé. Les snapshots manuels ne sont jamais touchés.</div>
+            {s.targetKind === "zfs" && <Switch checked={!!s.recursive} onChange={(v) => set({ recursive: v })} label={tr("Inclure les datasets enfants")} hint={tr("Snapshot récursif atomique (zfs snapshot -r)")} />}
+            <div className="text-[12px] text-muted">{tr("Seuls les snapshots créés par cette tâche sont supprimés ; le plus récent est toujours conservé. Les snapshots manuels ne sont jamais touchés.")}</div>
           </div>
         )}
 
         <div>
-          <div className="mb-2 text-[12.5px] font-medium text-muted">Planification</div>
+          <div className="mb-2 text-[12.5px] font-medium text-muted">{tr("Planification")}</div>
           <ScheduleEditor plan={plan} onChange={setPlan} />
         </div>
-        <Switch checked={s.enabled} onChange={(v) => set({ enabled: v })} label="Tâche active" />
+        <Switch checked={s.enabled} onChange={(v) => set({ enabled: v })} label={tr("Tâche active")} />
         <ErrorBox error={save.error} />
       </div>
     </Modal>
@@ -231,15 +232,15 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
 
 function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
   return (
-    <Modal open onClose={onClose} title={`Historique — ${s.name}`} wide>
-      {s.history.length === 0 ? <Empty icon={<History />} title="Aucune exécution" /> : (
+    <Modal open onClose={onClose} title={tr("Historique — {0}", s.name)} wide>
+      {s.history.length === 0 ? <Empty icon={<History />} title={tr("Aucune exécution")} /> : (
         <div className="space-y-2">
           {s.history.map((h, i) => (
             <div key={i} className="flex items-start gap-3 rounded-xl bg-panel-2 px-4 py-3">
               {h.status === "success" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={17} className="mt-0.5 shrink-0 text-danger" />}
               <div className="min-w-0 flex-1">
                 <div className="text-[13px]">{h.message}</div>
-                <div className="text-muted text-[11.5px]">{dateTime(h.started)} · {h.duration < 1 ? "<1" : h.duration.toFixed(0)} s{h.manual ? " · lancée manuellement" : ""}</div>
+                <div className="text-muted text-[11.5px]">{dateTime(h.started)} · {h.duration < 1 ? "<1" : h.duration.toFixed(0)} s{h.manual ? tr(" · lancée manuellement") : ""}</div>
               </div>
             </div>
           ))}
@@ -250,7 +251,7 @@ function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
 }
 
 function targetLabel(s: Schedule, targets?: Targets) {
-  if (s.type === "smart") return s.target === "all" ? "Tous les disques" : s.target;
+  if (s.type === "smart") return s.target === "all" ? tr("Tous les disques") : s.target;
   const list = s.type === "snapshot" ? targets?.snapshot : targets?.scrub;
   const t = list?.find((o) => o.kind === s.targetKind && o.value === s.target);
   return (t?.label ?? s.target) + (s.subvolume ? ` / ${s.subvolume}` : "");
@@ -264,26 +265,26 @@ export default function Schedules() {
   const targets = useQuery({ queryKey: ["schedule-targets"], queryFn: () => api.get<Targets>("/api/schedules/targets") });
   const toggle = useAction((s: Schedule) => api.put(`/api/schedules/${s.id}`, { ...s, enabled: !s.enabled }));
   const run = useAction((id: string) => api.post(`/api/schedules/${id}/run`));
-  const del = useAction((id: string) => api.del(`/api/schedules/${id}`), { success: "Tâche supprimée" });
-  const defaults = useAction(() => api.post<{ created: number }>("/api/schedules/defaults"), { success: (r) => (r.created ? `${r.created} tâche(s) recommandée(s) ajoutée(s)` : "Le plan recommandé est déjà en place") });
+  const del = useAction((id: string) => api.del(`/api/schedules/${id}`), { success: tr("Tâche supprimée") });
+  const defaults = useAction(() => api.post<{ created: number }>("/api/schedules/defaults"), { success: (r) => (r.created ? tr("{0} tâche(s) recommandée(s) ajoutée(s)", r.created) : tr("Le plan recommandé est déjà en place")) });
 
   return (
     <div>
-      <PageHeader title="Tâches planifiées" subtitle="Snapshots automatiques, vérifications d'intégrité et tests SMART" icon={<CalendarClock size={20} />} actions={<>
-        <Button icon={<Sparkles size={15} />} loading={defaults.isPending} onClick={() => defaults.mutate()}>Plan recommandé</Button>
-        <Button variant="primary" icon={<Plus size={15} />} disabled={!targets.data} onClick={() => setEdit(null)}>Nouvelle tâche</Button>
+      <PageHeader title={tr("Tâches planifiées")} subtitle={tr("Snapshots automatiques, vérifications d'intégrité et tests SMART")} icon={<CalendarClock size={20} />} actions={<>
+        <Button icon={<Sparkles size={15} />} loading={defaults.isPending} onClick={() => defaults.mutate()}>{tr("Plan recommandé")}</Button>
+        <Button variant="primary" icon={<Plus size={15} />} disabled={!targets.data} onClick={() => setEdit(null)}>{tr("Nouvelle tâche")}</Button>
       </>} />
       <ErrorBox error={error || targets.error} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card>
-          <Empty icon={<CalendarClock />} title="Aucune tâche planifiée" text="Le plan recommandé crée un scrub mensuel par grappe et par pool, des snapshots quotidiens conservés 14 jours, un test SMART court chaque semaine et un test long chaque mois."
-            action={<div className="flex gap-2"><Button variant="primary" icon={<Sparkles size={15} />} onClick={() => defaults.mutate()}>Créer le plan recommandé</Button><Button onClick={() => setEdit(null)}>Tâche personnalisée</Button></div>} />
+          <Empty icon={<CalendarClock />} title={tr("Aucune tâche planifiée")} text={tr("Le plan recommandé crée un scrub mensuel par grappe et par pool, des snapshots quotidiens conservés 14 jours, un test SMART court chaque semaine et un test long chaque mois.")}
+            action={<div className="flex gap-2"><Button variant="primary" icon={<Sparkles size={15} />} onClick={() => defaults.mutate()}>{tr("Créer le plan recommandé")}</Button><Button onClick={() => setEdit(null)}>{tr("Tâche personnalisée")}</Button></div>} />
         </Card>
       ) : (
         <Card pad={false}>
           <div className="overflow-x-auto">
             <table className="table">
-              <thead><tr><th>Tâche</th><th>Cible</th><th>Planification</th><th>Dernière exécution</th><th>Prochaine</th><th>Active</th><th /></tr></thead>
+              <thead><tr><th>{tr("Tâche")}</th><th>{tr("Cible")}</th><th>{tr("Planification")}</th><th>{tr("Dernière exécution")}</th><th>{tr("Prochaine")}</th><th>{tr("Active")}</th><th /></tr></thead>
               <tbody>
                 {data.map((s) => {
                   const last = s.history[0];
@@ -295,27 +296,27 @@ export default function Schedules() {
                           <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", { accent: "bg-accent-soft text-accent", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" }[ti.tone])}>{ti.icon}</span>
                           <div>
                             <div className="whitespace-nowrap font-medium">{s.name}</div>
-                            <div className="whitespace-nowrap text-muted text-[11.5px]">{ti.label}{s.type === "snapshot" && ` · garder ${[s.keepCount ? `${s.keepCount} derniers` : "", s.keepDays ? `${s.keepDays} j` : ""].filter(Boolean).join(" / ")}`}{s.type === "smart" && ` · ${s.smartTest === "long" ? "long" : "court"}`}</div>
+                            <div className="whitespace-nowrap text-muted text-[11.5px]">{ti.label}{s.type === "snapshot" && ` · garder ${[s.keepCount ? tr("{0} derniers", s.keepCount) : "", s.keepDays ? tr("{0} j", s.keepDays) : ""].filter(Boolean).join(" / ")}`}{s.type === "smart" && ` · ${s.smartTest === "long" ? "long" : "court"}`}</div>
                           </div>
                         </div>
                       </td>
                       <td className="whitespace-nowrap text-[12.5px]">{targetLabel(s, targets.data)}</td>
                       <td className="whitespace-nowrap text-[12.5px]">{describeCron(s.cron)}</td>
                       <td className="whitespace-nowrap text-[12.5px]">
-                        {s.running ? <Badge tone="accent" dot>En cours</Badge> : last ? (
+                        {s.running ? <Badge tone="accent" dot>{tr("En cours")}</Badge> : last ? (
                           <button onClick={() => setHist(s)} className="flex items-center gap-1.5 text-left hover:underline" title={last.message}>
                             {last.status === "success" ? <CheckCircle2 size={14} className="text-ok" /> : <XCircle size={14} className="text-danger" />}
                             {ago(last.started)}
                           </button>
-                        ) : <span className="text-muted">Jamais</span>}
+                        ) : <span className="text-muted">{tr("Jamais")}</span>}
                       </td>
                       <td className="whitespace-nowrap text-[12.5px] text-muted">{s.enabled && s.nextRun ? dateTime(s.nextRun) : "—"}</td>
                       <td><Switch checked={s.enabled} onChange={() => toggle.mutate(s)} /></td>
                       <td className="text-right whitespace-nowrap">
-                        <IconButton title="Exécuter maintenant" disabled={s.running} onClick={() => run.mutate(s.id)}><Play size={15} /></IconButton>
-                        <IconButton title="Historique" onClick={() => setHist(s)}><History size={15} /></IconButton>
-                        <IconButton title="Modifier" disabled={!targets.data} onClick={() => setEdit(s)}><Edit3 size={15} /></IconButton>
-                        <IconButton title="Supprimer" className="hover:!text-danger" onClick={async () => { if (await confirm({ title: `Supprimer « ${s.name} » ?`, text: "La tâche ne s'exécutera plus. Les snapshots déjà créés sont conservés.", danger: true })) del.mutate(s.id); }}><Trash2 size={15} /></IconButton>
+                        <IconButton title={tr("Exécuter maintenant")} disabled={s.running} onClick={() => run.mutate(s.id)}><Play size={15} /></IconButton>
+                        <IconButton title={tr("Historique")} onClick={() => setHist(s)}><History size={15} /></IconButton>
+                        <IconButton title={tr("Modifier")} disabled={!targets.data} onClick={() => setEdit(s)}><Edit3 size={15} /></IconButton>
+                        <IconButton title={tr("Supprimer")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer « {0} » ?", s.name), text: tr("La tâche ne s'exécutera plus. Les snapshots déjà créés sont conservés."), danger: true })) del.mutate(s.id); }}><Trash2 size={15} /></IconButton>
                       </td>
                     </tr>
                   );
@@ -325,7 +326,7 @@ export default function Schedules() {
           </div>
         </Card>
       )}
-      <p className="mt-4 text-[12px] text-muted">Les tâches s'exécutent à l'heure locale du NAS. Une exécution manquée pendant que le NAS est éteint n'est pas rattrapée. Les échecs déclenchent une notification (Paramètres → Notifications).</p>
+      <p className="mt-4 text-[12px] text-muted">{tr("Les tâches s'exécutent à l'heure locale du NAS. Une exécution manquée pendant que le NAS est éteint n'est pas rattrapée. Les échecs déclenchent une notification (Paramètres → Notifications).")}</p>
       {edit !== undefined && targets.data && <TaskModal initial={edit} targets={targets.data} onClose={() => setEdit(undefined)} />}
       {hist && <HistoryModal s={data?.find((x) => x.id === hist.id) ?? hist} onClose={() => setHist(null)} />}
     </div>

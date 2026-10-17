@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 import { cx } from "../lib/format";
 import { InWindow } from "../desktop/context";
+import { tr } from "../lib/i18n";
 
 /* ---------- Buttons ---------- */
 
@@ -123,7 +124,7 @@ export function healthTone(h: string): "ok" | "warn" | "danger" | "neutral" {
 }
 
 const healthLabels: Record<string, string> = {
-  healthy: "Sain", degraded: "Dégradé", rebuilding: "Reconstruction", failed: "En panne", inactive: "Inactif", unmounted: "Non monté",
+  healthy: tr("Sain"), degraded: tr("Dégradé"), rebuilding: tr("Reconstruction"), failed: tr("En panne"), inactive: tr("Inactif"), unmounted: tr("Non monté"),
   running: "En cours", stopped: "Arrêté", partial: "Partiel", exited: "Arrêté", created: "Créé", paused: "En pause", restarting: "Redémarrage",
 };
 
@@ -144,7 +145,7 @@ export function Progress({ value, tone, className, indeterminate }: { value: num
 export function Spinner({ label }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-10 text-muted">
-      <Loader2 className="animate-spin" size={18} /> {label ?? "Chargement…"}
+      <Loader2 className="animate-spin" size={18} /> {label ?? tr("Chargement…")}
     </div>
   );
 }
@@ -255,7 +256,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
       <div className={cx("card my-8 flex max-h-[90vh] w-full flex-col", wide === "xl" ? "max-w-5xl" : wide ? "max-w-3xl" : "max-w-lg")}>
         <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
           <h3 className="font-semibold">{title}</h3>
-          <IconButton title="Fermer" onClick={onClose}>
+          <IconButton title={tr("Fermer")} onClick={onClose}>
             <X size={17} />
           </IconButton>
         </header>
@@ -319,9 +320,9 @@ export function UIProvider({ children }: { children: ReactNode }) {
         title={conf?.title}
         footer={
           <>
-            <Button onClick={() => close(false)}>Annuler</Button>
+            <Button onClick={() => close(false)}>{tr("Annuler")}</Button>
             <Button variant={conf?.danger ? "danger" : "primary"} disabled={!!conf?.typeToConfirm && typed !== conf.typeToConfirm} onClick={() => close(true)}>
-              {conf?.confirm ?? "Confirmer"}
+              {conf?.confirm ?? tr("Confirmer")}
             </Button>
           </>
         }
@@ -329,7 +330,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
         <div className="space-y-4 text-[13.5px]">
           <div>{conf?.text}</div>
           {conf?.typeToConfirm && (
-            <Field label={`Tapez « ${conf.typeToConfirm} » pour confirmer`}>
+            <Field label={tr("Tapez « {0} » pour confirmer", conf.typeToConfirm)}>
               <Input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
             </Field>
           )}

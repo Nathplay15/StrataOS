@@ -8,6 +8,7 @@ import type { App } from "../../lib/types";
 import { cx } from "../../lib/format";
 import { Badge, Button, Card, Field, Input, Modal, Notice, PageHeader, Spinner } from "../../components/ui";
 import { DockerGuard } from "./Containers";
+import { tr } from "../../lib/i18n";
 
 function randomSecret() {
   const a = new Uint8Array(18);
@@ -30,23 +31,23 @@ function InstallModal({ app, onClose }: { app: App; onClose: () => void }) {
   const [showCompose, setShowCompose] = useState(false);
   const install = useAction(() => api.post(`/api/apps/${app.id}/install`, { name, values }), { onDone: onClose });
   return (
-    <Modal open onClose={onClose} title={<span className="flex items-center gap-3"><AppIcon app={app} size={30} />Installer {app.name}</span>} wide footer={<>
-      <Button onClick={onClose}>Annuler</Button>
-      <Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>Installer</Button>
+    <Modal open onClose={onClose} title={<span className="flex items-center gap-3"><AppIcon app={app} size={30} />{tr("Installer")}{" "}{app.name}</span>} wide footer={<>
+      <Button onClick={onClose}>{tr("Annuler")}</Button>
+      <Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Installer")}</Button>
     </>}>
       <div className="space-y-4">
         <p className="text-muted">{app.description}</p>
-        <Field label="Nom de l'installation (stack)"><Input value={name} onChange={(e) => setName(e.target.value.toLowerCase())} /></Field>
+        <Field label={tr("Nom de l'installation (stack)")}><Input value={name} onChange={(e) => setName(e.target.value.toLowerCase())} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           {app.vars.map((v) => (
-            <Field key={v.key} label={v.label} className={v.type === "path" ? "sm:col-span-2" : ""} hint={v.type === "path" ? "Créé automatiquement. Placez-le sur un volume de données (/srv/strata/<volume>/…)." : undefined}>
+            <Field key={v.key} label={v.label} className={v.type === "path" ? "sm:col-span-2" : ""} hint={v.type === "path" ? tr("Créé automatiquement. Placez-le sur un volume de données (/srv/strata/<volume>/…).") : undefined}>
               <Input className={v.type === "path" || v.type === "password" ? "mono" : ""} value={values[v.key] ?? ""} onChange={(e) => setValues({ ...values, [v.key]: e.target.value })} />
             </Field>
           ))}
         </div>
-        <button className="text-accent text-[12.5px]" onClick={() => setShowCompose(!showCompose)}>{showCompose ? "Masquer" : "Voir"} le fichier compose</button>
+        <button className="text-accent text-[12.5px]" onClick={() => setShowCompose(!showCompose)}>{showCompose ? tr("Masquer") : tr("Voir")} {" "}{tr("le fichier compose")}</button>
         {showCompose && <pre className="mono max-h-72 overflow-auto rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{app.compose}</pre>}
-        <Notice>L'application est déployée comme une stack Compose : vous pourrez la modifier, la mettre à jour ou la supprimer depuis « Stacks Compose ».</Notice>
+        <Notice>{tr("L'application est déployée comme une stack Compose : vous pourrez la modifier, la mettre à jour ou la supprimer depuis « Stacks Compose ».")}</Notice>
       </div>
     </Modal>
   );
@@ -54,16 +55,16 @@ function InstallModal({ app, onClose }: { app: App; onClose: () => void }) {
 
 export default function AppStore() {
   const { data, isLoading } = useQuery({ queryKey: ["apps"], queryFn: () => api.get<{ apps: App[]; installed: Record<string, string>; ports: Record<string, string> }>("/api/apps") });
-  const [cat, setCat] = useState("Toutes");
+  const [cat, setCat] = useState(tr("Toutes"));
   const [search, setSearch] = useState("");
   const [install, setInstall] = useState<App | null>(null);
-  const cats = useMemo(() => ["Toutes", ...new Set((data?.apps ?? []).map((a) => a.category))], [data]);
-  const apps = (data?.apps ?? []).filter((a) => (cat === "Toutes" || a.category === cat) && (!search || (a.name + a.description).toLowerCase().includes(search.toLowerCase())));
+  const cats = useMemo(() => [tr("Toutes"), ...new Set((data?.apps ?? []).map((a) => a.category))], [data]);
+  const apps = (data?.apps ?? []).filter((a) => (cat === tr("Toutes") || a.category === cat) && (!search || (a.name + a.description).toLowerCase().includes(search.toLowerCase())));
   const host = location.hostname;
   return (
     <div>
-      <PageHeader title="App Center" subtitle="Installez des applications auto-hébergées en un clic" icon={<AppWindow size={20} />} actions={
-        <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><Input className="!w-60 !pl-9" placeholder="Rechercher une app…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+      <PageHeader title={tr("App Center")} subtitle={tr("Installez des applications auto-hébergées en un clic")} icon={<AppWindow size={20} />} actions={
+        <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><Input className="!w-60 !pl-9" placeholder={tr("Rechercher une app…")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>
       } />
       <DockerGuard>
         <div className="mb-5 flex flex-wrap gap-1.5">
@@ -87,11 +88,11 @@ export default function AppStore() {
                   <div className="flex items-center justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
                     {inst ? (
                       <>
-                        <span className="mr-auto flex items-center gap-1 text-ok text-[12.5px]"><Check size={14} /> Installée</span>
-                        {port && <a href={`http://${host}:${port}`} target="_blank" rel="noreferrer"><Button size="sm" icon={<ExternalLink size={13} />}>Ouvrir</Button></a>}
-                        <AppLink to="/docker/stacks"><Button size="sm" variant="ghost">Gérer</Button></AppLink>
+                        <span className="mr-auto flex items-center gap-1 text-ok text-[12.5px]"><Check size={14} /> {" "}{tr("Installée")}</span>
+                        {port && <a href={`http://${host}:${port}`} target="_blank" rel="noreferrer"><Button size="sm" icon={<ExternalLink size={13} />}>{tr("Ouvrir")}</Button></a>}
+                        <AppLink to="/docker/stacks"><Button size="sm" variant="ghost">{tr("Gérer")}</Button></AppLink>
                       </>
-                    ) : <Button size="sm" variant="primary" onClick={() => setInstall(a)}>Installer</Button>}
+                    ) : <Button size="sm" variant="primary" onClick={() => setInstall(a)}>{tr("Installer")}</Button>}
                   </div>
                 </Card>
               );
