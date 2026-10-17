@@ -94,6 +94,10 @@ export const serverTexts: [string, string][] = [
   ["Copie des modifications vers {0}…", "Copying the changes to {0}…"],
   ["Libération de l'adresse {0}", "Releasing address {0}"],
   ["Ce NAS ne détient pas l'adresse partagée : le secondaire est actif, rendez d'abord la main depuis le secondaire", "this NAS does not hold the shared address: the secondary is active, hand control back from it first"],
+  ["Rançongiciel suspecté : le compte {0} ({1}) sur le partage {2} : {3}. Le compte est bloqué sur les partages : vérifiez le poste, puis débloquez-le dans Antivirus", "Ransomware suspected: account {0} ({1}) on share {2}: {3}. The account is blocked on the shares: check the computer, then unblock it in Antivirus"],
+  ["Rançongiciel suspecté : le compte {0} ({1}) sur le partage {2} : {3}", "Ransomware suspected: account {0} ({1}) on share {2}: {3}"],
+  ["{0} fichiers renommés avec une extension de rançongiciel en une minute (ex. {1})", "{0} files renamed with a ransomware extension in one minute (e.g. {1})"],
+  ["{0} fichiers renommés ou supprimés en une minute", "{0} files renamed or deleted in one minute"],
   // Labels sent by the server
   ["Partage {0}", "Share {0}"],
   ["Clé d'accès", "Access key"],

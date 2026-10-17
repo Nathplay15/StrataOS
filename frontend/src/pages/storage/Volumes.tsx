@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Database, FolderPlus, Import, Plus, Plug, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Camera, Database, FolderPlus, Import, Plus, Plug, RefreshCw, ShieldCheck, Trash2, Lock } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { BlockDevice, BtrfsInfo, QuotaTarget, Volume } from "../../lib/types";
-import { bytes, cx, pct } from "../../lib/format";
+import { bytes, cx, pct, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Health, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { DiskPicker } from "../../components/DiskPicker";
 import { tr } from "../../lib/i18n";
@@ -170,7 +170,7 @@ function BtrfsPanel({ v }: { v: Volume }) {
             {snaps.map((s) => (
               <div key={s.id} className="flex items-center justify-between rounded-lg bg-panel-2 px-3 py-1.5 text-[12.5px]">
                 <span className="mono truncate">{s.path.replace(".snapshots/", "")}</span>
-                <Button size="sm" variant="ghost" className="text-danger" onClick={() => act.mutate({ action: "delete-subvolume", body: { path: s.path } })}>{tr("Supprimer")}</Button>
+                {s.lockedUntil ? <span className="inline-flex items-center gap-1 text-[12px] text-muted" title={tr("Verrouillé : impossible à supprimer avant le {0}", dateTime(s.lockedUntil * 1000))}><Lock size={13} />{dateTime(s.lockedUntil * 1000)}</span> : <Button size="sm" variant="ghost" className="text-danger" onClick={() => act.mutate({ action: "delete-subvolume", body: { path: s.path } })}>{tr("Supprimer")}</Button>}
               </div>
             ))}
           </div>

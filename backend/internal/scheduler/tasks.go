@@ -37,6 +37,9 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 		if s.KeepCount == 0 && s.KeepDays == 0 {
 			return fmt.Errorf("set a retention (number of snapshots or days) to avoid filling the volume")
 		}
+		if s.LockDays < 0 || s.LockDays > 3650 {
+			return fmt.Errorf("invalid lock duration")
+		}
 		switch s.TargetKind {
 		case "zfs":
 			if s.Target == "" || strings.ContainsAny(s.Target, "@ ") {
@@ -150,6 +153,11 @@ func zfsSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
 	if err := storage.Snapshot(s.Target, name, s.Recursive); err != nil {
 		return "", err
 	}
+	if s.LockDays > 0 {
+		if err := storage.LockZFSSnapshot(s.Target+"@"+name, time.Now().AddDate(0, 0, s.LockDays), s.Recursive); err != nil {
+			return "", fmt.Errorf("snapshot created but not locked: %w", err)
+		}
+	}
 	all, err := storage.SnapshotsOf(s.Target)
 	if err != nil {
 		return "", err
@@ -163,6 +171,9 @@ func zfsSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
 	sort.Slice(mine, func(i, j int) bool { return mine[i].Creation.After(mine[j].Creation) })
 	removed := 0
 	for _, sn := range expired(mine, func(z storage.ZSnapshot) time.Time { return z.Creation }, s.KeepCount, s.KeepDays, time.Now()) {
+		if time.Now().Before(storage.ZFSLockUntil(sn.Name)) {
+			continue // still locked: kept until its date
+		}
 		logf("Retention: destroying %s", sn.Name)
 		if err := storage.DestroyDataset(sn.Name, s.Recursive); err != nil {
 			logf("warning: %v", err)
@@ -183,6 +194,11 @@ func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (str
 	logf("Creating %s/.snapshots/%s", mp, name)
 	if _, err := storage.BtrfsSnapshot(mp, s.Subvolume, name); err != nil {
 		return "", err
+	}
+	if s.LockDays > 0 {
+		if err := storage.LockBtrfsSnapshot(mp, name, time.Now().AddDate(0, 0, s.LockDays)); err != nil {
+			return "", fmt.Errorf("snapshot created but not locked: %w", err)
+		}
 	}
 	names, err := storage.BtrfsSnapshotNames(mp)
 	if err != nil {
@@ -206,6 +222,9 @@ func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (str
 	sort.Slice(mine, func(i, j int) bool { return mine[i].at.After(mine[j].at) })
 	removed := 0
 	for _, sn := range expired(mine, func(x snap) time.Time { return x.at }, s.KeepCount, s.KeepDays, time.Now()) {
+		if time.Now().Before(storage.BtrfsLockUntil(mp, sn.name)) {
+			continue // still locked: kept until its date
+		}
 		logf("Retention: deleting .snapshots/%s", sn.name)
 		if err := storage.BtrfsDeleteSubvol(mp, ".snapshots/"+sn.name); err != nil {
 			logf("warning: %v", err)

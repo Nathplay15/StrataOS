@@ -109,6 +109,7 @@ type Schedule struct {
 	Recursive  bool   `json:"recursive,omitempty"` // zfs: include child datasets
 	KeepCount  int    `json:"keepCount,omitempty"` // retention: newest N snapshots
 	KeepDays   int    `json:"keepDays,omitempty"`  // retention: snapshots younger than N days
+	LockDays   int    `json:"lockDays,omitempty"`  // snapshots cannot be deleted for N days (immutable)
 	SmartTest  string `json:"smartTest,omitempty"` // short | long
 	// Antivirus: what to do with infected files (report | quarantine).
 	AVAction  string        `json:"avAction,omitempty"`
@@ -191,6 +192,14 @@ type HA struct {
 	PairedAt   time.Time `json:"pairedAt"`
 }
 
+// Ransomware: detection of mass renames/deletions over SMB (Samba audit log).
+type Ransomware struct {
+	Enabled   bool     `json:"enabled"`
+	Threshold int      `json:"threshold"` // renames + deletions per user per minute
+	Block     bool     `json:"block"`     // block the account and close its sessions
+	Blocked   []string `json:"blocked"`   // accounts blocked by the protection
+}
+
 // FileServices are the optional file access protocols.
 type FileServices struct {
 	WebDAV        bool `json:"webdav"`
@@ -233,6 +242,7 @@ type State struct {
 	Files     FileServices  `json:"fileServices"`
 	Directory Directory     `json:"directory"`
 	HA        HA            `json:"ha"`
+	Ransom    Ransomware    `json:"ransomware"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

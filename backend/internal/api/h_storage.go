@@ -318,6 +318,9 @@ func (s *Server) storageRoutes() {
 		if len(used) > 0 {
 			return nil, badRequest("volume is used by shares: " + strings.Join(used, ", "))
 		}
+		if v.FSType == "btrfs" && storage.BtrfsSnapshotsLocked(v.MountPoint) {
+			return nil, badRequest("this volume holds locked snapshots: it cannot be deleted before they expire")
+		}
 		// Resolve the devices before unmounting, from the filesystem UUID (never from stored names).
 		devices := storage.DevicesByUUID(v.UUID)
 		if err := storage.UnmountVolume(v.MountPoint); err != nil {
@@ -480,7 +483,8 @@ func (s *Server) storageRoutes() {
 		if !storage.ZFSAvailable() {
 			return []storage.ZDataset{}, nil
 		}
-		return storage.ListZDatasets(r.URL.Query().Get("pool"), "snapshot")
+		list, err := storage.ListZDatasets(r.URL.Query().Get("pool"), "snapshot")
+		return storage.MarkLocks(list), err
 	})
 	s.admin("POST /api/storage/zfs-datasets", func(r *http.Request) (any, error) {
 		var req storage.CreateDatasetReq

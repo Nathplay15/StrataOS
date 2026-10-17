@@ -294,6 +294,32 @@ QID=$(c GET /api/antivirus | py 'print(d["quarantine"][0]["id"])')
 check "delete from quarantine" "$(c DELETE /api/antivirus/quarantine/$QID) $(c GET /api/antivirus | py 'print(len(d["quarantine"]))')" '"ok":true} 0'
 c DELETE /api/schedules/$AV >/dev/null
 
+section "Locked snapshots and ransomware protection"
+FAST=$(c GET /api/storage/volumes | py 'print([v["id"] for v in d if v["name"]=="fast"][0])')
+LB=$(c POST /api/schedules -d "{\"name\":\"locked\",\"type\":\"snapshot\",\"targetKind\":\"btrfs\",\"target\":\"$FAST\",\"keepCount\":1,\"lockDays\":1,\"cron\":\"0 3 * * *\",\"enabled\":true}" | py 'print(d["id"])')
+check "locked Btrfs snapshot" "$(job "$(c POST /api/schedules/$LB/run)")" "success"
+LSNAP=$(c GET /api/storage/volumes/$FAST/btrfs | py 'print([s["path"] for s in d["subvolumes"] if s.get("lockedUntil")][0])')
+check "API refuses to delete it" "$(c POST /api/storage/volumes/$FAST/btrfs/delete-subvolume -d "{\"path\":\"$LSNAP\"}")" "locked until"
+check "even root cannot delete it" "$(vm "sudo btrfs subvolume delete /srv/strata/fast/$LSNAP 2>&1")" "Operation not permitted"
+check "volume with locked snapshots cannot be deleted" "$(c DELETE /api/storage/volumes/$FAST)" "locked snapshots"
+LZ=$(c POST /api/schedules -d '{"name":"lockedz","type":"snapshot","targetKind":"zfs","target":"tank/media","keepCount":1,"lockDays":1,"cron":"0 3 * * *","enabled":true}' | py 'print(d["id"])')
+check "locked ZFS snapshot" "$(job "$(c POST /api/schedules/$LZ/run)")" "success"
+ZSNAP=$(c GET /api/storage/zfs-snapshots | py 'print([s["name"] for s in d if s.get("lockedUntil")][0])')
+check "ZFS refuses to destroy it" "$(vm "sudo zfs destroy $ZSNAP 2>&1")" "being held"
+c DELETE /api/schedules/$LB >/dev/null; c DELETE /api/schedules/$LZ >/dev/null
+check "ransomware protection on" "$(c PUT /api/ransomware -d '{"enabled":true,"threshold":20,"block":true}')" '"ok":true'
+check "Samba audit enabled" "$(vm "grep -c full_audit /etc/samba/strata-shares.conf")" "1"
+CMD=""; for i in $(seq 1 30); do CMD+="put /tmp/f.txt doc$i.txt; rename doc$i.txt doc$i.txt.locked; "; done
+vm "echo x > /tmp/f.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'mkdir attack; cd attack; $CMD' >/dev/null 2>&1"
+for _ in $(seq 1 15); do c GET /api/ransomware | grep -q "$USER_NAME" && break; sleep 1; done
+check "mass encryption detected, account blocked" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
+check "blocked account refused on the shares" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "ACCESS_DENIED"
+check "ransomware alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Rançongiciel suspecté"
+c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
+check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "attack"
+c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
+vm "sudo rm -rf /srv/strata/main/Photos/attack"
+
 section "Active Directory and LDAP (test servers in containers)"
 DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
 check "directory clients installed" "$(job "$(c POST /api/system/components/directory/install)")" "success"

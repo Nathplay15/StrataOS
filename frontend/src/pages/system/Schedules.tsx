@@ -228,6 +228,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               <Field label={tr("Garder les N derniers")} hint={tr("0 = pas de limite en nombre")}><Input type="number" min={0} value={s.keepCount ?? 0} onChange={(e) => set({ keepCount: Math.max(0, +e.target.value) })} /></Field>
               <Field label={tr("Garder pendant (jours)")} hint={tr("0 = pas de limite en âge")}><Input type="number" min={0} value={s.keepDays ?? 0} onChange={(e) => set({ keepDays: Math.max(0, +e.target.value) })} /></Field>
             </div>
+            <Field label={tr("Verrouiller chaque snapshot pendant (jours)")} hint={tr("Protection anti-rançongiciel : personne ne peut supprimer un snapshot verrouillé avant la date, pas même un administrateur. 0 = pas de verrou.")}><Input type="number" min={0} max={3650} value={s.lockDays ?? 0} onChange={(e) => set({ lockDays: Math.max(0, +e.target.value) })} /></Field>
             {s.targetKind === "zfs" && <Switch checked={!!s.recursive} onChange={(v) => set({ recursive: v })} label={tr("Inclure les datasets enfants")} hint={tr("Snapshot récursif atomique (zfs snapshot -r)")} />}
             <div className="text-[12px] text-muted">{tr("Seuls les snapshots créés par cette tâche sont supprimés ; le plus récent est toujours conservé. Les snapshots manuels ne sont jamais touchés.")}</div>
           </div>

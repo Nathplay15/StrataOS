@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Camera, Download, FolderPlus, Plus, RotateCcw, ShieldCheck, Trash2, X } from "lucide-react";
+import { Boxes, Camera, Download, FolderPlus, Plus, RotateCcw, ShieldCheck, Trash2, X, Lock } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { ZDataset, ZPool } from "../../lib/types";
@@ -206,7 +206,7 @@ function Snapshots() {
                 <td className="mono">{s.name}</td><td>{dateTime((s.creation ?? 0) * 1000)}</td><td>{bytes(s.used)}</td><td>{bytes(s.refer)}</td>
                 <td className="text-right whitespace-nowrap">
                   <Button size="sm" variant="ghost" icon={<RotateCcw size={13} />} onClick={async () => { if (await confirm({ title: tr("Restaurer ce snapshot ?"), text: tr("Le dataset reviendra à cet état. Les modifications et snapshots plus récents seront perdus."), danger: true, confirm: tr("Restaurer") })) rollback.mutate(s.name); }}>{tr("Restaurer")}</Button>
-                  <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={13} />} onClick={() => destroy.mutate(s.name)} />
+                  {s.lockedUntil ? <span className="inline-flex items-center gap-1 px-2 text-[12px] text-muted" title={tr("Verrouillé : impossible à supprimer avant le {0}", dateTime(s.lockedUntil * 1000))}><Lock size={13} />{dateTime(s.lockedUntil * 1000)}</span> : <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={13} />} onClick={() => destroy.mutate(s.name)} />}
                 </td>
               </tr>
             ))}

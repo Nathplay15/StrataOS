@@ -25,6 +25,8 @@ type BtrfsSubvol struct {
 	Path     string `json:"path"`
 	Snapshot bool   `json:"snapshot"`
 	ReadOnly bool   `json:"readOnly"`
+	// LockedUntil: the snapshot cannot be deleted before this time (Unix, 0 = not locked).
+	LockedUntil int64 `json:"lockedUntil,omitempty"`
 }
 
 type BtrfsInfo struct {
@@ -111,6 +113,7 @@ func BtrfsDetail(mp string) (*BtrfsInfo, error) {
 	}
 	if out, err := sys.Run("btrfs", "subvolume", "list", "-o", "--sort=path", mp); err == nil {
 		ro := map[string]bool{}
+		locks := btrfsLocks(mp)
 		if r, err := sys.Run("btrfs", "subvolume", "list", "-r", mp); err == nil {
 			for _, l := range strings.Split(r, "\n") {
 				if i := strings.Index(l, " path "); i > 0 {
@@ -126,7 +129,11 @@ func BtrfsDetail(mp string) (*BtrfsInfo, error) {
 			}
 			id, _ := strconv.Atoi(f[1])
 			p := strings.Join(f[8:], " ")
-			info.Subvolumes = append(info.Subvolumes, BtrfsSubvol{ID: id, Path: p, ReadOnly: ro[p], Snapshot: strings.HasPrefix(p, ".snapshots/")})
+			sv := BtrfsSubvol{ID: id, Path: p, ReadOnly: ro[p], Snapshot: strings.HasPrefix(p, ".snapshots/")}
+			if t, ok := locks[strings.TrimPrefix(p, ".snapshots/")]; ok && sv.Snapshot && time.Now().Before(time.Unix(t, 0)) {
+				sv.LockedUntil = t
+			}
+			info.Subvolumes = append(info.Subvolumes, sv)
 		}
 	}
 	if out, err := sys.Run("btrfs", "scrub", "status", mp); err == nil {
@@ -191,6 +198,16 @@ func BtrfsDeleteSubvol(mp, sub string) error {
 	p, err := subvolPath(mp, sub)
 	if err != nil {
 		return err
+	}
+	rel, _ := filepath.Rel(filepath.Join(mp, ".snapshots"), p)
+	if rel != "" && !strings.HasPrefix(rel, "..") && rel != "." {
+		if until := BtrfsLockUntil(mp, rel); time.Now().Before(until) {
+			return fmt.Errorf("snapshot %s is locked until %s", rel, until.Format("2006-01-02 15:04"))
+		}
+		return withSnapshotsWritable(mp, func() error {
+			_, err := sys.Run("btrfs", "subvolume", "delete", p)
+			return err
+		})
 	}
 	_, err = sys.Run("btrfs", "subvolume", "delete", p)
 	return err

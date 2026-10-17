@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,6 +87,7 @@ type ZDataset struct {
 	Compression string `json:"compression"`
 	Quota       int64  `json:"quota"`
 	Creation    int64  `json:"creation,omitempty"`
+	LockedUntil int64  `json:"lockedUntil,omitempty"` // snapshots: not deletable before (Unix)
 }
 
 // ZFSBroken reports ZFS tools installed without a loadable kernel module, which
@@ -328,6 +330,9 @@ func DestroyZPool(name string) error {
 	if err := ValidName(name); err != nil {
 		return err
 	}
+	if ZFSPoolHasLocks(name) {
+		return fmt.Errorf("pool %s holds locked snapshots: it cannot be destroyed before they expire", name)
+	}
 	Lock.Lock()
 	defer Lock.Unlock()
 	_, err := sys.Run("zpool", "destroy", "-f", name)
@@ -492,6 +497,13 @@ func DestroyDataset(name string, recursive bool) error {
 	if !strings.Contains(name, "/") && !strings.Contains(name, "@") {
 		return fmt.Errorf("use pool deletion to destroy a pool's root dataset")
 	}
+	if strings.Contains(name, "@") {
+		if err := unlockZFSIfExpired(name, recursive); err != nil {
+			return err
+		}
+	} else if ZFSPoolHasLocks(name) {
+		return fmt.Errorf("%s holds locked snapshots: it cannot be destroyed before they expire", name)
+	}
 	args := []string{"destroy"}
 	if recursive {
 		args = append(args, "-r")
@@ -548,4 +560,24 @@ func Rollback(snapshot string) error {
 	}
 	_, err := sys.Run("zfs", "rollback", "-r", snapshot)
 	return err
+}
+
+// MarkLocks fills LockedUntil of the snapshots in list (one zfs call).
+func MarkLocks(list []ZDataset) []ZDataset {
+	out, err := sys.Run("zfs", "get", "-Hp", "-t", "snapshot", "-o", "name,value", "strata:lockuntil")
+	if err != nil {
+		return list
+	}
+	m := map[string]int64{}
+	for _, f := range tabRows(out) {
+		if len(f) >= 2 {
+			if n, err := strconv.ParseInt(f[1], 10, 64); err == nil && time.Now().Before(time.Unix(n, 0)) {
+				m[f[0]] = n
+			}
+		}
+	}
+	for i := range list {
+		list[i].LockedUntil = m[list[i].Name]
+	}
+	return list
 }

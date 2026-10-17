@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bug, CalendarClock, Plug, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { Bug, CalendarClock, Plug, RotateCcw, ShieldAlert, ShieldCheck, Trash2, Unlock } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, dateTime } from "../../lib/format";
 import { AppLink } from "../../components/AppLink";
-import { Button, Card, Empty, ErrorBox, IconButton, Notice, PageHeader, Spinner, useUI } from "../../components/ui";
+import { Button, Card, Empty, ErrorBox, Field, IconButton, Input, Notice, PageHeader, Spinner, Switch, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 
 type Item = { id: string; path: string; virus: string; size: number; date: string };
@@ -34,6 +35,7 @@ export default function Antivirus() {
           </div>
           <div className="mt-4"><Notice><span className="flex flex-wrap items-center gap-2">{tr("Les analyses se programment dans les tâches planifiées (type « Analyse antivirus »). Elles tournent en priorité basse pour ne pas ralentir le NAS.")} <AppLink to="/system/schedules"><Button size="sm" icon={<CalendarClock size={14} />}>{tr("Tâches planifiées")}</Button></AppLink></span></Notice></div>
         </Card>
+        <RansomwareCard />
         <Card title={tr("Quarantaine")} pad={false}>
           {data.quarantine.length === 0 ? <Empty icon={<Bug />} title={tr("Aucun fichier en quarantaine")} /> : (
             <table className="w-full text-[13px]">
@@ -57,5 +59,39 @@ export default function Antivirus() {
         </Card>
       </div>
     </div>
+  );
+}
+
+type Ransom = { enabled: boolean; threshold: number; block: boolean; blocked: string[] };
+
+function RansomwareCard() {
+  const { data } = useQuery({ queryKey: ["ransomware"], queryFn: () => api.get<Ransom>("/api/ransomware"), refetchInterval: 10000 });
+  const [c, setC] = useState<Ransom | null>(null);
+  useEffect(() => { if (data && !c) setC(data); }, [data, c]);
+  const save = useAction(() => api.put("/api/ransomware", c), { success: tr("Protection anti-rançongiciel enregistrée") });
+  const unblock = useAction((user: string) => api.post("/api/ransomware/unblock", { user }), { success: tr("Compte débloqué") });
+  if (!c || !data) return null;
+  const dirty = JSON.stringify({ ...c, blocked: [] }) !== JSON.stringify({ ...data, blocked: [] });
+  return (
+    <Card title={<span className="flex items-center gap-2"><ShieldAlert size={16} className="text-accent" />{tr("Protection anti-rançongiciel")}</span>} actions={<Button size="sm" variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>{tr("Enregistrer")}</Button>}>
+      <div className="space-y-4">
+        <Switch checked={c.enabled} onChange={(v) => setC({ ...c, enabled: v })} label={tr("Surveiller les partages SMB")} hint={tr("Détecte les renommages et suppressions en masse et les extensions typiques des rançongiciels (.locked, .encrypted, .wncry…)")} />
+        {c.enabled && (
+          <>
+            <Field label={tr("Seuil (fichiers renommés ou supprimés par minute et par compte)")} className="max-w-sm"><Input type="number" min={5} value={c.threshold} onChange={(e) => setC({ ...c, threshold: Math.max(5, +e.target.value) })} /></Field>
+            <Switch checked={c.block} onChange={(v) => setC({ ...c, block: v })} label={tr("Bloquer le compte et couper ses connexions")} hint={tr("Recommandé : arrête le chiffrement en cours. Le compte reste utilisable dans l'interface web.")} />
+            <div className="text-muted text-[12.5px]">{tr("Pour récupérer les fichiers, programmez des snapshots verrouillés dans les tâches planifiées : même un rançongiciel avec un compte administrateur ne peut pas les supprimer.")}</div>
+          </>
+        )}
+        {data.blocked.length > 0 && (
+          <Notice tone="warn">
+            <div className="space-y-2">
+              <div>{tr("Comptes bloqués par la protection :")}</div>
+              <div className="flex flex-wrap gap-2">{data.blocked.map((u) => <Button key={u} size="sm" icon={<Unlock size={14} />} loading={unblock.isPending} onClick={() => unblock.mutate(u)}>{tr("Débloquer {0}", u)}</Button>)}</div>
+            </div>
+          </Notice>
+        )}
+      </div>
+    </Card>
   );
 }

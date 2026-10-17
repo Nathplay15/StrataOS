@@ -329,7 +329,8 @@ func Apply(st *store.State) error {
 			if len(rw) > 0 {
 				fmt.Fprintf(&b, "   write list = %s\n", smbNames(rw))
 			}
-			if denied := smbList(sh, "none"); len(denied) > 0 {
+			denied := append(smbList(sh, "none"), st.Ransom.Blocked...)
+			if len(denied) > 0 {
 				fmt.Fprintf(&b, "   invalid users = %s\n", smbNames(denied))
 			}
 		}
@@ -338,7 +339,15 @@ func Apply(st *store.State) error {
 		if sh.RecycleBin {
 			vfs = append(vfs, "recycle")
 		}
+		if st.Ransom.Enabled {
+			vfs = append(vfs, "full_audit")
+		}
 		fmt.Fprintf(&b, "   vfs objects = %s\n", strings.Join(vfs, " "))
+		if st.Ransom.Enabled {
+			// Renames and deletions go to the journal (identifier smbd_audit),
+			// where StrataOS watches for mass encryption.
+			b.WriteString("   full_audit:prefix = %u|%I|%S\n   full_audit:success = renameat unlinkat\n   full_audit:failure = none\n   full_audit:facility = LOCAL5\n   full_audit:priority = NOTICE\n")
+		}
 		if sh.RecycleBin {
 			b.WriteString("   recycle:repository = .recycle/%U\n   recycle:keeptree = yes\n   recycle:versions = yes\n   recycle:touch = yes\n   recycle:touch_mtime = yes\n   recycle:exclude = *.tmp,~$*\n   veto files = /.recycle/\n   hide files = /.recycle/\n")
 		}

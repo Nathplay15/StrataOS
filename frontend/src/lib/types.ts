@@ -118,7 +118,7 @@ export interface BtrfsInfo {
   size: number;
   used: number;
   freeEstimated: number;
-  subvolumes: { id: number; path: string; snapshot: boolean; readOnly: boolean }[];
+  subvolumes: { id: number; path: string; snapshot: boolean; readOnly: boolean; lockedUntil?: number }[];
   scrub: string;
   balance: string;
 }
@@ -133,6 +133,7 @@ export interface ZDataset {
   compression: string;
   quota: number;
   creation?: number;
+  lockedUntil?: number;
 }
 
 export interface ZPool {
@@ -378,6 +379,7 @@ export interface Schedule {
   recursive?: boolean;
   keepCount?: number;
   keepDays?: number;
+  lockDays?: number;
   smartTest?: "short" | "long";
   createdAt?: string;
   history: ScheduleRun[];
