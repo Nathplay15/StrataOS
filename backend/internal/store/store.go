@@ -192,6 +192,11 @@ type HA struct {
 	PairedAt   time.Time `json:"pairedAt"`
 }
 
+// Photos lists the folders indexed by the Photos app.
+type Photos struct {
+	Folders []string `json:"folders"`
+}
+
 // VPN is the WireGuard server of the NAS.
 type VPN struct {
 	Enabled    bool      `json:"enabled"`
@@ -281,6 +286,7 @@ type State struct {
 	HA        HA            `json:"ha"`
 	Ransom    Ransomware    `json:"ransomware"`
 	VPN       VPN           `json:"vpn"`
+	Photos    Photos        `json:"photos"`
 	DDNS      DDNS          `json:"ddns"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`

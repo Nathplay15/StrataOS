@@ -13,6 +13,7 @@ import (
 	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strataos/internal/ha"
+	"strataos/internal/photos"
 	"strataos/internal/vpn"
 	"strings"
 	"time"
@@ -374,13 +375,14 @@ func (s *Server) systemRoutes() {
 			"antivirus": antivirus.Installed(),
 			"ha":        ha.Installed(),
 			"vpn":       vpn.Installed(),
+			"photos":    photos.Installed(),
 			"rsync":     sys.Has("rsync"),
 			"xfs":       sys.Has("mkfs.xfs"),
 		}, nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}

@@ -42,6 +42,7 @@ const DirectoryPage = lazy(() => import("./pages/system/Directory"));
 const AntivirusPage = lazy(() => import("./pages/system/Antivirus"));
 const HAPage = lazy(() => import("./pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
+const PhotosPage = lazy(() => import("./pages/Photos"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -95,6 +96,7 @@ function Root() {
             <Route path="storage/zfs" element={A(<Zfs />)} />
             <Route path="storage/lvm" element={A(<Lvm />)} />
             <Route path="files" element={<Files />} />
+            <Route path="photos" element={<PhotosPage me={me} />} />
             <Route path="shares" element={A(<Shares />)} />
             <Route path="users" element={A(<Users me={me} />)} />
             <Route path="apps" element={A(<AppStore />)} />

@@ -340,6 +340,19 @@ check "removed device cut off" "$(vm "sudo docker exec wgc ping -c1 -W2 10.8.0.1
 c PUT /api/vpn -d '{"enabled":false,"port":51820,"subnet":"10.8.0.0/24","endpoint":"172.17.0.1","lan":"10.0.2.0/24"}' >/dev/null
 vm "sudo docker rm -f wgc >/dev/null"
 
+section "Photos"
+check "photo tools installed" "$(job "$(c POST /api/system/components/photos/install)")" "success"
+vm 'sudo mkdir -p /srv/strata/main/Photos/vacances /srv/strata/tank/media/photos; for i in 1 2; do sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=1600x1200 -frames:v 1 /srv/strata/main/Photos/vacances/img$i.jpg; done; sudo touch -d "2018-05-01 12:00" /srv/strata/main/Photos/vacances/img1.jpg; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:duration=3 -pix_fmt yuv420p /srv/strata/main/Photos/vacances/clip.mp4; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=800x600 -frames:v 1 /srv/strata/tank/media/photos/secret.png'
+check "photo folders indexed" "$(job "$(c PUT /api/photos/settings -d '{"folders":["/srv/strata/main/Photos","/srv/strata/tank/media"]}')")" "success"
+check "photos and videos listed" "$(c GET /api/photos | py 'print(d["total"], sum(1 for i in d["items"] if i.get("video")))')" "4 1"
+check "date of the file kept (2018)" "$(c GET /api/photos | py 'import time; print([time.gmtime(i["date"]).tm_year for i in d["items"] if i["path"].endswith("img1.jpg")])')" "2018"
+check "photo thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code} %{content_type}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/vacances/img2.jpg")" "200 image/jpeg"
+check "video thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/vacances/clip.mp4")" "200"
+check "no thumbnail outside the index" "$(curl -s -b "$J" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/etc/passwd")" "404"
+u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}" >/dev/null
+check "users see only their shares" "$(u GET /api/photos | py 'print(d["total"], any("secret" in i["path"] for i in d["items"]))')" "3 False"
+check "no thumbnail of a forbidden share" "$(curl -s -b "$J2" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/tank/media/photos/secret.png")" "404"
+
 section "Active Directory and LDAP (test servers in containers)"
 DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
 check "directory clients installed" "$(job "$(c POST /api/system/components/directory/install)")" "success"
