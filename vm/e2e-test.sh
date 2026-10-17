@@ -320,6 +320,26 @@ check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$US
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
 
+section "VPN (WireGuard client in a container)"
+check "WireGuard installed" "$(job "$(c POST /api/system/components/vpn/install)")" "success"
+check "VPN server on" "$(c PUT /api/vpn -d '{"enabled":true,"port":51820,"subnet":"10.8.0.0/24","endpoint":"172.17.0.1","lan":"10.0.2.0/24"}')" '"ok":true'
+c POST /api/vpn/peers -d '{"name":"Test client","mode":"lan"}' | py 'print(d["config"])' > "$TMP/wg0.conf"
+check "device configuration" "$(cat "$TMP/wg0.conf")" "Endpoint = 172.17.0.1:51820"
+check "device names cannot inject configuration" "$(c POST /api/vpn/peers -d '{"name":"x\nPostUp = id","mode":"nas"}')" "invalid device name"
+./vm/vm.sh ssh 'cat > /tmp/wg0.conf; sudo docker rm -f wgc >/dev/null 2>&1; sudo docker run -d --name wgc --cap-add NET_ADMIN -v /tmp/wg0.conf:/etc/wireguard/wg0.conf:ro alpine:3.20 sh -c "apk add -q wireguard-tools iproute2 >/dev/null && wg-quick up wg0 && sleep 600" >/dev/null' < "$TMP/wg0.conf" 2>/dev/null
+# Wait for the tunnel (10.8.0.1 must be routed through wg0 and the handshake done).
+for _ in $(seq 1 40); do vm "sudo docker exec wgc ping -c1 -W1 10.8.0.1 >/dev/null; sudo docker exec wgc wg show wg0 latest-handshakes" | awk '{print $2}' | grep -qv '^0$' && break; sleep 2; done
+check "NAS reachable through the tunnel" "$(vm "sudo docker exec wgc ip route get 10.8.0.1; sudo docker exec wgc wget -q -O - http://10.8.0.1:7070/api/setup")" 'dev wg0'
+check "web interface through the tunnel" "$(vm "sudo docker exec wgc wget -q -O - http://10.8.0.1:7070/api/setup")" '"needed":false'
+check "handshake seen by the NAS" "$(c GET /api/vpn | py 'print([v["handshake"] > 0 for v in d["status"].values()])')" "True"
+PEER=$(c GET /api/vpn | py 'print(d["config"]["peers"][0]["id"])')
+check "private keys never listed" "$(c GET /api/vpn | py 'print("privateKey" in json.dumps(d))')" "False"
+c DELETE /api/vpn/peers/$PEER >/dev/null
+sleep 3
+check "removed device cut off" "$(vm "sudo docker exec wgc ping -c1 -W2 10.8.0.1 >/dev/null 2>&1 && echo up || echo down")" "down"
+c PUT /api/vpn -d '{"enabled":false,"port":51820,"subnet":"10.8.0.0/24","endpoint":"172.17.0.1","lan":"10.0.2.0/24"}' >/dev/null
+vm "sudo docker rm -f wgc >/dev/null"
+
 section "Active Directory and LDAP (test servers in containers)"
 DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
 check "directory clients installed" "$(job "$(c POST /api/system/components/directory/install)")" "success"

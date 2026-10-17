@@ -41,6 +41,7 @@ const FileServicesPage = lazy(() => import("./pages/system/FileServices"));
 const DirectoryPage = lazy(() => import("./pages/system/Directory"));
 const AntivirusPage = lazy(() => import("./pages/system/Antivirus"));
 const HAPage = lazy(() => import("./pages/system/HighAvailability"));
+const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -116,6 +117,7 @@ function Root() {
             <Route path="system/directory" element={A(<DirectoryPage />)} />
             <Route path="system/antivirus" element={A(<AntivirusPage />)} />
             <Route path="system/ha" element={A(<HAPage />)} />
+            <Route path="system/remote" element={A(<RemotePage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

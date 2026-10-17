@@ -1,8 +1,7 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
   Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon,
-  Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users,
-} from "lucide-react";
+  Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -35,6 +34,7 @@ const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
 const DirectoryPage = lazy(() => import("../pages/system/Directory"));
 const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
 const HAPage = lazy(() => import("../pages/system/HighAvailability"));
+const RemotePage = lazy(() => import("../pages/system/RemoteAccess"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -86,6 +86,7 @@ export const APPS: AppDef[] = [
       { id: "schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
       { id: "network", label: tr("Réseau"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
+      { id: "remote", label: tr("Accès à distance"), icon: <Waypoints size={16} />, component: page(RemotePage), path: "/system/remote" },
       { id: "ha", label: tr("Haute disponibilité"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },
       { id: "ups", label: tr("Onduleur"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
       { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },

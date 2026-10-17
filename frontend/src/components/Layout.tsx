@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog } from "lucide-react";
+  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
@@ -59,6 +59,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/system/schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={17} />, admin: true },
       { to: "/system/services", label: tr("Services"), icon: <Cpu size={17} />, admin: true },
       { to: "/system/network", label: tr("Réseau"), icon: <Network size={17} />, admin: true },
+      { to: "/system/remote", label: tr("Accès à distance"), icon: <Waypoints size={17} />, admin: true },
       { to: "/system/ha", label: tr("Haute disponibilité"), icon: <ServerCog size={17} />, admin: true },
       { to: "/system/ups", label: tr("Onduleur"), icon: <BatteryCharging size={17} />, admin: true },
       { to: "/system/updates", label: tr("Mises à jour"), icon: <RefreshCcw size={17} />, admin: true },

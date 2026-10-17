@@ -192,6 +192,43 @@ type HA struct {
 	PairedAt   time.Time `json:"pairedAt"`
 }
 
+// VPN is the WireGuard server of the NAS.
+type VPN struct {
+	Enabled    bool      `json:"enabled"`
+	Port       int       `json:"port"`
+	Subnet     string    `json:"subnet"`   // e.g. 10.8.0.0/24
+	Endpoint   string    `json:"endpoint"` // public name or address devices connect to
+	LAN        string    `json:"lan"`      // local network reachable in "lan" mode, e.g. 192.168.1.0/24
+	PrivateKey string    `json:"privateKey,omitempty"`
+	PublicKey  string    `json:"publicKey"`
+	Peers      []VPNPeer `json:"peers"`
+}
+
+// VPNPeer is a device allowed to connect.
+type VPNPeer struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Mode         string    `json:"mode"` // nas | lan | all
+	IP           string    `json:"ip"`
+	PublicKey    string    `json:"publicKey"`
+	PrivateKey   string    `json:"privateKey,omitempty"`
+	PresharedKey string    `json:"presharedKey,omitempty"`
+	Disabled     bool      `json:"disabled"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// DDNS keeps a host name pointing at the public address.
+type DDNS struct {
+	Provider   string    `json:"provider"` // "" | duckdns | cloudflare | dynv6 | custom
+	Hostname   string    `json:"hostname"`
+	Token      string    `json:"token,omitempty"`
+	ZoneID     string    `json:"zoneId,omitempty"`
+	URL        string    `json:"url,omitempty"` // custom: update URL with {ip}
+	LastIP     string    `json:"lastIp"`
+	LastUpdate time.Time `json:"lastUpdate"`
+	LastResult string    `json:"lastResult"`
+}
+
 // Ransomware: detection of mass renames/deletions over SMB (Samba audit log).
 type Ransomware struct {
 	Enabled   bool     `json:"enabled"`
@@ -243,6 +280,8 @@ type State struct {
 	Directory Directory     `json:"directory"`
 	HA        HA            `json:"ha"`
 	Ransom    Ransomware    `json:"ransomware"`
+	VPN       VPN           `json:"vpn"`
+	DDNS      DDNS          `json:"ddns"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`
