@@ -285,7 +285,7 @@ vm "printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE
 AV=$(c POST /api/schedules -d '{"name":"AV","type":"antivirus","target":"/srv/strata/main/Photos","avAction":"quarantine","cron":"0 2 * * *","enabled":true}' | py 'print(d["id"])')
 job "$(c POST /api/schedules/$AV/run)" >/dev/null
 check "virus found" "$(c GET /api/schedules | py '[print(s["history"][0]["message"]) for s in d if s["id"]=="'$AV'"]')" "Eicar-Test-Signature"
-check "infected file moved to quarantine" "$(vm "ls /srv/strata/main/Photos/eicar.com 2>&1")" "No such file"
+check "infected file moved to quarantine" "$(vm "sudo ls /srv/strata/main/Photos/eicar.com 2>&1")" "No such file"
 check "alert logged" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "infecté"
 QID=$(c GET /api/antivirus | py 'print(d["quarantine"][0]["id"])')
 check "restore from quarantine" "$(c POST /api/antivirus/quarantine/$QID/restore)" "/srv/strata/main/Photos/eicar.com"
