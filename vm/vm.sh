@@ -125,7 +125,7 @@ qemu_start() {
     -monitor "unix:$MONITOR,server,nowait"
     -pidfile "$PIDFILE" -daemonize
   )
-  # Disks 1-6: SATA (AHCI) so that SMART queries work like on real hardware; 7+: virtio.
+  # Disks 1-6: SATA (AHCI) so that SMART queries work like on real hardware; 7-8: virtio; 9: SSD.
   # Every disk created with the VM is attached, whatever VM_DISKS is now.
   local n
   for n in $(ls "$STATE" | sed -n 's/^data\([0-9]*\)\.qcow2$/\1/p' | sort -n); do
@@ -134,6 +134,10 @@ qemu_start() {
     args+=(-drive "file=$STATE/data$i.qcow2,if=none,id=data$i,format=qcow2")
     if [ "$i" -le 6 ]; then
       args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200")
+    elif [ "$i" -eq 9 ]; then
+      # Disk 9: an SSD (non-rotational), for the SSD cache tests.
+      [ -n "${scsi:-}" ] || { args+=(-device virtio-scsi-pci,id=scsi0); scsi=1; }
+      args+=(-device "scsi-hd,drive=data$i,bus=scsi0.0,serial=STRATA-SSD-1,rotation_rate=1")
     else
       args+=(-device "virtio-blk-pci,drive=data$i,serial=STRATA-VD-$i")
     fi

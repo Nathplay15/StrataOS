@@ -160,6 +160,32 @@ func (s *Server) storageRoutes() {
 		s.audit(r, "storage", "Deleted volume group "+r.PathValue("vg"))
 		return nil, nil
 	})
+	// SSD cache of a logical volume (attached and removed while mounted).
+	s.admin("POST /api/storage/lvm/{vg}/lv/{lv}/cache", func(r *http.Request) (any, error) {
+		var req struct {
+			Device string `json:"device"`
+			Mode   string `json:"mode"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		vg, lv := r.PathValue("vg"), r.PathValue("lv")
+		if req.Mode == "" {
+			req.Mode = "writethrough"
+		}
+		s.audit(r, "storage", fmt.Sprintf("SSD cache %s (%s) added to %s/%s", req.Device, req.Mode, vg, lv))
+		return s.jobs.Start("storage", "Cache SSD pour "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			return storage.AttachCache(vg, lv, req.Device, req.Mode)
+		}), nil
+	})
+	s.admin("DELETE /api/storage/lvm/{vg}/lv/{lv}/cache", func(r *http.Request) (any, error) {
+		vg, lv := r.PathValue("vg"), r.PathValue("lv")
+		s.audit(r, "storage", "SSD cache removed from "+vg+"/"+lv)
+		return s.jobs.Start("storage", "Retrait du cache SSD de "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Copie des données en attente vers les disques, puis retrait du cache…")
+			return storage.DetachCache(vg, lv)
+		}), nil
+	})
 	s.admin("POST /api/storage/lvm/{vg}/lv", func(r *http.Request) (any, error) {
 		var req storage.CreateLVReq
 		if err := decode(r, &req); err != nil {

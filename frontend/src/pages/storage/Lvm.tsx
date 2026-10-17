@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Expand, Plus, Server, Trash2 } from "lucide-react";
+import { Camera, Expand, Plus, Server, Trash2, Zap } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { VG } from "../../lib/types";
@@ -66,6 +66,9 @@ export default function Lvm() {
   const [extend, setExtend] = useState<VG | null>(null);
   const [extDev, setExtDev] = useState<string[]>([]);
   const [resize, setResize] = useState<{ vg: string; lv: string; size: string } | null>(null);
+  const [cache, setCache] = useState<{ vg: string; lv: string; dev: string[]; mode: string } | null>(null);
+  const addCache = useAction((c: { vg: string; lv: string; device: string; mode: string }) => api.post(`/api/storage/lvm/${c.vg}/lv/${c.lv}/cache`, { device: c.device, mode: c.mode }));
+  const delCache = useAction((c: { vg: string; lv: string }) => api.del(`/api/storage/lvm/${c.vg}/lv/${c.lv}/cache`));
   const { data, isLoading, error } = useQuery({ queryKey: ["lvm"], queryFn: () => api.get<VG[]>("/api/storage/lvm") });
   const delVG = useAction((n: string) => api.del(`/api/storage/lvm/${n}`), { success: tr("Groupe supprimé") });
   const delLV = useAction((p: { vg: string; lv: string }) => api.del(`/api/storage/lvm/${p.vg}/lv/${p.lv}`), { success: tr("Volume logique supprimé") });
@@ -97,11 +100,24 @@ export default function Lvm() {
                     <tbody>
                       {vg.lvs.map((lv) => (
                         <tr key={lv.name}>
-                          <td><span className="mono">{lv.name}</span>{lv.snapshot && <span className="ml-2"><Badge tone="accent">{tr("snapshot de")}{" "}{lv.origin}</Badge></span>}</td>
+                          <td>
+                            <span className="mono">{lv.name}</span>{lv.snapshot && <span className="ml-2"><Badge tone="accent">{tr("snapshot de")}{" "}{lv.origin}</Badge></span>}
+                            {lv.cache && (
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted">
+                                <Badge tone="ok"><Zap size={11} className="mr-1 inline" />{tr("Cache SSD")} · {lv.cache.mode === "writeback" ? tr("écriture différée") : tr("écriture immédiate")}</Badge>
+                                <span>{lv.cache.device}</span>
+                                <span>{tr("{0} % rempli", lv.cache.usedPercent.toFixed(0))}</span>
+                                {lv.cache.readHits + lv.cache.readMisses > 0 && <span>{tr("{0} % des lectures servies par le SSD", Math.round((lv.cache.readHits * 100) / (lv.cache.readHits + lv.cache.readMisses)))}</span>}
+                              </div>
+                            )}
+                          </td>
                           <td>{bytes(lv.size)}</td><td>{lv.type}</td><td>{lv.fsType || <span className="text-muted">vide</span>}</td>
                           <td className="text-right whitespace-nowrap">
                             <Button size="sm" variant="ghost" onClick={() => setResize({ vg: vg.name, lv: lv.name, size: "" })}>{tr("Agrandir")}</Button>
                             {!lv.snapshot && <Button size="sm" variant="ghost" icon={<Camera size={13} />} onClick={() => snap.mutate({ vg: vg.name, lv: lv.name })} />}
+                            {!lv.snapshot && (lv.cache
+                              ? <Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Retirer le cache SSD ?"), text: tr("Les données en attente sont d'abord copiées sur les disques ; le volume reste utilisable pendant l'opération.") })) delCache.mutate({ vg: vg.name, lv: lv.name }); }}>{tr("Retirer le cache")}</Button>
+                              : <Button size="sm" variant="ghost" icon={<Zap size={13} />} onClick={() => setCache({ vg: vg.name, lv: lv.name, dev: [], mode: "writethrough" })}>{tr("Cache SSD")}</Button>)}
                             <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={13} />} onClick={async () => { if (await confirm({ title: tr("Supprimer {0} ?", lv.name), text: tr("Les données du volume logique seront perdues."), danger: true, typeToConfirm: lv.name })) delLV.mutate({ vg: vg.name, lv: lv.name }); }} />
                           </td>
                         </tr>
@@ -115,6 +131,24 @@ export default function Lvm() {
         </div>
       )}
       {create && <CreateVG onClose={() => setCreate(false)} />}
+      <Modal open={!!cache} onClose={() => setCache(null)} title={tr("Cache SSD pour {0}", cache?.lv)} wide footer={<>
+        <Button onClick={() => setCache(null)}>{tr("Annuler")}</Button>
+        <Button variant="primary" disabled={cache?.dev.length !== 1} onClick={() => { addCache.mutate({ vg: cache!.vg, lv: cache!.lv, device: cache!.dev[0], mode: cache!.mode }); setCache(null); }}>{tr("Ajouter le cache")}</Button>
+      </>}>
+        {cache && (
+          <div className="space-y-4">
+            <p className="text-muted text-[13px]">{tr("Un SSD libre accélère le volume : les données souvent lues y sont gardées. Il s'ajoute et se retire sans arrêter le volume. Pour un volume sur une grappe RAID, créez d'abord un groupe LVM sur la grappe.")}</p>
+            <DiskPicker value={cache.dev} onChange={(v) => setCache({ ...cache, dev: v.slice(-1) })} includeVirtual single />
+            <Field label={tr("Mode")}>
+              <Select value={cache.mode} onChange={(e) => setCache({ ...cache, mode: e.target.value })}>
+                <option value="writethrough">{tr("Écriture immédiate (recommandé) : accélère les lectures, sans risque")}</option>
+                <option value="writeback">{tr("Écriture différée : accélère aussi les écritures")}</option>
+              </Select>
+            </Field>
+            {cache.mode === "writeback" && <Notice tone="warn">{tr("En écriture différée, les données pas encore recopiées sur les disques sont perdues si le SSD tombe en panne. Utilisez un SSD fiable, idéalement en miroir.")}</Notice>}
+          </div>
+        )}
+      </Modal>
       {newLV && <CreateLV vg={newLV} onClose={() => setNewLV(null)} />}
       <Modal open={!!extend} onClose={() => setExtend(null)} title={tr("Étendre {0}", extend?.name)} footer={<>
         <Button onClick={() => setExtend(null)}>{tr("Annuler")}</Button>

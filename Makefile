@@ -46,7 +46,7 @@ test:
 # security, notifications, Docker, scheduled tasks, reboot, missing disks, RAID and ZFS rebuild.
 vm-test: deb
 	./vm/vm.sh destroy
-	VM_DISKS=8 ./vm/vm.sh create
+	VM_DISKS=9 ./vm/vm.sh create
 	./vm/vm.sh deploy dist/strataos_$(VERSION)_$(ARCH).deb
 	bash -c 'set -o pipefail; ./vm/e2e-test.sh | tee vm/last-test.log'
 

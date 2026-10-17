@@ -38,7 +38,7 @@ check "first admin can use sudo" "$(vm "id $ADMIN_USER")" "(sudo)"
 check "setup cannot run twice" "$(c POST /api/setup -d '{"username":"x","password":"xxxxxxxxx"}')" "already"
 check "bad password rejected" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"wrong\"}")" "invalid"
 check "cross-origin write rejected" "$(curl -s -b "$J" -X POST -H 'Origin: http://evil.test' $B/api/groups -d '{"name":"x"}')" "cross-origin"
-check "disks detected" "$(c GET /api/storage/disks | py 'print(sum(1 for x in d if x["usage"]=="free"))')" "8"
+check "disks detected" "$(c GET /api/storage/disks | py 'print(sum(1 for x in d if x["usage"]=="free"))')" "9"
 
 section "Storage"
 # Kernel names (/dev/sdX) change with the number of disks and between boots: use serials.
@@ -50,6 +50,12 @@ check "btrfs RAID1 volume" "$(job "$(c POST /api/storage/volumes -d '{"name":"fa
 check "volumes mounted" "$(c GET /api/storage/volumes | py 'print(sorted(v["name"] for v in d if v["mounted"]))')" "['fast', 'main']"
 check "LVM group" "$(c POST /api/storage/lvm -d '{"name":"vg0","devices":["'"$H6"'"]}')" '"ok":true'
 check "LVM volume" "$(c POST /api/storage/lvm/vg0/lv -d '{"name":"lv0","size":1073741824}')" '"ok":true'
+SSD=$(dev STRATA-SSD-1)
+check "SSD seen as non-rotational" "$(c GET /api/storage/disks | py "print([x['rotational'] for x in d if x['serial']=='STRATA-SSD-1'][0])")" "False"
+check "SSD cache attached" "$(job "$(c POST /api/storage/lvm/vg0/lv/lv0/cache -d '{"device":"'"$SSD"'","mode":"writethrough"}')")" "success"
+check "cache listed" "$(c GET /api/storage/lvm | py 'print([(l["cache"]["mode"], l["cache"]["device"]) for g in d for l in g["lvs"] if l.get("cache")])')" "('writethrough', '$SSD')"
+check "SSD cache removed" "$(job "$(c DELETE /api/storage/lvm/vg0/lv/lv0/cache)")" "success"
+check "SSD free again" "$(c GET /api/storage/disks | py "print([x['usage'] for x in d if x['serial']=='STRATA-SSD-1'][0])")" "free"
 check "LVM cleanup" "$(c DELETE /api/storage/lvm/vg0/lv/lv0; c DELETE /api/storage/lvm/vg0)" '{"ok":true}'
 check "refuses system disk" "$(c POST /api/storage/disks/wipe -d '{"device":"/dev/vda"}')" "system disk"
 

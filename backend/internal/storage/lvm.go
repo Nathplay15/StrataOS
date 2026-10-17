@@ -27,16 +27,17 @@ type VG struct {
 }
 
 type LV struct {
-	Name     string `json:"name"`
-	VG       string `json:"vg"`
-	Path     string `json:"path"`
-	Size     int64  `json:"size"`
-	Attr     string `json:"attr"`
-	Type     string `json:"type"`
-	Origin   string `json:"origin,omitempty"`
-	DataPct  string `json:"dataPercent,omitempty"`
-	FSType   string `json:"fsType,omitempty"`
-	Snapshot bool   `json:"snapshot"`
+	Name     string     `json:"name"`
+	VG       string     `json:"vg"`
+	Path     string     `json:"path"`
+	Size     int64      `json:"size"`
+	Attr     string     `json:"attr"`
+	Type     string     `json:"type"`
+	Origin   string     `json:"origin,omitempty"`
+	DataPct  string     `json:"dataPercent,omitempty"`
+	FSType   string     `json:"fsType,omitempty"`
+	Snapshot bool       `json:"snapshot"`
+	Cache    *CacheInfo `json:"cache,omitempty"`
 }
 
 func lvmReport(cmd string, fields string) ([]map[string]string, error) {
@@ -91,6 +92,9 @@ func ListLVM() ([]VG, error) {
 			lv.Snapshot = strings.HasPrefix(lv.Attr, "s")
 			if lv.Path != "" {
 				lv.FSType, _, _ = Probe(lv.Path)
+			}
+			if lv.Type == "cache" {
+				lv.Cache = LVCache(vg.Name, lv.Name)
 			}
 			vg.LVs = append(vg.LVs, lv)
 		}

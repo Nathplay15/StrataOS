@@ -158,7 +158,7 @@ export interface VG {
   pvCount: number;
   lvCount: number;
   pvs: { name: string; vg: string; size: number; free: number }[];
-  lvs: { name: string; vg: string; path: string; size: number; attr: string; type: string; origin?: string; fsType?: string; snapshot: boolean }[];
+  lvs: { name: string; vg: string; path: string; size: number; attr: string; type: string; origin?: string; fsType?: string; snapshot: boolean; cache?: LVCache }[];
 }
 
 export interface User {
@@ -463,3 +463,5 @@ export type ShareLink = {
   expires?: string; maxDownloads?: number; downloads: number; uploads: number; created: string; lastUsed?: string;
   password: boolean; name: string;
 };
+
+export type LVCache = { mode: string; device?: string; usedPercent: number; dirtyBlocks: number; readHits: number; readMisses: number; writeHits: number; writeMisses: number };
