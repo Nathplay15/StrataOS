@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { ArrowRight, Lock, ShieldCheck } from "lucide-react";
+import { Lock, ShieldCheck } from "lucide-react";
 import logo from "../logo.svg";
 import { api, ApiError } from "../lib/api";
 import type { Me } from "../lib/types";
@@ -77,75 +77,6 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
         <Button variant="primary" className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
           {needCode ? tr("Vérifier") : tr("Se connecter")}
         </Button>
-      </form>
-    </Shell>
-  );
-}
-
-export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) => void }) {
-  const [step, setStep] = useState(0);
-  const [f, setF] = useState({ username: "", fullName: "", password: "", confirm: "", hostname, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris" });
-  const [err, setErr] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (step === 0) return setStep(1);
-    if (f.password !== f.confirm) return setErr(new Error(tr("Les mots de passe ne correspondent pas")));
-    setBusy(true);
-    setErr(null);
-    try {
-      onDone(await api.post<Me>("/api/setup", { username: f.username.toLowerCase(), fullName: f.fullName, password: f.password, hostname: f.hostname, timezone: f.timezone }));
-    } catch (e) {
-      setErr(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Shell subtitle={tr("Bienvenue ! Configurons votre NAS.")}>
-      <form onSubmit={submit} className="space-y-4">
-        <div className="mb-2 flex gap-2">
-          {[0, 1].map((i) => (
-            <div key={i} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-accent" : "bg-line"}`} />
-          ))}
-        </div>
-        {step === 0 ? (
-          <>
-            <h2 className="font-semibold">{tr("Votre serveur")}</h2>
-            <Field label={tr("Nom du NAS")} hint={tr("Visible sur le réseau (SMB, mDNS)")}>
-              <Input value={f.hostname} onChange={set("hostname")} />
-            </Field>
-            <Field label={tr("Fuseau horaire")}>
-              <Input value={f.timezone} onChange={set("timezone")} />
-            </Field>
-          </>
-        ) : (
-          <>
-            <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Compte administrateur")}</h2>
-            <Field label={tr("Nom d'utilisateur")} hint={tr("Lettres minuscules, chiffres, - et _")}>
-              <Input autoFocus value={f.username} onChange={set("username")} />
-            </Field>
-            <Field label={tr("Nom complet")}>
-              <Input value={f.fullName} onChange={set("fullName")} />
-            </Field>
-            <Field label={tr("Mot de passe")} hint={tr("8 caractères minimum. Sert aussi pour SMB et SSH.")}>
-              <Input type="password" autoComplete="new-password" value={f.password} onChange={set("password")} />
-            </Field>
-            <Field label={tr("Confirmation")}>
-              <Input type="password" autoComplete="new-password" value={f.confirm} onChange={set("confirm")} />
-            </Field>
-          </>
-        )}
-        <ErrorBox error={err} />
-        <div className="flex gap-2">
-          {step === 1 && <Button type="button" onClick={() => setStep(0)}>{tr("Retour")}</Button>}
-          <Button variant="primary" className="flex-1" loading={busy} type="submit" icon={<ArrowRight size={15} />} disabled={step === 1 && (!f.username || f.password.length < 8)}>
-            {step === 0 ? tr("Continuer") : tr("Terminer l'installation")}
-          </Button>
-        </div>
       </form>
     </Shell>
   );

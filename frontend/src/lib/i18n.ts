@@ -5,6 +5,12 @@ import { serverTexts } from "../i18n/server";
 
 export type Lang = "fr" | "en";
 
+/** Languages offered in the interface, with their own name. */
+export const languages: { id: Lang; name: string }[] = [
+  { id: "fr", name: "Français" },
+  { id: "en", name: "English" },
+];
+
 function initial(): Lang {
   try {
     const saved = localStorage.getItem("strata-lang");
