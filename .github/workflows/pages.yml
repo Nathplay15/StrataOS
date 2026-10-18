@@ -1,0 +1,64 @@
+# Publishes the StrataOS website on GitHub Pages: a download page and the
+# signed APT repository (/apt) that installed systems update from. It runs
+# after each release (called by release.yml) and can be started by hand.
+# Needs: Settings → Pages → Source "GitHub Actions", and the repository
+# secret APT_SIGNING_KEY (the armored private archive key, see
+# docs/DEVELOPMENT.md).
+name: Pages
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Packages of every release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          for t in $(gh release list --limit 100 --exclude-drafts --exclude-pre-releases --json tagName -q '.[].tagName'); do
+            gh release download "$t" --pattern '*.deb' --dir dist --skip-existing
+          done
+          ls dist
+
+      - name: Signed APT repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          test -n "$APT_SIGNING_KEY" || { echo "the APT_SIGNING_KEY secret is missing"; exit 1; }
+          sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils >/dev/null
+          ./packaging/make-repo.sh
+
+      - name: Site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(gh release view --json tagName -q .tagName | sed 's/^v//')
+          mkdir -p site
+          cp -r dist/apt site/apt
+          sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" packaging/pages/index.html > site/index.html
+          touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

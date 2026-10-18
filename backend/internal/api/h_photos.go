@@ -54,7 +54,7 @@ func (s *Server) runPhotoIndex(user string) (jobs.Snapshot, error) {
 	if photos.Default.Running() {
 		return jobs.Snapshot{}, &Error{Status: http.StatusConflict, Msg: "indexing already running"}
 	}
-	return s.jobs.Start("photos", "Indexation des photos", user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("photos", "Photo indexing", user, func(ctx context.Context, j *jobs.Job) error {
 		_, err := photos.Default.Scan(ctx, s.photoFolders(), j.Logf)
 		return err
 	}), nil

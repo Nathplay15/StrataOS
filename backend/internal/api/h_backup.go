@@ -75,7 +75,7 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("backup", "Sauvegarde : "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("backup", "Backup: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(key)
 		start := time.Now()
 		var msg string
@@ -161,7 +161,7 @@ func (s *Server) backupRoutes() {
 			for _, sh := range st.Shares {
 				if !seen[sh.Path] {
 					seen[sh.Path] = true
-					folders = append(folders, src{sh.Path, "Partage " + sh.Name})
+					folders = append(folders, src{sh.Path, "Share " + sh.Name})
 				}
 			}
 			for _, v := range st.Volumes {
@@ -303,7 +303,7 @@ func (s *Server) backupRoutes() {
 			return nil, notFound("backup not found")
 		}
 		s.audit(r, "backup", "Restoring "+t.Name+" snapshot "+req.Snapshot+" to "+req.Target)
-		return s.jobs.Start("restore", "Restauration : "+t.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("restore", "Restore: "+t.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			msg, err := backup.Restore(ctx, t, req.Snapshot, req.Include, req.Target, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 			if err == nil {
 				j.Logf("%s", msg)

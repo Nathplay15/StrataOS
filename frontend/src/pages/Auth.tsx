@@ -52,30 +52,30 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
     }
   };
   return (
-    <Shell subtitle={tr("Connexion à {0}", hostname)}>
+    <Shell subtitle={tr("Connecting to {0}", hostname)}>
       <form onSubmit={submit} className="space-y-4">
         {!needCode ? (
           <>
-            <Field label={tr("Nom d'utilisateur")}>
+            <Field label={tr("Username")}>
               <Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
             </Field>
-            <Field label={tr("Mot de passe")}>
+            <Field label={tr("Password")}>
               <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
-            <Checkbox checked={remember} onChange={setRemember} label={<span className="text-[13px] text-muted">{tr("Rester connecté 30 jours")}</span>} />
+            <Checkbox checked={remember} onChange={setRemember} label={<span className="text-[13px] text-muted">{tr("Stay signed in for 30 days")}</span>} />
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 font-medium"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Double authentification")}</div>
-            <Field label={tr("Code de votre application d'authentification")} hint={tr("6 chiffres, ou un code de secours (xxxxx-xxxxx)")}>
+            <div className="flex items-center gap-2 font-medium"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Two-factor authentication")}</div>
+            <Field label={tr("Code from your authenticator app")} hint={tr("6 digits, or a recovery code (xxxxx-xxxxx)")}>
               <Input autoFocus inputMode="numeric" autoComplete="one-time-code" className="mono text-center text-[18px] tracking-[0.3em]" value={code} onChange={(e) => setCode(e.target.value)} />
             </Field>
-            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={() => { setNeedCode(false); setErr(null); }}>{tr("← Revenir")}</button>
+            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={() => { setNeedCode(false); setErr(null); }}>{tr("← Back")}</button>
           </>
         )}
         <ErrorBox error={err} />
         <Button variant="primary" className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
-          {needCode ? tr("Vérifier") : tr("Se connecter")}
+          {needCode ? tr("Check") : tr("Sign in")}
         </Button>
       </form>
     </Shell>

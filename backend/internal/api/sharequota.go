@@ -55,18 +55,18 @@ func (s *Server) checkShareQuotas() {
 		full := sh.QuotaBlock && float64(used) >= limit
 		switch {
 		case pct >= 100 && prev < 100:
-			msg := fmt.Sprintf("Le dossier partagé %s a atteint son quota (%.1f Go sur %.1f Go)", sh.Name, float64(used)/1e9, sh.QuotaGB)
+			msg := fmt.Sprintf("Shared folder %s reached its quota (%.1f GB of %.1f GB)", sh.Name, float64(used)/1e9, sh.QuotaGB)
 			if sh.QuotaBlock {
-				msg += " : il passe en lecture seule jusqu'à ce que de la place soit libérée"
+				msg += ": it is read-only until space is freed"
 			}
 			s.store.Log("error", "quota", "", msg)
-			s.notify("Quota atteint", msg)
+			s.notify("Quota reached", msg)
 		case pct >= 90 && prev < 90:
-			msg := fmt.Sprintf("Le dossier partagé %s est plein à %.0f %% de son quota (%.1f Go sur %.1f Go)", sh.Name, pct, float64(used)/1e9, sh.QuotaGB)
+			msg := fmt.Sprintf("Shared folder %s is %.0f%% of its quota (%.1f GB of %.1f GB)", sh.Name, pct, float64(used)/1e9, sh.QuotaGB)
 			s.store.Log("warning", "quota", "", msg)
-			s.notify("Quota presque atteint", msg)
+			s.notify("Quota almost reached", msg)
 		case !full && sh.QuotaFull:
-			s.store.Log("info", "quota", "", fmt.Sprintf("Le dossier partagé %s est de nouveau sous son quota : écriture rétablie", sh.Name))
+			s.store.Log("info", "quota", "", fmt.Sprintf("Shared folder %s is under its quota again: writing restored", sh.Name))
 		}
 		_ = s.store.Update(func(st *store.State) error {
 			if x := st.Share(sh.Name); x != nil {

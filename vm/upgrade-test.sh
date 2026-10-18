@@ -13,7 +13,7 @@ OLD_REF=${OLD_REF:-$(git describe --tags --abbrev=0 2>/dev/null)}
 export VM_STATE=$PWD/vm/state-up VM_HOSTNAME=strata-up VM_WEB_PORT=7100 VM_SSH_PORT=2252 VM_HTTPS_PORT=7473 \
   VM_SMB_PORT=4480 SEED_PORT=8749 VM_EXTRA_PORTS="" VM_DISKS=3
 B=http://localhost:7100
-ADMIN_USER=nathan ADMIN_PASS=Strata-Test-2026 USER_NAME=alice USER_PASS=Alice-Pass-1
+ADMIN_USER=admin ADMIN_PASS=Strata-Test-2026 USER_NAME=alice USER_PASS=Alice-Pass-1
 J=$(mktemp) J2=$(mktemp) OLD=$(mktemp -d)
 trap 'rm -f "$J" "$J2"; git worktree remove --force "$OLD/src" >/dev/null 2>&1; rm -rf "$OLD"' EXIT
 FAILS=0 PASSES=0
@@ -51,8 +51,8 @@ check "ext4 volume" "$(job "$(c POST /api/storage/volumes -d "{\"name\":\"main\"
 check "btrfs volume" "$(job "$(c POST /api/storage/volumes -d "{\"name\":\"fast\",\"fsType\":\"btrfs\",\"devices\":[\"$(dev STRATA-HDD-2)\"],\"dataProfile\":\"single\"}")")" "success"
 c POST /api/users -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\",\"role\":\"user\"}" >/dev/null
 c POST /api/shares -d "{\"name\":\"Docs\",\"path\":\"/srv/strata/main/Docs\",\"smb\":true,\"browseable\":true,\"recycleBin\":true,\"quotaGb\":5,\"permissions\":{\"$USER_NAME\":\"rw\"}}" >/dev/null
-echo "contrat signé" > "$J.f"
-curl -s -b "$J" -H 'X-Strata: 1' -F "f=@$J.f;filename=contrat.txt" "$B/api/files/upload?path=/srv/strata/main/Docs" >/dev/null
+echo "signed contract" > "$J.f"
+curl -s -b "$J" -H 'X-Strata: 1' -F "f=@$J.f;filename=contract.txt" "$B/api/files/upload?path=/srv/strata/main/Docs" >/dev/null
 VID=$(c GET /api/storage/volumes | py 'print([v["id"] for v in d if v["name"]=="fast"][0])')
 SID=$(c POST /api/schedules -d "{\"name\":\"snap\",\"type\":\"snapshot\",\"cron\":\"0 3 * * *\",\"enabled\":true,\"targetKind\":\"btrfs\",\"target\":\"$VID\",\"keepCount\":3}" | py 'print(d["id"])')
 check "snapshot task" "$(job "$(c POST /api/schedules/$SID/run)")" "success"
@@ -70,7 +70,7 @@ check "session kept" "$(c GET /api/me)" "\"username\":\"$ADMIN_USER\""
 check "user can still sign in" "$(u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}")" '"username":"alice"'
 check "volumes mounted" "$(c GET /api/storage/volumes | py 'print(sorted(v["name"] for v in d if v["mounted"]))')" "['fast', 'main']"
 check "share and quota kept" "$(c GET /api/shares | py 'print([(s["name"], s.get("quotaGb")) for s in d])')" "('Docs', 5"
-check "file reachable over SMB" "$(vm "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq smbclient >/dev/null 2>&1; smbclient //localhost/Docs -U '$USER_NAME%$USER_PASS' -c 'get contrat.txt /tmp/c.txt' >/dev/null 2>&1; cat /tmp/c.txt")" "contrat signé"
+check "file reachable over SMB" "$(vm "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq smbclient >/dev/null 2>&1; smbclient //localhost/Docs -U '$USER_NAME%$USER_PASS' -c 'get contract.txt /tmp/c.txt' >/dev/null 2>&1; cat /tmp/c.txt")" "signed contract"
 check "settings kept" "$(c GET /api/settings | py 'print(d.get("monthlyReport"), d.get("webhookUrl"))')" "True http://127.0.0.1:9/hook"
 check "scheduled task kept" "$(c GET /api/schedules | py 'print([s["name"] for s in d])')" "snap"
 check "snapshot task after upgrade" "$(job "$(c POST /api/schedules/$SID/run)")" "success"

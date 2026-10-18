@@ -1,8 +1,10 @@
 #!/bin/bash
-# Boots the Raspberry Pi image in an emulated arm64 machine (QEMU "virt": the
-# Raspberry Pi firmware itself cannot be emulated, so the kernel and
-# initramfs of the image are started directly) and checks the first boot:
-# system partition grown, SSH keys generated, StrataOS answering, setup.
+# Boots the Raspberry Pi image in an emulated machine and checks the first
+# boot: system partition grown, StrataOS answering, setup. The Raspberry Pi
+# firmware itself cannot be emulated, so the kernel and initramfs of the
+# image are started directly, in a generic arm64 machine (QEMU "virt"), or
+# with RPI_MODEL=3 in an emulated Raspberry Pi 3 B (1 GB, SD card, USB
+# network; very slow).
 # Needs qemu-system-aarch64 (see vm.sh) and debugfs. Credentials: test-only.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -28,20 +30,34 @@ dd if="$STATE/disk.img" of="$STATE/root.ext4" bs=1M iflag=skip_bytes skip="$star
 kernel=$("$DEBUGFS" -R "ls -p /boot" "$STATE/root.ext4" 2>/dev/null | tr '/' '\n' | grep '^vmlinuz-' | sort -V | tail -1)
 "$DEBUGFS" -R "dump /boot/$kernel $STATE/vmlinuz" "$STATE/root.ext4" >/dev/null 2>&1
 "$DEBUGFS" -R "dump /boot/initrd.img-${kernel#vmlinuz-} $STATE/initrd" "$STATE/root.ext4" >/dev/null 2>&1
+if [ "${RPI_MODEL:-}" = 3 ]; then
+  "$DEBUGFS" -R "dump /usr/lib/linux-image-${kernel#vmlinuz-}/broadcom/bcm2837-rpi-3-b.dtb $STATE/rpi3.dtb" "$STATE/root.ext4" >/dev/null 2>&1
+  [ -s "$STATE/rpi3.dtb" ] || { echo "Raspberry Pi 3 device tree not found in the image"; exit 1; }
+fi
 rm -f "$STATE/root.ext4"
 [ -s "$STATE/vmlinuz" ] && [ -s "$STATE/initrd" ] || { echo "kernel not found in the image"; exit 1; }
 # A bigger "card": the first boot must grow the system partition.
 truncate -s 8G "$STATE/disk.img"
-"$QEMU" -machine virt -cpu max -smp 4 -m 2048 -kernel "$STATE/vmlinuz" -initrd "$STATE/initrd" \
-  -append "root=LABEL=RASPIROOT rw console=ttyAMA0" \
-  -drive "file=$STATE/disk.img,format=raw,if=virtio" \
-  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:7120-:7070,hostfwd=tcp:127.0.0.1:2272-:22" -device virtio-net-pci,netdev=n0 \
-  -display none -serial "file:$STATE/console.log" -pidfile "$STATE/qemu.pid" -daemonize
+NET="user,id=n0,hostfwd=tcp:127.0.0.1:7120-:7070,hostfwd=tcp:127.0.0.1:2272-:22"
+if [ "${RPI_MODEL:-}" = 3 ]; then
+  # The emulated board has no Ethernet chip: a USB network adapter (usb0),
+  # configured by the kernel command line.
+  "$QEMU" -machine raspi3b -m 1G -kernel "$STATE/vmlinuz" -initrd "$STATE/initrd" -dtb "$STATE/rpi3.dtb" \
+    -append "root=LABEL=RASPIROOT rw rootwait console=ttyAMA0,115200 net.ifnames=0 cma=64M ip=usb0:dhcp" \
+    -drive "file=$STATE/disk.img,format=raw,if=sd" -netdev "$NET" -device usb-net,netdev=n0 \
+    -L "$(dirname "$QEMU")/../share/qemu" -display none -serial "file:$STATE/console.log" -pidfile "$STATE/qemu.pid" -daemonize
+else
+  "$QEMU" -machine virt -cpu max -smp 4 -m 2048 -kernel "$STATE/vmlinuz" -initrd "$STATE/initrd" \
+    -append "root=LABEL=RASPIROOT rw console=ttyAMA0" \
+    -drive "file=$STATE/disk.img,format=raw,if=virtio" \
+    -netdev "$NET" -device virtio-net-pci,netdev=n0 \
+    -display none -serial "file:$STATE/console.log" -pidfile "$STATE/qemu.pid" -daemonize
+fi
 echo "booting $(basename "$IMG") (emulated, slow)"
-for _ in $(seq 1 360); do curl -sf -m 3 "$B/api/setup" >/dev/null && break; sleep 10; done
+for _ in $(seq 1 720); do curl -sf -m 3 "$B/api/setup" >/dev/null && break; sleep 10; done
 check "StrataOS answers" "$(curl -s $B/api/setup)" "\"version\":\"$VERSION\""
 J=$(mktemp)
-check "setup wizard" "$(curl -s -c "$J" -X POST -H 'X-Strata: 1' -H 'Content-Type: application/json' $B/api/setup -d '{"username":"nathan","password":"Strata-Test-2026","fullName":"Test","hostname":"strata-pi"}')" '"role":"admin"'
+check "setup wizard" "$(curl -s -c "$J" -X POST -H 'X-Strata: 1' -H 'Content-Type: application/json' $B/api/setup -d '{"username":"admin","password":"Strata-Test-2026","fullName":"Test","hostname":"strata-pi"}')" '"role":"admin"'
 check "system partition grown to the card" "$(curl -s -b "$J" -H 'X-Strata: 1' $B/api/system/info | py 'print(int(d.get("rootTotal", 0) > 6e9))' 2>/dev/null || echo unknown)" "1"
 rm -f "$J"
 [ "$FAILS" -eq 0 ]

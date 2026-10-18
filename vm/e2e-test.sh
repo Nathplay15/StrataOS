@@ -5,7 +5,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 B=${STRATA_URL:-http://localhost:7070}
-ADMIN_USER=nathan ADMIN_PASS=Strata-Test-2026
+ADMIN_USER=admin ADMIN_PASS=Strata-Test-2026
 USER_NAME=alice USER_PASS=Alice-Pass-1
 J=$(mktemp) J2=$(mktemp) TMP=$(mktemp -d)
 SINKS_PID=""
@@ -113,7 +113,7 @@ check "docker engine" "$(c GET /api/docker/info | py 'print(d["available"])')" "
 check "install Uptime Kuma" "$(job "$(c POST /api/apps/uptimekuma/install -d '{"name":"uptime","values":{"DATA_DIR":"/srv/strata/main/apps/uptime-kuma"}}')")" "success"
 APPUPD=$(c POST /api/schedules -d '{"name":"Apps","type":"appupdate","target":"all","cron":"0 4 * * 0","enabled":true}' | py 'print(d["id"])')
 check "app update task" "$(job "$(c POST /api/schedules/$APPUPD/run)")" "success"
-check "app update summary" "$(c GET /api/schedules | py '[print(s["history"][0]["message"]) for s in d if s["id"]=="'$APPUPD'"]')" "1 application(s) vérifiée(s)"
+check "app update summary" "$(c GET /api/schedules | py '[print(s["history"][0]["message"]) for s in d if s["id"]=="'$APPUPD'"]')" "1 app(s) checked"
 c DELETE /api/schedules/$APPUPD >/dev/null
 check "container running" "$(c GET /api/docker/containers | py 'print([x["State"] for x in d if "uptime" in x["Names"][0]])')" "running"
 check "app port reported" "$(c GET /api/apps | py 'print(d["ports"])')" "3001"
@@ -201,11 +201,11 @@ check "simulation configured" "$(c PUT /api/ups -d '{"mode":"simulation","share"
 for _ in $(seq 1 10); do c GET /api/ups | py 'print(d.get("status",{}).get("status"))' | grep -q OL && break; sleep 2; done
 check "UPS on line" "$(c GET /api/ups | py 'print(d["status"]["status"])')" "OL"
 c POST /api/ups/simulate -d '{"status":"OB","charge":80}' >/dev/null
-for _ in $(seq 1 15); do c GET /api/system/events | grep -q "Coupure de courant" && break; sleep 2; done
-check "power outage alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Coupure de courant"
+for _ in $(seq 1 15); do c GET /api/system/events | grep -q "Power outage" && break; sleep 2; done
+check "power outage alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Power outage"
 c POST /api/ups/simulate -d '{"status":"OL","charge":100}' >/dev/null
-for _ in $(seq 1 15); do c GET /api/system/events | grep -q "Courant rétabli" && break; sleep 2; done
-check "power restored alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Courant rétabli"
+for _ in $(seq 1 15); do c GET /api/system/events | grep -q "Power restored" && break; sleep 2; done
+check "power restored alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Power restored"
 c PUT /api/ups -d '{"mode":"off","share":false,"shutdownAfter":0}' >/dev/null
 
 section "Virtual machines (nested KVM)"
@@ -243,7 +243,7 @@ DAVPASS=$(head -c 12 /dev/urandom | base64 | tr -d '/+=')
 vm "sudo mkdir -p /tmp/davroot/bi && echo cloud | sudo tee /tmp/davroot/bi/from-cloud.txt >/dev/null && sudo systemd-run --unit=e2e-dav rclone serve webdav /tmp/davroot --addr 127.0.0.1:8088 --user dav --pass '$DAVPASS' --dir-cache-time 1s >/dev/null 2>&1; sudo mkdir -p /srv/strata/main/Photos/bi && echo nas | sudo tee /srv/strata/main/Photos/bi/from-nas.txt >/dev/null"
 check "rclone installed with the package" "$(c GET /api/cloudsync | py 'print(d["installed"])')" "True"
 DAV='"provider":"webdav","params":{"url":"http://127.0.0.1:8088","vendor":"owncloud","user":"dav"}'
-check "connection test" "$(c POST /api/cloudsync/test -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "Connexion réussie"
+check "connection test" "$(c POST /api/cloudsync/test -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "Connection successful"
 check "wrong password rejected" "$(c POST /api/cloudsync/test -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"wrong\"},\"localPath\":\"/srv/strata/main/Photos\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "error"
 check "local folder confined" "$(c POST /api/cloudsync -d "{\"name\":\"t\",$DAV,\"secrets\":{\"pass\":\"x\"},\"localPath\":\"/etc\",\"remotePath\":\"up\",\"direction\":\"upload\"}")" "inside a volume"
 UP=$(c POST /api/cloudsync -d "{\"name\":\"up\",$DAV,\"secrets\":{\"pass\":\"$DAVPASS\"},\"localPath\":\"/srv/strata/main/Photos/album\",\"remotePath\":\"up\",\"direction\":\"upload\",\"mirror\":true,\"cron\":\"0 */6 * * *\",\"enabled\":true}" | py 'print(d["id"])')
@@ -298,7 +298,7 @@ AV=$(c POST /api/schedules -d '{"name":"AV","type":"antivirus","target":"/srv/st
 job "$(c POST /api/schedules/$AV/run)" >/dev/null
 check "virus found" "$(c GET /api/schedules | py '[print(s["history"][0]["message"]) for s in d if s["id"]=="'$AV'"]')" "Eicar-Test-Signature"
 check "infected file moved to quarantine" "$(vm "sudo ls /srv/strata/main/Photos/eicar.com 2>&1")" "No such file"
-check "alert logged" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "infecté"
+check "alert logged" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "infected"
 QID=$(c GET /api/antivirus | py 'print(d["quarantine"][0]["id"])')
 check "restore from quarantine" "$(c POST /api/antivirus/quarantine/$QID/restore)" "/srv/strata/main/Photos/eicar.com"
 job "$(c POST /api/schedules/$AV/run)" >/dev/null
@@ -326,7 +326,7 @@ vm "echo x > /tmp/f.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS'
 for _ in $(seq 1 15); do c GET /api/ransomware | grep -q "$USER_NAME" && break; sleep 1; done
 check "mass encryption detected, account blocked" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
 check "blocked account refused on the shares" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "ACCESS_DENIED"
-check "ransomware alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Rançongiciel suspecté"
+check "ransomware alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Ransomware suspected"
 c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 for _ in $(seq 1 10); do vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1" | grep -q attack && break; sleep 1; done
 check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "attack"
@@ -348,10 +348,10 @@ vm "sudo rm -rf /srv/strata/main/Photos/sftpatk /srv/strata/main/Photos/w*.crypt
 c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
 # Trap files and NFS.
 c PUT /api/ransomware -d '{"enabled":true,"threshold":20,"block":true,"traps":true}' >/dev/null
-for _ in $(seq 1 30); do vm "sudo test -f '/srv/strata/main/Photos/!0000 - NE PAS MODIFIER (StrataOS).docx'" && break; sleep 1; done
-check "trap files placed" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER'")" "2"
+for _ in $(seq 1 30); do vm "sudo test -f '/srv/strata/main/Photos/!0000 - DO NOT MODIFY (StrataOS).docx'" && break; sleep 1; done
+check "trap files placed" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'DO NOT MODIFY'")" "2"
 sleep 2
-vm "echo chiffre > /tmp/t.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt \"!0000 - NE PAS MODIFIER (StrataOS).docx\"' >/dev/null 2>&1"
+vm "echo chiffre > /tmp/t.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt \"!0000 - DO NOT MODIFY (StrataOS).docx\"' >/dev/null 2>&1"
 for _ in $(seq 1 15); do c GET /api/ransomware | grep -q '"frozen":\["Photos"' && break; sleep 1; done
 check "touching a trap freezes the share" "$(c GET /api/ransomware | py 'print(d["frozen"])')" "Photos"
 check "account behind the trap blocked" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
@@ -359,8 +359,8 @@ c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 check "frozen share read-only over SMB" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt x.txt' 2>&1")" "ACCESS_DENIED"
 check "frozen share read-only over NFS" "$(vm "sudo exportfs -v | grep -A1 /srv/strata/main/Photos | grep -o ',ro,'")" ",ro,"
 check "share released" "$(c POST /api/ransomware/unfreeze -d '{"share":"Photos"}')" '"ok":true'
-for _ in $(seq 1 30); do vm "sudo grep -q 'Fichier piège' '/srv/strata/main/Photos/!0000 - NE PAS MODIFIER (StrataOS).docx'" && break; sleep 1; done
-check "trap put back, modified one kept aside" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER'")" "3"
+for _ in $(seq 1 30); do vm "sudo grep -q 'StrataOS trap file' '/srv/strata/main/Photos/!0000 - DO NOT MODIFY (StrataOS).docx'" && break; sleep 1; done
+check "trap put back, modified one kept aside" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'DO NOT MODIFY'")" "3"
 check "writes back after release" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt x.txt' 2>&1")" "putting file"
 # NFS squashes root: the "attack" runs as a regular user of the client.
 vm "sudo mkdir -p /mnt/nfs && sudo mount -t nfs -o vers=4 10.0.2.15:/srv/strata/main/Photos /mnt/nfs && sudo -u $USER_NAME sh -c 'mkdir -p /mnt/nfs/nfsatk && for i in \$(seq 1 30); do echo x > /mnt/nfs/nfsatk/f\$i.txt; mv /mnt/nfs/nfsatk/f\$i.txt /mnt/nfs/nfsatk/f\$i.txt.locked; done'; sudo umount -l /mnt/nfs"
@@ -368,8 +368,8 @@ for _ in $(seq 1 15); do c GET /api/ransomware | grep -q '"nfsPaused":true' && b
 check "mass renames over NFS suspend NFS" "$(c GET /api/ransomware | py 'print(d.get("nfsPaused"))') $(vm "sudo exportfs -v | grep -c /srv/strata")" "True 0"
 check "NFS resumed" "$(c POST /api/ransomware/nfs-resume; vm "sudo exportfs -v | grep -c /srv/strata/main/Photos")" "1"
 c PUT /api/ransomware -d '{"enabled":true,"threshold":20,"block":true,"traps":false}' >/dev/null
-for _ in $(seq 1 30); do [ "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER (StrataOS).docx$'")" = 0 ] && break; sleep 1; done
-check "traps removed when turned off" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER (StrataOS).docx$'")" "0"
+for _ in $(seq 1 30); do [ "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'DO NOT MODIFY (StrataOS).docx$'")" = 0 ] && break; sleep 1; done
+check "traps removed when turned off" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'DO NOT MODIFY (StrataOS).docx$'")" "0"
 vm "sudo rm -rf /srv/strata/main/Photos/nfsatk /srv/strata/main/Photos/x.txt /srv/strata/main/Photos/*modifie-*"
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
@@ -396,12 +396,12 @@ vm "sudo docker rm -f wgc >/dev/null"
 
 section "Photos"
 check "photo tools installed" "$(job "$(c POST /api/system/components/photos/install)")" "success"
-vm 'sudo mkdir -p /srv/strata/main/Photos/vacances /srv/strata/tank/media/photos; for i in 1 2; do sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=1600x1200 -frames:v 1 /srv/strata/main/Photos/vacances/img$i.jpg; done; sudo touch -d "2018-05-01 12:00" /srv/strata/main/Photos/vacances/img1.jpg; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:duration=3 -pix_fmt yuv420p /srv/strata/main/Photos/vacances/clip.mp4; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=800x600 -frames:v 1 /srv/strata/tank/media/photos/secret.png'
+vm 'sudo mkdir -p /srv/strata/main/Photos/holidays /srv/strata/tank/media/photos; for i in 1 2; do sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=1600x1200 -frames:v 1 /srv/strata/main/Photos/holidays/img$i.jpg; done; sudo touch -d "2018-05-01 12:00" /srv/strata/main/Photos/holidays/img1.jpg; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x360:duration=3 -pix_fmt yuv420p /srv/strata/main/Photos/holidays/clip.mp4; sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=800x600 -frames:v 1 /srv/strata/tank/media/photos/secret.png'
 check "photo folders indexed" "$(job "$(c PUT /api/photos/settings -d '{"folders":["/srv/strata/main/Photos","/srv/strata/tank/media"]}')")" "success"
 check "photos and videos listed" "$(c GET /api/photos | py 'print(d["total"], sum(1 for i in d["items"] if i.get("video")))')" "4 1"
 check "date of the file kept (2018)" "$(c GET /api/photos | py 'import time; print([time.gmtime(i["date"]).tm_year for i in d["items"] if i["path"].endswith("img1.jpg")])')" "2018"
-check "photo thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code} %{content_type}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/vacances/img2.jpg")" "200 image/jpeg"
-check "video thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/vacances/clip.mp4")" "200"
+check "photo thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code} %{content_type}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/holidays/img2.jpg")" "200 image/jpeg"
+check "video thumbnail" "$(curl -s -b "$J" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/srv/strata/main/Photos/holidays/clip.mp4")" "200"
 check "no thumbnail outside the index" "$(curl -s -b "$J" -o /dev/null -w '%{http_code}' "$B/api/photos/thumb?path=/etc/passwd")" "404"
 u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}" >/dev/null
 check "users see only their shares" "$(u GET /api/photos | py 'print(d["total"], any("secret" in i["path"] for i in d["items"]))')" "3 False"
@@ -426,14 +426,14 @@ check "drop box never overwrites" "$(curl -s -X POST -H 'X-Strata: 1' -F "f=@$TM
 check "dropped files owned by the link owner" "$(vm "sudo stat -c %U '/srv/strata/main/Photos/drop/a (2).txt'")" "$USER_NAME"
 check "drop box content stays hidden" "$(curl -s $B/api/s/$LD/files)" '"entries":[]'
 check "cross-site upload refused" "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: http://evil.example' -F "f=@$TMP/a.txt" $B/api/s/$LD/upload)" "403"
-LP=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/vacances","download":true}' | py 'print(d["id"])')
+LP=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/holidays","download":true}' | py 'print(d["id"])')
 check "folder listed" "$(curl -s $B/api/s/$LP/files | py 'print(sorted(e["name"] for e in d["entries"]))')" "img1.jpg"
 check "no way out of the folder" "$(curl -s "$B/api/s/$LP/download?path=../../../../etc/passwd" | head -c 200)" "file not found"
 check "photo thumbnail through the link" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "$B/api/s/$LP/thumb?path=img2.jpg&size=s")" "200 image/jpeg"
 check "link to a share the user cannot read refused" "$(u POST /api/links -d '{"path":"/srv/strata/tank/media/photos/secret.png","download":true}')" "access denied"
 u DELETE /api/links/$LP >/dev/null
 check "removed link stops working" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LP)" "410"
-AL=$(u POST /api/photos/albums -d '{"name":"Été 2018","items":["/srv/strata/main/Photos/vacances/img1.jpg","/srv/strata/main/Photos/vacances/img2.jpg"]}' | py 'print(d["id"])')
+AL=$(u POST /api/photos/albums -d '{"name":"Été 2018","items":["/srv/strata/main/Photos/holidays/img1.jpg","/srv/strata/main/Photos/holidays/img2.jpg"]}' | py 'print(d["id"])')
 check "album created" "$(u GET /api/photos/albums | py 'print([(a["name"], a["count"]) for a in d])')" "('Été 2018', 2)"
 check "forbidden photo refused in an album" "$(u PUT /api/photos/albums/$AL -d '{"add":["/srv/strata/tank/media/photos/secret.png"]}')" "photo not found"
 check "album content" "$(u GET "/api/photos?album=$AL" | py 'print(d["total"])')" "2"
@@ -442,8 +442,8 @@ check "albums are private" "$(c GET "/api/photos?album=$AL")" "album not found"
 LA=$(u POST /api/links -d "{\"album\":\"$AL\"}" | py 'print(d["id"])')
 check "shared album opened by a visitor" "$(curl -s $B/api/s/$LA | py 'print(d["album"], d["name"])')" "True Été 2018"
 check "album photos listed" "$(curl -s $B/api/s/$LA/files | py 'print(len(d["photos"]))')" "2"
-check "album photo downloaded" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/vacances/img1.jpg")" "200"
-check "photo outside the album refused" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/vacances/clip.mp4")" "404"
+check "album photo downloaded" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/holidays/img1.jpg")" "200"
+check "photo outside the album refused" "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/s/$LA/download?path=/srv/strata/main/Photos/holidays/clip.mp4")" "404"
 u DELETE /api/photos/albums/$AL >/dev/null
 check "deleting the album removes its link" "$(curl -s -o /dev/null -w '%{http_code}' $B/api/s/$LA)" "410"
 rm -f "$L3"
@@ -466,8 +466,8 @@ vm "echo one | sudo tee /srv/strata/tank/media/v.txt >/dev/null; sudo zfs snapsh
 SNAP=$(c GET "/api/files/versions?path=/srv/strata/tank/media/v.txt" | py 'print(d["versions"][0]["snapshot"])')
 check "earlier version listed" "$(c GET "/api/files/versions?path=/srv/strata/tank/media/v.txt" | py 'print(len(d["versions"]), d["versions"][0]["size"])')" "1 4"
 check "version downloaded" "$(curl -s -b "$J" "$B/api/files/versions/download?path=/srv/strata/tank/media/v.txt&snapshot=$SNAP")" "one"
-check "restored as a copy" "$(c POST /api/files/versions/restore -d "{\"path\":\"/srv/strata/tank/media/v.txt\",\"snapshot\":\"$SNAP\"}" | py 'print(d["path"])')" "v (version du"
-check "copy content" "$(vm "sudo find /srv/strata/tank/media -maxdepth 1 -name 'v (version du*' -exec cat {} +")" "one"
+check "restored as a copy" "$(c POST /api/files/versions/restore -d "{\"path\":\"/srv/strata/tank/media/v.txt\",\"snapshot\":\"$SNAP\"}" | py 'print(d["path"])')" "v (version of"
+check "copy content" "$(vm "sudo find /srv/strata/tank/media -maxdepth 1 -name 'v (version of*' -exec cat {} +")" "one"
 c POST /api/files/versions/restore -d "{\"path\":\"/srv/strata/tank/media/v.txt\",\"snapshot\":\"$SNAP\",\"replace\":true}" >/dev/null
 check "file replaced by the version" "$(vm 'sudo cat /srv/strata/tank/media/v.txt')" "one"
 check "versions follow share rights" "$(u GET "/api/files/versions?path=/srv/strata/tank/media/v.txt")" "access denied"
@@ -587,14 +587,14 @@ c PUT /api/shares/Photos -d "$SH" >/dev/null
 for _ in $(seq 1 20); do c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])' | grep -q True && break; sleep 2; done
 check "share over quota becomes read-only" "$(c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])')" "True"
 check "SMB writes refused" "$(vm "echo x > /tmp/q.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/q.txt q.txt' 2>&1")" "ACCESS_DENIED"
-check "quota alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "a atteint son quota"
+check "quota alert" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "reached its quota"
 vm "sudo rm /srv/strata/main/Photos/big.bin"
 c PUT /api/shares/Photos -d "$SH" >/dev/null
 for _ in $(seq 1 20); do c GET /api/shares | py 'print([x.get("quotaFull") for x in d if x["name"]=="Photos"][0])' | grep -q None && break; sleep 2; done
 check "writes back once space is freed" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/q.txt q.txt' 2>&1")" "putting file"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=0; s["quotaBlock"]=False; print(json.dumps(s))')
 c PUT /api/shares/Photos -d "$SH" >/dev/null
-check "monthly report" "$(c POST /api/settings/report | py 'print(d["report"])')" "Sauvegardes (30 jours)"
+check "monthly report" "$(c POST /api/settings/report | py 'print(d["report"])')" "Backups (30 days)"
 
 section "Active Directory and LDAP (test servers in containers)"
 DCPASS="Dc-$(head -c 9 /dev/urandom | base64 | tr -d '/+=')9"
@@ -663,7 +663,7 @@ done
 
 section "Restore points (system without snapshots)"
 check "package restore points on an ext4 system" "$(c GET /api/system/restore-points | py 'print(d["supported"], d["mode"])')" "True packages"
-check "restore point created" "$(c POST /api/system/restore-points | py 'print(d["name"])')" "_manuel"
+check "restore point created" "$(c POST /api/system/restore-points | py 'print(d["name"])')" "_manual"
 RP=$(c GET /api/system/restore-points | py 'print(d["points"][0]["name"])')
 check "StrataOS kept in the point" "$(c GET /api/system/restore-points | py 'print(d["points"][0]["info"])')" "paquet(s)"
 OLDV=$(curl -s $B/api/setup | py 'print(d["version"])')
@@ -703,7 +703,7 @@ for _ in $(seq 1 40); do c GET /api/storage/volumes | py 'print([v["mounted"] fo
 check "volume on degraded RAID mounted" "$(c GET /api/storage/volumes | py 'print([v["mounted"] for v in d if v["name"]=="main"])')" "True"
 for _ in $(seq 1 20); do [ "$(vm "systemctl is-active nfs-server")" = active ] && break; sleep 3; done
 check "NFS running" "$(vm "systemctl is-active nfs-server")" "active"
-check "alert raised" "$(c GET /api/system/overview | py 'print(d["alerts"])')" "dégradée"
+check "alert raised" "$(c GET /api/system/overview | py 'print(d["alerts"])')" "is degraded"
 check "ZFS pool degraded" "$(c GET /api/storage/zfs | py 'print(d["pools"][0]["health"])')" "DEGRADED"
 check "ZFS data still readable" "$(vm "sudo zfs list -H -o mounted tank/media")" "yes"
 ./vm/vm.sh stop >/dev/null; ./vm/vm.sh replace-disk 2 >/dev/null; ./vm/vm.sh replace-disk 8 >/dev/null; ./vm/vm.sh start >/dev/null

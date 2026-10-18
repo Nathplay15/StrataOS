@@ -16,8 +16,8 @@ cat > /etc/issue <<'ISSUE'
 
   StrataOS — \n
 
-  Interface web : http://\4:7070   (HTTPS : https://\4:7443)
-  Créez le compte administrateur depuis votre navigateur.
+  Web interface: http://\4:7070   (HTTPS: https://\4:7443)
+  Create the administrator account from your browser.
 
 ISSUE
 cp /etc/issue /etc/issue.net

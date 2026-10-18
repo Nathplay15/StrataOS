@@ -99,7 +99,7 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("schedule", "Tâche planifiée : "+sc.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("schedule", "Scheduled task: "+sc.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(id)
 		start := time.Now()
 		msg, err := scheduler.Execute(ctx, sc, s.resolveVolume, j.Logf)
@@ -108,7 +108,7 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 			run.Status, run.Message = "failed", err.Error()
 			if errors.Is(err, antivirus.ErrInfected) {
 				s.store.Log("error", "antivirus", "", err.Error())
-				s.notify("Virus détecté", err.Error())
+				s.notify("Virus detected", err.Error())
 			}
 		} else {
 			j.Logf("%s", msg)
@@ -292,7 +292,7 @@ func (s *Server) scheduleRoutes() {
 		if arrays, err := storage.ListRaid(); err == nil {
 			for _, a := range arrays {
 				name := firstNonEmpty(a.Label, a.Name)
-				add(store.Schedule{Name: "Vérification RAID " + name, Type: "scrub", TargetKind: "mdadm", Target: name, Cron: "0 1 1 * *"})
+				add(store.Schedule{Name: "RAID check " + name, Type: "scrub", TargetKind: "mdadm", Target: name, Cron: "0 1 1 * *"})
 			}
 		}
 		if storage.ZFSAvailable() {
@@ -314,8 +314,8 @@ func (s *Server) scheduleRoutes() {
 			add(store.Schedule{Name: "Scrub Btrfs " + v.Name, Type: "scrub", TargetKind: "btrfs", Target: v.ID, Cron: "0 3 15 * *"})
 			add(store.Schedule{Name: "Snapshots quotidiens " + v.Name, Type: "snapshot", TargetKind: "btrfs", Target: v.ID, Cron: "0 0 * * *", KeepCount: 14})
 		}
-		add(store.Schedule{Name: "Test SMART court", Type: "smart", TargetKind: "disks", Target: "all", SmartTest: "short", Cron: "0 4 * * 0"})
-		add(store.Schedule{Name: "Test SMART long", Type: "smart", TargetKind: "disks", Target: "all", SmartTest: "long", Cron: "0 5 22 * *"})
+		add(store.Schedule{Name: "Short SMART test", Type: "smart", TargetKind: "disks", Target: "all", SmartTest: "short", Cron: "0 4 * * 0"})
+		add(store.Schedule{Name: "Long SMART test", Type: "smart", TargetKind: "disks", Target: "all", SmartTest: "long", Cron: "0 5 22 * *"})
 
 		created := 0
 		err := s.store.Update(func(st *store.State) error {

@@ -74,7 +74,7 @@ func (s *Server) quotaRoutes() {
 			return nil, badRequest("per-user quotas need ext4 or XFS (ZFS datasets support them natively)")
 		}
 		s.audit(r, "storage", "Enabling user quotas on "+v.Name)
-		return s.jobs.Start("quota", "Activer les quotas sur "+v.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("quota", "Enable quotas on "+v.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			if err := storage.EnableQuota(ctx, v.MountPoint, v.UUID, v.FSType, j.Logf); err != nil {
 				return err
 			}

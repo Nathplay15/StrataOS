@@ -29,7 +29,7 @@ export function Terminal({ path, height = 480 }: { path: string; height?: number
       term.focus();
     };
     ws.onmessage = (e) => term.write(typeof e.data === "string" ? e.data : new Uint8Array(e.data));
-    ws.onclose = () => term.write(`\r\n\x1b[90m[${tr("connexion fermée")}]\x1b[0m\r\n`);
+    ws.onclose = () => term.write(`\r\n\x1b[90m[${tr("connection closed")}]\x1b[0m\r\n`);
     const d1 = term.onData((data) => send({ type: "input", data }));
     const d2 = term.onResize(({ cols, rows }) => send({ type: "resize", cols, rows }));
     const ro = new ResizeObserver(() => fit.fit());

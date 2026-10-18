@@ -17,11 +17,11 @@ import (
 func gb(n int64) string {
 	switch {
 	case n >= 1e12:
-		return fmt.Sprintf("%.2f To", float64(n)/1e12)
+		return fmt.Sprintf("%.2f TB", float64(n)/1e12)
 	case n >= 1e9:
-		return fmt.Sprintf("%.1f Go", float64(n)/1e9)
+		return fmt.Sprintf("%.1f GB", float64(n)/1e9)
 	default:
-		return fmt.Sprintf("%.0f Mo", float64(n)/1e6)
+		return fmt.Sprintf("%.0f MB", float64(n)/1e6)
 	}
 }
 
@@ -39,33 +39,33 @@ func (s *Server) monthlyReport() (string, string) {
 	host, _ := hostname()
 	since := time.Now().AddDate(0, 0, -30)
 	var b strings.Builder
-	subject := "Rapport mensuel de " + host
+	subject := "Monthly report of " + host
 	raids, _ := storage.ListRaid()
 	pools, _ := storage.ListZPools(false)
 	vols := s.volumeSummaries(raids, pools)
 	alerts := s.alerts(raids, pools, vols)
 
-	b.WriteString("Stockage\n")
+	b.WriteString("Storage\n")
 	for _, v := range vols {
 		pct := 0.0
 		if v.Total > 0 {
 			pct = float64(v.Used) / float64(v.Total) * 100
 		}
-		fmt.Fprintf(&b, "• %s : %s utilisés sur %s (%.0f %%)\n", v.Name, gb(v.Used), gb(v.Total), pct)
+		fmt.Fprintf(&b, "• %s: %s used of %s (%.0f%%)\n", v.Name, gb(v.Used), gb(v.Total), pct)
 	}
 	if len(vols) == 0 {
-		b.WriteString("• aucun volume\n")
+		b.WriteString("• no volume\n")
 	}
 
-	b.WriteString("\nSanté\n")
+	b.WriteString("\nHealth\n")
 	if len(alerts) == 0 {
-		b.WriteString("• tout est sain : disques, grappes RAID, pools ZFS et volumes\n")
+		b.WriteString("• everything is healthy: disks, RAID arrays, ZFS pools and volumes\n")
 	}
 	for _, a := range alerts {
 		fmt.Fprintf(&b, "• %s\n", a.Message)
 	}
 	disks, _ := storage.ListDisks()
-	fmt.Fprintf(&b, "• %d disque(s) surveillé(s)\n", len(disks))
+	fmt.Fprintf(&b, "• %d disk(s) monitored\n", len(disks))
 
 	var backupsOK, backupsKO, cloudOK, cloudKO, avScans, avInfected int
 	var lastFail, quotaLines []string
@@ -109,42 +109,42 @@ func (s *Server) monthlyReport() (string, string) {
 		}
 		for _, sh := range st.Shares {
 			if sh.QuotaGB > 0 {
-				quotaLines = append(quotaLines, fmt.Sprintf("• %s : %s sur %.0f Go", sh.Name, gb(sh.Used), sh.QuotaGB))
+				quotaLines = append(quotaLines, fmt.Sprintf("• %s: %s of %.0f GB", sh.Name, gb(sh.Used), sh.QuotaGB))
 			}
 		}
 	})
-	b.WriteString("\nSauvegardes (30 jours)\n")
+	b.WriteString("\nBackups (30 days)\n")
 	if backupsOK+backupsKO == 0 {
-		b.WriteString("• aucune sauvegarde exécutée : pensez à en programmer une\n")
+		b.WriteString("• no backup ran: consider scheduling one\n")
 	} else {
-		fmt.Fprintf(&b, "• %d réussie(s), %d échec(s)", backupsOK, backupsKO)
+		fmt.Fprintf(&b, "• %d succeeded, %d failed", backupsOK, backupsKO)
 		if len(lastFail) > 0 {
 			fmt.Fprintf(&b, " (%s)", strings.Join(uniq(lastFail), ", "))
 		}
 		b.WriteString("\n")
 	}
 	if cloudOK+cloudKO > 0 {
-		fmt.Fprintf(&b, "• synchronisation cloud : %d réussie(s), %d échec(s)\n", cloudOK, cloudKO)
+		fmt.Fprintf(&b, "• cloud sync: %d succeeded, %d failed\n", cloudOK, cloudKO)
 	}
 	if avScans > 0 {
-		fmt.Fprintf(&b, "• antivirus : %d analyse(s), %d avec des fichiers infectés\n", avScans, avInfected)
+		fmt.Fprintf(&b, "• antivirus: %d scan(s), %d with infected files\n", avScans, avInfected)
 	}
 	if len(quotaLines) > 0 {
-		b.WriteString("\nQuotas des dossiers partagés\n" + strings.Join(quotaLines, "\n") + "\n")
+		b.WriteString("\nShared folder quotas\n" + strings.Join(quotaLines, "\n") + "\n")
 	}
-	b.WriteString("\nSystème\n")
+	b.WriteString("\nSystem\n")
 	if out, err := sys.Run("apt-get", "-s", "-o", "Debug::NoLocking=1", "upgrade"); err == nil {
 		n := strings.Count(out, "\nInst ")
 		if strings.HasPrefix(out, "Inst ") {
 			n++
 		}
 		if n > 0 {
-			fmt.Fprintf(&b, "• %d mise(s) à jour disponible(s)\n", n)
+			fmt.Fprintf(&b, "• %d update(s) available\n", n)
 		} else {
-			b.WriteString("• le système est à jour\n")
+			b.WriteString("• the system is up to date\n")
 		}
 	}
-	fmt.Fprintf(&b, "• StrataOS %s, en marche depuis %d jour(s)\n", s.version, uptimeDays())
+	fmt.Fprintf(&b, "• StrataOS %s, running for %d day(s)\n", s.version, uptimeDays())
 	return subject, b.String()
 }
 

@@ -16,7 +16,7 @@ export function DockerGuard({ children }: { children: React.ReactNode }) {
   if (!info.data?.available)
     return (
       <Card>
-        <Empty icon={<Box />} title={tr("Docker Engine n'est pas disponible")} text={info.data?.error ?? tr("Installez Docker Engine pour gérer des conteneurs et des applications.")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Installer Docker")}</Button>} />
+        <Empty icon={<Box />} title={tr("Docker Engine is not available")} text={info.data?.error ?? tr("Install Docker Engine to manage containers and applications.")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install Docker")}</Button>} />
       </Card>
     );
   return <>{children}</>;
@@ -47,9 +47,9 @@ export function LogsModal({ id, title, onClose }: { id: string; title: string; o
     if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
   }, [lines, follow]);
   return (
-    <Modal open onClose={onClose} title={tr("Journaux — {0}", title)} wide="xl" footer={<Switch checked={follow} onChange={setFollow} label={tr("Défilement automatique")} />}>
+    <Modal open onClose={onClose} title={tr("Logs — {0}", title)} wide="xl" footer={<Switch checked={follow} onChange={setFollow} label={tr("Auto-scroll")} />}>
       <div ref={box} className="mono h-[60vh] overflow-auto rounded-xl bg-[#0b0f1c] p-3 text-[12px] leading-relaxed text-[#cbd3e6]">
-        {lines.length === 0 && <span className="text-[#5d6785]">{tr("En attente des journaux…")}</span>}
+        {lines.length === 0 && <span className="text-[#5d6785]">{tr("Waiting for logs…")}</span>}
         {lines.map((l, i) => {
           const sp = l.l.indexOf(" ");
           const ts = sp > 0 && /^\d{4}-/.test(l.l) ? l.l.slice(0, sp) : "";
@@ -97,60 +97,60 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   }), { onDone: onClose });
   const set = (k: keyof typeof f, v: string | number | boolean) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <Modal open onClose={onClose} title={tr("Nouveau conteneur")} wide footer={<>
-      <Button onClick={onClose}>{tr("Annuler")}</Button>
-      <Button variant="primary" disabled={!f.image} loading={create.isPending} onClick={() => create.mutate()}>{tr("Créer et démarrer")}</Button>
+    <Modal open onClose={onClose} title={tr("New container")} wide footer={<>
+      <Button onClick={onClose}>{tr("Cancel")}</Button>
+      <Button variant="primary" disabled={!f.image} loading={create.isPending} onClick={() => create.mutate()}>{tr("Create and start")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={tr("Image")} hint={tr("ex. nginx:latest, ghcr.io/org/app:1.2")}><Input value={f.image} onChange={(e) => set("image", e.target.value)} /></Field>
-          <Field label={tr("Nom (optionnel)")}><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
-          <Field label={tr("Redémarrage")}>
+          <Field label={tr("Image")} hint={tr("e.g. nginx:latest, ghcr.io/org/app:1.2")}><Input value={f.image} onChange={(e) => set("image", e.target.value)} /></Field>
+          <Field label={tr("Name (optional)")}><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label={tr("Restarting")}>
             <Select value={f.restart} onChange={(e) => set("restart", e.target.value)}>
-              <option value="unless-stopped">{tr("Sauf arrêt manuel")}</option><option value="always">{tr("Toujours")}</option><option value="on-failure">{tr("En cas d'échec")}</option><option value="no">{tr("Jamais")}</option>
+              <option value="unless-stopped">{tr("Unless stopped manually")}</option><option value="always">{tr("Always")}</option><option value="on-failure">{tr("On failure")}</option><option value="no">{tr("Never")}</option>
             </Select>
           </Field>
-          <Field label={tr("Réseau")}>
+          <Field label={tr("Network")}>
             <Select value={f.network} onChange={(e) => set("network", e.target.value)}>
-              <option value="">{tr("bridge (par défaut)")}</option>
+              <option value="">{tr("bridge (default)")}</option>
               {networks.data?.filter((n) => n.Name !== "bridge").map((n) => <option key={n.Name} value={n.Name}>{n.Name}</option>)}
             </Select>
           </Field>
-          <Field label={tr("Limite mémoire (Mo, 0 = aucune)")}><Input type="number" min={0} value={f.memoryMb} onChange={(e) => set("memoryMb", +e.target.value)} /></Field>
-          <Field label={tr("Limite CPU (cœurs, 0 = aucune)")}><Input type="number" min={0} step={0.5} value={f.cpus} onChange={(e) => set("cpus", +e.target.value)} /></Field>
+          <Field label={tr("Memory limit (MB, 0 = none)")}><Input type="number" min={0} value={f.memoryMb} onChange={(e) => set("memoryMb", +e.target.value)} /></Field>
+          <Field label={tr("CPU limit (cores, 0 = none)")}><Input type="number" min={0} step={0.5} value={f.cpus} onChange={(e) => set("cpus", +e.target.value)} /></Field>
         </div>
-        <Field label={tr("Commande (optionnelle)")}><Input className="mono" value={f.command} onChange={(e) => set("command", e.target.value)} /></Field>
+        <Field label={tr("Command (optional)")}><Input className="mono" value={f.command} onChange={(e) => set("command", e.target.value)} /></Field>
 
         <Rows title={tr("Ports")} add={() => setPorts([...ports, { host: "", container: "", protocol: "tcp" }])}>
           {ports.map((p, i) => (
             <div key={i} className="flex gap-2">
-              <Input placeholder={tr("Port hôte")} value={p.host} onChange={(e) => setPorts(ports.map((x, k) => (k === i ? { ...x, host: e.target.value } : x)))} />
-              <Input placeholder={tr("Port conteneur")} value={p.container} onChange={(e) => setPorts(ports.map((x, k) => (k === i ? { ...x, container: e.target.value } : x)))} />
+              <Input placeholder={tr("Host port")} value={p.host} onChange={(e) => setPorts(ports.map((x, k) => (k === i ? { ...x, host: e.target.value } : x)))} />
+              <Input placeholder={tr("Container port")} value={p.container} onChange={(e) => setPorts(ports.map((x, k) => (k === i ? { ...x, container: e.target.value } : x)))} />
               <Select className="!w-28" value={p.protocol} onChange={(e) => setPorts(ports.map((x, k) => (k === i ? { ...x, protocol: e.target.value } : x)))}><option>tcp</option><option>udp</option></Select>
-              <IconButton title={tr("Retirer")} onClick={() => setPorts(ports.filter((_, k) => k !== i))}><X size={15} /></IconButton>
+              <IconButton title={tr("Remove")} onClick={() => setPorts(ports.filter((_, k) => k !== i))}><X size={15} /></IconButton>
             </div>
           ))}
         </Rows>
         <Rows title={tr("Volumes")} add={() => setVols([...vols, { source: "/srv/strata/", target: "", readOnly: false }])}>
           {vols.map((v, i) => (
             <div key={i} className="flex items-center gap-2">
-              <Input placeholder={tr("Chemin hôte ou volume")} value={v.source} onChange={(e) => setVols(vols.map((x, k) => (k === i ? { ...x, source: e.target.value } : x)))} />
-              <Input placeholder={tr("Chemin conteneur")} value={v.target} onChange={(e) => setVols(vols.map((x, k) => (k === i ? { ...x, target: e.target.value } : x)))} />
+              <Input placeholder={tr("Host path or volume")} value={v.source} onChange={(e) => setVols(vols.map((x, k) => (k === i ? { ...x, source: e.target.value } : x)))} />
+              <Input placeholder={tr("Container path")} value={v.target} onChange={(e) => setVols(vols.map((x, k) => (k === i ? { ...x, target: e.target.value } : x)))} />
               <Switch checked={v.readOnly} onChange={(ro) => setVols(vols.map((x, k) => (k === i ? { ...x, readOnly: ro } : x)))} label="RO" />
-              <IconButton title={tr("Retirer")} onClick={() => setVols(vols.filter((_, k) => k !== i))}><X size={15} /></IconButton>
+              <IconButton title={tr("Remove")} onClick={() => setVols(vols.filter((_, k) => k !== i))}><X size={15} /></IconButton>
             </div>
           ))}
         </Rows>
-        <Rows title={tr("Variables d'environnement")} add={() => setEnv([...env, { k: "", v: "" }])}>
+        <Rows title={tr("Environment variables")} add={() => setEnv([...env, { k: "", v: "" }])}>
           {env.map((e, i) => (
             <div key={i} className="flex gap-2">
               <Input className="mono" placeholder="NOM" value={e.k} onChange={(ev) => setEnv(env.map((x, k) => (k === i ? { ...x, k: ev.target.value } : x)))} />
               <Input className="mono" placeholder="valeur" value={e.v} onChange={(ev) => setEnv(env.map((x, k) => (k === i ? { ...x, v: ev.target.value } : x)))} />
-              <IconButton title={tr("Retirer")} onClick={() => setEnv(env.filter((_, k) => k !== i))}><X size={15} /></IconButton>
+              <IconButton title={tr("Remove")} onClick={() => setEnv(env.filter((_, k) => k !== i))}><X size={15} /></IconButton>
             </div>
           ))}
         </Rows>
-        <Switch checked={f.privileged} onChange={(v) => set("privileged", v)} label={tr("Mode privilégié")} hint={tr("Accès complet au matériel de l'hôte. À éviter sauf nécessité.")} />
+        <Switch checked={f.privileged} onChange={(v) => set("privileged", v)} label={tr("Privileged mode")} hint={tr("Full access to the host hardware. Avoid unless necessary.")} />
       </div>
     </Modal>
   );
@@ -159,7 +159,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 function Rows({ title, add, children }: { title: string; add: () => void; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-[12.5px] font-medium text-muted">{title}<Button size="sm" variant="ghost" icon={<Plus size={13} />} onClick={add}>{tr("Ajouter")}</Button></div>
+      <div className="mb-2 flex items-center justify-between text-[12.5px] font-medium text-muted">{title}<Button size="sm" variant="ghost" icon={<Plus size={13} />} onClick={add}>{tr("Add")}</Button></div>
       <div className="space-y-2">{children}</div>
     </div>
   );
@@ -168,7 +168,7 @@ function Rows({ title, add, children }: { title: string; add: () => void; childr
 function Detail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data, isLoading } = useQuery({ queryKey: ["container", id], queryFn: () => api.get<Record<string, unknown>>(`/api/docker/containers/${id}`) });
   return (
-    <Modal open onClose={onClose} title={tr("Inspection du conteneur")} wide="xl">
+    <Modal open onClose={onClose} title={tr("Container inspection")} wide="xl">
       {isLoading ? <Spinner /> : <pre className="mono max-h-[65vh] overflow-auto rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{JSON.stringify(data, null, 2)}</pre>}
     </Modal>
   );
@@ -184,23 +184,23 @@ export default function Containers() {
   const { data, isLoading, error } = useQuery({ queryKey: ["containers"], queryFn: () => api.get<Container[]>("/api/docker/containers"), refetchInterval: 5000 });
   const stats = useQuery({ queryKey: ["container-stats"], queryFn: () => api.get<Record<string, ContainerStats>>("/api/docker/stats"), refetchInterval: 5000 });
   const act = useAction((p: { id: string; action: string }) => api.post(`/api/docker/containers/${p.id}/${p.action}`));
-  const del = useAction((id: string) => api.del(`/api/docker/containers/${id}`), { success: tr("Conteneur supprimé") });
+  const del = useAction((id: string) => api.del(`/api/docker/containers/${id}`), { success: tr("Container deleted") });
   const host = location.hostname;
   const list = (data ?? []).filter((c) => !filter || name(c).includes(filter) || c.Image.includes(filter));
 
   return (
     <div>
-      <PageHeader title={tr("Conteneurs")} subtitle={tr("Gestion de Docker Engine")} icon={<Box size={20} />} actions={<>
-        <Input className="!w-52" placeholder={tr("Filtrer…")} value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreate(true)}>{tr("Nouveau conteneur")}</Button>
+      <PageHeader title={tr("Containers")} subtitle={tr("Docker Engine management")} icon={<Box size={20} />} actions={<>
+        <Input className="!w-52" placeholder={tr("Filter…")} value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreate(true)}>{tr("New container")}</Button>
       </>} />
       <DockerGuard>
         <ErrorBox error={error} />
         <Card pad={false}>
-          {isLoading ? <Spinner /> : !list.length ? <Empty icon={<Box />} title={tr("Aucun conteneur")} text={tr("Installez une application depuis l'App Center ou créez un conteneur.")} /> : (
+          {isLoading ? <Spinner /> : !list.length ? <Empty icon={<Box />} title={tr("No containers")} text={tr("Install an application from the App Center or create a container.")} /> : (
             <div className="overflow-x-auto">
               <table className="table">
-                <thead><tr><th>{tr("Nom")}</th><th>{tr("État")}</th><th>{tr("Image")}</th><th>{tr("Ports")}</th><th>CPU</th><th>{tr("Mémoire")}</th><th /></tr></thead>
+                <thead><tr><th>{tr("Name")}</th><th>{tr("Status")}</th><th>{tr("Image")}</th><th>{tr("Ports")}</th><th>CPU</th><th>{tr("Memory")}</th><th /></tr></thead>
                 <tbody>
                   {list.map((c) => {
                     const st = stats.data?.[c.Id];
@@ -227,18 +227,18 @@ export default function Containers() {
                         <td className="text-right whitespace-nowrap">
                           {running ? (
                             <>
-                              <IconButton title={tr("Arrêter")} onClick={() => act.mutate({ id: c.Id, action: "stop" })}><Square size={15} /></IconButton>
-                              <IconButton title={tr("Redémarrer")} onClick={() => act.mutate({ id: c.Id, action: "restart" })}><RotateCw size={15} /></IconButton>
+                              <IconButton title={tr("Stop")} onClick={() => act.mutate({ id: c.Id, action: "stop" })}><Square size={15} /></IconButton>
+                              <IconButton title={tr("Restart")} onClick={() => act.mutate({ id: c.Id, action: "restart" })}><RotateCw size={15} /></IconButton>
                               <IconButton title={tr("Pause")} onClick={() => act.mutate({ id: c.Id, action: "pause" })}><Pause size={15} /></IconButton>
                               <IconButton title={tr("Console")} onClick={() => setShell(c)}><SquareTerminal size={15} /></IconButton>
                             </>
                           ) : c.State === "paused" ? (
-                            <IconButton title={tr("Reprendre")} onClick={() => act.mutate({ id: c.Id, action: "unpause" })}><Play size={15} /></IconButton>
+                            <IconButton title={tr("Resume")} onClick={() => act.mutate({ id: c.Id, action: "unpause" })}><Play size={15} /></IconButton>
                           ) : (
-                            <IconButton title={tr("Démarrer")} onClick={() => act.mutate({ id: c.Id, action: "start" })}><Play size={15} /></IconButton>
+                            <IconButton title={tr("Start")} onClick={() => act.mutate({ id: c.Id, action: "start" })}><Play size={15} /></IconButton>
                           )}
-                          <IconButton title={tr("Journaux")} onClick={() => setLogs(c)}><FileText size={15} /></IconButton>
-                          <IconButton title={tr("Supprimer")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer {0} ?", name(c)), text: stack ? tr("Ce conteneur appartient à la stack « {0} » : il sera recréé au prochain déploiement.", stack) : tr("Le conteneur sera arrêté et supprimé. Ses volumes nommés sont conservés."), danger: true })) del.mutate(c.Id); }}><Trash2 size={15} /></IconButton>
+                          <IconButton title={tr("Logs")} onClick={() => setLogs(c)}><FileText size={15} /></IconButton>
+                          <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", name(c)), text: stack ? tr("This container belongs to the stack \"{0}\": it will be recreated on the next deployment.", stack) : tr("The container will be stopped and deleted. Its named volumes are kept."), danger: true })) del.mutate(c.Id); }}><Trash2 size={15} /></IconButton>
                         </td>
                       </tr>
                     );
@@ -248,7 +248,7 @@ export default function Containers() {
             </div>
           )}
         </Card>
-        {act.isPending && <div className="mt-3"><Notice>{tr("Opération en cours…")}</Notice></div>}
+        {act.isPending && <div className="mt-3"><Notice>{tr("Operation in progress…")}</Notice></div>}
       </DockerGuard>
       {logs && <LogsModal id={logs.Id} title={name(logs)} onClose={() => setLogs(null)} />}
       {shell && <ShellModal id={shell.Id} title={name(shell)} onClose={() => setShell(null)} />}

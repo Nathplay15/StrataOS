@@ -673,5 +673,12 @@
  "Échec de la réplication pour {0}": "Falló la replicación de {0}",
  "Équilibrage {0}": "Equilibrado {0}",
  "Étape invalide": "Paso no válido",
- "État simulé invalide": "Estado simulado no válido"
+ "État simulé invalide": "Estado simulado no válido",
+ "Échec de l'application de la configuration des partages : {0}": "Error al aplicar la configuración de los recursos compartidos: {0}",
+ "Test SMART court": "Prueba SMART corta",
+ "Test SMART long": "Prueba SMART larga",
+ "Les notifications StrataOS fonctionnent.": "Las notificaciones de StrataOS funcionan.",
+ "lien de partage": "enlace compartido",
+ "coffre de sauvegarde": "bóveda de copias",
+ "manuel": "manual"
 }

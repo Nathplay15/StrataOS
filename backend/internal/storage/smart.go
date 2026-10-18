@@ -193,12 +193,12 @@ func rawCount(raw string) int {
 func SmartWarnings(info *SmartInfo) []string {
 	var w []string
 	counters := map[int]string{
-		5:   "%d secteur(s) réalloué(s)",
-		197: "%d secteur(s) en attente de réallocation",
-		198: "%d secteur(s) illisible(s)",
-		187: "%d erreur(s) non corrigée(s)",
-		10:  "%d échec(s) de démarrage du moteur",
-		184: "%d erreur(s) de transfert interne",
+		5:   "%d reallocated sector(s)",
+		197: "%d sector(s) pending reallocation",
+		198: "%d unreadable sector(s)",
+		187: "%d uncorrected error(s)",
+		10:  "%d spin-up failure(s)",
+		184: "%d internal transfer error(s)",
 	}
 	for _, a := range info.Attributes {
 		if f, ok := counters[a.ID]; ok {
@@ -209,25 +209,25 @@ func SmartWarnings(info *SmartInfo) []string {
 		}
 		// A pre-failure attribute close to its threshold.
 		if a.Thresh > 0 && a.Value > 0 && a.Value <= a.Thresh+5 && a.Failed == "" {
-			w = append(w, fmt.Sprintf("attribut %s proche de son seuil (%d / %d)", a.Name, a.Value, a.Thresh))
+			w = append(w, fmt.Sprintf("attribute %s close to its threshold (%d / %d)", a.Name, a.Value, a.Thresh))
 		}
 	}
 	if n := info.nvmeLog; n.present {
 		if n.CriticalWarning != 0 {
-			w = append(w, fmt.Sprintf("avertissement critique NVMe (code %d)", n.CriticalWarning))
+			w = append(w, fmt.Sprintf("NVMe critical warning (code %d)", n.CriticalWarning))
 		}
 		if n.MediaErrors > 0 {
-			w = append(w, fmt.Sprintf("%d erreur(s) de support", n.MediaErrors))
+			w = append(w, fmt.Sprintf("%d media error(s)", n.MediaErrors))
 		}
 		if n.PercentageUsed >= 90 {
-			w = append(w, fmt.Sprintf("usure du SSD à %d %%", n.PercentageUsed))
+			w = append(w, fmt.Sprintf("SSD wear at %d%%", n.PercentageUsed))
 		}
 		if n.SpareThreshold > 0 && n.AvailableSpare <= n.SpareThreshold {
-			w = append(w, fmt.Sprintf("réserve de cellules épuisée (%d %%)", n.AvailableSpare))
+			w = append(w, fmt.Sprintf("spare cells exhausted (%d%%)", n.AvailableSpare))
 		}
 	}
 	if info.Temperature >= 60 {
-		w = append(w, fmt.Sprintf("température élevée (%d °C)", info.Temperature))
+		w = append(w, fmt.Sprintf("high temperature (%d °C)", info.Temperature))
 	}
 	return w
 }

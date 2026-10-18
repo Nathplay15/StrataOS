@@ -12,9 +12,9 @@ import { tr, srv } from "../../lib/i18n";
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
 const kinds = {
-  rsync: { label: tr("Copie"), sub: tr("Miroir des fichiers (rsync) vers un disque, un volume ou un serveur SSH"), icon: <FolderSync size={18} /> },
-  restic: { label: tr("Sauvegarde versionnée"), sub: tr("Chiffrée et dédupliquée (restic) : local, SFTP, S3, B2, MinIO…"), icon: <Cloud size={18} /> },
-  zfs: { label: tr("Réplication ZFS"), sub: tr("Snapshots envoyés vers un autre pool, local ou distant"), icon: <Layers size={18} /> },
+  rsync: { label: tr("Copy"), sub: tr("Mirror files (rsync) to a disk, a volume or an SSH server"), icon: <FolderSync size={18} /> },
+  restic: { label: tr("Versioned backup"), sub: tr("Encrypted and deduplicated (restic): local, SFTP, S3, B2, MinIO…"), icon: <Cloud size={18} /> },
+  zfs: { label: tr("ZFS replication"), sub: tr("Snapshots sent to another pool, local or remote"), icon: <Layers size={18} /> },
 };
 
 const blank: BackupTask = { id: "", name: "", kind: "rsync", sources: [], destType: "local", destPath: "", port: 22, cron: "0 1 * * *", enabled: true, history: [], keepDaily: 7, keepWeekly: 4, keepMonthly: 12, keepLast: 7 };
@@ -25,7 +25,7 @@ function destLabel(b: BackupTask) {
     case "ssh": case "sftp": return `${b.user}@${b.host}:${b.destPath}`;
     case "s3": return tr("S3 {0}/{1}", b.s3Endpoint?.replace(/^https?:\/\//, ""), b.destPath);
     case "rest": return b.destPath;
-    case "strataos": return tr("Coffre de {0}", (b.vaultUrl ?? "").replace(/^https:\/\//, "").split(/[:/]/)[0]);
+    case "strataos": return tr("Vault of {0}", (b.vaultUrl ?? "").replace(/^https:\/\//, "").split(/[:/]/)[0]);
   }
 }
 
@@ -35,10 +35,10 @@ function SSHKey() {
   return (
     <Notice>
       <div className="space-y-2">
-        <div>{tr("Ajoutez cette clé publique dans")}{" "}<span className="mono">~/.ssh/authorized_keys</span> {" "}{tr("du compte distant (un autre NAS StrataOS, un Synology, un serveur Linux…) :")}</div>
+        <div>{tr("Add this public key to")}{" "}<span className="mono">~/.ssh/authorized_keys</span> {" "}{tr("of the remote account (another StrataOS NAS, a Synology, a Linux server…):")}</div>
         <div className="flex items-center gap-2">
           <code className="mono min-w-0 flex-1 truncate rounded-lg bg-panel px-2.5 py-1.5">{data?.publicKey ?? "…"}</code>
-          <IconButton title={tr("Copier")} onClick={() => { if (data) { navigator.clipboard?.writeText(data.publicKey); toast(tr("Clé copiée")); } }}><Copy size={15} /></IconButton>
+          <IconButton title={tr("Copy")} onClick={() => { if (data) { navigator.clipboard?.writeText(data.publicKey); toast(tr("Key copied")); } }}><Copy size={15} /></IconButton>
         </div>
       </div>
     </Notice>
@@ -49,17 +49,17 @@ function VaultPair({ b, set }: { b: BackupTask; set: (k: Partial<BackupTask>) =>
   const [host, setHost] = useState("");
   const [code, setCode] = useState("");
   const pair = useAction(() => api.post<{ vaultUrl: string; vaultToken: string; vaultCert: string; appendOnly: boolean }>("/api/backups/vault-pair", { host, code }), {
-    success: tr("Appairé avec le coffre"),
+    success: tr("Paired with the vault"),
     onDone: (r) => set({ ...r, destPath: r.vaultUrl }),
   });
   return (
     <div className="space-y-3">
-      {b.vaultUrl && <Notice>{tr("Appairé avec {0}", b.vaultUrl.replace(/^https:\/\//, "").split("/")[0])}{b.appendOnly ? ` · ${tr("coffre en ajout seul : les anciennes versions ne sont jamais supprimées")}` : ""}</Notice>}
+      {b.vaultUrl && <Notice>{tr("Paired with {0}", b.vaultUrl.replace(/^https:\/\//, "").split("/")[0])}{b.appendOnly ? ` · ${tr("append-only vault: older versions are never deleted")}` : ""}</Notice>}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label={tr("Adresse du NAS coffre")} className="sm:col-span-2"><Input value={host} onChange={(e) => setHost(e.target.value.trim())} placeholder="192.168.1.30" /></Field>
-        <Field label={tr("Code d'appairage")} hint={tr("Affiché par le coffre")}><Input className="mono uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ABCDE-12345" /></Field>
+        <Field label={tr("Vault NAS address")} className="sm:col-span-2"><Input value={host} onChange={(e) => setHost(e.target.value.trim())} placeholder="192.168.1.30" /></Field>
+        <Field label={tr("Pairing code")} hint={tr("Shown by the vault")}><Input className="mono uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ABCDE-12345" /></Field>
       </div>
-      <div className="flex justify-end"><Button loading={pair.isPending} disabled={!host || !code} onClick={() => pair.mutate()}>{b.vaultUrl ? tr("Appairer à nouveau") : tr("Appairer")}</Button></div>
+      <div className="flex justify-end"><Button loading={pair.isPending} disabled={!host || !code} onClick={() => pair.mutate()}>{b.vaultUrl ? tr("Pair again") : tr("Pair")}</Button></div>
       <ErrorBox error={pair.error} />
     </div>
   );
@@ -72,21 +72,21 @@ function VaultsCard({ sources }: { sources?: Sources }) {
   const { data } = useQuery({ queryKey: ["vaults"], queryFn: () => api.get<VaultT[]>("/api/vaults") });
   const [form, setForm] = useState<{ name: string; path: string; appendOnly: boolean } | null>(null);
   const [code, setCode] = useState<{ vault: string; code: string } | null>(null);
-  const create = useAction(() => api.post("/api/vaults", form), { success: tr("Coffre créé"), onDone: () => setForm(null) });
+  const create = useAction(() => api.post("/api/vaults", form), { success: tr("Vault created"), onDone: () => setForm(null) });
   const mkCode = useAction((id: string) => api.post<{ code: string }>(`/api/vaults/${id}/code`), { onDone: (r) => setCode({ vault: "", code: r.code }) });
-  const revoke = useAction((v: { id: string; cid: string }) => api.del(`/api/vaults/${v.id}/clients/${v.cid}`), { success: tr("Accès retiré (les sauvegardes sont conservées)") });
-  const del = useAction((id: string) => api.del(`/api/vaults/${id}`), { success: tr("Coffre supprimé (les données sont conservées)") });
+  const revoke = useAction((v: { id: string; cid: string }) => api.del(`/api/vaults/${v.id}/clients/${v.cid}`), { success: tr("Access removed (backups are kept)") });
+  const del = useAction((id: string) => api.del(`/api/vaults/${id}`), { success: tr("Vault deleted (data is kept)") });
   return (
-    <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Coffres de sauvegarde")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true })}>{tr("Nouveau coffre")}</Button>}>
-      <p className="mb-3 text-muted text-[12.5px]">{tr("Recevez ici les sauvegardes chiffrées d'autres NAS StrataOS (type « Coffre d'un autre NAS StrataOS » sur le NAS à sauvegarder).")}</p>
-      {!data?.length ? <div className="text-muted text-[13px]">{tr("Aucun coffre.")}</div> : data.map((v) => (
+    <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Backup vaults")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true })}>{tr("New vault")}</Button>}>
+      <p className="mb-3 text-muted text-[12.5px]">{tr("Receive encrypted backups from other StrataOS NAS here (« Vault of another StrataOS NAS » type on the NAS to back up).")}</p>
+      {!data?.length ? <div className="text-muted text-[13px]">{tr("No vaults.")}</div> : data.map((v) => (
         <div key={v.id} className="mb-3 rounded-xl border border-line p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="font-medium">{v.name}</div><span className="mono text-muted text-[12px]">{v.path}</span>
-            {v.appendOnly && <Badge tone="ok">{tr("Ajout seul")}</Badge>}
+            {v.appendOnly && <Badge tone="ok">{tr("Append-only")}</Badge>}
             <div className="flex-1" />
-            <Button size="sm" loading={mkCode.isPending && mkCode.variables === v.id} onClick={() => mkCode.mutate(v.id)}>{tr("Code d'appairage")}</Button>
-            <IconButton title={tr("Supprimer")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer le coffre {0} ?", v.name), text: tr("Les NAS appairés ne pourront plus y envoyer de sauvegardes. Les données restent dans le dossier."), danger: true })) del.mutate(v.id); }}><Trash2 size={15} /></IconButton>
+            <Button size="sm" loading={mkCode.isPending && mkCode.variables === v.id} onClick={() => mkCode.mutate(v.id)}>{tr("Pairing code")}</Button>
+            <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete the vault {0}?", v.name), text: tr("Paired NAS will no longer be able to send backups to it. The data remains in the folder."), danger: true })) del.mutate(v.id); }}><Trash2 size={15} /></IconButton>
           </div>
           {v.clients.length > 0 && (
             <table className="table mt-2">
@@ -94,8 +94,8 @@ function VaultsCard({ sources }: { sources?: Sources }) {
                 {v.clients.map((c) => (
                   <tr key={c.id}>
                     <td>{c.name}</td><td className="text-muted">{bytes(c.size)}</td>
-                    <td className="text-muted text-[12px]">{c.lastSeen ? tr("Dernier envoi {0}", ago(c.lastSeen)) : tr("Jamais")}</td>
-                    <td className="text-right"><Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Retirer l'accès de {0} ?", c.name), text: tr("Ce NAS ne pourra plus envoyer de sauvegardes. Celles déjà reçues sont conservées."), danger: true })) revoke.mutate({ id: v.id, cid: c.id }); }}>{tr("Retirer")}</Button></td>
+                    <td className="text-muted text-[12px]">{c.lastSeen ? tr("Last upload {0}", ago(c.lastSeen)) : tr("Never")}</td>
+                    <td className="text-right"><Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Remove access for {0}?", c.name), text: tr("This NAS will no longer be able to send backups. Those already received are kept."), danger: true })) revoke.mutate({ id: v.id, cid: c.id }); }}>{tr("Remove")}</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -103,11 +103,11 @@ function VaultsCard({ sources }: { sources?: Sources }) {
           )}
         </div>
       ))}
-      <Modal open={!!form} onClose={() => setForm(null)} title={tr("Nouveau coffre de sauvegarde")} footer={<><Button onClick={() => setForm(null)}>{tr("Annuler")}</Button><Button variant="primary" loading={create.isPending} disabled={!form?.name || !form.path} onClick={() => create.mutate()}>{tr("Créer")}</Button></>}>
+      <Modal open={!!form} onClose={() => setForm(null)} title={tr("New backup vault")} footer={<><Button onClick={() => setForm(null)}>{tr("Cancel")}</Button><Button variant="primary" loading={create.isPending} disabled={!form?.name || !form.path} onClick={() => create.mutate()}>{tr("Create")}</Button></>}>
         {form && (
           <div className="space-y-4">
-            <Field label={tr("Nom")}><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={tr("ex. Sauvegardes du bureau")} /></Field>
-            <Field label={tr("Dossier")}>
+            <Field label={tr("Name")}><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. Office backups")} /></Field>
+            <Field label={tr("Folder")}>
               <div className="flex gap-2">
                 <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && setForm({ ...form, path: `${e.target.value}/coffre` })}>
                   <option value="">{tr("Volume…")}</option>
@@ -116,13 +116,13 @@ function VaultsCard({ sources }: { sources?: Sources }) {
                 <Input className="mono" value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} />
               </div>
             </Field>
-            <Switch checked={form.appendOnly} onChange={(v) => setForm({ ...form, appendOnly: v })} label={tr("Ajout seul (anti-rançongiciel)")} hint={tr("Un NAS appairé peut ajouter des sauvegardes mais jamais en supprimer : même piraté, il ne peut pas détruire ses copies. Les anciennes versions s'accumulent.")} />
+            <Switch checked={form.appendOnly} onChange={(v) => setForm({ ...form, appendOnly: v })} label={tr("Append-only (anti-ransomware)")} hint={tr("A paired NAS can add backups but never delete any: even if compromised, it cannot destroy its copies. Older versions accumulate.")} />
             <ErrorBox error={create.error} />
           </div>
         )}
       </Modal>
-      <Modal open={!!code} onClose={() => setCode(null)} title={tr("Code d'appairage")} footer={<Button onClick={() => setCode(null)}>{tr("Fermer")}</Button>}>
-        {code && <div className="space-y-3 text-[13px]"><p className="text-muted">{tr("Saisissez ce code sur le NAS à sauvegarder, dans une sauvegarde de type « Coffre d'un autre NAS StrataOS ». Il est valable 15 minutes, une seule fois.")}</p><div className="flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code.code}</code><IconButton title={tr("Copier")} onClick={() => { navigator.clipboard?.writeText(code.code); toast(tr("Code copié")); }}><Copy size={15} /></IconButton></div></div>}
+      <Modal open={!!code} onClose={() => setCode(null)} title={tr("Pairing code")} footer={<Button onClick={() => setCode(null)}>{tr("Close")}</Button>}>
+        {code && <div className="space-y-3 text-[13px]"><p className="text-muted">{tr("Enter this code on the NAS to back up, in a backup of type « Vault of another StrataOS NAS ». It is valid for 15 minutes, one time only.")}</p><div className="flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code.code}</code><IconButton title={tr("Copy")} onClick={() => { navigator.clipboard?.writeText(code.code); toast(tr("Code copied")); }}><Copy size={15} /></IconButton></div></div>}
       </Modal>
     </Card>
   );
@@ -136,17 +136,17 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
   const [excludes, setExcludes] = useState((initial?.excludes ?? []).join("\n"));
   const set = (k: Partial<BackupTask>) => setB((p) => ({ ...p, ...k }));
   const payload = () => ({ ...b, cron: scheduled ? toCron(plan) : "", excludes: excludes.split("\n").map((x) => x.trim()).filter(Boolean) });
-  const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Sauvegarde mise à jour") : tr("Sauvegarde créée"), onDone: onClose });
+  const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Backup updated") : tr("Backup created"), onDone: onClose });
   const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => srv(r.message) });
   const remote = b.destType === "ssh" || b.destType === "sftp";
-  const destTypes = b.kind === "restic" ? [["local", tr("Dossier local / disque USB")], ["sftp", tr("Serveur SFTP (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("Serveur REST restic")], ["strataos", tr("Coffre d'un autre NAS StrataOS")]] : [["local", b.kind === "zfs" ? tr("Pool local") : tr("Dossier local / disque USB")], ["ssh", tr("Serveur distant (SSH)")]];
+  const destTypes = b.kind === "restic" ? [["local", tr("Local folder / USB disk")], ["sftp", tr("SFTP server (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("restic REST server")], ["strataos", tr("Vault of another StrataOS NAS")]] : [["local", b.kind === "zfs" ? tr("Local pool") : tr("Local folder / USB disk")], ["ssh", tr("Remote server (SSH)")]];
   const pickKind = (k: BackupTask["kind"]) => set({ kind: k, sources: [], destType: "local", destPath: "" });
 
   return (
-    <Modal open onClose={onClose} title={editing ? tr("Modifier « {0} »", b.name) : tr("Nouvelle sauvegarde")} wide footer={<>
-      <Button className="mr-auto" loading={test.isPending} onClick={() => test.mutate()}>{tr("Tester la destination")}</Button>
-      <Button onClick={onClose}>{tr("Annuler")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!b.name || !b.sources.length || !b.destPath} onClick={() => save.mutate()}>{editing ? tr("Enregistrer") : tr("Créer")}</Button>
+    <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", b.name) : tr("New backup")} wide footer={<>
+      <Button className="mr-auto" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test destination")}</Button>
+      <Button onClick={onClose}>{tr("Cancel")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!b.name || !b.sources.length || !b.destPath} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-2 sm:grid-cols-3">
@@ -157,14 +157,14 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
             </button>
           ))}
         </div>
-        <Field label={tr("Nom")}><Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder={tr("ex. Photos vers disque USB")} /></Field>
+        <Field label={tr("Name")}><Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder={tr("e.g. Photos to USB disk")} /></Field>
 
         <div>
-          <div className="mb-2 text-[12.5px] font-medium text-muted">{b.kind === "zfs" ? tr("Dataset à répliquer") : tr("Dossiers à sauvegarder")}</div>
+          <div className="mb-2 text-[12.5px] font-medium text-muted">{b.kind === "zfs" ? tr("Dataset to replicate") : tr("Folders to back up")}</div>
           {b.kind === "zfs" ? (
-            sources.datasets.length === 0 ? <Notice tone="warn">{tr("Aucun dataset ZFS.")}</Notice> : (
+            sources.datasets.length === 0 ? <Notice tone="warn">{tr("No ZFS datasets.")}</Notice> : (
               <Select value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value ? [e.target.value] : [] })}>
-                <option value="">{tr("Choisir…")}</option>
+                <option value="">{tr("Choose…")}</option>
                 {sources.datasets.map((d) => <option key={d.path} value={d.path}>{d.label}</option>)}
               </Select>
             )
@@ -186,22 +186,22 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
           </Field>
           {remote && (
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={tr("Serveur")} className="sm:col-span-2"><Input value={b.host ?? ""} onChange={(e) => set({ host: e.target.value })} placeholder={tr("nas2.local ou 192.168.1.20")} /></Field>
+              <Field label={tr("Server")} className="sm:col-span-2"><Input value={b.host ?? ""} onChange={(e) => set({ host: e.target.value })} placeholder={tr("nas2.local or 192.168.1.20")} /></Field>
               <Field label={tr("Port")}><Input type="number" value={b.port ?? 22} onChange={(e) => set({ port: +e.target.value })} /></Field>
-              <Field label={tr("Utilisateur")}><Input value={b.user ?? ""} onChange={(e) => set({ user: e.target.value })} /></Field>
+              <Field label={tr("User")}><Input value={b.user ?? ""} onChange={(e) => set({ user: e.target.value })} /></Field>
             </div>
           )}
           {b.destType === "strataos" && <VaultPair b={b} set={set} />}
           {b.destType === "s3" && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr("Point de terminaison")} className="sm:col-span-2" hint={tr("ex. https://s3.eu-west-3.amazonaws.com, https://s3.us-west-002.backblazeb2.com, http://minio:9000")}><Input value={b.s3Endpoint ?? ""} onChange={(e) => set({ s3Endpoint: e.target.value })} /></Field>
-              <Field label={tr("Clé d'accès")}><Input value={b.accessKey ?? ""} onChange={(e) => set({ accessKey: e.target.value })} /></Field>
-              <Field label={tr("Clé secrète")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
+              <Field label={tr("Endpoint")} className="sm:col-span-2" hint={tr("e.g. https://s3.eu-west-3.amazonaws.com, https://s3.us-west-002.backblazeb2.com, http://minio:9000")}><Input value={b.s3Endpoint ?? ""} onChange={(e) => set({ s3Endpoint: e.target.value })} /></Field>
+              <Field label={tr("Access key")}><Input value={b.accessKey ?? ""} onChange={(e) => set({ accessKey: e.target.value })} /></Field>
+              <Field label={tr("Secret key")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
             </div>
           )}
           {b.destType !== "strataos" && <Field
-            label={b.kind === "zfs" ? tr("Dataset de destination") : b.destType === "s3" ? tr("Bucket / dossier") : b.destType === "rest" ? tr("URL du serveur REST") : b.destType === "local" ? tr("Dossier de destination") : tr("Chemin distant")}
-            hint={b.kind === "zfs" ? tr("ex. backup/media (créé automatiquement)") : b.destType === "local" ? tr("Dans un volume, ex. /srv/strata/usb/sauvegardes (un disque USB s'importe depuis le Gestionnaire de stockage)") : undefined}
+            label={b.kind === "zfs" ? tr("Destination dataset") : b.destType === "s3" ? tr("Bucket / folder") : b.destType === "rest" ? tr("REST server URL") : b.destType === "local" ? tr("Destination folder") : tr("Remote path")}
+            hint={b.kind === "zfs" ? tr("e.g. backup/media (created automatically)") : b.destType === "local" ? tr("Inside a volume, e.g. /srv/strata/usb/backups (a USB disk is imported from Storage Manager)") : undefined}
           >
             {b.destType === "local" && b.kind !== "zfs" ? (
               <div className="flex gap-2">
@@ -218,35 +218,35 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
 
         {b.kind === "rsync" && (
           <div className="space-y-3">
-            <Switch checked={!!b.delete} onChange={(v) => set({ delete: v })} label={tr("Miroir exact")} hint={tr("Supprime de la destination les fichiers supprimés à la source. Sans cette option, rien n'est jamais effacé de la copie.")} />
-            <Field label={tr("Exclusions (une par ligne)")} hint={tr("ex. *.tmp, Thumbs.db, cache/")}><textarea className="input mono h-20" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
+            <Switch checked={!!b.delete} onChange={(v) => set({ delete: v })} label={tr("Exact mirror")} hint={tr("Deletes from the destination the files deleted at the source. Without this option, nothing is ever erased from the copy.")} />
+            <Field label={tr("Exclusions (one per line)")} hint={tr("e.g. *.tmp, Thumbs.db, cache/")}><textarea className="input mono h-20" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
           </div>
         )}
         {b.kind === "restic" && (
           <div className="space-y-3 rounded-xl border border-line p-4">
-            <Field label={tr("Mot de passe du dépôt")} hint={tr("Chiffre toutes les données. Sans lui, la sauvegarde est irrécupérable : conservez-le hors du NAS.")}><Input type="password" value={b.password ?? ""} onChange={(e) => set({ password: e.target.value })} /></Field>
-            <div className="text-[12.5px] font-medium text-muted">{tr("Conserver")}</div>
+            <Field label={tr("Repository password")} hint={tr("Encrypts all data. Without it, the backup is unrecoverable: keep it outside the NAS.")}><Input type="password" value={b.password ?? ""} onChange={(e) => set({ password: e.target.value })} /></Field>
+            <div className="text-[12.5px] font-medium text-muted">{tr("Keep")}</div>
             <div className="grid gap-3 sm:grid-cols-4">
-              <Field label={tr("Derniers")}><Input type="number" min={0} value={b.keepLast ?? 0} onChange={(e) => set({ keepLast: +e.target.value })} /></Field>
-              <Field label={tr("Quotidiens")}><Input type="number" min={0} value={b.keepDaily ?? 0} onChange={(e) => set({ keepDaily: +e.target.value })} /></Field>
-              <Field label={tr("Hebdomadaires")}><Input type="number" min={0} value={b.keepWeekly ?? 0} onChange={(e) => set({ keepWeekly: +e.target.value })} /></Field>
-              <Field label={tr("Mensuels")}><Input type="number" min={0} value={b.keepMonthly ?? 0} onChange={(e) => set({ keepMonthly: +e.target.value })} /></Field>
+              <Field label={tr("Latest")}><Input type="number" min={0} value={b.keepLast ?? 0} onChange={(e) => set({ keepLast: +e.target.value })} /></Field>
+              <Field label={tr("Daily")}><Input type="number" min={0} value={b.keepDaily ?? 0} onChange={(e) => set({ keepDaily: +e.target.value })} /></Field>
+              <Field label={tr("Weekly")}><Input type="number" min={0} value={b.keepWeekly ?? 0} onChange={(e) => set({ keepWeekly: +e.target.value })} /></Field>
+              <Field label={tr("Monthly")}><Input type="number" min={0} value={b.keepMonthly ?? 0} onChange={(e) => set({ keepMonthly: +e.target.value })} /></Field>
             </div>
-            <Field label={tr("Exclusions (une par ligne)")}><textarea className="input mono h-16" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
+            <Field label={tr("Exclusions (one per line)")}><textarea className="input mono h-16" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
           </div>
         )}
         {b.kind === "zfs" && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={tr("Points de réplication conservés")}><Input type="number" min={1} value={b.keepLast ?? 7} onChange={(e) => set({ keepLast: Math.max(1, +e.target.value) })} /></Field>
-            <div className="pt-6"><Switch checked={!!b.recursive} onChange={(v) => set({ recursive: v })} label={tr("Inclure les datasets enfants")} /></div>
+            <Field label={tr("Replication points kept")}><Input type="number" min={1} value={b.keepLast ?? 7} onChange={(e) => set({ keepLast: Math.max(1, +e.target.value) })} /></Field>
+            <div className="pt-6"><Switch checked={!!b.recursive} onChange={(v) => set({ recursive: v })} label={tr("Include child datasets")} /></div>
           </div>
         )}
 
         <div className="space-y-3">
-          <Switch checked={scheduled} onChange={setScheduled} label={tr("Exécuter automatiquement")} hint={tr("Sinon, uniquement à la demande")} />
+          <Switch checked={scheduled} onChange={setScheduled} label={tr("Run automatically")} hint={tr("Otherwise, only on demand")} />
           {scheduled && <ScheduleEditor plan={plan} onChange={setPlan} />}
         </div>
-        <Switch checked={b.enabled} onChange={(v) => set({ enabled: v })} label={tr("Sauvegarde active")} />
+        <Switch checked={b.enabled} onChange={(v) => set({ enabled: v })} label={tr("Backup active")} />
         <ErrorBox error={save.error || test.error} />
       </div>
     </Modal>
@@ -261,24 +261,24 @@ function RestoreModal({ b, onClose }: { b: BackupTask; onClose: () => void }) {
   const [target, setTarget] = useState(`${base}/restauration-${new Date().toISOString().slice(0, 10)}`);
   const restore = useAction(() => api.post(`/api/backups/${b.id}/restore`, { snapshot: snap, include, target }), { onDone: onClose });
   return (
-    <Modal open onClose={onClose} title={tr("Restaurer « {0} »", b.name)} wide footer={<>
-      <Button onClick={onClose}>{tr("Annuler")}</Button>
-      <Button variant="primary" disabled={!snap || !target} loading={restore.isPending} onClick={() => restore.mutate()}>{tr("Restaurer")}</Button>
+    <Modal open onClose={onClose} title={tr("Restore \"{0}\"", b.name)} wide footer={<>
+      <Button onClick={onClose}>{tr("Cancel")}</Button>
+      <Button variant="primary" disabled={!snap || !target} loading={restore.isPending} onClick={() => restore.mutate()}>{tr("Restore")}</Button>
     </>}>
       <div className="space-y-4">
         <ErrorBox error={error} />
-        {isLoading ? <Spinner label={tr("Lecture du dépôt…")} /> : !data?.length ? <Empty icon={<ArchiveRestore />} title={tr("Aucune version")} text={tr("Lancez la sauvegarde une première fois.")} /> : (
+        {isLoading ? <Spinner label={tr("Reading repository…")} /> : !data?.length ? <Empty icon={<ArchiveRestore />} title={tr("No versions")} text={tr("Run the backup for the first time.")} /> : (
           <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-line p-1">
             {data.map((s) => (
               <button key={s.id} onClick={() => setSnap(s.id)} className={cx("flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px]", snap === s.id ? "bg-accent-soft text-accent" : "hover:bg-panel-2")}>
                 <span><b>{dateTime(s.time)}</b> <span className="text-muted">· {ago(s.time)}</span></span>
-                <span className="text-muted text-[12px]">{s.summary ? tr("{0} fichiers · {1}", s.summary.total_files_processed, bytes(s.summary.total_bytes_processed)) : s.short_id}</span>
+                <span className="text-muted text-[12px]">{s.summary ? tr("{0} files · {1}", s.summary.total_files_processed, bytes(s.summary.total_bytes_processed)) : s.short_id}</span>
               </button>
             ))}
           </div>
         )}
-        <Field label={tr("Restaurer uniquement (optionnel)")} hint={tr("Chemin complet d'un dossier ou d'un fichier sauvegardé, ex. {0}/2025", b.sources[0] ?? "")}><Input className="mono" value={include} onChange={(e) => setInclude(e.target.value)} /></Field>
-        <Field label={tr("Restaurer dans")} hint={tr("Les fichiers sont recréés sous ce dossier avec leur chemin d'origine ; rien n'est écrasé ailleurs.")}><Input className="mono" value={target} onChange={(e) => setTarget(e.target.value)} /></Field>
+        <Field label={tr("Restore only (optional)")} hint={tr("Full path of a backed-up folder or file, e.g. {0}/2025", b.sources[0] ?? "")}><Input className="mono" value={include} onChange={(e) => setInclude(e.target.value)} /></Field>
+        <Field label={tr("Restore to")} hint={tr("Files are recreated under this folder with their original path; nothing is overwritten elsewhere.")}><Input className="mono" value={target} onChange={(e) => setTarget(e.target.value)} /></Field>
       </div>
     </Modal>
   );
@@ -286,13 +286,13 @@ function RestoreModal({ b, onClose }: { b: BackupTask; onClose: () => void }) {
 
 export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "history">; onClose: () => void }) {
   return (
-    <Modal open onClose={onClose} title={tr("Historique — {0}", b.name)} wide>
-      {b.history.length === 0 ? <Empty icon={<History />} title={tr("Jamais exécutée")} /> : (
+    <Modal open onClose={onClose} title={tr("History — {0}", b.name)} wide>
+      {b.history.length === 0 ? <Empty icon={<History />} title={tr("Never run")} /> : (
         <div className="space-y-2">
           {b.history.map((h, i) => (
             <div key={i} className="flex items-start gap-3 rounded-xl bg-panel-2 px-4 py-3">
               {h.status === "success" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={17} className="mt-0.5 shrink-0 text-danger" />}
-              <div className="min-w-0"><div className="text-[13px] break-words">{srv(h.message)}</div><div className="text-muted text-[11.5px]">{dateTime(h.started)} · {Math.max(1, Math.round(h.duration))} s{h.manual ? tr(" · manuelle") : ""}</div></div>
+              <div className="min-w-0"><div className="text-[13px] break-words">{srv(h.message)}</div><div className="text-muted text-[11.5px]">{dateTime(h.started)} · {Math.max(1, Math.round(h.duration))} s{h.manual ? tr(" · manual") : ""}</div></div>
             </div>
           ))}
         </div>
@@ -310,14 +310,14 @@ export default function Backups() {
   const sources = useQuery({ queryKey: ["backup-sources"], queryFn: () => api.get<Sources>("/api/backups/sources") });
   const run = useAction((id: string) => api.post(`/api/backups/${id}/run`));
   const toggle = useAction((b: BackupTask) => api.put(`/api/backups/${b.id}`, { ...b, enabled: !b.enabled }));
-  const del = useAction((id: string) => api.del(`/api/backups/${id}`), { success: tr("Sauvegarde supprimée (les données sauvegardées sont conservées)") });
+  const del = useAction((id: string) => api.del(`/api/backups/${id}`), { success: tr("Backup deleted (backed-up data is kept)") });
 
   return (
     <div>
-      <PageHeader title={tr("Sauvegarde")} subtitle={tr("Copies, sauvegardes versionnées et réplication, vers un disque, un autre NAS ou le cloud")} icon={<DatabaseBackup size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Nouvelle sauvegarde")}</Button>} />
+      <PageHeader title={tr("Backup")} subtitle={tr("Copies, versioned backups and replication, to a disk, another NAS or the cloud")} icon={<DatabaseBackup size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => setEdit(null)}>{tr("New backup")}</Button>} />
       <ErrorBox error={error || sources.error} />
       {isLoading ? <Spinner /> : !data?.length ? (
-        <Card><Empty icon={<DatabaseBackup />} title={tr("Aucune sauvegarde")} text={tr("Un RAID protège contre la panne d'un disque, pas contre une suppression, un rançongiciel ou un incendie. Gardez au moins une copie ailleurs : disque USB, autre NAS ou cloud.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Créer une sauvegarde")}</Button>} /></Card>
+        <Card><Empty icon={<DatabaseBackup />} title={tr("No backups")} text={tr("RAID protects against a disk failure, not against deletion, ransomware or fire. Keep at least one copy elsewhere: USB disk, another NAS or the cloud.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Create a backup")}</Button>} /></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {data.map((b) => {
@@ -328,15 +328,15 @@ export default function Backups() {
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">{kinds[b.kind].icon}</div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 font-semibold">{b.name}{b.running && <Badge tone="accent" dot>{tr("En cours")}</Badge>}</div>
+                      <div className="flex items-center gap-2 font-semibold">{b.name}{b.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}</div>
                       <div className="text-muted text-[12px]">{kinds[b.kind].label}</div>
                     </div>
                     <Switch checked={b.enabled} onChange={() => toggle.mutate(b)} />
                   </div>
                   <div className="mt-3 space-y-1 text-[12.5px]">
-                    <div className="truncate"><span className="text-muted">{tr("De")}{" "}</span><span className="mono">{b.sources.join(", ")}</span></div>
-                    <div className="truncate"><span className="text-muted">{tr("Vers")}{" "}</span><span className="mono">{destLabel(b)}</span></div>
-                    <div className="text-muted">{b.cron ? describeCron(b.cron) : tr("À la demande")}{b.enabled && b.nextRun ? tr(" · prochaine {0}", dateTime(b.nextRun)) : ""}</div>
+                    <div className="truncate"><span className="text-muted">{tr("From")}{" "}</span><span className="mono">{b.sources.join(", ")}</span></div>
+                    <div className="truncate"><span className="text-muted">{tr("To")}{" "}</span><span className="mono">{destLabel(b)}</span></div>
+                    <div className="text-muted">{b.cron ? describeCron(b.cron) : tr("On demand")}{b.enabled && b.nextRun ? tr(" · next {0}", dateTime(b.nextRun)) : ""}</div>
                   </div>
                   {last && (
                     <button onClick={() => setHist(b)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", last.status === "success" ? "bg-ok/10" : "bg-danger/10 text-danger")}>
@@ -346,11 +346,11 @@ export default function Backups() {
                   )}
                 </div>
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
-                  <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Exécuter")}</Button>
-                  {b.kind === "restic" && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore(b)}>{tr("Restaurer")}</Button>}
-                  <IconButton title={tr("Historique")} onClick={() => setHist(b)}><History size={15} /></IconButton>
-                  <IconButton title={tr("Modifier")} disabled={!sources.data} onClick={() => setEdit(b)}><Edit3 size={15} /></IconButton>
-                  <IconButton title={tr("Supprimer")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer « {0} » ?", b.name), text: tr("La tâche ne s'exécutera plus. Les données déjà sauvegardées ne sont pas effacées."), danger: true })) del.mutate(b.id); }}><Trash2 size={15} /></IconButton>
+                  <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Run")}</Button>
+                  {b.kind === "restic" && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore(b)}>{tr("Restore")}</Button>}
+                  <IconButton title={tr("History")} onClick={() => setHist(b)}><History size={15} /></IconButton>
+                  <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(b)}><Edit3 size={15} /></IconButton>
+                  <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", b.name), text: tr("The task will no longer run. Data already backed up is not deleted."), danger: true })) del.mutate(b.id); }}><Trash2 size={15} /></IconButton>
                 </div>
               </Card>
             );

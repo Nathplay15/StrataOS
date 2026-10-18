@@ -64,7 +64,7 @@ func (s *Server) runCloud(id, user string, manual bool) (jobs.Snapshot, error) {
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("cloudsync", "Synchronisation cloud : "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("cloudsync", "Cloud sync: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(key)
 		start := time.Now()
 		msg, err := cloudsync.Run(ctx, t, cloudsync.Progress{Set: j.SetProgress, Log: j.Logf})
@@ -94,7 +94,7 @@ func (s *Server) runCloud(id, user string, manual bool) (jobs.Snapshot, error) {
 			slog.Error("save cloud sync history", "err", uerr)
 		}
 		if err != nil {
-			s.notify("Synchronisation cloud échouée", t.Name+" : "+err.Error())
+			s.notify("Cloud sync failed", t.Name+" : "+err.Error())
 		}
 		return err
 	}), nil

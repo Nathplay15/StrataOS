@@ -1,8 +1,12 @@
 import { Fragment, type ReactNode } from "react";
 import { LifeBuoy } from "lucide-react";
-import guide from "../../../docs/GUIDE.md?raw";
+import guideEn from "../../../docs/GUIDE.md?raw";
+import guideFr from "../../../docs/GUIDE.fr.md?raw";
 import { Card, PageHeader } from "../components/ui";
-import { tr } from "../lib/i18n";
+import { lang, tr } from "../lib/i18n";
+
+// The guide exists in English and French.
+const guide = lang === "fr" ? guideFr : guideEn;
 
 // Inline Markdown: **bold**, `code`, [text](url).
 function inline(text: string): ReactNode[] {
@@ -56,7 +60,7 @@ function Markdown({ src }: { src: string }) {
 export default function Help() {
   return (
     <div>
-      <PageHeader title={tr("Aide")} subtitle={tr("Guide d'utilisation de StrataOS (en français)")} icon={<LifeBuoy size={20} />} />
+      <PageHeader title={tr("Help")} subtitle={tr("StrataOS user guide")} icon={<LifeBuoy size={20} />} />
       <Card><div className="mx-auto max-w-3xl"><Markdown src={guide} /></div></Card>
     </div>
   );

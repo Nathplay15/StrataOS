@@ -85,7 +85,7 @@ func Scan(ctx context.Context, target string, quarantine bool, logf func(string,
 	if err != nil {
 		return "", err
 	}
-	logf("Analyse de %s…", root)
+	logf("Scanning %s…", root)
 	args := []string{"--recursive", "--infected", "--no-summary", "--stdout", "--cross-fs=yes",
 		"--max-filesize=500M", "--max-scansize=1000M", "--exclude-dir=^" + QuarantineDir, root}
 	pr, pw := io.Pipe()
@@ -99,7 +99,7 @@ func Scan(ctx context.Context, target string, quarantine bool, logf func(string,
 			l := sc.Text()
 			if p, v, ok := strings.Cut(l, ": "); ok && strings.HasSuffix(v, " FOUND") {
 				hits = append(hits, hit{p, strings.TrimSuffix(v, " FOUND")})
-				logf("Infecté : %s (%s)", p, strings.TrimSuffix(v, " FOUND"))
+				logf("Infected: %s (%s)", p, strings.TrimSuffix(v, " FOUND"))
 			}
 		}
 		close(done)
@@ -112,22 +112,22 @@ func Scan(ctx context.Context, target string, quarantine bool, logf func(string,
 		return "", fmt.Errorf("scan failed: %w", runErr)
 	}
 	if len(hits) == 0 {
-		return "Aucun virus trouvé dans " + root, nil
+		return "No virus found in " + root, nil
 	}
 	var names []string
 	for _, h := range hits {
 		names = append(names, fmt.Sprintf("%s (%s)", h.path, h.virus))
 		if quarantine {
 			if err := moveToQuarantine(h.path, h.virus); err != nil {
-				logf("Quarantaine impossible pour %s : %v", h.path, err)
+				logf("Cannot quarantine %s: %v", h.path, err)
 			}
 		}
 	}
-	what := "laissé(s) en place"
+	what := "left in place"
 	if quarantine {
-		what = "mis en quarantaine"
+		what = "quarantined"
 	}
-	return "", &InfectedError{fmt.Sprintf("%d fichier(s) infecté(s) %s : %s", len(hits), what, strings.Join(names, ", "))}
+	return "", &InfectedError{fmt.Sprintf("%d infected file(s) %s: %s", len(hits), what, strings.Join(names, ", "))}
 }
 
 func newID() string {

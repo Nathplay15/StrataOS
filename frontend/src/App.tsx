@@ -75,8 +75,8 @@ function Root() {
     return () => window.removeEventListener("strata:unauthorized", h);
   }, []);
 
-  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Spinner label={tr("Connexion au NAS…")} />;
-  if (setup.error) return <div className="p-10 text-center text-danger">{tr("Impossible de joindre le serveur StrataOS.")}</div>;
+  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Spinner label={tr("Connecting to the NAS…")} />;
+  if (setup.error) return <div className="p-10 text-center text-danger">{tr("Unable to reach the StrataOS server.")}</div>;
   const hostname = setup.data?.hostname ?? "NAS";
   if (setup.data?.needed && !me) return <Setup hostname={hostname} onDone={(m) => { setMe(m); qc.invalidateQueries(); }} />;
   if (!me) return <Login hostname={hostname} onLogin={(m) => { setMe(m); qc.invalidateQueries(); }} />;

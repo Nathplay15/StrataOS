@@ -181,7 +181,7 @@ func zfsSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
 		}
 		removed++
 	}
-	return fmt.Sprintf("Snapshot %s@%s créé, %d ancien(s) supprimé(s), %d conservé(s)", s.Target, name, removed, len(mine)-removed), nil
+	return fmt.Sprintf("Snapshot %s@%s created, %d old one(s) deleted, %d kept", s.Target, name, removed, len(mine)-removed), nil
 }
 
 func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (string, error) {
@@ -232,7 +232,7 @@ func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (str
 		}
 		removed++
 	}
-	return fmt.Sprintf("Snapshot .snapshots/%s créé, %d ancien(s) supprimé(s), %d conservé(s)", name, removed, len(mine)-removed), nil
+	return fmt.Sprintf("Snapshot .snapshots/%s created, %d old one(s) deleted, %d kept", name, removed, len(mine)-removed), nil
 }
 
 // alreadyRunning recognises "scrub in progress" errors, which are not failures.
@@ -263,11 +263,11 @@ func scrub(s *store.Schedule, resolve Resolver, logf func(string, ...any)) (stri
 	}
 	if err != nil {
 		if alreadyRunning(err) {
-			return fmt.Sprintf("Vérification déjà en cours sur %s", what), nil
+			return fmt.Sprintf("A check is already running on %s", what), nil
 		}
 		return "", err
 	}
-	return fmt.Sprintf("Vérification lancée sur %s (elle se poursuit en arrière-plan)", what), nil
+	return fmt.Sprintf("Check started on %s (it continues in the background)", what), nil
 }
 
 func smart(s *store.Schedule, logf func(string, ...any)) (string, error) {
@@ -296,9 +296,9 @@ func smart(s *store.Schedule, logf func(string, ...any)) (string, error) {
 	if ok == 0 && len(failed) > 0 {
 		return "", fmt.Errorf("no disk accepted the SMART test (%s)", strings.Join(failed, ", "))
 	}
-	msg := fmt.Sprintf("Test SMART %s lancé sur %d disque(s)", s.SmartTest, ok)
+	msg := fmt.Sprintf("SMART %s test started on %d disk(s)", s.SmartTest, ok)
 	if len(failed) > 0 {
-		msg += fmt.Sprintf(" ; non pris en charge : %s", strings.Join(failed, ", "))
+		msg += fmt.Sprintf("; not supported: %s", strings.Join(failed, ", "))
 	}
 	return msg, nil
 }
@@ -318,7 +318,7 @@ func appUpdate(ctx context.Context, s *store.Schedule, logf func(string, ...any)
 		}
 		checked++
 		before := docker.StackImages(ctx, n)
-		logf("%s : recherche de nouvelles images…", n)
+		logf("%s: looking for new images…", n)
 		if err := docker.StackAction(ctx, n, "pull", nil); err != nil {
 			logf("%s : %v", n, err)
 			failed = append(failed, n)
@@ -331,13 +331,13 @@ func appUpdate(ctx context.Context, s *store.Schedule, logf func(string, ...any)
 		}
 		if after := docker.StackImages(ctx, n); after != before {
 			updated = append(updated, n)
-			logf("%s : mise à jour appliquée", n)
+			logf("%s: update applied", n)
 		}
 	}
 	if len(updated) > 0 {
 		docker.PruneDanglingImages(ctx)
 	}
-	msg := fmt.Sprintf("%d application(s) vérifiée(s), %d mise(s) à jour", checked, len(updated))
+	msg := fmt.Sprintf("%d app(s) checked, %d updated", checked, len(updated))
 	if len(updated) > 0 {
 		msg += " : " + strings.Join(updated, ", ")
 	}

@@ -45,21 +45,21 @@ func (s *Server) upsWatcher() {
 		var msg, level string
 		switch {
 		case strings.Contains(status, "LB"):
-			level, msg = "error", "Batterie de l'onduleur faible : arrêt du NAS imminent"
+			level, msg = "error", "UPS battery low: the NAS is shutting down"
 		case strings.HasPrefix(status, "OB"):
-			level, msg = "warning", "Coupure de courant : le NAS fonctionne sur batterie"
+			level, msg = "warning", "Power outage: the NAS runs on battery"
 			if c.ShutdownAfter > 0 {
-				msg += " (arrêt automatique dans " + (time.Duration(c.ShutdownAfter) * time.Second).String() + " si le courant ne revient pas)"
+				msg += " (automatic shutdown in " + (time.Duration(c.ShutdownAfter) * time.Second).String() + " if power does not return)"
 			}
 		case strings.HasPrefix(status, "OL") && strings.HasPrefix(prev, "OB"):
-			level, msg = "info", "Courant rétabli : l'onduleur est de nouveau sur secteur"
+			level, msg = "info", "Power restored: the UPS is back on mains"
 		case status == "COMMBAD":
-			level, msg = "warning", "Communication avec l'onduleur perdue"
+			level, msg = "warning", "Communication with the UPS lost"
 		default:
 			continue
 		}
 		s.store.Log(level, "ups", "", msg)
-		s.notify("Onduleur", msg)
+		s.notify("UPS", msg)
 	}
 }
 

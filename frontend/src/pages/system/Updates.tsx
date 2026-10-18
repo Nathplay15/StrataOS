@@ -25,7 +25,7 @@ function StrataCard() {
         const r = await fetch("/api/setup").then((x) => x.json());
         if (r.version && r.version !== from) {
           clearInterval(t);
-          toast(tr("StrataOS mis à jour : {0} → {1}", from, r.version));
+          toast(tr("StrataOS updated: {0} → {1}", from, r.version));
           setTimeout(() => location.reload(), 1500);
         }
       } catch {
@@ -39,14 +39,14 @@ function StrataCard() {
   return (
     <Card title="StrataOS" className="mb-5">
       <div className="flex flex-wrap items-center gap-4">
-        <div><div className="text-muted text-[12px]">{tr("Version installée")}</div><div className="mono text-[15px] font-semibold">{data.running}</div></div>
-        {available && <div><div className="text-muted text-[12px]">{tr("Disponible")}</div><div className="mono text-[15px] font-semibold text-ok">{data.candidate}</div></div>}
+        <div><div className="text-muted text-[12px]">{tr("Installed version")}</div><div className="mono text-[15px] font-semibold">{data.running}</div></div>
+        {available && <div><div className="text-muted text-[12px]">{tr("Available")}</div><div className="mono text-[15px] font-semibold text-ok">{data.candidate}</div></div>}
         <div className="flex-1" />
-        {waiting ? <Spinner label={tr("Mise à jour et redémarrage du service…")} /> : available ? (
-          <Button variant="primary" loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Mettre à jour vers {0} ?", data.candidate), text: tr("Le service StrataOS redémarre à la fin : l'interface se recharge automatiquement. Les partages et les applications ne sont pas interrompus.") })) upgrade.mutate(); }}>{tr("Mettre à jour StrataOS")}</Button>
-        ) : <Button onClick={() => refetch()}>{data.repository ? tr("À jour — vérifier") : tr("Vérifier")}</Button>}
+        {waiting ? <Spinner label={tr("Updating and restarting the service…")} /> : available ? (
+          <Button variant="primary" loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Update to {0}?", data.candidate), text: tr("The StrataOS service restarts at the end: the interface reloads automatically. Shares and applications are not interrupted.") })) upgrade.mutate(); }}>{tr("Update StrataOS")}</Button>
+        ) : <Button onClick={() => refetch()}>{data.repository ? tr("Up to date — check") : tr("Check")}</Button>}
       </div>
-      {!data.repository && <div className="mt-3 text-muted text-[12.5px]">{tr("Aucun dépôt StrataOS configuré : les mises à jour s'installent en déposant un nouveau paquet .deb.")}</div>}
+      {!data.repository && <div className="mt-3 text-muted text-[12.5px]">{tr("No StrataOS repository configured: updates are installed by uploading a new .deb package.")}</div>}
     </Card>
   );
 }
@@ -59,17 +59,17 @@ export default function Updates() {
   const security = data?.filter((u) => u.source.includes("security")).length ?? 0;
   return (
     <div>
-      <PageHeader title={tr("Mises à jour")} subtitle={tr("Paquets Debian et StrataOS")} icon={<RefreshCcw size={20} />} actions={<>
-        <Button icon={<RefreshCcw size={15} />} loading={refresh.isPending} onClick={() => refresh.mutate()}>{tr("Rechercher")}</Button>
-        <Button variant="primary" disabled={!data?.length} loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Installer les mises à jour ?"), text: tr("{0} paquet(s) seront mis à jour. Certains services peuvent redémarrer.", data?.length) })) upgrade.mutate(); }}>{tr("Tout mettre à jour")}</Button>
+      <PageHeader title={tr("Updates")} subtitle={tr("Debian and StrataOS packages")} icon={<RefreshCcw size={20} />} actions={<>
+        <Button icon={<RefreshCcw size={15} />} loading={refresh.isPending} onClick={() => refresh.mutate()}>{tr("Search")}</Button>
+        <Button variant="primary" disabled={!data?.length} loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Install updates?"), text: tr("{0} package(s) will be updated. Some services may restart.", data?.length) })) upgrade.mutate(); }}>{tr("Update all")}</Button>
       </>} />
       <StrataCard />
       <ErrorBox error={error} />
-      <Card pad={false} title={data ? tr("{0} mise(s) à jour disponible(s){1}", data.length, security ? ` dont ${security} de sécurité` : "") : undefined}>
-        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<CheckCircle2 />} title={tr("Le système est à jour")} text={tr("Cliquez sur « Rechercher » pour actualiser la liste des paquets.")} /> : (
+      <Card pad={false} title={data ? tr("{0} update(s) available{1}", data.length, security ? tr(" including {0} security", security) : "") : undefined}>
+        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<CheckCircle2 />} title={tr("The system is up to date")} text={tr("Click \"Search\" to refresh the package list.")} /> : (
           <div className="overflow-x-auto">
             <table className="table">
-              <thead><tr><th>{tr("Paquet")}</th><th>{tr("Version actuelle")}</th><th>{tr("Nouvelle version")}</th><th>{tr("Source")}</th></tr></thead>
+              <thead><tr><th>{tr("Package")}</th><th>{tr("Current version")}</th><th>{tr("New version")}</th><th>{tr("Source")}</th></tr></thead>
               <tbody>{data.map((u) => <tr key={u.package}><td className="font-medium">{u.package}</td><td className="mono text-muted">{u.current}</td><td className="mono text-ok">{u.new}</td><td className="text-muted text-[12.5px]">{u.source}</td></tr>)}</tbody>
             </table>
           </div>
@@ -85,25 +85,25 @@ type Points = { supported: boolean; reason: string; mode?: string; root: { fsTyp
 function RestorePoints() {
   const { confirm } = useUI();
   const { data } = useQuery({ queryKey: ["restore-points"], queryFn: () => api.get<Points>("/api/system/restore-points") });
-  const create = useAction(() => api.post("/api/system/restore-points"), { success: tr("Point de restauration créé") });
-  const del = useAction((n: string) => api.del(`/api/system/restore-points/${n}`), { success: tr("Point de restauration supprimé") });
-  const rollback = useAction((n: string) => api.post(`/api/system/restore-points/${n}/rollback`), { success: tr("Retour au point de restauration : le NAS redémarre") });
+  const create = useAction(() => api.post("/api/system/restore-points"), { success: tr("Restore point created") });
+  const del = useAction((n: string) => api.del(`/api/system/restore-points/${n}`), { success: tr("Restore point deleted") });
+  const rollback = useAction((n: string) => api.post(`/api/system/restore-points/${n}/rollback`), { success: tr("Rolled back to restore point: the NAS is restarting") });
   if (!data) return null;
-  const label = (l: string) => (l === "avant-mise-a-jour" ? tr("Avant une mise à jour") : l === "manuel" ? tr("Manuel") : l);
+  const label = (l: string) => (l === "before-update" || l === "avant-mise-a-jour" ? tr("Before an update") : l === "manual" || l === "manuel" ? tr("Manual") : l);
   return (
-    <Card title={<span className="flex items-center gap-2"><History size={16} className="text-accent" />{tr("Points de restauration du système")}</span>} actions={data.supported && <Button size="sm" icon={<Plus size={14} />} loading={create.isPending} onClick={() => create.mutate()}>{tr("Créer maintenant")}</Button>}>
+    <Card title={<span className="flex items-center gap-2"><History size={16} className="text-accent" />{tr("System restore points")}</span>} actions={data.supported && <Button size="sm" icon={<Plus size={14} />} loading={create.isPending} onClick={() => create.mutate()}>{tr("Create now")}</Button>}>
       {!data.supported ? (
-        <Notice>{tr("Indisponible sur ce NAS : {0}", data.reason)}</Notice>
+        <Notice>{tr("Unavailable on this NAS: {0}", data.reason)}</Notice>
       ) : (
         <div className="space-y-3">
-          <div className="text-muted text-[13px]">{tr("Un point est créé automatiquement avant chaque mise à jour. Revenir à un point restaure le système et ses programmes, puis redémarre ; vos données et les réglages de StrataOS ne changent pas.")}</div>
-          <div className="text-muted text-[12px]">{data.mode === "btrfs" ? tr("Snapshots Btrfs du système (les 6 derniers sont gardés).") : data.mode === "lvm" ? tr("Snapshots LVM du volume système (les 3 derniers sont gardés ; un snapshot plein devient inutilisable).") : tr("Système sans snapshots : les versions des paquets qui vont changer, et de StrataOS, sont conservées avant chaque mise à jour (les 3 derniers points sont gardés).")}</div>
-          {data.points.length === 0 ? <div className="text-muted text-[13px]">{tr("Aucun point de restauration pour le moment.")}</div> : (
+          <div className="text-muted text-[13px]">{tr("A restore point is created automatically before each update. Reverting to a point restores the system and its programs, then restarts; your data and StrataOS settings do not change.")}</div>
+          <div className="text-muted text-[12px]">{data.mode === "btrfs" ? tr("System Btrfs snapshots (the last 6 are kept).") : data.mode === "lvm" ? tr("LVM snapshots of the system volume (the last 3 are kept; a full snapshot becomes unusable).") : tr("System without snapshots: the versions of the packages about to change, and of StrataOS, are kept before each update (the last 3 restore points are kept).")}</div>
+          {data.points.length === 0 ? <div className="text-muted text-[13px]">{tr("No restore points yet.")}</div> : (
             <div className="divide-y divide-line rounded-xl border border-line">
               {data.points.map((p) => (
                 <div key={p.name} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-[13px]">
-                  <div className="flex-1"><b>{dateTime(p.created)}</b> <span className="text-muted">· {label(p.label)}{p.info ? ` · ${p.info}` : ""}</span>{p.invalid && <span className="ml-2 text-danger">{tr("inutilisable (snapshot plein)")}</span>}</div>
-                  <Button size="sm" icon={<Undo2 size={14} />} disabled={p.invalid} onClick={async () => { if (await confirm({ title: tr("Revenir à ce point ?"), text: tr("Le système revient à son état du {0} et le NAS redémarre. Les programmes installés ou mis à jour depuis seront annulés ; les comptes créés depuis devront voir leur mot de passe redéfini.", dateTime(p.created)), confirm: tr("Restaurer et redémarrer"), danger: true })) rollback.mutate(p.name); }}>{tr("Restaurer")}</Button>
+                  <div className="flex-1"><b>{dateTime(p.created)}</b> <span className="text-muted">· {label(p.label)}{p.info ? ` · ${p.info}` : ""}</span>{p.invalid && <span className="ml-2 text-danger">{tr("unusable (snapshot full)")}</span>}</div>
+                  <Button size="sm" icon={<Undo2 size={14} />} disabled={p.invalid} onClick={async () => { if (await confirm({ title: tr("Revert to this point?"), text: tr("The system returns to its state of {0} and the NAS restarts. Programs installed or updated since then will be rolled back; accounts created since then will need their password reset.", dateTime(p.created)), confirm: tr("Restore and restart"), danger: true })) rollback.mutate(p.name); }}>{tr("Restore")}</Button>
                   <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={() => del.mutate(p.name)} />
                 </div>
               ))}

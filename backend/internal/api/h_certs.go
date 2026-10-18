@@ -74,7 +74,7 @@ func (s *Server) certRoutes() {
 		}
 		s.audit(r, "system", "Let's Encrypt enabled for "+req.Domain)
 		// Ask for the certificate right away so that errors show up in the task list.
-		return s.jobs.Start("acme", "Certificat Let's Encrypt pour "+req.Domain, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("acme", "Let's Encrypt certificate for "+req.Domain, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			j.Logf("Requesting a certificate for %s (HTTP-01 challenge on port 80)…", req.Domain)
 			done := make(chan error, 1)
 			go func() { done <- s.certs.Obtain() }()

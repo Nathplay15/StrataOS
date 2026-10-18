@@ -113,13 +113,13 @@ func (s *Server) systemRoutes() {
 		return system.ListUpgradable()
 	})
 	s.admin("POST /api/system/updates/refresh", func(r *http.Request) (any, error) {
-		return s.jobs.Start("apt", "Recherche de mises à jour", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("apt", "Checking for updates", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			return aptRun(ctx, j, "apt-get", "update")
 		}), nil
 	})
 	s.admin("POST /api/system/updates/upgrade", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "System upgrade started")
-		return s.jobs.Start("apt", "Mise à jour du système", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("apt", "System update", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			s.restorePointBeforeUpdate(j)
 			return aptRun(ctx, j, "apt-get", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "full-upgrade")
 		}), nil
@@ -127,7 +127,7 @@ func (s *Server) systemRoutes() {
 	// Updates StrataOS alone. The service restarts at the end: the browser reconnects.
 	s.admin("POST /api/system/updates/strata", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "StrataOS update started from "+s.version)
-		return s.jobs.Start("apt", "Mise à jour de StrataOS", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("apt", "StrataOS update", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			s.restorePointBeforeUpdate(j)
 			if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
 				return err
@@ -358,7 +358,7 @@ func (s *Server) systemRoutes() {
 		return chats, nil
 	})
 	s.admin("POST /api/settings/test-notification", func(r *http.Request) (any, error) {
-		return nil, s.sendNotification("Test de notification", "Les notifications StrataOS fonctionnent.")
+		return nil, s.sendNotification("Test de notification", "StrataOS notifications work.")
 	})
 
 	// Optional components installed through bundled scripts.

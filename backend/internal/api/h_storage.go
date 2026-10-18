@@ -174,15 +174,15 @@ func (s *Server) storageRoutes() {
 			req.Mode = "writethrough"
 		}
 		s.audit(r, "storage", fmt.Sprintf("SSD cache %s (%s) added to %s/%s", req.Device, req.Mode, vg, lv))
-		return s.jobs.Start("storage", "Cache SSD pour "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("storage", "SSD cache for "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			return storage.AttachCache(vg, lv, req.Device, req.Mode)
 		}), nil
 	})
 	s.admin("DELETE /api/storage/lvm/{vg}/lv/{lv}/cache", func(r *http.Request) (any, error) {
 		vg, lv := r.PathValue("vg"), r.PathValue("lv")
 		s.audit(r, "storage", "SSD cache removed from "+vg+"/"+lv)
-		return s.jobs.Start("storage", "Retrait du cache SSD de "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			j.Logf("Copie des données en attente vers les disques, puis retrait du cache…")
+		return s.jobs.Start("storage", "Removing the SSD cache of "+vg+"/"+lv, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Copying pending data to the disks, then removing the cache…")
 			return storage.DetachCache(vg, lv)
 		}), nil
 	})
@@ -307,7 +307,7 @@ func (s *Server) storageRoutes() {
 		s.audit(r, "storage", fmt.Sprintf("Creating %s volume %s on %s", req.FSType, req.Name, strings.Join(req.Devices, ", ")))
 		return s.jobs.Start("volume", "Create volume "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			if managed != "" {
-				j.Logf("Groupe LVM %s avec cache SSD %s (%s)", managed, body.CacheDevice, body.CacheMode)
+				j.Logf("LVM group %s with SSD cache %s (%s)", managed, body.CacheDevice, body.CacheMode)
 				lv, err := storage.CreateCachedLV(managed, req.Devices[0], body.CacheDevice, body.CacheMode)
 				if err != nil {
 					return err

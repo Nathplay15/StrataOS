@@ -67,7 +67,7 @@ func (s *Server) vaultAuth(r *http.Request, vid, cid string) (string, bool, erro
 		}
 	})
 	if !ok {
-		s.guardFail(clientIP(r), "coffre de sauvegarde", "")
+		s.guardFail(clientIP(r), "backup vault", "")
 		return "", false, &Error{Status: http.StatusUnauthorized, Msg: "authentication required"}
 	}
 	return dir, appendOnly, nil
@@ -356,7 +356,7 @@ func (s *Server) vaultRoutes() {
 		}
 		vaultCodes.Unlock()
 		if !ok || time.Now().After(vc.expires) {
-			s.guardFail(ip, "coffre de sauvegarde", "")
+			s.guardFail(ip, "backup vault", "")
 			writeErr(w, &Error{Status: http.StatusForbidden, Msg: "wrong or expired pairing code"})
 			return
 		}
@@ -382,7 +382,7 @@ func (s *Server) vaultRoutes() {
 			writeErr(w, err)
 			return
 		}
-		s.store.Log("info", "vault", "", fmt.Sprintf("Le NAS %s peut maintenant envoyer ses sauvegardes dans le coffre", name))
+		s.store.Log("info", "vault", "", fmt.Sprintf("The NAS %s can now send its backups to the vault", name))
 		writeJSON(w, http.StatusOK, map[string]any{"path": "/api/vault/" + vc.vault + "/" + client.ID + "/", "token": token, "appendOnly": appendOnly})
 	})
 

@@ -74,7 +74,7 @@ func (s *Server) guardBlock(a netip.Addr, service, user string, d time.Duration)
 		_ = s.applyGuard() // table missing: load everything
 	}
 	if !manual {
-		s.store.Log("warning", "guard", user, fmt.Sprintf("Adresse %s bloquée pendant %s : trop d'échecs de connexion (%s)", a, shortDuration(d), service))
+		s.store.Log("warning", "guard", user, fmt.Sprintf("Address %s blocked for %s: too many failed sign-ins (%s)", a, shortDuration(d), service))
 	}
 }
 
@@ -349,7 +349,7 @@ func (s *Server) guardRoutes() {
 		if !s.guardConfig().Enabled {
 			return nil, badRequest("turn the address blocking on first")
 		}
-		s.guardBlock(a, "manuel", "", time.Duration(req.Minutes)*time.Minute)
+		s.guardBlock(a, "manual", "", time.Duration(req.Minutes)*time.Minute)
 		s.audit(r, "guard", "Blocked "+a.String())
 		return nil, nil
 	})

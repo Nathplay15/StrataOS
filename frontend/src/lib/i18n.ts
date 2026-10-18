@@ -1,15 +1,15 @@
-// Interface language. Texts are written in French in the code and wrapped in
+// Interface language. Texts are written in English in the code and wrapped in
 // tr("…"); src/i18n/<lang>.json maps them to the other languages (missing
-// entries fall back to English, then French). Dictionaries are loaded on
-// demand by initI18n(), before the interface modules are imported.
+// entries fall back to English). Dictionaries are loaded on demand by
+// initI18n(), before the interface modules are imported.
 import { serverTexts } from "../i18n/server";
 
-export type Lang = "fr" | "en" | "es" | "de" | "it" | "pt" | "nl" | "zh";
+export type Lang = "en" | "fr" | "es" | "de" | "it" | "pt" | "nl" | "zh";
 
 /** Languages offered in the interface, with their own name and date locale. */
 export const languages: { id: Lang; name: string; locale: string }[] = [
-  { id: "fr", name: "Français", locale: "fr-FR" },
   { id: "en", name: "English", locale: "en-GB" },
+  { id: "fr", name: "Français", locale: "fr-FR" },
   { id: "es", name: "Español", locale: "es-ES" },
   { id: "de", name: "Deutsch", locale: "de-DE" },
   { id: "it", name: "Italiano", locale: "it-IT" },
@@ -39,7 +39,6 @@ export const locale = languages.find((l) => l.id === lang)!.locale;
 document.documentElement.lang = lang;
 
 let dict: Record<string, string> = {};
-let fallback: Record<string, string> = {};
 let serverDict: Record<string, string> = {};
 type Rule = { re: RegExp; from: string; to: string };
 let rules: Rule[] = [];
@@ -49,15 +48,15 @@ const load = async (name: string) => (loaders[`../i18n/${name}.json`] ? (await l
 
 /** Loads the dictionaries of the current language (call before rendering). */
 export async function initI18n() {
-  if (lang !== "fr") {
-    [dict, fallback, serverDict] = await Promise.all([load(lang), lang === "en" ? Promise.resolve({}) : load("en"), lang === "en" ? Promise.resolve({}) : load(`server.${lang}`)]);
+  if (lang !== "en") {
+    [dict, serverDict] = await Promise.all([load(lang), lang === "fr" ? Promise.resolve({}) : load(`server.${lang}`)]);
   }
   rules = buildRules();
 }
 
-/** Translates a French UI text; {0}, {1}… are replaced by the arguments. */
-export function tr(fr: string, ...args: (string | number | null | undefined)[]): string {
-  let s = lang === "fr" ? fr : (dict[fr] || fallback[fr] || fr);
+/** Translates an English UI text; {0}, {1}… are replaced by the arguments. */
+export function tr(en: string, ...args: (string | number | null | undefined)[]): string {
+  let s = dict[en] || en;
   args.forEach((a, i) => { s = s.split(`{${i}}`).join(String(a ?? "")); });
   return s;
 }

@@ -19,17 +19,17 @@ function Journal() {
     <>
       <div className="mb-4 flex flex-wrap gap-2">
         <Select className="!w-56" value={unit} onChange={(e) => setUnit(e.target.value)}>
-          <option value="">{tr("Tous les services")}</option>
+          <option value="">{tr("All services")}</option>
           {["strata", "smbd", "nfs-server", "docker", "ssh", "mdmonitor", "zfs-zed", "smartmontools", "kernel"].map((u) => <option key={u} value={u === "kernel" ? "" : u}>{u}</option>)}
         </Select>
         <Select className="!w-48" value={priority} onChange={(e) => setPriority(+e.target.value)}>
           {prio.map((p, i) => <option key={p} value={i}>≤ {p}</option>)}
         </Select>
-        <Input className="!w-64" placeholder={tr("Rechercher (Entrée)")} value={grep} onChange={(e) => setGrep(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setSearch(grep)} />
+        <Input className="!w-64" placeholder={tr("Search (Enter)")} value={grep} onChange={(e) => setGrep(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setSearch(grep)} />
       </div>
       <ErrorBox error={error} />
       <Card pad={false}>
-        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<FileText />} title={tr("Aucune entrée")} /> : (
+        {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<FileText />} title={tr("No entries")} /> : (
           <div className="mono max-h-[70vh] overflow-auto text-[12px]">
             {data.map((l, i) => (
               <div key={i} className="flex gap-3 border-b border-line px-4 py-1.5 hover:bg-panel-2">
@@ -50,10 +50,10 @@ function Events() {
   const { data, isLoading } = useQuery({ queryKey: ["events"], queryFn: () => api.get<StrataEvent[]>("/api/system/events"), refetchInterval: 10000 });
   return (
     <Card pad={false}>
-      {isLoading ? <Spinner /> : !data?.length ? <Empty title={tr("Aucun événement")} /> : (
+      {isLoading ? <Spinner /> : !data?.length ? <Empty title={tr("No events")} /> : (
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>{tr("Date")}</th><th>{tr("Niveau")}</th><th>{tr("Catégorie")}</th><th>{tr("Utilisateur")}</th><th>{tr("Message")}</th></tr></thead>
+            <thead><tr><th>{tr("Date")}</th><th>{tr("Level")}</th><th>{tr("Category")}</th><th>{tr("User")}</th><th>{tr("Message")}</th></tr></thead>
             <tbody>
               {data.map((e, i) => (
                 <tr key={i}>
@@ -74,8 +74,8 @@ export default function Logs() {
   const [tab, setTab] = useState<"events" | "journal">("events");
   return (
     <div>
-      <PageHeader title={tr("Journaux")} subtitle={tr("Audit des actions et journal système")} icon={<FileText size={20} />} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "events", label: tr("Événements StrataOS") }, { id: "journal", label: tr("Journal système") }]} />
+      <PageHeader title={tr("Logs")} subtitle={tr("Action audit and system log")} icon={<FileText size={20} />} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "events", label: tr("StrataOS events") }, { id: "journal", label: tr("System log") }]} />
       {tab === "events" ? <Events /> : <Journal />}
     </div>
   );

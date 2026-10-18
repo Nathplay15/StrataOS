@@ -81,9 +81,9 @@ func (w *ransomWindow) add(user, target string, now time.Time, threshold int) (b
 	reason := ""
 	switch {
 	case sus >= 10:
-		reason = fmt.Sprintf("%d fichiers renommés avec une extension de rançongiciel en une minute (ex. %s)", sus, target)
+		reason = fmt.Sprintf("%d files renamed with a ransomware extension in one minute (e.g. %s)", sus, target)
 	case len(l) >= threshold:
-		reason = fmt.Sprintf("%d fichiers renommés ou supprimés en une minute", len(l))
+		reason = fmt.Sprintf("%d files renamed or deleted in one minute", len(l))
 	}
 	if reason == "" {
 		return false, ""
@@ -196,7 +196,7 @@ func (s *Server) ransomAlert(user, ip, share, reason string) {
 	}
 	var block bool
 	s.store.Read(func(st *store.State) { block = st.Ransom.Block })
-	msg := fmt.Sprintf("Rançongiciel suspecté : le compte %s (%s) sur le partage %s : %s", user, ip, share, reason)
+	msg := fmt.Sprintf("Ransomware suspected: account %s (%s) on share %s: %s", user, ip, share, reason)
 	if block {
 		// Cut the running sessions first: every second counts.
 		closeSMBSessions(user)
@@ -211,11 +211,11 @@ func (s *Server) ransomAlert(user, ip, share, reason string) {
 		// SFTP and FTP: lock the password and end the running sessions.
 		_, _ = sys.Run("usermod", "-L", user)
 		_, _ = sys.Run("pkill", "-KILL", "-u", user)
-		msg += ". Le compte est bloqué sur les partages : vérifiez le poste, puis débloquez-le dans Antivirus"
+		msg += ". The account is blocked on the shares: check the computer, then unblock it in Antivirus"
 	}
 	slog.Warn("ransomware suspected", "user", user, "ip", ip, "share", share)
 	s.store.Log("error", "ransomware", user, msg)
-	s.notify("Rançongiciel suspecté", msg)
+	s.notify("Ransomware suspected", msg)
 }
 
 // closeSMBSessions ends the Samba connections of a user.

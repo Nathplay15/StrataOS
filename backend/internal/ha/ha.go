@@ -361,7 +361,7 @@ func SyncDirTo(ctx context.Context, key, knownHosts, peer, path, dst string, rec
 		return fmt.Errorf("rsync %s: %s", rel, lastLine(out+" "+err.Error()))
 	}
 	if recursive {
-		logf("%s synchronisé", rel)
+		logf("%s synced", rel)
 	}
 	return nil
 }

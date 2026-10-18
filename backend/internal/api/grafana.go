@@ -21,17 +21,17 @@ func grafanaDashboard() map[string]any {
 	}
 	host := `{instance=~"$instance"}`
 	panels := []any{
-		panel("Processeur", "timeseries", 0, 0, 8, 7, "percent", [2]string{`100 * (1 - rate(strata_cpu_seconds_total{mode="idle",instance=~"$instance"}[5m]) / ignoring(mode) sum without(mode) (rate(strata_cpu_seconds_total` + host + `[5m])))`, "CPU"}),
-		panel("Mémoire utilisée", "timeseries", 8, 0, 8, 7, "bytes", [2]string{`strata_memory_total_bytes` + host + ` - strata_memory_available_bytes` + host, "utilisée"}, [2]string{`strata_memory_total_bytes` + host, "totale"}),
-		panel("Alertes actives", "stat", 16, 0, 8, 7, "none", [2]string{`strata_alerts` + host, "{{level}}"}),
-		panel("Réseau", "timeseries", 0, 7, 12, 8, "Bps", [2]string{`rate(strata_network_receive_bytes_total` + host + `[5m])`, "reçu {{interface}}"}, [2]string{`rate(strata_network_transmit_bytes_total` + host + `[5m])`, "envoyé {{interface}}"}),
-		panel("Disques (E/S)", "timeseries", 12, 7, 12, 8, "Bps", [2]string{`rate(strata_disk_read_bytes_total` + host + `[5m])`, "lu {{device}}"}, [2]string{`rate(strata_disk_written_bytes_total` + host + `[5m])`, "écrit {{device}}"}),
-		panel("Remplissage des volumes", "bargauge", 0, 15, 12, 8, "percent", [2]string{`100 * strata_volume_used_bytes` + host + ` / strata_volume_size_bytes` + host, "{{volume}}"}),
-		panel("Températures des disques", "timeseries", 12, 15, 12, 8, "celsius", [2]string{`strata_disk_temperature_celsius` + host, "{{device}} {{model}}"}),
-		panel("Santé (RAID, ZFS, SMART)", "stat", 0, 23, 12, 6, "none", [2]string{`strata_raid_healthy` + host, "RAID {{array}}"}, [2]string{`strata_zpool_healthy` + host, "ZFS {{pool}}"}, [2]string{`strata_disk_smart_healthy` + host, "{{device}}"}),
-		panel("Dernière sauvegarde réussie (il y a)", "stat", 12, 23, 12, 6, "s", [2]string{`time() - strata_backup_last_success_timestamp_seconds` + host, "{{task}}"}),
-		panel("Onduleur", "timeseries", 0, 29, 12, 7, "percent", [2]string{`strata_ups_battery_charge_percent` + host, "batterie"}, [2]string{`strata_ups_load_percent` + host, "charge"}),
-		panel("Sécurité", "stat", 12, 29, 12, 7, "none", [2]string{`strata_guard_blocked_addresses` + host, "adresses bloquées"}, [2]string{`strata_ransomware_blocked_accounts` + host, "comptes bloqués (rançongiciel)"}),
+		panel("CPU", "timeseries", 0, 0, 8, 7, "percent", [2]string{`100 * (1 - rate(strata_cpu_seconds_total{mode="idle",instance=~"$instance"}[5m]) / ignoring(mode) sum without(mode) (rate(strata_cpu_seconds_total` + host + `[5m])))`, "CPU"}),
+		panel("Memory used", "timeseries", 8, 0, 8, 7, "bytes", [2]string{`strata_memory_total_bytes` + host + ` - strata_memory_available_bytes` + host, "used"}, [2]string{`strata_memory_total_bytes` + host, "total"}),
+		panel("Active alerts", "stat", 16, 0, 8, 7, "none", [2]string{`strata_alerts` + host, "{{level}}"}),
+		panel("Network", "timeseries", 0, 7, 12, 8, "Bps", [2]string{`rate(strata_network_receive_bytes_total` + host + `[5m])`, "received {{interface}}"}, [2]string{`rate(strata_network_transmit_bytes_total` + host + `[5m])`, "sent {{interface}}"}),
+		panel("Disks (I/O)", "timeseries", 12, 7, 12, 8, "Bps", [2]string{`rate(strata_disk_read_bytes_total` + host + `[5m])`, "read {{device}}"}, [2]string{`rate(strata_disk_written_bytes_total` + host + `[5m])`, "written {{device}}"}),
+		panel("Volume usage", "bargauge", 0, 15, 12, 8, "percent", [2]string{`100 * strata_volume_used_bytes` + host + ` / strata_volume_size_bytes` + host, "{{volume}}"}),
+		panel("Disk temperatures", "timeseries", 12, 15, 12, 8, "celsius", [2]string{`strata_disk_temperature_celsius` + host, "{{device}} {{model}}"}),
+		panel("Health (RAID, ZFS, SMART)", "stat", 0, 23, 12, 6, "none", [2]string{`strata_raid_healthy` + host, "RAID {{array}}"}, [2]string{`strata_zpool_healthy` + host, "ZFS {{pool}}"}, [2]string{`strata_disk_smart_healthy` + host, "{{device}}"}),
+		panel("Last successful backup (ago)", "stat", 12, 23, 12, 6, "s", [2]string{`time() - strata_backup_last_success_timestamp_seconds` + host, "{{task}}"}),
+		panel("UPS", "timeseries", 0, 29, 12, 7, "percent", [2]string{`strata_ups_battery_charge_percent` + host, "battery"}, [2]string{`strata_ups_load_percent` + host, "load"}),
+		panel("Security", "stat", 12, 29, 12, 7, "none", [2]string{`strata_guard_blocked_addresses` + host, "blocked addresses"}, [2]string{`strata_ransomware_blocked_accounts` + host, "blocked accounts (ransomware)"}),
 	}
 	return map[string]any{
 		"__inputs":      []any{map[string]any{"name": "DS_PROMETHEUS", "label": "Prometheus", "type": "datasource", "pluginId": "prometheus"}},

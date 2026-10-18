@@ -55,7 +55,7 @@ func (s *Server) directoryRoutes() {
 		}
 		admin, password := req.Admin, req.Password
 		s.audit(r, "directory", "Joining "+c.Type+" "+c.Realm+c.URI)
-		return s.jobs.Start("directory", "Jonction à l'annuaire", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("directory", "Joining the directory", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			c.JoinedAt = time.Now()
 			if err := s.store.Update(func(st *store.State) error { st.Directory = c; return nil }); err != nil {
 				return err

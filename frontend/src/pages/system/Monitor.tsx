@@ -14,21 +14,21 @@ export default function Monitor() {
   const last = h[h.length - 1];
   return (
     <div>
-      <PageHeader title={tr("Moniteur de ressources")} subtitle={tr("Historique des 6 dernières minutes, rafraîchi toutes les 2 secondes")} icon={<Activity size={20} />} />
+      <PageHeader title={tr("Resource Monitor")} subtitle={tr("History of the last 6 minutes, refreshed every 2 seconds")} icon={<Activity size={20} />} />
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title={tr("Processeur")}>
-          <AreaChart height={170} max={100} format={(v) => `${v.toFixed(0)} %`} series={[{ label: tr("Utilisation"), color: "var(--accent)", values: h.map((s) => s.cpu) }]} />
+        <Card title={tr("Processor")}>
+          <AreaChart height={170} max={100} format={(v) => `${v.toFixed(0)} %`} series={[{ label: tr("Usage"), color: "var(--accent)", values: h.map((s) => s.cpu) }]} />
         </Card>
-        <Card title={tr("Mémoire")}>
-          <AreaChart height={170} max={last?.memTotal} format={bytes} series={[{ label: tr("Utilisée"), color: "var(--accent-2)", values: h.map((s) => s.memUsed) }]} />
+        <Card title={tr("Memory")}>
+          <AreaChart height={170} max={last?.memTotal} format={bytes} series={[{ label: tr("Used"), color: "var(--accent-2)", values: h.map((s) => s.memUsed) }]} />
         </Card>
-        <Card title={tr("Réseau")}>
-          <AreaChart height={170} format={rate} series={[{ label: tr("Réception"), color: "var(--accent)", values: h.map((s) => s.netRx) }, { label: tr("Émission"), color: "var(--accent-2)", values: h.map((s) => s.netTx) }]} />
+        <Card title={tr("Network")}>
+          <AreaChart height={170} format={rate} series={[{ label: tr("Receive"), color: "var(--accent)", values: h.map((s) => s.netRx) }, { label: tr("Transmit"), color: "var(--accent-2)", values: h.map((s) => s.netTx) }]} />
         </Card>
-        <Card title={tr("Disques")}>
-          <AreaChart height={170} format={rate} series={[{ label: tr("Lecture"), color: "var(--ok)", values: h.map((s) => s.diskRead) }, { label: tr("Écriture"), color: "var(--warn)", values: h.map((s) => s.diskWrite) }]} />
+        <Card title={tr("Disks")}>
+          <AreaChart height={170} format={rate} series={[{ label: tr("Read"), color: "var(--ok)", values: h.map((s) => s.diskRead) }, { label: tr("Write"), color: "var(--warn)", values: h.map((s) => s.diskWrite) }]} />
         </Card>
-        <Card title={tr("Cœurs ({0})", stats.data?.cores.length ?? 0)}>
+        <Card title={tr("Cores ({0})", stats.data?.cores.length ?? 0)}>
           <div className="grid gap-3 sm:grid-cols-2">
             {stats.data?.cores.map((c, i) => (
               <div key={i}>
@@ -38,8 +38,8 @@ export default function Monitor() {
             ))}
           </div>
         </Card>
-        <Card title={tr("Capteurs de température")}>
-          {!info.data?.temps.length ? <div className="text-muted">{tr("Aucun capteur disponible.")}</div> : (
+        <Card title={tr("Temperature sensors")}>
+          {!info.data?.temps.length ? <div className="text-muted">{tr("No sensors available.")}</div> : (
             <div className="grid gap-3 sm:grid-cols-2">
               {info.data.temps.map((t, i) => (
                 <div key={i}>

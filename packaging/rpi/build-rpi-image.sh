@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds dist/strataos-<version>-raspberrypi.img.xz: a ready-to-flash image
-# for Raspberry Pi 4, 400 and Compute Module 4 (Debian 13 arm64 with the
-# Raspberry Pi firmware and StrataOS preinstalled). On first boot the system
+# for Raspberry Pi 4, 400, Compute Module 4 and Raspberry Pi 3 B / 3 B+
+# (Debian 13 arm64 with the Raspberry Pi firmware and StrataOS preinstalled;
+# raspi-firmware ships the boot files and device trees of every model). On first boot the system
 # partition grows to the whole card or SSD, SSH host keys are generated, and
 # the web interface at http://<address>:7070 asks for the administrator.
 #
@@ -92,10 +93,10 @@ EOF
 # hook may have run before raspi-firmware was configured).
 for k in "$ROOT"/boot/vmlinuz-*; do in_root /etc/kernel/postinst.d/z50-raspi-firmware "${k##*/vmlinuz-}"; done
 ls "$ROOT/boot/firmware" | grep -q '^config.txt$' || { echo "the firmware partition is incomplete"; exit 1; }
-echo "fr_FR.UTF-8 UTF-8" >> "$ROOT/etc/locale.gen"; echo "en_US.UTF-8 UTF-8" >> "$ROOT/etc/locale.gen"
+echo "en_US.UTF-8 UTF-8" >> "$ROOT/etc/locale.gen"
 in_root locale-gen >/dev/null
-echo 'LANG=fr_FR.UTF-8' > "$ROOT/etc/default/locale"
-ln -sf /usr/share/zoneinfo/Europe/Paris "$ROOT/etc/localtime"
+echo 'LANG=en_US.UTF-8' > "$ROOT/etc/default/locale"
+ln -sf /usr/share/zoneinfo/Etc/UTC "$ROOT/etc/localtime"
 # DHCP on the wired interface until StrataOS manages the network.
 mkdir -p "$ROOT/etc/systemd/network"
 cat > "$ROOT/etc/systemd/network/99-default-dhcp.network" <<'EOF'
@@ -145,8 +146,8 @@ cat > "$ROOT/etc/issue" <<'EOF'
 
   StrataOS — \n (Raspberry Pi)
 
-  Interface web : http://\4:7070   (HTTPS : https://\4:7443)
-  Créez le compte administrateur depuis votre navigateur.
+  Web interface: http://\4:7070   (HTTPS: https://\4:7443)
+  Create the administrator account from your browser.
 
 EOF
 cp "$ROOT/etc/issue" "$ROOT/etc/issue.net"

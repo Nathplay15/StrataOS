@@ -92,7 +92,7 @@ func (s *Server) versionRoutes() {
 		name := path.Base(t.rel)
 		ext := filepath.Ext(name)
 		tree, _ := storage.FindSnapshot(t.abs, req.Snapshot)
-		out := path.Join(dir, fmt.Sprintf("%s (version du %s)%s", strings.TrimSuffix(name, ext), tree.Time.Format("2006-01-02 15h04"), ext))
+		out := path.Join(dir, fmt.Sprintf("%s (version of %s)%s", strings.TrimSuffix(name, ext), tree.Time.Format("2006-01-02 15h04"), ext))
 		if req.Replace {
 			out = t.rel
 		}

@@ -7,7 +7,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 DEB=dist/strataos_$(cat VERSION)_amd64.deb
-ADMIN_USER=nathan ADMIN_PASS=Strata-Test-2026
+ADMIN_USER=admin ADMIN_PASS=Strata-Test-2026
 LAN=230.0.0.1:12345
 T=$(mktemp -d)
 PASSES=0 FAILS=0
@@ -37,9 +37,9 @@ for p in 7070 7080; do
   check "volume on $p" "$(job $p "$(api $p POST /api/storage/volumes -d "{\"name\":\"volume1\",\"fsType\":\"btrfs\",\"devices\":[\"$D\"],\"dataProfile\":\"single\"}")")" "success"
   check "HA components on $p" "$(job $p "$(api $p POST /api/system/components/ha/install)")" "success"
 done
-api 7070 POST /api/shares -d '{"name":"Documents","path":"/srv/strata/volume1/Documents","smb":true,"browseable":true,"recycleBin":true,"permissions":{"nathan":"rw"}}' >/dev/null
+api 7070 POST /api/shares -d '{"name":"Documents","path":"/srv/strata/volume1/Documents","smb":true,"browseable":true,"recycleBin":true,"permissions":{"admin":"rw"}}' >/dev/null
 api 7070 POST /api/users -d '{"username":"alice","password":"Alice-Pass-1","role":"user"}' >/dev/null
-A ssh 'echo "version 1" | sudo tee /srv/strata/volume1/Documents/rapport.txt >/dev/null && sync'
+A ssh 'echo "version 1" | sudo tee /srv/strata/volume1/Documents/report.txt >/dev/null && sync'
 
 section "Pairing and replication"
 check "wrong pairing code refused" "$(api 7080 POST /api/ha/prepare >/dev/null; api 7070 POST /api/ha/pair -d '{"peerHost":"10.99.0.2","vip":"10.99.0.100/24","interface":"enp0s5","interval":5,"code":"AAAAA-BBBBB"}')" "wrong or expired"
@@ -50,9 +50,9 @@ check "primary holds the shared address" "$(state 7070) $(state 7080)" "MASTER B
 # Pairing starts a first replication by itself: wait for it, then run one by hand.
 for _ in $(seq 1 90); do [ -n "$(api 7070 GET /api/ha | py 'print(d["config"]["lastResult"])')" ] && break; sleep 2; done
 check "first replication after pairing" "$(api 7070 GET /api/ha | py 'print(d["config"]["lastResult"])')" "OK"
-A ssh 'echo "version 1" | sudo tee /srv/strata/volume1/Documents/rapport.txt >/dev/null && sync'
+A ssh 'echo "version 1" | sudo tee /srv/strata/volume1/Documents/report.txt >/dev/null && sync'
 check "replication" "$(job 7070 "$(api 7070 POST /api/ha/sync)")" "success"
-check "data on the secondary" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 1"
+check "data on the secondary" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/report.txt')" "version 1"
 check "accounts on the secondary (same UID)" "$(A ssh 'id -u alice') $(B ssh 'id -u alice')" "$(A ssh 'id -u alice') $(A ssh 'id -u alice')"
 check "secondary does not publish the shares" "$(B ssh "grep -c '^\[' /etc/samba/strata-shares.conf")" "0"
 
@@ -71,10 +71,10 @@ for _ in $(seq 1 30); do [ "$(state 7080)" = MASTER ] && break; sleep 1; done
 check "secondary takes over" "$(state 7080)" "MASTER"
 check "shared address on the secondary" "$(B ssh 'ip -4 addr show enp0s5')" "10.99.0.100"
 B ssh 'command -v smbclient >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq smbclient >/dev/null 2>&1'
-check "shares served at the shared address" "$(B ssh "smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c ls 2>&1")" "rapport.txt"
+check "shares served at the shared address" "$(B ssh "smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c ls 2>&1")" "report.txt"
 check "replicated user signs in on the secondary" "$(curl -s -X POST -H 'X-Strata: 1' http://localhost:7080/api/login -d '{"username":"alice","password":"Alice-Pass-1"}')" '"username":"alice"'
-check "failover alert" "$(api 7080 GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Bascule"
-B ssh "echo 'version 2' > /tmp/v2; smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v2 rapport.txt' >/dev/null 2>&1"
+check "failover alert" "$(api 7080 GET /api/system/events | py '[print(e["message"]) for e in d[:5]]')" "Failover"
+B ssh "echo 'version 2' > /tmp/v2; smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v2 report.txt' >/dev/null 2>&1"
 
 section "Primary back, then hand back"
 A start >/dev/null
@@ -87,19 +87,19 @@ check "primary refuses to overwrite the secondary" "$(job 7070 "$(api 7070 POST 
 check "hand back" "$(job 7080 "$(api 7080 POST /api/ha/switchback)")" "success"
 for _ in $(seq 1 30); do [ "$(state 7070)" = MASTER ] && break; sleep 1; done
 check "primary active again" "$(state 7070) $(state 7080)" "MASTER BACKUP"
-check "changes made during the outage kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 2"
+check "changes made during the outage kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/report.txt')" "version 2"
 section "Planned maintenance"
 check "maintenance hands over" "$(job 7070 "$(api 7070 POST /api/ha/maintenance)")" "success"
 for _ in $(seq 1 30); do [ "$(state 7080)" = MASTER ] && break; sleep 1; done
 check "secondary serves during maintenance" "$(state 7080) $(state 7070)" "MASTER "
 B ssh "echo 'version 3' > /tmp/v3"
-for _ in $(seq 1 20); do B ssh "smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v3 rapport.txt' >/dev/null 2>&1" && break; sleep 2; done
-check "write during maintenance" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 3"
+for _ in $(seq 1 20); do B ssh "smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v3 report.txt' >/dev/null 2>&1" && break; sleep 2; done
+check "write during maintenance" "$(B ssh 'sudo cat /srv/strata/volume1/Documents/report.txt')" "version 3"
 check "end of maintenance" "$(api 7070 POST /api/ha/maintenance/end)" '"ok":true'
 # The secondary restarts keepalived after copying, then waits 30 s (startup delay).
 for _ in $(seq 1 60); do [ "$(state 7070) $(state 7080)" = "MASTER BACKUP" ] && break; sleep 2; done
 check "address back to the primary automatically" "$(state 7070) $(state 7080)" "MASTER BACKUP"
-check "changes made during maintenance kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 3"
+check "changes made during maintenance kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/report.txt')" "version 3"
 section "Third NAS with another volume name"
 C() { VM_STATE=$PWD/vm/state-c VM_HOSTNAME=strata-c VM_WEB_PORT=7110 VM_SSH_PORT=2262 VM_HTTPS_PORT=7483 VM_SMB_PORT=4490 SEED_PORT=8759 VM_EXTRA_PORTS="" VM_DISKS=2 VM_MEM=2560 VM_LAN=$LAN ./vm/vm.sh "$@"; }
 C destroy >/dev/null 2>&1
@@ -107,27 +107,27 @@ C create >/dev/null && C deploy "$DEB" >/dev/null || exit 1
 C ssh 'sudo ip link set enp0s5 up && sudo ip addr add 10.99.0.3/24 dev enp0s5'
 api 7110 POST /api/setup -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\",\"fullName\":\"Test\",\"hostname\":\"nas-7110\"}" >/dev/null
 DC=$(api 7110 GET /api/storage/disks | py 'print([x["path"] for x in d if x["usage"]=="free"][0])')
-check "volume with another name on the third NAS" "$(job 7110 "$(api 7110 POST /api/storage/volumes -d "{\"name\":\"disque2\",\"fsType\":\"btrfs\",\"devices\":[\"$DC\"],\"dataProfile\":\"single\"}")")" "success"
+check "volume with another name on the third NAS" "$(job 7110 "$(api 7110 POST /api/storage/volumes -d "{\"name\":\"disk2\",\"fsType\":\"btrfs\",\"devices\":[\"$DC\"],\"dataProfile\":\"single\"}")")" "success"
 check "HA components on the third NAS" "$(job 7110 "$(api 7110 POST /api/system/components/ha/install)")" "success"
 CODE=$(api 7110 POST /api/ha/prepare | py 'print(d["code"])')
-check "third NAS added with a volume mapping" "$(api 7070 POST /api/ha/pair -d "{\"peerHost\":\"10.99.0.3\",\"code\":\"$CODE\",\"pathMap\":{\"/srv/strata/volume1\":\"/srv/strata/disque2\"}}")" '"role":"primary"'
+check "third NAS added with a volume mapping" "$(api 7070 POST /api/ha/pair -d "{\"peerHost\":\"10.99.0.3\",\"code\":\"$CODE\",\"pathMap\":{\"/srv/strata/volume1\":\"/srv/strata/disk2\"}}")" '"role":"primary"'
 for _ in $(seq 1 60); do [ "$(state 7110)" = BACKUP ] && break; sleep 2; done
 check "two secondaries, ready" "$(api 7070 GET /api/ha | py 'print([(x["host"], x["priority"], x["state"]) for x in d["secondaries"]])')" "('10.99.0.2', 100, 'BACKUP'), ('10.99.0.3', 90, 'BACKUP')"
-A ssh 'echo "version 4" | sudo tee /srv/strata/volume1/Documents/rapport.txt >/dev/null && sync'
+A ssh 'echo "version 4" | sudo tee /srv/strata/volume1/Documents/report.txt >/dev/null && sync'
 # Adding a secondary starts a full replication; continuous replication then follows the changes.
 for _ in $(seq 1 90); do [ "$(api 7070 GET /api/ha | py 'print([x["lastResult"] for x in d["secondaries"] if x["host"]=="10.99.0.3"][0])')" = OK ] && break; sleep 2; done
 check "replication to the third NAS" "$(api 7070 GET /api/ha | py 'print([x["lastResult"] for x in d["secondaries"] if x["host"]=="10.99.0.3"])')" "['OK']"
-for _ in $(seq 1 60); do [ "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt' 2>/dev/null)" = "version 4" ] && break; sleep 2; done
-check "data in the renamed volume" "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt')" "version 4"
-check "share path mapped on the third NAS" "$(api 7110 GET /api/shares | py 'print([s["path"] for s in d])')" "/srv/strata/disque2/Documents"
+for _ in $(seq 1 60); do [ "$(C ssh 'sudo cat /srv/strata/disk2/Documents/report.txt' 2>/dev/null)" = "version 4" ] && break; sleep 2; done
+check "data in the renamed volume" "$(C ssh 'sudo cat /srv/strata/disk2/Documents/report.txt')" "version 4"
+check "share path mapped on the third NAS" "$(api 7110 GET /api/shares | py 'print([s["path"] for s in d])')" "/srv/strata/disk2/Documents"
 check "accounts on the third NAS" "$(C ssh 'id -u alice')" "$(A ssh 'id -u alice')"
 # The first two go down: the third takes over.
 A ssh 'sync' >/dev/null; kill -9 "$(cat vm/state/qemu.pid)" "$(cat vm/state-b/qemu.pid)"
 for _ in $(seq 1 90); do [ "$(state 7110)" = MASTER ] && break; sleep 1; done
 check "third NAS takes over" "$(state 7110)" "MASTER"
 C ssh 'command -v smbclient >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq smbclient >/dev/null 2>&1'
-for _ in $(seq 1 20); do C ssh "echo 'version 5' > /tmp/v5; smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v5 rapport.txt' >/dev/null 2>&1" && break; sleep 2; done
-check "served from the renamed volume" "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt')" "version 5"
+for _ in $(seq 1 20); do C ssh "echo 'version 5' > /tmp/v5; smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v5 report.txt' >/dev/null 2>&1" && break; sleep 2; done
+check "served from the renamed volume" "$(C ssh 'sudo cat /srv/strata/disk2/Documents/report.txt')" "version 5"
 # The primary comes back, then the third NAS hands back (reverse mapping).
 A start >/dev/null
 A ssh 'sudo ip link set enp0s5 up; sudo ip addr add 10.99.0.1/24 dev enp0s5; sudo systemctl restart keepalived'
@@ -137,7 +137,7 @@ sleep 8
 check "hand back from the third NAS" "$(job 7110 "$(api 7110 POST /api/ha/switchback)")" "success"
 for _ in $(seq 1 30); do [ "$(state 7070)" = MASTER ] && break; sleep 1; done
 check "primary active again" "$(state 7070)" "MASTER"
-check "changes copied back to the primary's volume" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 5"
+check "changes copied back to the primary's volume" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/report.txt')" "version 5"
 # The second NAS comes back too; the third is removed.
 B start >/dev/null
 B ssh 'sudo ip link set enp0s5 up; sudo ip addr add 10.99.0.2/24 dev enp0s5; sudo systemctl restart keepalived'

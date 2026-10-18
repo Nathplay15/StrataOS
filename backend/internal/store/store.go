@@ -124,7 +124,7 @@ type Settings struct {
 	NtfyToken string `json:"ntfyToken,omitempty"`
 	// MetricsToken enables /metrics (Prometheus) for clients sending it.
 	MetricsToken string `json:"metricsToken,omitempty"`
-	// NotifyLang is the language of notifications and reports ("" = fr).
+	// NotifyLang is the language of notifications and reports ("" = en).
 	NotifyLang string `json:"notifyLang,omitempty"`
 	// MonthlyReport sends a health report on the 1st of each month.
 	MonthlyReport bool   `json:"monthlyReport,omitempty"`
@@ -448,6 +448,8 @@ type CloudSync struct {
 }
 
 type State struct {
+	// Schema is the layout version of the state file (0 before StrataOS 0.5).
+	Schema    int           `json:"schema,omitempty"`
 	Users     []*User       `json:"users"`
 	Shares    []*Share      `json:"shares"`
 	Volumes   []*Volume     `json:"volumes"`
@@ -482,6 +484,9 @@ type Store struct {
 	st   State
 }
 
+// schema is the current layout version of the state file.
+const schema = 1
+
 func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -492,11 +497,18 @@ func Open(dir string) (*Store, error) {
 	}
 	s := &Store{path: filepath.Join(dir, "state.json")}
 	s.st.Settings = Settings{Workgroup: "WORKGROUP", ServerString: "StrataOS", SessionHours: 12, SMBMinProto: "SMB2_10", SMTPPort: 587, TrashDays: 30}
+	s.st.Schema = schema
 	data, err := os.ReadFile(s.path)
 	if err == nil {
+		s.st.Schema = 0
 		if err := json.Unmarshal(data, &s.st); err != nil {
 			return nil, err
 		}
+		// Before 0.5, notifications were in French by default.
+		if s.st.Schema < 1 && s.st.Settings.NotifyLang == "" && len(s.st.Users) > 0 {
+			s.st.Settings.NotifyLang = "fr"
+		}
+		s.st.Schema = schema
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}

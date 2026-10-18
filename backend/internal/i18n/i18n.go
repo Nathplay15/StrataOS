@@ -16,7 +16,8 @@ import (
 //go:embed texts.json
 var textsJSON []byte
 
-// Langs are the languages of the interface; texts are written in French.
+// Langs are the languages of the interface; the server writes its texts in
+// English (older events may still be in French: both are recognised).
 var Langs = []string{"fr", "en", "es", "de", "it", "pt", "nl", "zh"}
 
 type rule struct {
@@ -109,8 +110,8 @@ func t(rs []rule, text string, depth int) string {
 
 // Lines translates a multi-line text line by line, keeping "• " bullets.
 func Lines(lang, text string) string {
-	if lang == "" || lang == "fr" {
-		return text
+	if lang == "" {
+		lang = "en"
 	}
 	rs := load(lang)
 	l := strings.Split(text, "\n")

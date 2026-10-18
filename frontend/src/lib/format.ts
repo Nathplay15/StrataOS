@@ -38,10 +38,10 @@ export function dateTime(v: string | number | undefined): string {
 export function ago(v: string | number): string {
   const t = typeof v === "number" ? v : new Date(v).getTime();
   const s = (Date.now() - t) / 1000;
-  if (s < 60) return tr("à l'instant");
-  if (s < 3600) return tr("il y a {0} min", Math.floor(s / 60));
-  if (s < 86400) return tr("il y a {0} h", Math.floor(s / 3600));
-  return tr("il y a {0} j", Math.floor(s / 86400));
+  if (s < 60) return tr("just now");
+  if (s < 3600) return tr("{0} min ago", Math.floor(s / 60));
+  if (s < 86400) return tr("{0} h ago", Math.floor(s / 3600));
+  return tr("{0} d ago", Math.floor(s / 86400));
 }
 
 /** Parses "10G", "500 MB", "2T" into bytes. */

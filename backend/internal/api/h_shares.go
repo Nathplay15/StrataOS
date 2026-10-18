@@ -41,12 +41,12 @@ func (s *Server) applyShares() error {
 	if errors.As(err, &skipped) {
 		// The configuration was applied without these shares: report, don't fail.
 		slog.Warn("apply shares", "skipped", err)
-		s.store.Log("warning", "shares", "", "Partages non publiés : "+err.Error())
+		s.store.Log("warning", "shares", "", "Shares not published: "+err.Error())
 		return nil
 	}
 	if err != nil {
 		slog.Error("apply shares", "err", err)
-		s.store.Log("error", "shares", "", "Échec de l'application de la configuration des partages : "+err.Error())
+		s.store.Log("error", "shares", "", "Applying the share configuration failed: "+err.Error())
 	}
 	return err
 }
@@ -396,8 +396,8 @@ func (s *Server) lockedSharesNotice() {
 		}
 	})
 	if len(names) > 0 {
-		msg := "Dossiers chiffrés à déverrouiller : " + strings.Join(names, ", ")
+		msg := "Encrypted folders to unlock: " + strings.Join(names, ", ")
 		s.store.Log("warning", "shares", "", msg)
-		s.notify("Dossiers chiffrés verrouillés", msg)
+		s.notify("Encrypted folders locked", msg)
 	}
 }

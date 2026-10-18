@@ -32,7 +32,7 @@ func TestRansomDetection(t *testing.T) {
 	for i := 0; i < 200 && reason == ""; i++ {
 		_, reason = w.add("mallory", "f.txt", now.Add(time.Duration(i)*100*time.Millisecond), 150)
 	}
-	if !strings.Contains(reason, "en une minute") {
+	if !strings.Contains(reason, "in one minute") {
 		t.Errorf("mass deletion not flagged: %q", reason)
 	}
 	// Spread over hours: not flagged.

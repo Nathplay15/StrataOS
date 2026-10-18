@@ -84,7 +84,7 @@ func (s *Server) energyLoop() {
 		}
 		if d := next.Sub(now); d > 0 && d <= 10*time.Minute && !warned.Equal(next) {
 			warned = next
-			s.store.Log("info", "energy", "", fmt.Sprintf("Arrêt programmé à %s", next.Format("15:04")))
+			s.store.Log("info", "energy", "", fmt.Sprintf("Scheduled shutdown at %s", next.Format("15:04")))
 		}
 		if now.Before(next) {
 			continue
@@ -98,18 +98,18 @@ func (s *Server) energyLoop() {
 		}
 		if busy != "" {
 			postponed = now.Add(10 * time.Minute)
-			s.store.Log("warning", "energy", "", fmt.Sprintf("Arrêt programmé reporté de 10 minutes : tâche en cours (%s)", busy))
+			s.store.Log("warning", "energy", "", fmt.Sprintf("Scheduled shutdown postponed by 10 minutes: task running (%s)", busy))
 			continue
 		}
 		postponed = time.Time{}
 		wake := c.Schedule.WakeAfter(next)
-		msg := "Arrêt programmé du NAS"
+		msg := "Scheduled shutdown of the NAS"
 		if !wake.IsZero() {
-			msg = fmt.Sprintf("Arrêt programmé du NAS, redémarrage prévu le %s", wake.Format("02/01 15:04"))
+			msg = fmt.Sprintf("Scheduled shutdown of the NAS, restart planned on %s", wake.Format("2006-01-02 15:04"))
 		}
 		s.store.Log("info", "energy", "", msg)
 		if err := energy.PowerOff(wake); err != nil {
-			s.store.Log("error", "energy", "", "Arrêt programmé impossible : "+err.Error())
+			s.store.Log("error", "energy", "", "Scheduled shutdown failed: "+err.Error())
 		}
 		time.Sleep(2 * time.Minute)
 	}

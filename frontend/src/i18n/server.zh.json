@@ -673,5 +673,12 @@
  "Échec de la réplication pour {0}": "{0} 的复制失败",
  "Équilibrage {0}": "均衡 {0}",
  "Étape invalide": "步骤无效",
- "État simulé invalide": "模拟状态无效"
+ "État simulé invalide": "模拟状态无效",
+ "Échec de l'application de la configuration des partages : {0}": "应用共享配置失败：{0}",
+ "Test SMART court": "SMART 短测试",
+ "Test SMART long": "SMART 长测试",
+ "Les notifications StrataOS fonctionnent.": "StrataOS 通知工作正常。",
+ "lien de partage": "共享链接",
+ "coffre de sauvegarde": "备份保险库",
+ "manuel": "手动"
 }

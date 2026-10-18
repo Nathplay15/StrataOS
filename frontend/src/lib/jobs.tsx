@@ -36,8 +36,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       const prev = seen.current.get(j.id);
       if (prev === "running" && j.status !== "running") {
         finished = true;
-        if (j.status === "success") toast(tr("{0} : terminé", srv(j.title)));
-        else toast(tr("{0} : {1}", srv(j.title), j.error ?? tr("échec")), "error");
+        if (j.status === "success") toast(tr("{0}: completed", srv(j.title)));
+        else toast(tr("{0}: {1}", srv(j.title), j.error ?? tr("failed")), "error");
       }
       seen.current.set(j.id, j.status);
     }
@@ -55,7 +55,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       }
       seen.current.set(job.id, "running");
       setWatching((w) => w + 1);
-      toast(tr("{0} : démarré", srv(job.title)), "info");
+      toast(tr("{0}: started", srv(job.title)), "info");
       qc.invalidateQueries({ queryKey: ["jobs"] });
     },
     [qc, toast],

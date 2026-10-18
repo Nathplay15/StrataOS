@@ -673,5 +673,12 @@
  "Échec de la réplication pour {0}": "Falha na replicação de {0}",
  "Équilibrage {0}": "Balanceamento {0}",
  "Étape invalide": "Etapa inválida",
- "État simulé invalide": "Status simulado inválido"
+ "État simulé invalide": "Status simulado inválido",
+ "Échec de l'application de la configuration des partages : {0}": "Falha ao aplicar a configuração dos compartilhamentos: {0}",
+ "Test SMART court": "Teste SMART curto",
+ "Test SMART long": "Teste SMART longo",
+ "Les notifications StrataOS fonctionnent.": "As notificações do StrataOS funcionam.",
+ "lien de partage": "link de compartilhamento",
+ "coffre de sauvegarde": "cofre de backup",
+ "manuel": "manual"
 }

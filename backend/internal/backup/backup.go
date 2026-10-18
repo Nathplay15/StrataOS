@@ -272,7 +272,7 @@ func runRsync(ctx context.Context, t *store.BackupTask, p Progress) (string, err
 			}
 		}
 	}
-	return fmt.Sprintf("Copie de %d dossier(s) terminée en %s", len(t.Sources), time.Since(start).Round(time.Second)), nil
+	return fmt.Sprintf("Copy of %d folder(s) finished in %s", len(t.Sources), time.Since(start).Round(time.Second)), nil
 }
 
 // resticEnv builds the repository location and credentials for restic.
@@ -328,7 +328,7 @@ func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...s
 // ensureRepo initialises the restic repository on first use.
 func ensureRepo(ctx context.Context, t *store.BackupTask, p Progress) error {
 	if !sys.Has("restic") {
-		return fmt.Errorf("restic is not installed (Paramètres → Composants)")
+		return fmt.Errorf("restic is not installed (Settings → Components)")
 	}
 	if t.DestType == "sftp" {
 		if _, err := PublicKey(); err != nil {
@@ -409,7 +409,7 @@ func runRestic(ctx context.Context, t *store.BackupTask, p Progress) (string, er
 			p.Log("warning: retention failed: %v", err)
 		}
 	}
-	return fmt.Sprintf("Snapshot %s : %d nouveau(x), %d modifié(s), %s ajoutés", short(summary.SnapshotID), summary.FilesNew, summary.FilesChanged, humanBytes(summary.DataAdded)), nil
+	return fmt.Sprintf("Snapshot %s: %d new, %d changed, %s added", short(summary.SnapshotID), summary.FilesNew, summary.FilesChanged, humanBytes(summary.DataAdded)), nil
 }
 
 type ResticSnapshot struct {
@@ -473,7 +473,7 @@ func Restore(ctx context.Context, t store.BackupTask, snapshot, include, target 
 	if _, err := restic(ctx, &t, lw, args...); err != nil {
 		return "", err
 	}
-	return "Restauration terminée dans " + target, nil
+	return "Restore finished in " + target, nil
 }
 
 // ---- ZFS replication ----
@@ -599,7 +599,7 @@ func finishZFS(ctx context.Context, t *store.BackupTask, src, snap string, mine 
 	if t.DestType == "ssh" {
 		where = t.Host + ":" + t.DestPath
 	}
-	return fmt.Sprintf("Réplication de %s vers %s terminée (%s), %d ancien(s) point(s) supprimé(s)", src, where, snap, removed), nil
+	return fmt.Sprintf("Replication of %s to %s finished (%s), %d old point(s) deleted", src, where, snap, removed), nil
 }
 
 // ownSnapshots returns this task's replication snapshots of src, newest first.
@@ -627,7 +627,7 @@ func Test(ctx context.Context, t store.BackupTask) (string, error) {
 		if err := ensureRepo(ctx, &t, Progress{Set: func(float64) {}, Log: func(string, ...any) {}}); err != nil {
 			return "", err
 		}
-		return "Dépôt restic accessible", nil
+		return "restic repository reachable", nil
 	case t.DestType == "ssh":
 		if _, err := PublicKey(); err != nil {
 			return "", err
@@ -640,7 +640,7 @@ func Test(ctx context.Context, t store.BackupTask) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("SSH connection failed (is the StrataOS public key in ~/.ssh/authorized_keys of %s?): %w", t.User, err)
 		}
-		return "Connexion SSH réussie : " + strings.TrimSpace(out), nil
+		return "SSH connection successful: " + strings.TrimSpace(out), nil
 	case t.Kind == "zfs":
 		if _, err := sys.RunCtx(ctx, "zfs", "list", "-H", "-o", "name", strings.SplitN(t.DestPath, "/", 2)[0]); err != nil {
 			return "", fmt.Errorf("destination pool not found")

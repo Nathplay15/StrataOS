@@ -173,7 +173,7 @@ func (s *Server) replicate(ctx context.Context, logf func(string, ...any)) error
 		for _, sh := range shareList {
 			mapped = append(mapped, mapShare(sh, t.PathMap))
 		}
-		logf("Comptes et partages envoyés à %s", t.Host)
+		logf("Accounts and shares sent to %s", t.Host)
 		var res struct {
 			Problems []string `json:"problems"`
 		}
@@ -213,7 +213,7 @@ func (s *Server) runReplication(user string) (jobs.Snapshot, error) {
 	if _, busy := running.LoadOrStore("ha-sync", true); busy {
 		return jobs.Snapshot{}, &Error{Status: http.StatusConflict, Msg: "a replication is already running"}
 	}
-	return s.jobs.Start("ha", "Réplication vers le NAS secondaire", user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("ha", "Replication to the secondary NAS", user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete("ha-sync")
 		err := s.replicate(ctx, j.Logf)
 		msg := "OK"
@@ -246,20 +246,20 @@ func (s *Server) haLoop() {
 		if cur != last {
 			slog.Info("ha state", "from", last, "to", cur)
 			if cur == "MASTER" && c.Role == "secondary" {
-				msg := fmt.Sprintf("Bascule : le NAS secondaire prend le relais sur l'adresse %s (le principal %s ne répond plus)", c.VIP, c.PeerHost)
+				msg := fmt.Sprintf("Failover: the secondary NAS takes over address %s (the primary %s no longer answers)", c.VIP, c.PeerHost)
 				s.store.Log("error", "ha", "", msg)
-				s.notify("Bascule haute disponibilité", msg)
+				s.notify("High availability failover", msg)
 			} else if cur == "MASTER" {
-				s.store.Log("info", "ha", "", "Ce NAS sert l'adresse partagée "+c.VIP)
+				s.store.Log("info", "ha", "", "This NAS serves the shared address "+c.VIP)
 			} else if last == "MASTER" {
-				s.store.Log("warning", "ha", "", "Ce NAS ne sert plus l'adresse partagée "+c.VIP)
+				s.store.Log("warning", "ha", "", "This NAS no longer serves the shared address "+c.VIP)
 			}
 			last = cur
 			_ = s.applyShares()
 		}
 		if c.Role == "primary" && cur == "MASTER" && c.Maintenance {
 			_ = s.store.Update(func(st *store.State) error { st.HA.Maintenance = false; return nil })
-			s.store.Log("info", "ha", "", "Maintenance terminée : ce NAS sert de nouveau l'adresse partagée")
+			s.store.Log("info", "ha", "", "Maintenance finished: this NAS serves the shared address again")
 		}
 		// Planned maintenance: give the address back as soon as the primary is back.
 		if tick%5 == 0 && c.Role == "secondary" && cur == "MASTER" && c.AutoReturn {
@@ -269,7 +269,7 @@ func (s *Server) haLoop() {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			if p.Call(ctx, "status", nil, &st) == nil && st.State == "BACKUP" {
-				s.store.Log("info", "ha", "", "Le principal est de retour : retour automatique après la maintenance")
+				s.store.Log("info", "ha", "", "The primary is back: automatic hand back after maintenance")
 				_, _ = s.startHandBack("ha")
 			}
 			cancel()
@@ -480,8 +480,8 @@ func (s *Server) haRoutes() {
 			return nil, badRequest("only the active primary can enter maintenance")
 		}
 		s.audit(r, "ha", "Maintenance: handing the address over to "+c.PeerHost)
-		return s.jobs.Start("ha", "Maintenance du NAS principal", userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			j.Logf("Dernière réplication avant la maintenance…")
+		return s.jobs.Start("ha", "Primary NAS maintenance", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Last replication before maintenance…")
 			if err := s.replicate(ctx, j.Logf); err != nil {
 				return err
 			}
@@ -489,7 +489,7 @@ func (s *Server) haRoutes() {
 				return fmt.Errorf("the secondary does not answer: %w", err)
 			}
 			_ = s.store.Update(func(st *store.State) error { st.HA.Maintenance = true; return nil })
-			j.Logf("Le secondaire prend le relais ; ce NAS peut être redémarré.")
+			j.Logf("The secondary takes over; this NAS can be restarted.")
 			_, err := sys.Run("systemctl", "stop", "keepalived.service")
 			return err
 		}), nil
@@ -805,7 +805,7 @@ func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
 		return jobs.Snapshot{}, &Error{Status: http.StatusConflict, Msg: "already handing back"}
 	}
 	p, c := s.peer()
-	return s.jobs.Start("ha", "Retour au NAS principal", user, func(ctx context.Context, j *jobs.Job) error {
+	return s.jobs.Start("ha", "Handing back to the primary NAS", user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete("ha-handback")
 		var st struct {
 			State string `json:"state"`
@@ -821,7 +821,7 @@ func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
 		})
 		key := filepath.Join(backup.KeyDir, "id_ed25519")
 		known := filepath.Join(backup.KeyDir, "known_hosts")
-		j.Logf("Copie des modifications vers %s…", c.PeerHost)
+		j.Logf("Copying the changes to %s…", c.PeerHost)
 		for _, sh := range list {
 			// Back to the primary's paths (its volumes may be named differently).
 			if err := ha.SyncDirTo(ctx, key, known, c.PeerHost, sh.DataPath(), ha.MapPath(sh.DataPath(), ha.Reverse(c.PathMap)), true, j.Logf); err != nil {
@@ -829,7 +829,7 @@ func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
 			}
 		}
 		_ = s.store.Update(func(x *store.State) error { x.HA.AutoReturn = false; return nil })
-		j.Logf("Libération de l'adresse %s", c.VIP)
+		j.Logf("Releasing address %s", c.VIP)
 		return ha.Release()
 	}), nil
 }

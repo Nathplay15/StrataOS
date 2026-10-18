@@ -673,5 +673,12 @@
  "Échec de la réplication pour {0}": "Replikation für {0} fehlgeschlagen",
  "Équilibrage {0}": "Ausgleich {0}",
  "Étape invalide": "Ungültiger Schritt",
- "État simulé invalide": "Ungültiger simulierter Status"
+ "État simulé invalide": "Ungültiger simulierter Status",
+ "Échec de l'application de la configuration des partages : {0}": "Anwenden der Freigabekonfiguration fehlgeschlagen: {0}",
+ "Test SMART court": "Kurzer SMART-Test",
+ "Test SMART long": "Langer SMART-Test",
+ "Les notifications StrataOS fonctionnent.": "StrataOS-Benachrichtigungen funktionieren.",
+ "lien de partage": "Freigabelink",
+ "coffre de sauvegarde": "Backup-Tresor",
+ "manuel": "manuell"
 }

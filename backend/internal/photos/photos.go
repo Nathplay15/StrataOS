@@ -175,7 +175,7 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 			items = append(items, it)
 			added++
 			if added%500 == 0 {
-				logf("%d nouvelles photos indexées…", added)
+				logf("%d new photos indexed…", added)
 			}
 			return nil
 		})
@@ -191,7 +191,7 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 	if err := os.MkdirAll(Dir, 0o700); err == nil {
 		_ = sys.WriteFileAtomic(indexFile(), saved, 0o600)
 	}
-	logf("%d photos et vidéos, dont %d nouvelles", len(items), added)
+	logf("%d photos and videos, %d new", len(items), added)
 	return len(items), nil
 }
 

@@ -66,20 +66,20 @@ func New(c Config) *Server {
 	}
 	s.jobs.OnFinish = func(j jobs.Snapshot) {
 		level := "info"
-		msg := j.Title + " : terminé"
+		msg := j.Title + ": finished"
 		if j.Status == jobs.Failed {
 			level = "error"
-			msg = j.Title + " : échec — " + j.Error
+			msg = j.Title + ": failed — " + j.Error
 		}
 		s.store.Log(level, "job", j.User, msg)
 		if level == "error" {
-			s.notify("Échec d'une tâche", msg)
+			s.notify("Task failed", msg)
 		}
 	}
 	network.OnRollback = func(reason string) {
 		msg := "Network change rolled back (" + reason + "): the previous configuration is active again"
 		s.store.Log("warning", "network", "", msg)
-		s.notify("Réseau restauré", msg)
+		s.notify("Network restored", msg)
 	}
 	network.Recover()
 	s.routes()

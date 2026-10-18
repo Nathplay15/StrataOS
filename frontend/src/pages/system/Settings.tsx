@@ -14,51 +14,51 @@ function CertificatesCard() {
   const { data } = useQuery({ queryKey: ["certs"], queryFn: () => api.get<{ certificates: CertInfo[]; acmeDomain: string; acmeEmail: string }>("/api/system/certificates") });
   const [imp, setImp] = useState<{ cert: string; key: string } | null>(null);
   const [acme, setAcme] = useState<{ domain: string; email: string } | null>(null);
-  const upload = useAction(() => api.put("/api/system/certificates/custom", imp), { success: tr("Certificat importé (actif immédiatement)"), onDone: () => setImp(null) });
-  const remove = useAction(() => api.del("/api/system/certificates/custom"), { success: tr("Certificat importé supprimé") });
-  const saveAcme = useAction((v: { domain: string; email: string }) => api.put("/api/system/certificates/acme", v), { success: tr("Let's Encrypt désactivé"), onDone: () => setAcme(null) });
-  const label = { "self-signed": "Auto-signé", custom: "Importé", letsencrypt: "Let's Encrypt" };
+  const upload = useAction(() => api.put("/api/system/certificates/custom", imp), { success: tr("Certificate imported (active immediately)"), onDone: () => setImp(null) });
+  const remove = useAction(() => api.del("/api/system/certificates/custom"), { success: tr("Imported certificate deleted") });
+  const saveAcme = useAction((v: { domain: string; email: string }) => api.put("/api/system/certificates/acme", v), { success: tr("Let's Encrypt disabled"), onDone: () => setAcme(null) });
+  const label = { "self-signed": tr("Self-signed"), custom: tr("Imported"), letsencrypt: "Let's Encrypt" };
   const readFile = (f: File | undefined, k: "cert" | "key") => f?.text().then((t) => setImp((p) => ({ cert: "", key: "", ...p, [k]: t })));
   return (
-    <Card title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("Certificat HTTPS")}</span>} className="xl:col-span-2" actions={<>
-      <Button size="sm" onClick={() => setImp({ cert: "", key: "" })}>{tr("Importer un certificat")}</Button>
+    <Card title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="xl:col-span-2" actions={<>
+      <Button size="sm" onClick={() => setImp({ cert: "", key: "" })}>{tr("Import a certificate")}</Button>
       <Button size="sm" onClick={() => setAcme({ domain: data?.acmeDomain ?? "", email: data?.acmeEmail ?? "" })}>{tr("Let's Encrypt")}</Button>
     </>}>
       <div className="space-y-2">
         {data?.certificates.map((c) => (
           <div key={c.source} className="flex flex-wrap items-center gap-3 rounded-xl bg-panel-2 px-4 py-2.5 text-[13px]">
-            <Badge tone={c.active ? "ok" : "neutral"}>{label[c.source]}{c.active ? tr(" · utilisé") : ""}</Badge>
+            <Badge tone={c.active ? "ok" : "neutral"}>{label[c.source]}{c.active ? tr(" · used") : ""}</Badge>
             <span className="font-medium">{c.subject}</span>
-            <span className="text-muted">{tr("émis par")}{" "}{c.issuer} {" "}{tr("· expire le")}{" "}{new Date(c.notAfter).toLocaleDateString(locale)}</span>
+            <span className="text-muted">{tr("issued by")}{" "}{c.issuer} {" "}{tr("· expires on")}{" "}{new Date(c.notAfter).toLocaleDateString(locale)}</span>
             {c.dnsNames && c.dnsNames.length > 0 && <span className="mono text-muted text-[11.5px]">{c.dnsNames.join(", ")}</span>}
             <div className="flex-1" />
-            {c.source === "custom" && <Button size="sm" variant="ghost" className="text-danger" onClick={async () => { if (await confirm({ title: tr("Supprimer le certificat importé ?"), text: tr("Le certificat auto-signé sera de nouveau utilisé."), danger: true })) remove.mutate(); }}>{tr("Supprimer")}</Button>}
+            {c.source === "custom" && <Button size="sm" variant="ghost" className="text-danger" onClick={async () => { if (await confirm({ title: tr("Delete the imported certificate?"), text: tr("The self-signed certificate will be used again."), danger: true })) remove.mutate(); }}>{tr("Delete")}</Button>}
           </div>
         ))}
-        {data?.acmeDomain && <div className="text-[12.5px] text-muted">{tr("Let's Encrypt actif pour")}{" "}<b>{data.acmeDomain}</b> {" "}{tr("(utilisé quand le NAS est ouvert par ce nom ; renouvellement automatique).")}</div>}
+        {data?.acmeDomain && <div className="text-[12.5px] text-muted">{tr("Let's Encrypt active for")}{" "}<b>{data.acmeDomain}</b> {" "}{tr("(used when the NAS is accessed by this name; automatic renewal).")}</div>}
       </div>
-      <Modal open={!!imp} onClose={() => setImp(null)} title={tr("Importer un certificat")} wide footer={<>
-        <Button onClick={() => setImp(null)}>{tr("Annuler")}</Button>
-        <Button variant="primary" disabled={!imp?.cert || !imp?.key} loading={upload.isPending} onClick={() => upload.mutate()}>{tr("Importer")}</Button>
+      <Modal open={!!imp} onClose={() => setImp(null)} title={tr("Import a certificate")} wide footer={<>
+        <Button onClick={() => setImp(null)}>{tr("Cancel")}</Button>
+        <Button variant="primary" disabled={!imp?.cert || !imp?.key} loading={upload.isPending} onClick={() => upload.mutate()}>{tr("Import")}</Button>
       </>}>
         {imp && (
           <div className="space-y-4">
-            <Field label={tr("Certificat (PEM, avec la chaîne intermédiaire)")} hint={<input type="file" accept=".pem,.crt,.cer" onChange={(e) => readFile(e.target.files?.[0], "cert")} />}><textarea className="input mono h-32" value={imp.cert} onChange={(e) => setImp({ ...imp, cert: e.target.value })} placeholder={tr("-----BEGIN CERTIFICATE-----")} /></Field>
-            <Field label={tr("Clé privée (PEM)")} hint={<input type="file" accept=".pem,.key" onChange={(e) => readFile(e.target.files?.[0], "key")} />}><textarea className="input mono h-32" value={imp.key} onChange={(e) => setImp({ ...imp, key: e.target.value })} placeholder={tr("-----BEGIN PRIVATE KEY-----")} /></Field>
+            <Field label={tr("Certificate (PEM, with intermediate chain)")} hint={<input type="file" accept=".pem,.crt,.cer" onChange={(e) => readFile(e.target.files?.[0], "cert")} />}><textarea className="input mono h-32" value={imp.cert} onChange={(e) => setImp({ ...imp, cert: e.target.value })} placeholder={tr("-----BEGIN CERTIFICATE-----")} /></Field>
+            <Field label={tr("Private key (PEM)")} hint={<input type="file" accept=".pem,.key" onChange={(e) => readFile(e.target.files?.[0], "key")} />}><textarea className="input mono h-32" value={imp.key} onChange={(e) => setImp({ ...imp, key: e.target.value })} placeholder={tr("-----BEGIN PRIVATE KEY-----")} /></Field>
             <ErrorBox error={upload.error} />
           </div>
         )}
       </Modal>
-      <Modal open={!!acme} onClose={() => setAcme(null)} title={tr("Certificat Let's Encrypt")} footer={<>
-        {data?.acmeDomain && <Button className="mr-auto" variant="danger" onClick={() => saveAcme.mutate({ domain: "", email: "" })}>{tr("Désactiver")}</Button>}
-        <Button onClick={() => setAcme(null)}>{tr("Annuler")}</Button>
-        <Button variant="primary" disabled={!acme?.domain} loading={saveAcme.isPending} onClick={() => saveAcme.mutate(acme!)}>{tr("Activer")}</Button>
+      <Modal open={!!acme} onClose={() => setAcme(null)} title={tr("Let's Encrypt certificate")} footer={<>
+        {data?.acmeDomain && <Button className="mr-auto" variant="danger" onClick={() => saveAcme.mutate({ domain: "", email: "" })}>{tr("Disable")}</Button>}
+        <Button onClick={() => setAcme(null)}>{tr("Cancel")}</Button>
+        <Button variant="primary" disabled={!acme?.domain} loading={saveAcme.isPending} onClick={() => saveAcme.mutate(acme!)}>{tr("Enable")}</Button>
       </>}>
         {acme && (
           <div className="space-y-4">
-            <Notice>{tr("Prérequis : un nom de domaine (ex. nas.mondomaine.fr) qui pointe vers votre adresse IP publique, et le")}{" "}<b>{tr("port 80")}</b> {" "}{tr("de votre box redirigé vers le NAS. Le certificat est obtenu puis renouvelé automatiquement.")}</Notice>
-            <Field label={tr("Nom de domaine")}><Input value={acme.domain} onChange={(e) => setAcme({ ...acme, domain: e.target.value })} /></Field>
-            <Field label={tr("E-mail (avis d'expiration)")}><Input type="email" value={acme.email} onChange={(e) => setAcme({ ...acme, email: e.target.value })} /></Field>
+            <Notice>{tr("Prerequisites: a domain name (e.g. nas.mydomain.com) pointing to your public IP address, and the")}{" "}<b>{tr("port 80")}</b> {" "}{tr("on your router forwarded to the NAS. The certificate is obtained and then renewed automatically.")}</Notice>
+            <Field label={tr("Domain name")}><Input value={acme.domain} onChange={(e) => setAcme({ ...acme, domain: e.target.value })} /></Field>
+            <Field label={tr("Email (expiration notice)")}><Input type="email" value={acme.email} onChange={(e) => setAcme({ ...acme, email: e.target.value })} /></Field>
             <ErrorBox error={saveAcme.error} />
           </div>
         )}
@@ -81,22 +81,22 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
     a.click();
   };
   return (
-    <Card title={<span className="flex items-center gap-2"><Activity size={16} />{tr("Supervision (Prometheus, Grafana)")}</span>}>
+    <Card title={<span className="flex items-center gap-2"><Activity size={16} />{tr("Monitoring (Prometheus, Grafana)")}</span>}>
       <div className="space-y-4">
-        <Switch checked={enabled || !!token} onChange={(v) => toggle.mutate(v)} label={tr("Publier les métriques")} hint={tr("Processeur, mémoire, réseau, disques, volumes, santé RAID/ZFS/SMART, sauvegardes, onduleur, sécurité, au format Prometheus sur {0}", url)} />
+        <Switch checked={enabled || !!token} onChange={(v) => toggle.mutate(v)} label={tr("Publish metrics")} hint={tr("CPU, memory, network, disks, volumes, RAID/ZFS/SMART health, backups, UPS, security, in Prometheus format at {0}", url)} />
         {token && (
           <div className="space-y-2">
-            <Notice tone="warn">{tr("Jeton d'accès (affiché une seule fois) : copiez-le dans la configuration de Prometheus.")}</Notice>
-            <div className="flex gap-2"><Input readOnly className="mono" value={token} onFocus={(e) => e.target.select()} /><Button onClick={() => { navigator.clipboard?.writeText(token); toast(tr("Jeton copié")); }}>{tr("Copier")}</Button></div>
+            <Notice tone="warn">{tr("Access token (shown only once): copy it into the Prometheus configuration.")}</Notice>
+            <div className="flex gap-2"><Input readOnly className="mono" value={token} onFocus={(e) => e.target.select()} /><Button onClick={() => { navigator.clipboard?.writeText(token); toast(tr("Token copied")); }}>{tr("Copy")}</Button></div>
           </div>
         )}
         {(enabled || token) && <>
           <pre className="mono overflow-auto rounded-lg bg-panel-2 p-3 text-[11.5px]">{yaml}</pre>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" icon={<Download size={14} />} onClick={grafana}>{tr("Tableau de bord Grafana")}</Button>
-            {enabled && !token && <Button size="sm" onClick={() => toggle.mutate(true)}>{tr("Nouveau jeton")}</Button>}
+            <Button size="sm" icon={<Download size={14} />} onClick={grafana}>{tr("Grafana dashboard")}</Button>
+            {enabled && !token && <Button size="sm" onClick={() => toggle.mutate(true)}>{tr("New token")}</Button>}
           </div>
-          <p className="text-muted text-[12px]">{tr("Prometheus et Grafana s'installent depuis l'App Center ; importez le tableau dans Grafana puis choisissez la source Prometheus.")}</p>
+          <p className="text-muted text-[12px]">{tr("Prometheus and Grafana are installed from the App Center; import the dashboard into Grafana, then choose the Prometheus data source.")}</p>
         </>}
         <ErrorBox error={toggle.error} />
       </div>
@@ -113,89 +113,89 @@ export default function SettingsPage() {
   const [zone, setZone] = useState("");
   useEffect(() => { if (data) setS(data); }, [data]);
   useEffect(() => { if (info.data) setZone(info.data.timezone); }, [info.data]);
-  const save = useAction(() => api.put("/api/settings", s), { success: tr("Paramètres enregistrés") });
-  const test = useAction(() => api.post("/api/settings/test-notification"), { success: tr("Notification envoyée") });
-  const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Fuseau horaire mis à jour") });
+  const save = useAction(() => api.put("/api/settings", s), { success: tr("Settings saved") });
+  const test = useAction(() => api.post("/api/settings/test-notification"), { success: tr("Notification sent") });
+  const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Time zone updated") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
-  const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Rapport envoyé") });
+  const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Report sent") });
   if (isLoading || !s) return <Spinner />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS({ ...s, [k]: v });
   return (
     <div>
-      <PageHeader title={tr("Paramètres")} subtitle={tr("Configuration générale du NAS")} icon={<Cog size={20} />} actions={<Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Enregistrer")}</Button>} />
+      <PageHeader title={tr("Settings")} subtitle={tr("General NAS configuration")} icon={<Cog size={20} />} actions={<Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>} />
       <ErrorBox error={error} />
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card title={<span className="flex items-center gap-2"><Share2 size={16} /> {" "}{tr("Partage de fichiers (SMB)")}</span>}>
+        <Card title={<span className="flex items-center gap-2"><Share2 size={16} /> {" "}{tr("File sharing (SMB)")}</span>}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={tr("Groupe de travail")}><Input value={s.workgroup} onChange={(e) => set("workgroup", e.target.value)} /></Field>
-            <Field label={tr("Description du serveur")}><Input value={s.serverString} onChange={(e) => set("serverString", e.target.value)} /></Field>
-            <Field label={tr("Protocole minimum")} hint={tr("SMB1 est désactivé pour des raisons de sécurité.")}>
+            <Field label={tr("Workgroup")}><Input value={s.workgroup} onChange={(e) => set("workgroup", e.target.value)} /></Field>
+            <Field label={tr("Server description")}><Input value={s.serverString} onChange={(e) => set("serverString", e.target.value)} /></Field>
+            <Field label={tr("Minimum protocol")} hint={tr("SMB1 is disabled for security reasons.")}>
               <Select value={s.smbMinProtocol} onChange={(e) => set("smbMinProtocol", e.target.value)}>
                 <option value="SMB2">SMB2</option><option value="SMB2_10">{tr("SMB 2.1")}</option><option value="SMB3">SMB3</option><option value="SMB3_11">{tr("SMB 3.1.1")}</option>
               </Select>
             </Field>
-            <Field label={tr("Vider la corbeille réseau après (jours)")} hint={tr("Fichiers supprimés via SMB, purgés chaque nuit à 3 h 30. 0 = jamais.")}><Input type="number" min={0} value={s.trashDays} onChange={(e) => set("trashDays", Math.max(0, +e.target.value))} /></Field>
+            <Field label={tr("Empty the recycle bin after (days)")} hint={tr("Files deleted via SMB, purged every night at 3:30 AM. 0 = never.")}><Input type="number" min={0} value={s.trashDays} onChange={(e) => set("trashDays", Math.max(0, +e.target.value))} /></Field>
           </div>
         </Card>
-        <Card title={<span className="flex items-center gap-2"><Shield size={16} /> {" "}{tr("Sécurité")}</span>}>
-          <Field label={tr("Durée de session (heures)")}><Input type="number" min={1} max={720} value={s.sessionHours} onChange={(e) => set("sessionHours", +e.target.value)} /></Field>
-          <p className="mt-3 text-[12.5px] text-muted">{tr("L'interface est disponible en HTTPS sur le port 7443 (certificat auto-signé généré au premier démarrage). Ne l'exposez pas directement sur Internet : utilisez un VPN.")}</p>
+        <Card title={<span className="flex items-center gap-2"><Shield size={16} /> {" "}{tr("Security")}</span>}>
+          <Field label={tr("Session duration (hours)")}><Input type="number" min={1} max={720} value={s.sessionHours} onChange={(e) => set("sessionHours", +e.target.value)} /></Field>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("The interface is available over HTTPS on port 7443 (self-signed certificate generated on first boot). Do not expose it directly to the Internet: use a VPN.")}</p>
         </Card>
-        <Card title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Tester")}</Button>}>
+        <Card title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test")}</Button>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TelegramFields s={s} set={set} />
-            <Field label={tr("Notifications push (ntfy)")} className="sm:col-span-2" hint={tr("Installez l'application ntfy (Android, iPhone) et abonnez-vous à ce sujet. Un nom long et impossible à deviner protège vos alertes sur le serveur public ntfy.sh.")}>
+            <Field label={tr("Push notifications (ntfy)")} className="sm:col-span-2" hint={tr("Install the ntfy app (Android, iPhone) and subscribe to this topic. A long, unguessable name protects your alerts on the public ntfy.sh server.")}>
               <div className="flex gap-2">
                 <Input className="mono" value={s.ntfyUrl ?? ""} onChange={(e) => set("ntfyUrl", e.target.value)} placeholder="https://ntfy.sh/…" />
-                <Button onClick={() => set("ntfyUrl", `https://ntfy.sh/strata-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 20)}`)}>{tr("Générer")}</Button>
+                <Button onClick={() => set("ntfyUrl", `https://ntfy.sh/strata-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 20)}`)}>{tr("Generate")}</Button>
               </div>
             </Field>
-            {s.ntfyUrl && <Field label={tr("Jeton d'accès ntfy (optionnel)")} hint={tr("Pour un serveur ntfy protégé")}><Input type="password" value={s.ntfyToken ?? ""} onChange={(e) => set("ntfyToken", e.target.value)} /></Field>}
-            <Field label={tr("Webhook (Discord, Slack, ntfy, Gotify…)")} className="sm:col-span-2" hint={tr("Reçoit un POST JSON (title, message, text, content).")}><Input value={s.webhookUrl} onChange={(e) => set("webhookUrl", e.target.value)} /></Field>
-            <Field label={tr("Serveur SMTP")}><Input value={s.smtpHost} onChange={(e) => set("smtpHost", e.target.value)} /></Field>
+            {s.ntfyUrl && <Field label={tr("ntfy access token (optional)")} hint={tr("For a protected ntfy server")}><Input type="password" value={s.ntfyToken ?? ""} onChange={(e) => set("ntfyToken", e.target.value)} /></Field>}
+            <Field label={tr("Webhook (Discord, Slack, ntfy, Gotify…)")} className="sm:col-span-2" hint={tr("Receives a JSON POST (title, message, text, content).")}><Input value={s.webhookUrl} onChange={(e) => set("webhookUrl", e.target.value)} /></Field>
+            <Field label={tr("SMTP server")}><Input value={s.smtpHost} onChange={(e) => set("smtpHost", e.target.value)} /></Field>
             <Field label={tr("Port")}><Input type="number" value={s.smtpPort} onChange={(e) => set("smtpPort", +e.target.value)} /></Field>
-            <Field label={tr("Chiffrement")}>
+            <Field label={tr("Encryption")}>
               <Select value={s.smtpSecurity || "auto"} onChange={(e) => set("smtpSecurity", e.target.value)}>
-                <option value="auto">{tr("Automatique (TLS sur 465, sinon STARTTLS)")}</option>
-                <option value="tls">{tr("TLS direct (SSL)")}</option>
-                <option value="starttls">{tr("STARTTLS obligatoire")}</option>
-                <option value="none">{tr("Aucun (réseau local uniquement)")}</option>
+                <option value="auto">{tr("Automatic (TLS on 465, otherwise STARTTLS)")}</option>
+                <option value="tls">{tr("Direct TLS (SSL)")}</option>
+                <option value="starttls">{tr("STARTTLS required")}</option>
+                <option value="none">{tr("None (local network only)")}</option>
               </Select>
             </Field>
-            <Field label={tr("Utilisateur SMTP")}><Input value={s.smtpUser} onChange={(e) => set("smtpUser", e.target.value)} /></Field>
-            <Field label={tr("Mot de passe SMTP")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
-            <Field label={tr("Expéditeur")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
-            <Field label={tr("Destinataire des alertes")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
-            <Field label={tr("Langue des notifications")} hint={tr("Alertes et rapport mensuel, sur tous les canaux")}>
-              <Select value={s.notifyLang || "fr"} onChange={(e) => set("notifyLang", e.target.value)}>
+            <Field label={tr("SMTP user")}><Input value={s.smtpUser} onChange={(e) => set("smtpUser", e.target.value)} /></Field>
+            <Field label={tr("SMTP password")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
+            <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
+            <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
+            <Field label={tr("Notification language")} hint={tr("Alerts and monthly report, on all channels")}>
+              <Select value={s.notifyLang || "en"} onChange={(e) => set("notifyLang", e.target.value)}>
                 {languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </Select>
             </Field>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line p-4">
-            <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Rapport mensuel")} hint={tr("Le 1er de chaque mois à 8 h : espace, santé des disques, sauvegardes, antivirus, mises à jour")} /></div>
-            <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Envoyer maintenant")}</Button>
+            <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Monthly report")} hint={tr("On the 1st of each month at 8 AM: space, disk health, backups, antivirus, updates")} /></div>
+            <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Send now")}</Button>
           </div>
           {report.data && <pre className="mono mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[12px]">{report.data.report}</pre>}
-          <p className="mt-3 text-[12.5px] text-muted">{tr("Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein à 90 %, virus détecté, échec d'une tâche, coupure de courant.")}</p>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.")}</p>
         </Card>
         <MetricsCard enabled={!!data?.metricsToken} />
-        <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date et heure")}</span>}>
+        <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">
-            <Field label={tr("Fuseau horaire")} className="flex-1">
+            <Field label={tr("Time zone")} className="flex-1">
               <Select value={zone} onChange={(e) => setZone(e.target.value)}>{tz.data?.map((z) => <option key={z}>{z}</option>)}</Select>
             </Field>
-            <Button loading={setTime.isPending} onClick={() => setTime.mutate()}>{tr("Appliquer")}</Button>
+            <Button loading={setTime.isPending} onClick={() => setTime.mutate()}>{tr("Apply")}</Button>
           </div>
-          <p className="mt-3 text-[12.5px] text-muted">{tr("Synchronisation NTP activée automatiquement.")}</p>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("NTP synchronization enabled automatically.")}</p>
         </Card>
         <CertificatesCard />
-        <Card title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Composants")}</span>} className="xl:col-span-2">
+        <Card title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="xl:col-span-2">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">
                 <span className="font-medium capitalize">{k}</span>
-                {v ? <Badge tone="ok" dot>{tr("Installé")}</Badge> : (k === "zfs" || k === "docker") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Installer")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
+                {v ? <Badge tone="ok" dot>{tr("Installed")}</Badge> : (k === "zfs" || k === "docker") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
               </div>
             ))}
           </div>
@@ -209,18 +209,18 @@ function TelegramFields({ s, set }: { s: Settings; set: <K extends keyof Setting
   const chats = useAction(() => api.post<{ id: string; name: string; type: string }[]>("/api/settings/telegram-chats", { token: s.telegramToken }));
   return (
     <div className="space-y-3 rounded-xl border border-line p-4 sm:col-span-2">
-      <div className="font-medium text-[13px]">{tr("Bot Telegram")}</div>
-      <div className="text-muted text-[12.5px]">{tr("1. Dans Telegram, écrivez à @BotFather, envoyez /newbot et copiez le jeton. 2. Envoyez un message à votre bot (ou ajoutez-le à un groupe). 3. Cliquez sur « Trouver la conversation ».")}</div>
+      <div className="font-medium text-[13px]">{tr("Telegram bot")}</div>
+      <div className="text-muted text-[12.5px]">{tr("1. In Telegram, message @BotFather, send /newbot and copy the token. 2. Send a message to your bot (or add it to a group). 3. Click \"Find the chat\".")}</div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={tr("Jeton du bot")}><Input type="password" autoComplete="off" value={s.telegramToken ?? ""} onChange={(e) => set("telegramToken", e.target.value)} placeholder="123456789:AA…" /></Field>
-        <Field label={tr("Identifiant de la conversation")}>
+        <Field label={tr("Bot token")}><Input type="password" autoComplete="off" value={s.telegramToken ?? ""} onChange={(e) => set("telegramToken", e.target.value)} placeholder="123456789:AA…" /></Field>
+        <Field label={tr("Chat ID")}>
           <div className="flex gap-2">
             <Input className="mono" value={s.telegramChatId ?? ""} onChange={(e) => set("telegramChatId", e.target.value)} />
-            <Button disabled={!s.telegramToken} loading={chats.isPending} onClick={() => chats.mutate()}>{tr("Trouver la conversation")}</Button>
+            <Button disabled={!s.telegramToken} loading={chats.isPending} onClick={() => chats.mutate()}>{tr("Find the chat")}</Button>
           </div>
         </Field>
       </div>
-      {chats.data && (chats.data.length === 0 ? <Notice tone="warn">{tr("Aucun message reçu par le bot : envoyez-lui d'abord un message, puis réessayez.")}</Notice> : (
+      {chats.data && (chats.data.length === 0 ? <Notice tone="warn">{tr("The bot has not received any message: send it a message first, then try again.")}</Notice> : (
         <div className="flex flex-wrap gap-2">
           {chats.data.map((c) => <Button key={c.id} size="sm" variant={s.telegramChatId === c.id ? "primary" : "secondary"} onClick={() => set("telegramChatId", c.id)}>{c.name || c.id} <span className="text-muted">({c.type})</span></Button>)}
         </div>

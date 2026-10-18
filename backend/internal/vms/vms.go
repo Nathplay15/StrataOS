@@ -357,7 +357,7 @@ func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
 		args = append(args, "--network", "network=default,model="+model)
 	case bridgeRe.MatchString(r.Network):
 		if _, err := os.Stat("/sys/class/net/" + r.Network + "/bridge"); err != nil {
-			return fmt.Errorf("%s is not a bridge (create one in Réseau)", r.Network)
+			return fmt.Errorf("%s is not a bridge (create one in Network)", r.Network)
 		}
 		args = append(args, "--network", "bridge="+r.Network+",model="+model)
 	default:

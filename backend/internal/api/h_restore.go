@@ -14,12 +14,12 @@ func (s *Server) restorePointBeforeUpdate(j *jobs.Job) {
 	if ok, _ := system.RestoreSupported(); !ok {
 		return
 	}
-	name, err := system.CreateRestorePoint("avant-mise-a-jour")
+	name, err := system.CreateRestorePoint("before-update")
 	if err != nil {
-		j.Logf("Point de restauration impossible : %v", err)
+		j.Logf("Cannot create a restore point: %v", err)
 		return
 	}
-	j.Logf("Point de restauration créé : %s", name)
+	j.Logf("Restore point created: %s", name)
 }
 
 func (s *Server) restoreRoutes() {
@@ -37,7 +37,7 @@ func (s *Server) restoreRoutes() {
 		return out, nil
 	})
 	s.admin("POST /api/system/restore-points", func(r *http.Request) (any, error) {
-		name, err := system.CreateRestorePoint("manuel")
+		name, err := system.CreateRestorePoint("manual")
 		if err != nil {
 			return nil, badRequest(err.Error())
 		}
@@ -58,7 +58,7 @@ func (s *Server) restoreRoutes() {
 			return nil, badRequest(err.Error())
 		}
 		s.audit(r, "system", "Rolled the system back to "+name+", rebooting")
-		s.store.Log("warning", "system", userOf(r), "Retour au point de restauration "+name+" : redémarrage")
+		s.store.Log("warning", "system", userOf(r), "Back to restore point "+name+": rebooting")
 		if !system.RebootsItself() {
 			go func() {
 				time.Sleep(2 * time.Second)

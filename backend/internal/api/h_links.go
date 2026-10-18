@@ -378,7 +378,7 @@ func (s *Server) linkRoutes() {
 			return
 		}
 		if l.PasswordHash == "" || !checkPassword(l.PasswordHash, req.Password) {
-			s.guardFail(ip, "lien de partage", "")
+			s.guardFail(ip, "share link", "")
 			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "wrong password"})
 			return
 		}
@@ -599,7 +599,7 @@ func (s *Server) linkRoutes() {
 		}
 		if len(names) > 0 {
 			s.touchLink(l.ID, func(x *store.ShareLink) { x.Uploads += len(names) })
-			s.store.Log("info", "links", l.Owner, fmt.Sprintf("Dépôt par un lien : %d fichier(s) reçu(s) dans %s", len(names), t.abs))
+			s.store.Log("info", "links", l.Owner, fmt.Sprintf("Drop by link: %d file(s) received in %s", len(names), t.abs))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"uploaded": len(names), "names": names})
 	})

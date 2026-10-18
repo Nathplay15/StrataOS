@@ -1,117 +1,117 @@
-# Guide d'utilisation de StrataOS
+# StrataOS user guide
 
-Ce guide explique, étape par étape, comment installer StrataOS et s'en servir au quotidien. Chaque page de l'interface rappelle aussi l'essentiel ; ce guide donne l'ordre logique et les bonnes pratiques.
+This guide walks you through installing StrataOS and using it day to day. Each page of the interface also explains the essentials; this guide gives you the logical order and the good habits.
 
-## 1. Installer StrataOS
+## 1. Install StrataOS
 
-**Sur un PC ou un serveur (amd64)** : téléchargez `strataos-<version>-amd64.iso` dans les Releases, écrivez-la sur une clé USB (balenaEtcher, Rufus en mode DD, ou `dd`), démarrez la machine sur la clé. L'installation est automatique ; si la machine a plusieurs disques, l'installateur demande lequel accueille le système (les autres restent intacts pour vos données). Comptez 10 à 20 minutes.
+**On a PC or server (amd64)**: download `strataos-<version>-amd64.iso` from the Releases page, write it to a USB stick (balenaEtcher, Rufus in DD mode, or `dd`), boot the machine from the stick and choose "Install StrataOS" in the boot menu. The installation is automatic and runs in English, with a US keyboard and the UTC time zone by default (the web interface has its own language setting). If the machine has several disks, the installer asks which one gets the system (the others are left untouched for your data). Allow 10 to 20 minutes.
 
-**Sur une carte ARM 64 bits (arm64)** : même chose avec `strataos-<version>-arm64.iso` sur une machine qui démarre en UEFI.
+**On a 64-bit ARM board (arm64)**: same steps with `strataos-<version>-arm64.iso`, on a machine that boots in UEFI mode.
 
-**Sur un Raspberry Pi 4 / 400** : écrivez `strataos-<version>-raspberrypi.img.xz` sur une carte microSD ou un SSD USB (Raspberry Pi Imager → « Utiliser une image personnalisée », ou balenaEtcher), branchez le Pi au réseau par câble et démarrez-le. Au premier démarrage, la partition système s'agrandit toute seule ; patientez deux à trois minutes.
+**On a Raspberry Pi 4, 400, CM4 or 3 B / 3 B+**: write `strataos-<version>-raspberrypi.img.xz` to a microSD card or a USB SSD (Raspberry Pi Imager → "Use custom", or balenaEtcher), connect the Pi to your network with a cable and power it on. On first boot, the system partition grows to fill the card by itself; wait two to three minutes. The image is 64-bit. With 1 GB of RAM, a Pi 3 is fine for basic file sharing, but not for Docker apps, ZFS or virtual machines. The Raspberry Pi 5 is not supported yet.
 
-**Sur un Debian 13 existant** : `sudo apt install ./strataos_<version>_<arch>.deb`.
+**On an existing Debian 13 system**: `sudo apt install ./strataos_<version>_<arch>.deb`.
 
-À la fin, l'écran de la machine affiche l'adresse de l'interface : `http://<adresse>:7070` (HTTPS : port 7443).
+When it's done, the machine's screen shows the interface address: `http://<address>:7070` (HTTPS: port 7443).
 
-## 2. Premier démarrage
+## 2. First start
 
-Ouvrez l'adresse dans un navigateur : l'assistant demande la langue, le nom du NAS et le compte administrateur (ce compte peut aussi utiliser `sudo` en SSH). Il propose ensuite de préparer le stockage, un premier partage, des alertes et des tâches recommandées (vérification des disques, snapshots).
+Open the address in a browser: the setup wizard asks for the language, the NAS name and the administrator account (this account can also use `sudo` over SSH). It then offers to prepare your storage, a first shared folder, alerts and recommended tasks (disk checks, snapshots).
 
-Conseil : activez tout de suite les **notifications** (Paramètres → Notifications : e-mail, Telegram, ntfy ou webhook) pour être prévenu d'une panne de disque.
+Tip: turn on **notifications** right away (Settings → Notifications: email, Telegram, ntfy or webhook) so you hear about a failing disk. On new installations, notifications are in English by default; you can change this in the same place (Notification language).
 
-## 3. Le stockage
+## 3. Storage
 
-Le stockage s'organise en couches : **disques → grappe RAID ou pool → volume → dossiers partagés**.
+Storage is built in layers: **disks → RAID array or pool → volume → shared folders**.
 
-1. **Disques** : vérifiez l'état SMART de chaque disque. Un disque « qui faiblit » doit être remplacé bientôt.
-2. **Redondance** : choisissez une protection contre la panne d'un disque :
-   - grappe **RAID mdadm** (RAID 1 avec 2 disques, RAID 5 avec 3 ou plus, RAID 6 avec 4 ou plus), puis un volume ext4 ou XFS dessus ;
-   - ou un volume **Btrfs** sur plusieurs disques (profil RAID 1 ou 10) ;
-   - ou un **pool ZFS** (Stockage → ZFS, installation en un clic), miroir ou RAIDZ.
-3. **Volume** : il est monté dans `/srv/strata/<nom>`. Un volume sur un seul périphérique peut recevoir un **cache SSD** dès sa création.
+1. **Disks**: check the SMART status of each disk. A disk that is "degrading" should be replaced soon.
+2. **Redundancy**: choose how to protect yourself against a disk failure:
+   - an **mdadm RAID array** (RAID 1 with 2 disks, RAID 5 with 3 or more, RAID 6 with 4 or more), with an ext4 or XFS volume on top;
+   - or a **Btrfs** volume across several disks (RAID 1 or RAID 10 profile);
+   - or a **ZFS pool** (Storage → ZFS, one-click install), as a mirror or RAIDZ.
+3. **Volume**: it is mounted at `/srv/strata/<name>`. A volume on a single device can get an **SSD cache** when you create it.
 
-Le RAID ne remplace pas une sauvegarde : il protège d'une panne de disque, pas d'une suppression, d'un rançongiciel ou d'un incendie.
+RAID is not a backup: it protects you from a disk failure, not from an accidental deletion, ransomware or a fire.
 
-Pour remplacer un disque en panne : Stockage → RAID (ou ZFS), « Remplacer », choisissez le nouveau disque ; la reconstruction démarre seule.
+To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the new disk; the rebuild starts by itself.
 
-## 4. Utilisateurs et dossiers partagés
+## 4. Users and shared folders
 
-1. **Utilisateurs** : créez un compte par personne, regroupez-les en **groupes** (ex. « famille », « compta »). Activez la double authentification pour les administrateurs.
-2. **Dossiers partagés** : créez un partage par usage (Documents, Photos, Médias…), sur le volume de votre choix, puis donnez les droits : lecture et écriture, lecture seule ou aucun accès, par utilisateur ou par groupe.
-3. Options utiles : **corbeille réseau** (les fichiers supprimés sont gardés dans `.recycle`), **quota** du partage (passage en lecture seule une fois plein si vous le souhaitez), **chiffrement** (voir 9).
+1. **Users**: create one account per person and put them in **groups** (for example "family" or "accounting"). Turn on two-factor authentication for administrators.
+2. **Shared folders**: create one shared folder per purpose (Documents, Photos, Media…) on the volume of your choice, then set permissions per user or per group: read and write, read only, or no access.
+3. Useful options: **network recycle bin** (deleted files are kept in `.recycle`), a **quota** for the share (it can switch to read-only once full if you want), and **encryption** (see section 9).
 
-## 5. Accéder aux fichiers
+## 5. Access your files
 
-- **Windows** : dans l'explorateur, tapez `\\<adresse>\<partage>` ; connectez-vous avec votre compte StrataOS.
-- **macOS** : Finder → Aller → Se connecter au serveur → `smb://<adresse>/<partage>`. Un partage peut servir de cible **Time Machine**.
-- **Linux** : `smb://` dans le gestionnaire de fichiers, ou NFS si le partage l'autorise.
-- **Navigateur** : l'application **Fichiers** permet d'envoyer, télécharger (dossiers en ZIP), renommer, prévisualiser.
-- **Téléphone, autres appareils** : activez WebDAV, SFTP ou FTP dans Services de fichiers.
+- **Windows**: in File Explorer, type `\\<address>\<share>` and sign in with your StrataOS account.
+- **macOS**: Finder → Go → Connect to Server → `smb://<address>/<share>`. A share can also be a **Time Machine** target.
+- **Linux**: `smb://` in your file manager, or NFS if the share allows it.
+- **Browser**: the **Files** app lets you upload, download (folders as ZIP), rename and preview.
+- **Phones and other devices**: turn on WebDAV, SFTP or FTP in File services.
 
-Pour **partager avec quelqu'un sans compte**, utilisez « Partager un lien » sur un fichier ou un dossier (mot de passe, expiration, nombre de téléchargements, ou boîte de dépôt pour recevoir des fichiers). Retrouvez et supprimez vos liens dans **Liens partagés**.
+To **share with someone who has no account**, use "Share a link" on a file or folder (password, expiry date, download limit, or a drop box to receive files). You can find and delete your links in **Shared links**.
 
 ## 6. Photos
 
-Un administrateur choisit les dossiers de photos (Photos → Dossiers). La chronologie affiche photos et vidéos par mois ; chacun ne voit que les partages auxquels il a accès. Sélectionnez des photos pour créer des **albums**, partageables par lien.
+An administrator chooses the photo folders (Photos → Folders). The timeline shows photos and videos by month; each person only sees the shared folders they have access to. Select photos to create **albums**, which you can share with a link.
 
-## 7. Sauvegarder
+## 7. Back up
 
-Gardez au moins une copie de vos données ailleurs que sur le NAS (règle 3-2-1 : 3 copies, 2 supports, 1 hors site).
+Always keep at least one copy of your data somewhere other than the NAS (the 3-2-1 rule: 3 copies, on 2 different media, 1 off site).
 
-- **Copie rsync** vers un disque USB ou un serveur SSH.
-- **Sauvegarde versionnée restic** (chiffrée, dédupliquée) vers un dossier, un serveur SFTP, du stockage S3 ou un **coffre d'un autre StrataOS** : sur l'autre NAS, créez un coffre (Sauvegarde → Coffres de sauvegarde, idéalement en « ajout seul ») et affichez un code ; sur ce NAS, choisissez la destination « Coffre d'un autre NAS StrataOS » et saisissez le code.
-- **Réplication ZFS** vers un autre pool.
-- **Synchronisation cloud** (Google Drive, OneDrive, Dropbox, S3…).
+- **rsync copy** to a USB disk or an SSH server.
+- **Versioned restic backup** (encrypted, deduplicated) to a folder, an SFTP server, S3 storage or a **vault on another StrataOS**: on the other NAS, create a vault (Backup → Backup vaults, ideally append-only) and show its code; on this NAS, choose the destination "Vault of another StrataOS NAS" and enter the code.
+- **ZFS replication** to another pool.
+- **Cloud sync** (Google Drive, OneDrive, Dropbox, S3…).
 
-Notez précieusement le mot de passe des sauvegardes restic : sans lui, aucune restauration n'est possible. Testez une restauration de temps en temps (bouton « Restaurer »).
+Keep your restic backup password somewhere safe: without it, nothing can be restored. Test a restore from time to time (the "Restore" button).
 
-## 8. Snapshots et versions précédentes
+## 8. Snapshots and previous versions
 
-Sur Btrfs et ZFS, programmez des **snapshots** (Tâches planifiées → recommandé). Un snapshot **verrouillé** ne peut pas être supprimé pendant la durée choisie, même par un administrateur ou un rançongiciel.
+On Btrfs and ZFS, schedule **snapshots** (Scheduled tasks → Recommended plan). A **locked** snapshot cannot be deleted for the period you choose, not even by an administrator or by ransomware.
 
-Pour récupérer un fichier : dans **Fichiers**, bouton « Versions précédentes » sur le fichier ; sous Windows, Propriétés → Versions précédentes sur le partage.
+To recover a file: in **Files**, use the "Previous versions" button on the file; on Windows, open the share's Properties → Previous Versions.
 
-## 9. Protéger le NAS
+## 9. Protect the NAS
 
-- **Anti-rançongiciel** (Antivirus) : surveille les renommages en masse sur SMB, WebDAV, SFTP, FTP et NFS et bloque le compte en cause. Activez aussi les **fichiers pièges** : s'ils sont touchés, le partage passe en lecture seule. Après une alerte : vérifiez le poste, restaurez depuis les snapshots, puis débloquez le compte et rétablissez le partage.
-- **Antivirus ClamAV** : analyses planifiées des partages.
-- **Blocage d'adresses** : bloque les adresses qui ratent trop de connexions, et peut limiter l'accès depuis Internet à certains pays.
-- **Dossiers chiffrés** : protègent les données si le NAS ou ses disques sont volés. Après chaque démarrage, un administrateur doit les déverrouiller (Dossiers partagés → Déverrouiller). Gardez la clé de secours en lieu sûr.
-- Gardez le système à jour (Mises à jour) : un point de restauration est créé avant chaque mise à jour.
+- **Ransomware protection** (Antivirus): watches for mass renames over SMB, WebDAV, SFTP, FTP and NFS and blocks the account responsible. Also turn on **trap files** (`!0000 - DO NOT MODIFY (StrataOS).docx` and `zzzz - DO NOT MODIFY (StrataOS).xlsx`, which sort first and last in each shared folder): if they are touched, the shared folder becomes read-only. After an alert: check the computer involved, restore from snapshots, then unblock the account and restore the shared folder.
+- **ClamAV antivirus**: scheduled scans of your shared folders.
+- **Address blocking**: blocks addresses with too many failed sign-ins, and can limit access from the internet to certain countries.
+- **Encrypted folders**: protect your data if the NAS or its disks are stolen. After each restart, an administrator must unlock them (Shared folders → Unlock). Keep the recovery key somewhere safe.
+- Keep the system up to date (Updates): a restore point is created before each update.
 
-## 10. Accès à distance
+## 10. Remote access
 
-Le plus sûr est le **VPN WireGuard** (Accès à distance) : ajoutez un appareil, scannez le QR code avec l'application WireGuard, et vous accédez au NAS comme chez vous. Il faut rediriger le port UDP indiqué sur votre box et, si votre adresse change, activer le **DNS dynamique**. Évitez d'exposer directement l'interface web sur Internet ; si vous le faites, activez le blocage d'adresses et la double authentification.
+The safest option is the **WireGuard VPN** (Remote access): add a device, scan the QR code with the WireGuard app, and you can reach the NAS as if you were at home. You need to forward the UDP port shown on your internet router and, if your public address changes, turn on **Dynamic DNS**. Avoid exposing the web interface directly to the internet; if you do, turn on address blocking and two-factor authentication.
 
-## 11. Applications et machines virtuelles
+## 11. Apps and virtual machines
 
-L'**App Center** installe des applications prêtes (Jellyfin, Nextcloud, Immich, Home Assistant…) dans Docker ; leurs mises à jour peuvent être programmées. Les **machines virtuelles** (KVM) s'installent en un clic et se créent depuis une ISO (Linux, Windows 11 avec TPM).
+The **App Center** installs ready-made apps (Jellyfin, Nextcloud, Immich, Home Assistant…) in Docker; their updates can be scheduled. **Virtual machines** (KVM) are a one-click install and are created from an ISO (Linux, Windows 11 with TPM).
 
-## 12. Énergie
+## 12. Power
 
-La page **Énergie** met les disques durs en veille quand ils ne servent pas, choisit la politique du processeur, programme l'arrêt et le redémarrage (par exemple la nuit), et active le réveil par le réseau (Wake-on-LAN). Un arrêt programmé attend la fin d'une sauvegarde ou d'une mise à jour.
+The **Power** page puts hard drives to sleep when they're idle, sets the CPU policy, schedules shutdown and startup (at night, for example) and turns on Wake-on-LAN. A scheduled shutdown waits for any running backup or update to finish.
 
-## 13. Haute disponibilité
+## 13. High availability
 
-Avec deux NAS ou plus sur le même réseau, l'un (le principal) sert les partages à une **adresse partagée** ; les autres reçoivent une copie des comptes, des partages et des fichiers (en continu ou périodiquement) et prennent le relais en quelques secondes si le principal tombe en panne. Les volumes des secondaires peuvent porter d'autres noms : indiquez la correspondance à l'appairage. Pour redémarrer le principal sans coupure, utilisez « Maintenance ». Après une panne, le principal ne reprend jamais la main seul : rendez-la-lui depuis le secondaire actif, qui recopie d'abord ses modifications.
+With two or more NAS on the same network, one of them (the primary) serves the shared folders at a **shared address**; the others receive a copy of the accounts, shared folders and files (continuously or periodically) and take over within seconds if the primary fails. Volumes on the secondaries can have different names: enter the mapping when you pair them. To restart the primary without interruption, use "Maintenance". After a failure, the primary never takes control back on its own: hand control back from the active secondary, which first copies its changes over.
 
-## 14. Surveiller
+## 14. Monitoring
 
-- **Tableau de bord** et **Moniteur** : processeur, mémoire, réseau, disques.
-- **Journaux** : tout ce qui s'est passé (connexions, tâches, alertes).
-- **Rapport mensuel** (Paramètres → Notifications).
-- **Prometheus / Grafana** (Paramètres → Supervision) pour un suivi dans la durée.
-- **Console multi-NAS** pour voir l'état de plusieurs StrataOS d'un coup d'œil.
+- **Dashboard** and **Monitor**: CPU, memory, network, disks.
+- **Logs**: everything that has happened (sign-ins, tasks, alerts).
+- **Monthly report** (Settings → Notifications).
+- **Prometheus / Grafana** (Settings → Monitoring) for long-term tracking.
+- **Multi-NAS Console** to see the status of several StrataOS systems at a glance.
 
-## 15. Mises à jour et retour en arrière
+## 15. Updates and rolling back
 
-Mises à jour → « Mettre à jour ». Avant chaque mise à jour, un **point de restauration** est créé ; si quelque chose ne va plus, « Restaurer » ramène le système et ses programmes à cet état (redémarrage), sans toucher à vos données ni aux réglages de StrataOS.
+Updates → "Update StrataOS". Before each update, a **restore point** is created; if something goes wrong, "Restore" brings the system and its programs back to that state (with a restart), without touching your data or your StrataOS settings.
 
-## 16. En cas de problème
+## 16. Troubleshooting
 
-- **L'interface ne répond plus** : vérifiez que le NAS est allumé et sur le réseau ; l'écran de la machine affiche son adresse. Depuis une console, `systemctl status strata` montre l'état du service.
-- **Un disque manque au démarrage** : la grappe RAID démarre en mode dégradé et une alerte est envoyée ; remplacez le disque.
-- **Un partage n'apparaît plus** : il est peut-être chiffré et verrouillé, gelé par un fichier piège (Antivirus), ou plein (quota).
-- **Compte bloqué** : un administrateur le débloque dans Antivirus (rançongiciel) ; une adresse bloquée se débloque dans Blocage d'adresses.
-- **Mot de passe administrateur perdu** : connectez-vous en console ou en SSH avec un autre administrateur ; sinon, démarrez sur une clé Debian et réinitialisez le mot de passe du compte Linux, puis changez-le dans l'interface.
+- **The interface doesn't respond**: check that the NAS is powered on and connected to the network; the machine's screen shows its address. From a console, `systemctl status strata` shows the state of the service.
+- **A disk is missing at startup**: the RAID array starts in degraded mode and an alert is sent; replace the disk.
+- **A shared folder has disappeared**: it may be encrypted and locked, frozen by a trap file (Antivirus), or full (quota).
+- **Account blocked**: an administrator can unblock it in Antivirus (ransomware); a blocked address can be unblocked in Address blocking.
+- **Lost administrator password**: sign in on the console or over SSH with another administrator account; otherwise, boot from a Debian USB stick, reset the password of the Linux account, then change it in the interface.

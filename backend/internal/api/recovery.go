@@ -30,17 +30,17 @@ func (s *Server) recoverStorage() {
 			}
 			name := firstNonEmpty(a.Label, a.Name)
 			if err := storage.StartDegraded(a); err != nil {
-				msg := fmt.Sprintf("La grappe RAID %s ne peut pas démarrer : trop de disques manquants (%v)", name, err)
+				msg := fmt.Sprintf("RAID array %s cannot start: too many disks missing (%v)", name, err)
 				if s.firstTime(msg) {
 					s.store.Log("error", "health", "", msg)
-					s.notify("RAID indisponible", msg)
+					s.notify("RAID unavailable", msg)
 				}
 				continue
 			}
 			changed = true
-			msg := fmt.Sprintf("La grappe RAID %s a démarré en mode dégradé : un disque manque, remplacez-le rapidement", name)
+			msg := fmt.Sprintf("RAID array %s started degraded: a disk is missing, replace it soon", name)
 			s.store.Log("warning", "health", "", msg)
-			s.notify("RAID dégradé", msg)
+			s.notify("RAID degraded", msg)
 		}
 	}
 	if changed {
@@ -72,7 +72,7 @@ func (s *Server) recoverStorage() {
 			continue
 		}
 		changed = true
-		s.store.Log("info", "health", "", "Volume "+v.Name+" remonté automatiquement")
+		s.store.Log("info", "health", "", "Volume "+v.Name+" remounted automatically")
 	}
 
 	if changed || unitFailed("nfs-server.service") {

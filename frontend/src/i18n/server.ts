@@ -1,6 +1,7 @@
-// Texts produced by the server (job titles, history, alerts, events), in
-// French or English depending on the place. Each entry is [français, English];
-// {0}, {1}… stand for the variable parts. srv() translates in both directions.
+// Texts produced by the server (job titles, history, alerts, events). The
+// server writes them in English; older events may still be in French. Each
+// entry is [French, English]; {0}, {1}… stand for the variable parts, and
+// server.<lang>.json translates the other languages (keyed by the French).
 export const serverTexts: [string, string][] = [
   // Job titles
   ["Certificat Let's Encrypt pour {0}", "Let's Encrypt certificate for {0}"],
@@ -174,6 +175,14 @@ export const serverTexts: [string, string][] = [
   ["Dossiers chiffrés verrouillés", "Encrypted folders locked"],
   ["Le NAS {0} peut maintenant envoyer ses sauvegardes dans le coffre", "The NAS {0} can now send its backups to the vault"],
   ["Le NAS {0} peut maintenant superviser ce NAS", "The NAS {0} can now monitor this NAS"],
+  // Shares, schedules, address blocking
+  ["Échec de l'application de la configuration des partages : {0}", "Applying the share configuration failed: {0}"],
+  ["Test SMART court", "Short SMART test"],
+  ["Test SMART long", "Long SMART test"],
+  ["Les notifications StrataOS fonctionnent.", "StrataOS notifications work."],
+  ["lien de partage", "share link"],
+  ["coffre de sauvegarde", "backup vault"],
+  ["manuel", "manual"],
   // Trap files and NFS
   ["Fichier piège modifié dans le partage {0} par le compte {1} ({2}) : le partage est passé en lecture seule. Vérifiez les postes, restaurez au besoin depuis les snapshots, puis rétablissez-le dans Antivirus", "Trap file modified in share {0} by account {1} ({2}): the share is now read-only. Check the computers, restore from the snapshots if needed, then release it in Antivirus"],
   ["Fichier piège modifié dans le partage {0} : le partage est passé en lecture seule. Vérifiez les postes, restaurez au besoin depuis les snapshots, puis rétablissez-le dans Antivirus", "Trap file modified in share {0}: the share is now read-only. Check the computers, restore from the snapshots if needed, then release it in Antivirus"],

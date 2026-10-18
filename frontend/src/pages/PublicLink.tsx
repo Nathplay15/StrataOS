@@ -31,8 +31,8 @@ function Viewer({ id, photos, index, onIndex, onClose }: { id: string; photos: P
     <div className="fixed inset-0 z-[9600] flex flex-col bg-black/95 text-white">
       <div className="flex items-center gap-3 px-4 py-3 text-[13px]">
         <div className="min-w-0 flex-1"><div className="truncate font-medium">{p.name}</div><div className="text-white/60">{dateTime(p.date * 1000)} · {bytes(p.size)}</div></div>
-        <a href={`/api/s/${id}/download${q({ path: p.path })}`} className="rounded-lg p-2 hover:bg-white/10" title={tr("Télécharger")}><Download size={18} /></a>
-        <button className="rounded-lg p-2 hover:bg-white/10" onClick={onClose} title={tr("Fermer")}><X size={20} /></button>
+        <a href={`/api/s/${id}/download${q({ path: p.path })}`} className="rounded-lg p-2 hover:bg-white/10" title={tr("Download")}><Download size={18} /></a>
+        <button className="rounded-lg p-2 hover:bg-white/10" onClick={onClose} title={tr("Close")}><X size={20} /></button>
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6">
         <img key={p.path} src={`/api/s/${id}/thumb${q({ path: p.path, size: "l" })}`} alt="" className="max-h-full max-w-full object-contain" />
@@ -62,10 +62,10 @@ function DropZone({ id }: { id: string }) {
     xhr.onload = () => {
       setUp(null);
       const r = JSON.parse(xhr.responseText || "{}");
-      if (xhr.status >= 300) setErr(srv(r.error) || tr("Échec de l'envoi"));
+      if (xhr.status >= 300) setErr(srv(r.error) || tr("Send failed"));
       else { setErr(""); setDone((d) => [...(r.names ?? []), ...d]); qc.invalidateQueries({ queryKey: ["pub-files"] }); }
     };
-    xhr.onerror = () => { setUp(null); setErr(tr("Échec de l'envoi")); };
+    xhr.onerror = () => { setUp(null); setErr(tr("Send failed")); };
     setUp({ pct: 0 });
     xhr.send(fd);
   };
@@ -74,12 +74,12 @@ function DropZone({ id }: { id: string }) {
       <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); send(e.dataTransfer.files); }}
         className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center ${drag ? "border-accent bg-accent-soft" : "border-line"}`}>
         <Inbox size={32} className="text-accent" />
-        <div className="font-medium">{tr("Déposez vos fichiers ici")}</div>
-        <div className="text-muted text-[13px]">{tr("Ils sont ajoutés au dossier partagé, sans remplacer de fichier existant.")}</div>
-        <label className="cursor-pointer"><span className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-[13px] font-medium text-white"><Upload size={15} />{tr("Choisir des fichiers")}</span><input type="file" multiple hidden onChange={(e) => { if (e.target.files) send(e.target.files); e.target.value = ""; }} /></label>
+        <div className="font-medium">{tr("Drop your files here")}</div>
+        <div className="text-muted text-[13px]">{tr("They are added to the shared folder, without replacing any existing file.")}</div>
+        <label className="cursor-pointer"><span className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-[13px] font-medium text-white"><Upload size={15} />{tr("Choose files")}</span><input type="file" multiple hidden onChange={(e) => { if (e.target.files) send(e.target.files); e.target.value = ""; }} /></label>
         {up && <div className="w-full max-w-sm"><Progress value={up.pct} /><div className="mt-1 text-muted text-[12px]">{up.pct.toFixed(0)} %</div></div>}
         {err && <div className="text-danger text-[13px]">{err}</div>}
-        {done.length > 0 && <div className="text-ok text-[13px]">{tr("{0} fichier(s) reçu(s) :", done.length)} {done.slice(0, 8).join(", ")}{done.length > 8 ? "…" : ""}</div>}
+        {done.length > 0 && <div className="text-ok text-[13px]">{tr("{0} file(s) received:", done.length)} {done.slice(0, 8).join(", ")}{done.length > 8 ? "…" : ""}</div>}
       </div>
     </Card>
   );
@@ -96,10 +96,10 @@ function FolderView({ id, info }: { id: string; info: Info }) {
         <button onClick={() => setPath("/")} className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-panel-2"><HardDrive size={14} />{info.name}</button>
         {crumbs.map((c, i) => <span key={i} className="flex items-center gap-1"><ChevronRight size={13} className="text-muted" /><button onClick={() => setPath("/" + crumbs.slice(0, i + 1).join("/"))} className="rounded-lg px-2 py-1 hover:bg-panel-2">{c}</button></span>)}
         <div className="flex-1" />
-        <a href={dl(path)}><Button size="sm" icon={<Download size={14} />}>{tr("Tout télécharger (ZIP)")}</Button></a>
+        <a href={dl(path)}><Button size="sm" icon={<Download size={14} />}>{tr("Download all (ZIP)")}</Button></a>
       </div>
       <ErrorBox error={error} />
-      {isLoading ? <Spinner /> : !data?.entries.length ? <Empty icon={<Folder />} title={tr("Dossier vide")} /> : (
+      {isLoading ? <Spinner /> : !data?.entries.length ? <Empty icon={<Folder />} title={tr("Empty folder")} /> : (
         <table className="table">
           <tbody>
             {data.entries.map((e) => (
@@ -113,7 +113,7 @@ function FolderView({ id, info }: { id: string; info: Info }) {
                 </td>
                 <td className="text-muted">{e.dir ? "—" : bytes(e.size)}</td>
                 <td className="hidden text-muted text-[12.5px] sm:table-cell">{dateTime(e.modTime)}</td>
-                <td className="text-right"><a href={dl(e.path)} title={tr("Télécharger")}><Button size="sm" variant="ghost" icon={<Download size={14} />} /></a></td>
+                <td className="text-right"><a href={dl(e.path)} title={tr("Download")}><Button size="sm" variant="ghost" icon={<Download size={14} />} /></a></td>
               </tr>
             ))}
           </tbody>
@@ -131,7 +131,7 @@ function AlbumView({ id }: { id: string }) {
   return (
     <div>
       <ErrorBox error={error} />
-      {!photos.length ? <Card><Empty title={tr("Album vide")} /></Card> : (
+      {!photos.length ? <Card><Empty title={tr("Empty album")} /></Card> : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-1">
           {photos.map((p, i) => (
             <button key={p.path} onClick={() => setOpen(i)} className="group relative aspect-square overflow-hidden rounded-md bg-panel-2">
@@ -169,16 +169,16 @@ export default function PublicLink({ id }: { id: string }) {
 
   let body;
   if (isLoading) body = <Spinner />;
-  else if (error || !info) body = <Card><Empty icon={<X />} title={error instanceof ApiError && error.status === 410 ? tr("Ce lien a expiré ou a été supprimé") : tr("Lien introuvable")} text={tr("Demandez un nouveau lien à la personne qui vous l'a envoyé.")} /></Card>;
+  else if (error || !info) body = <Card><Empty icon={<X />} title={error instanceof ApiError && error.status === 410 ? tr("This link has expired or been deleted") : tr("Link not found")} text={tr("Ask the person who sent it to you for a new link.")} /></Card>;
   else if (info.password && !info.unlocked) {
     body = (
       <Card>
         <form className="mx-auto max-w-sm space-y-3 py-6 text-center" onSubmit={(e) => { e.preventDefault(); unlock(); }}>
           <Lock size={28} className="mx-auto text-accent" />
-          <div className="font-medium">{tr("Ce partage est protégé par un mot de passe")}</div>
-          <Input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder={tr("Mot de passe")} />
+          <div className="font-medium">{tr("This share is password-protected")}</div>
+          <Input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder={tr("Password")} />
           <ErrorBox error={pwErr} />
-          <Button variant="primary" type="submit" loading={busy} disabled={!pw} className="w-full justify-center">{tr("Ouvrir")}</Button>
+          <Button variant="primary" type="submit" loading={busy} disabled={!pw} className="w-full justify-center">{tr("Open")}</Button>
         </form>
       </Card>
     );
@@ -192,7 +192,7 @@ export default function PublicLink({ id }: { id: string }) {
               {image(info.name) ? <img src={`/api/s/${id}/download?inline=1`} alt="" className="max-h-[50vh] rounded-lg" /> : <FileIcon size={40} className="text-accent" />}
               <div className="font-medium break-all">{info.name}</div>
               {info.size !== undefined && <div className="text-muted text-[13px]">{bytes(info.size)}</div>}
-              <a href={`/api/s/${id}/download`}><Button variant="primary" icon={<Download size={15} />} disabled={info.downloadsLeft === 0}>{tr("Télécharger")}</Button></a>
+              <a href={`/api/s/${id}/download`}><Button variant="primary" icon={<Download size={15} />} disabled={info.downloadsLeft === 0}>{tr("Download")}</Button></a>
             </div>
           </Card>
         ))}
@@ -206,7 +206,7 @@ export default function PublicLink({ id }: { id: string }) {
         <img src={logo} alt="" className="h-7 w-7" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold">{info?.name ?? "StrataOS"}</div>
-          {info && <div className="text-muted text-[12px]">{tr("Partagé par {0}", info.owner)}{info.expires ? ` · ${tr("jusqu'au {0}", dateTime(info.expires))}` : ""}{info.downloadsLeft !== undefined ? ` · ${tr("{0} téléchargement(s) restant(s)", info.downloadsLeft)}` : ""}</div>}
+          {info && <div className="text-muted text-[12px]">{tr("Shared by {0}", info.owner)}{info.expires ? ` · ${tr("until {0}", dateTime(info.expires))}` : ""}{info.downloadsLeft !== undefined ? ` · ${tr("{0} download(s) remaining", info.downloadsLeft)}` : ""}</div>}
         </div>
         <LangSwitch className="flex items-center gap-1.5 text-muted text-[12.5px]" />
       </header>

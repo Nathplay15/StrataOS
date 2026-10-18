@@ -50,37 +50,37 @@ type Field struct {
 }
 
 var Providers = []Provider{
-	{ID: "s3", Label: "Amazon S3 / compatible S3 (Wasabi, MinIO, Cloudflare R2, OVH…)", Backend: "s3", Bucket: true, Fields: []Field{
-		{Key: "provider", Label: "Fournisseur", Required: true, Options: []string{"AWS", "Wasabi", "Minio", "Cloudflare", "Scaleway", "Other"}},
-		{Key: "access_key_id", Label: "Clé d'accès", Required: true},
-		{Key: "secret_access_key", Label: "Clé secrète", Secret: true, Required: true},
-		{Key: "region", Label: "Région", Hint: "ex. eu-west-3"},
-		{Key: "endpoint", Label: "Point d'accès", Hint: "Vide pour AWS, sinon l'URL du service"},
+	{ID: "s3", Label: "Amazon S3 / S3-compatible (Wasabi, MinIO, Cloudflare R2, OVH…)", Backend: "s3", Bucket: true, Fields: []Field{
+		{Key: "provider", Label: "Provider", Required: true, Options: []string{"AWS", "Wasabi", "Minio", "Cloudflare", "Scaleway", "Other"}},
+		{Key: "access_key_id", Label: "Access key", Required: true},
+		{Key: "secret_access_key", Label: "Secret key", Secret: true, Required: true},
+		{Key: "region", Label: "Region", Hint: "e.g. eu-west-3"},
+		{Key: "endpoint", Label: "Endpoint", Hint: "Empty for AWS, otherwise the service URL"},
 	}},
 	{ID: "b2", Label: "Backblaze B2", Backend: "b2", Bucket: true, Fields: []Field{
 		{Key: "account", Label: "Key ID", Required: true},
 		{Key: "key", Label: "Application key", Secret: true, Required: true},
 	}},
 	{ID: "drive", Label: "Google Drive", Backend: "drive", Authorize: "drive", Fields: []Field{
-		{Key: "token", Label: "Jeton", Secret: true, Required: true},
+		{Key: "token", Label: "Token", Secret: true, Required: true},
 	}},
 	{ID: "onedrive", Label: "Microsoft OneDrive", Backend: "onedrive", Authorize: "onedrive", Fields: []Field{
-		{Key: "token", Label: "Jeton", Secret: true, Required: true},
+		{Key: "token", Label: "Token", Secret: true, Required: true},
 	}},
 	{ID: "dropbox", Label: "Dropbox", Backend: "dropbox", Authorize: "dropbox", Fields: []Field{
-		{Key: "token", Label: "Jeton", Secret: true, Required: true},
+		{Key: "token", Label: "Token", Secret: true, Required: true},
 	}},
-	{ID: "webdav", Label: "WebDAV (Nextcloud, ownCloud, autre NAS…)", Backend: "webdav", Fields: []Field{
-		{Key: "url", Label: "URL", Required: true, Hint: "Nextcloud : https://cloud.exemple.fr/remote.php/dav/files/<utilisateur>"},
-		{Key: "vendor", Label: "Serveur", Options: []string{"nextcloud", "owncloud", "sharepoint", "other"}},
-		{Key: "user", Label: "Utilisateur"},
-		{Key: "pass", Label: "Mot de passe", Secret: true},
+	{ID: "webdav", Label: "WebDAV (Nextcloud, ownCloud, another NAS…)", Backend: "webdav", Fields: []Field{
+		{Key: "url", Label: "URL", Required: true, Hint: "Nextcloud: https://cloud.example.com/remote.php/dav/files/<user>"},
+		{Key: "vendor", Label: "Server", Options: []string{"nextcloud", "owncloud", "sharepoint", "other"}},
+		{Key: "user", Label: "User"},
+		{Key: "pass", Label: "Password", Secret: true},
 	}},
-	{ID: "sftp", Label: "Serveur SFTP", Backend: "sftp", Fields: []Field{
-		{Key: "host", Label: "Hôte", Required: true},
+	{ID: "sftp", Label: "SFTP server", Backend: "sftp", Fields: []Field{
+		{Key: "host", Label: "Host", Required: true},
 		{Key: "port", Label: "Port", Hint: "22"},
-		{Key: "user", Label: "Utilisateur", Required: true},
-		{Key: "pass", Label: "Mot de passe", Secret: true, Hint: "Vide pour utiliser la clé SSH de StrataOS (Sauvegarde)"},
+		{Key: "user", Label: "User", Required: true},
+		{Key: "pass", Label: "Password", Secret: true, Hint: "Empty to use the StrataOS SSH key (Backup)"},
 	}},
 }
 
@@ -413,7 +413,7 @@ func Run(ctx context.Context, t store.CloudSync, p Progress) (string, error) {
 		args = append([]string{"bisync", t.LocalPath, target(&t), "--workdir", work}, args...)
 		if !t.Synced {
 			// First run: rclone merges both sides (nothing is deleted) and records the state.
-			p.Log("Première synchronisation : fusion des deux côtés (aucune suppression)")
+			p.Log("First sync: both sides are merged (nothing is deleted)")
 			if err := os.RemoveAll(work); err != nil {
 				return "", err
 			}
@@ -454,9 +454,9 @@ func Run(ctx context.Context, t store.CloudSync, p Progress) (string, error) {
 	}
 	p.Set(100)
 	if transferred == "" {
-		return "Synchronisé (rien à transférer)", nil
+		return "Synced (nothing to transfer)", nil
 	}
-	return "Synchronisé : " + transferred, nil
+	return "Synced: " + transferred, nil
 }
 
 // Test checks that the cloud answers with the given settings.
@@ -481,7 +481,7 @@ func Test(ctx context.Context, t store.CloudSync) (string, error) {
 	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 45 * time.Second}, "rclone", "--config", conf, "lsf", "--max-depth", "1", "--dirs-only", remote+":"+path)
 	if err != nil {
 		if strings.Contains(err.Error(), "directory not found") {
-			return "Connexion réussie (le dossier distant sera créé)", nil
+			return "Connection successful (the remote folder will be created)", nil
 		}
 		return "", fmt.Errorf("%s", lastLine(err.Error()))
 	}
@@ -491,7 +491,7 @@ func Test(ctx context.Context, t store.CloudSync) (string, error) {
 			n++
 		}
 	}
-	return fmt.Sprintf("Connexion réussie (%d dossier(s) à cet emplacement)", n), nil
+	return fmt.Sprintf("Connection successful (%d folder(s) at this location)", n), nil
 }
 
 // Browse lists the folders of the cloud below path (for the folder picker).

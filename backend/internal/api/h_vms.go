@@ -57,7 +57,7 @@ func (s *Server) vmRoutes() {
 			return nil, badRequest(err.Error())
 		}
 		s.audit(r, "vms", "Creating virtual machine "+req.Name)
-		return s.jobs.Start("vm", "Création de la VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		return s.jobs.Start("vm", "Creating VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			return vms.Create(ctx, req, j.Logf)
 		}), nil
 	})

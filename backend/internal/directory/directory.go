@@ -134,11 +134,11 @@ func JoinAD(ctx context.Context, c store.Directory, admin, password string, appl
 		return fmt.Errorf("enter a domain administrator account and its password")
 	}
 	flushWinbind()
-	logf("Configuration de Kerberos pour %s", c.Realm)
+	logf("Configuring Kerberos for %s", c.Realm)
 	if err := writeKrb5(c); err != nil {
 		return err
 	}
-	logf("Configuration de Samba en serveur membre du domaine %s", c.Workgroup)
+	logf("Configuring Samba as a member server of domain %s", c.Workgroup)
 	if err := applySMB(); err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func JoinAD(ctx context.Context, c store.Directory, admin, password string, appl
 	if c.Server != "" {
 		args = append(args, "-S", c.Server)
 	}
-	logf("Jonction au domaine…")
+	logf("Joining the domain…")
 	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 2 * time.Minute}, "net", args...)
 	if err != nil {
 		msg := strings.TrimSpace(firstLine(out + " " + err.Error()))
@@ -175,7 +175,7 @@ func JoinAD(ctx context.Context, c store.Directory, admin, password string, appl
 		if _, err := sys.Run("wbinfo", "-t"); err == nil {
 			// Rights on shares need domain names resolvable by the system.
 			if _, err := sys.Run("getent", "group", c.Workgroup+`\domain users`); err == nil {
-				logf("Relation d'approbation vérifiée, comptes du domaine disponibles")
+				logf("Trust relationship verified, domain accounts available")
 				return nil
 			}
 		}
@@ -323,12 +323,12 @@ func CheckStatus(c store.Directory) Status {
 		if out, err := sys.Run("wbinfo", "-t"); err != nil {
 			return Status{Message: firstLine(out + " " + err.Error())}
 		}
-		return Status{Connected: true, Message: "Relation d'approbation avec le domaine valide"}
+		return Status{Connected: true, Message: "Trust relationship with the domain is valid"}
 	case "ldap":
 		if _, err := sys.Run("systemctl", "is-active", "sssd.service"); err != nil {
 			return Status{Message: "sssd is not running"}
 		}
-		return Status{Connected: true, Message: "Annuaire LDAP connecté"}
+		return Status{Connected: true, Message: "LDAP directory connected"}
 	}
 	return Status{}
 }

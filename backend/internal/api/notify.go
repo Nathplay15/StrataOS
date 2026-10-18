@@ -120,25 +120,25 @@ func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols [
 	for _, r := range raids {
 		switch r.Health {
 		case "degraded", "failed":
-			out = append(out, alert{"error", fmt.Sprintf("La grappe RAID %s (%s) est %s", r.Label, r.Name, map[string]string{"degraded": "dégradée", "failed": "en panne"}[r.Health])})
+			out = append(out, alert{"error", fmt.Sprintf("RAID array %s (%s) %s", r.Label, r.Name, map[string]string{"degraded": "is degraded", "failed": "has failed"}[r.Health])})
 		case "rebuilding":
-			out = append(out, alert{"warning", fmt.Sprintf("Reconstruction de la grappe RAID %s en cours (%.1f %%)", r.Label, r.SyncProgress)})
+			out = append(out, alert{"warning", fmt.Sprintf("RAID array %s is rebuilding (%.1f%%)", r.Label, r.SyncProgress)})
 		}
 	}
 	if storage.ZFSBroken() {
-		out = append(out, alert{"error", "Le module ZFS ne se charge pas (noyau mis à jour ?) : les pools ZFS sont indisponibles. Réinstallez ZFS depuis Stockage → ZFS"})
+		out = append(out, alert{"error", "The ZFS module does not load (kernel updated?): ZFS pools are unavailable. Reinstall ZFS from Storage → ZFS"})
 	}
 	for _, p := range pools {
 		if p.Health != "ONLINE" {
-			out = append(out, alert{"error", fmt.Sprintf("Le pool ZFS %s est en état %s", p.Name, p.Health)})
+			out = append(out, alert{"error", fmt.Sprintf("ZFS pool %s is %s", p.Name, p.Health)})
 		}
 	}
 	for _, v := range vols {
 		if v.Health == "unmounted" {
-			out = append(out, alert{"warning", fmt.Sprintf("Le volume %s n'est pas monté", v.Name)})
+			out = append(out, alert{"warning", fmt.Sprintf("Volume %s is not mounted", v.Name)})
 		}
 		if v.Total > 0 && float64(v.Used)/float64(v.Total) > 0.9 {
-			out = append(out, alert{"warning", fmt.Sprintf("Le volume %s est plein à %.0f %%", v.Name, 100*float64(v.Used)/float64(v.Total))})
+			out = append(out, alert{"warning", fmt.Sprintf("Volume %s is %.0f%% full", v.Name, 100*float64(v.Used)/float64(v.Total))})
 		}
 	}
 	return out
@@ -178,22 +178,22 @@ func (s *Server) healthWatcher() {
 				smartCache.Store(d.Path, smartEntry{info: *info, model: d.Model, serial: d.Serial})
 			}
 			if info.Passed != nil && !*info.Passed {
-				msg := fmt.Sprintf("Le disque %s (%s %s) échoue au contrôle de santé SMART : remplacez-le", d.Path, d.Model, d.Serial)
+				msg := fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial)
 				cur[msg] = true
 				weak = append(weak, alert{"error", msg})
 				if !known[msg] {
 					s.store.Log("error", "health", "", msg)
-					s.notify("Disque défaillant", msg)
+					s.notify("Failing disk", msg)
 				}
 				continue
 			}
 			if len(info.Warnings) > 0 {
-				msg := fmt.Sprintf("Le disque %s (%s %s) faiblit : %s. Vérifiez vos sauvegardes et prévoyez son remplacement", d.Path, d.Model, d.Serial, strings.Join(info.Warnings, ", "))
+				msg := fmt.Sprintf("Disk %s (%s %s) is getting weak: %s. Check your backups and plan its replacement", d.Path, d.Model, d.Serial, strings.Join(info.Warnings, ", "))
 				cur[msg] = true
 				weak = append(weak, alert{"warning", msg})
 				if !known[msg] {
 					s.store.Log("warning", "health", "", msg)
-					s.notify("Disque qui faiblit", msg)
+					s.notify("Disk weakening", msg)
 				}
 			}
 		}
@@ -470,7 +470,7 @@ func (s *Server) checkMissingAccounts() {
 	if len(missing) == 0 {
 		return
 	}
-	msg := "Comptes absents du système (retour à un point de restauration ?) : " + strings.Join(missing, ", ") + ". Redéfinissez leur mot de passe dans Utilisateurs pour les recréer."
+	msg := "Accounts missing from the system (back to a restore point?): " + strings.Join(missing, ", ") + ". Set their password again in Users to recreate them."
 	s.store.Log("warning", "users", "", msg)
-	s.notify("Comptes à recréer", msg)
+	s.notify("Accounts to recreate", msg)
 }

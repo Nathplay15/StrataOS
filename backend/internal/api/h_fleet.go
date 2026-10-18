@@ -146,7 +146,7 @@ func (s *Server) fleetRoutes() {
 			return nil
 		})
 		host, _ := hostname()
-		s.store.Log("info", "fleet", "", fmt.Sprintf("Le NAS %s peut maintenant superviser ce NAS", name))
+		s.store.Log("info", "fleet", "", fmt.Sprintf("The NAS %s can now monitor this NAS", name))
 		writeJSON(w, http.StatusOK, map[string]string{"token": token, "name": host})
 	})
 

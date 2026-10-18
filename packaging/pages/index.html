@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StrataOS</title>
+<meta name="description" content="StrataOS turns a PC, a server or a Raspberry Pi into a NAS, managed from a modern web interface.">
+<style>
+  :root { --bg: #f6f7fb; --panel: #ffffff; --text: #161a23; --muted: #5b6474; --line: #e2e5ec; --accent: #4f6bff; --code: #eef0f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e1117; --panel: #161b24; --text: #e7eaf0; --muted: #98a1b2; --line: #262d3a; --accent: #7b91ff; --code: #1d2330; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 40px 0 12px; }
+  p.lead { color: var(--muted); font-size: 18px; margin: 0 0 24px; }
+  a { color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+  .btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+  pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13.5px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>StrataOS</h1>
+  <p class="lead">A NAS operating system built on Debian 13. Disks, RAID, shares, backups, Docker apps and more, all managed from a web interface. Latest version: <b>@VERSION@</b>.</p>
+
+  <h2>Download</h2>
+  <div class="grid">
+    <div class="card"><h3>PC or server (x86-64)</h3><p>Installer ISO for a USB stick. BIOS and UEFI.</p><a class="btn" href="https://github.com/@REPO@/releases/download/v@VERSION@/strataos-@VERSION@-amd64.iso">amd64 ISO</a></div>
+    <div class="card"><h3>Raspberry Pi 3 / 4 / 400 / CM4</h3><p>Image for a microSD card or a USB SSD.</p><a class="btn" href="https://github.com/@REPO@/releases/download/v@VERSION@/strataos-@VERSION@-raspberrypi.img.xz">Raspberry Pi image</a></div>
+    <div class="card"><h3>ARM64 server or board (UEFI)</h3><p>Installer ISO for 64-bit ARM machines.</p><a class="btn" href="https://github.com/@REPO@/releases/download/v@VERSION@/strataos-@VERSION@-arm64.iso">arm64 ISO</a></div>
+  </div>
+  <p>Checksums and previous versions: <a href="https://github.com/@REPO@/releases">all releases</a>. User guide: <a href="https://github.com/@REPO@/blob/main/docs/GUIDE.md">docs/GUIDE.md</a>.</p>
+
+  <h2>Install on an existing Debian 13</h2>
+  <pre><code>sudo curl -fsSLo /usr/share/keyrings/strataos-archive.gpg https://nathplay15.github.io/StrataOS/apt/strataos-archive.gpg
+echo "deb [signed-by=/usr/share/keyrings/strataos-archive.gpg] https://nathplay15.github.io/StrataOS/apt stable main" | sudo tee /etc/apt/sources.list.d/strataos.list
+sudo apt update &amp;&amp; sudo apt install strataos</code></pre>
+  <p>Then open <code>http://&lt;address-of-the-machine&gt;:7070</code> to create the administrator account. The StrataOS package then manages its own update source (you can delete <code>strataos.list</code>).</p>
+
+  <h2>Updates</h2>
+  <p>This site hosts the signed package repository at <code>/apt</code>. Installed systems check it and update from <b>Updates → Update StrataOS</b> in the web interface, with a restore point taken before each update.</p>
+
+  <h2>Requirements</h2>
+  <table>
+    <tr><th></th><th>Minimum</th><th>Recommended</th></tr>
+    <tr><td>Processor</td><td>64-bit x86-64 or ARMv8 (2 cores)</td><td>4 cores or more</td></tr>
+    <tr><td>Memory</td><td>2 GB (1 GB on a Raspberry Pi 3, file sharing only)</td><td>8 GB; 16 GB or more with ZFS, virtual machines or many apps</td></tr>
+    <tr><td>System disk</td><td>16 GB</td><td>64 GB SSD, separate from the data disks</td></tr>
+    <tr><td>Data disks</td><td>1</td><td>2 or more, for RAID or mirroring</td></tr>
+    <tr><td>Network</td><td>Ethernet</td><td>Gigabit Ethernet or faster</td></tr>
+  </table>
+
+  <footer>StrataOS is open source (Apache 2.0) · <a href="https://github.com/@REPO@">Source code on GitHub</a></footer>
+</main>
+</body>
+</html>

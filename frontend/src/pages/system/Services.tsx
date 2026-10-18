@@ -8,16 +8,16 @@ import { tr } from "../../lib/i18n";
 
 export default function Services() {
   const { data, isLoading, error } = useQuery({ queryKey: ["services"], queryFn: () => api.get<Service[]>("/api/system/services"), refetchInterval: 5000 });
-  const act = useAction((p: { unit: string; action: string }) => api.post(`/api/system/services/${p.unit}/${p.action}`), { success: tr("Service mis à jour") });
+  const act = useAction((p: { unit: string; action: string }) => api.post(`/api/system/services/${p.unit}/${p.action}`), { success: tr("Service updated") });
   return (
     <div>
-      <PageHeader title={tr("Services")} subtitle={tr("Services système utilisés par le NAS")} icon={<Cpu size={20} />} />
+      <PageHeader title={tr("Services")} subtitle={tr("System services used by the NAS")} icon={<Cpu size={20} />} />
       <ErrorBox error={error} />
       <Card pad={false}>
         {isLoading ? <Spinner /> : (
           <div className="overflow-x-auto">
             <table className="table">
-              <thead><tr><th>{tr("Service")}</th><th>{tr("État")}</th><th>{tr("Démarrage auto")}</th><th /></tr></thead>
+              <thead><tr><th>{tr("Service")}</th><th>{tr("Status")}</th><th>{tr("Auto-start")}</th><th /></tr></thead>
               <tbody>
                 {data?.map((s) => (
                   <tr key={s.unit}>
@@ -30,9 +30,9 @@ export default function Services() {
                     </td>
                     <td className="text-right whitespace-nowrap">
                       {s.unit !== "strata.service" && (s.active === "active"
-                        ? <IconButton title={tr("Arrêter")} onClick={() => act.mutate({ unit: s.unit, action: "stop" })}><Square size={15} /></IconButton>
-                        : <IconButton title={tr("Démarrer")} onClick={() => act.mutate({ unit: s.unit, action: "start" })}><Play size={15} /></IconButton>)}
-                      <IconButton title={tr("Redémarrer")} onClick={() => act.mutate({ unit: s.unit, action: "restart" })}><RotateCw size={15} /></IconButton>
+                        ? <IconButton title={tr("Stop")} onClick={() => act.mutate({ unit: s.unit, action: "stop" })}><Square size={15} /></IconButton>
+                        : <IconButton title={tr("Start")} onClick={() => act.mutate({ unit: s.unit, action: "start" })}><Play size={15} /></IconButton>)}
+                      <IconButton title={tr("Restart")} onClick={() => act.mutate({ unit: s.unit, action: "restart" })}><RotateCw size={15} /></IconButton>
                     </td>
                   </tr>
                 ))}

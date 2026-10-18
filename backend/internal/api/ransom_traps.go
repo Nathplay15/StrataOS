@@ -27,9 +27,15 @@ import (
 )
 
 // Trap names sort first and last, where ransomware usually starts.
-var trapNames = []string{"!0000 - NE PAS MODIFIER (StrataOS).docx", "zzzz - NE PAS MODIFIER (StrataOS).xlsx"}
+var trapNames = []string{"!0000 - DO NOT MODIFY (StrataOS).docx", "zzzz - DO NOT MODIFY (StrataOS).xlsx"}
 
-const trapContent = "Fichier piège StrataOS : ne le modifiez pas, ne le renommez pas, ne le supprimez pas.\n" +
+const trapContent = "StrataOS trap file: do not modify, rename or delete it.\n" +
+	"Any change makes the shared folder read-only (ransomware protection).\n"
+
+// Trap files of StrataOS 0.4 (French names), removed while still untouched.
+var legacyTrapNames = []string{"!0000 - NE PAS MODIFIER (StrataOS).docx", "zzzz - NE PAS MODIFIER (StrataOS).xlsx"}
+
+const legacyTrapContent = "Fichier piège StrataOS : ne le modifiez pas, ne le renommez pas, ne le supprimez pas.\n" +
 	"Toute modification passe le dossier partagé en lecture seule (protection contre les rançongiciels).\n" +
 	"StrataOS trap file: do not modify, rename or delete it; doing so freezes the shared folder.\n"
 
@@ -128,6 +134,23 @@ func removeTraps(paths []string) {
 	}
 }
 
+// removeLegacyTraps deletes the untouched trap files of older versions from
+// the folders that get traps now.
+func removeLegacyTraps(want map[string]string) {
+	dirs := map[string]bool{}
+	for p := range want {
+		dirs[filepath.Dir(p)] = true
+	}
+	for d := range dirs {
+		for _, n := range legacyTrapNames {
+			p := filepath.Join(d, n)
+			if b, err := os.ReadFile(p); err == nil && bytes.Equal(b, []byte(legacyTrapContent)) {
+				_ = os.Remove(p)
+			}
+		}
+	}
+}
+
 // freezeShare makes a share read-only everywhere after a trap was touched.
 // The account behind it (when Samba tells) is blocked first: every second
 // counts while files are being encrypted.
@@ -145,7 +168,7 @@ func (s *Server) freezeShare(share, file string) {
 	var block bool
 	s.store.Read(func(st *store.State) { block = st.Ransom.Block })
 	if user != "" && block {
-		s.ransomAlert(user, ip, share, "fichier piège modifié")
+		s.ransomAlert(user, ip, share, "trap file modified")
 	}
 	_ = s.store.Update(func(st *store.State) error {
 		if sh := st.Share(share); sh != nil {
@@ -155,21 +178,21 @@ func (s *Server) freezeShare(share, file string) {
 	})
 	_ = s.applyShares()
 	_, _ = sys.Run("smbcontrol", "smbd", "close-share", share)
-	msg := fmt.Sprintf("Fichier piège modifié dans le partage %s : le partage est passé en lecture seule. Vérifiez les postes, restaurez au besoin depuis les snapshots, puis rétablissez-le dans Antivirus", share)
+	msg := fmt.Sprintf("Trap file modified in share %s: the share is now read-only. Check the computers, restore from the snapshots if needed, then release it in Antivirus", share)
 	if user != "" {
-		msg = fmt.Sprintf("Fichier piège modifié dans le partage %s par le compte %s (%s) : le partage est passé en lecture seule. Vérifiez les postes, restaurez au besoin depuis les snapshots, puis rétablissez-le dans Antivirus", share, user, ip)
+		msg = fmt.Sprintf("Trap file modified in share %s by account %s (%s): the share is now read-only. Check the computers, restore from the snapshots if needed, then release it in Antivirus", share, user, ip)
 	}
 	s.store.Log("error", "ransomware", user, msg)
-	s.notify("Rançongiciel suspecté", msg)
+	s.notify("Ransomware suspected", msg)
 }
 
 // pauseNFS suspends the NFS exports after mass changes through NFS.
 func (s *Server) pauseNFS(reason string) {
 	_ = s.store.Update(func(st *store.State) error { st.Ransom.NFSPaused = true; return nil })
 	_ = s.applyShares()
-	msg := "Rançongiciel suspecté via NFS (" + reason + ") : les partages NFS sont suspendus. Vérifiez les clients NFS, puis rétablissez-les dans Antivirus"
+	msg := "Ransomware suspected through NFS (" + reason + "): NFS shares are suspended. Check the NFS clients, then resume them in Antivirus"
 	s.store.Log("error", "ransomware", "", msg)
-	s.notify("Rançongiciel suspecté", msg)
+	s.notify("Ransomware suspected", msg)
 }
 
 // trapLoop keeps the trap files in place and watches them.
@@ -221,6 +244,7 @@ func (s *Server) trapLoop() {
 		}
 		if changed {
 			stop()
+			removeLegacyTraps(want)
 			for len(events) > 0 { // events of files no longer watched this way
 				<-events
 			}

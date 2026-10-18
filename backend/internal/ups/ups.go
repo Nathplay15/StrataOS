@@ -127,7 +127,7 @@ func Render(c Config) map[string]string {
 	if mode == "standalone" || mode == "netserver" {
 		desc := c.Desc
 		if desc == "" {
-			desc = "Onduleur"
+			desc = "UPS"
 		}
 		f["ups.conf"] = head + fmt.Sprintf("maxretry = 3\n\n[ups]\n\tdriver = %s\n\tport = %s\n\tdesc = \"%s\"\n", c.Driver, c.Port, desc)
 		listen := "LISTEN 127.0.0.1 3493\nLISTEN ::1 3493\n"
@@ -296,7 +296,7 @@ func SetSimulation(status string, charge int) error {
 		return fmt.Errorf("invalid simulated status")
 	}
 	runtime := charge * 18
-	content := fmt.Sprintf("ups.mfr: StrataOS\nups.model: Onduleur de test\nups.status: %s\nbattery.charge: %d\nbattery.runtime: %d\nups.load: 23\ninput.voltage: %s\noutput.voltage: 230\n",
+	content := fmt.Sprintf("ups.mfr: StrataOS\nups.model: Test UPS\nups.status: %s\nbattery.charge: %d\nbattery.runtime: %d\nups.load: 23\ninput.voltage: %s\noutput.voltage: 230\n",
 		status, charge, runtime, map[bool]string{true: "230", false: "0"}[status == "OL"])
 	if err := sys.WriteFileAtomic(SimDevPath, []byte(content), 0o640); err != nil {
 		return err
