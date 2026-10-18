@@ -74,7 +74,9 @@ done
 if [ "$MODE" = arm64 ]; then
   Q=${QEMU_ARM_DIR:-$HOME/.local/opt/qemu-arm}
   QEMU=$(command -v qemu-system-aarch64 || echo "$Q/usr/bin/qemu-system-aarch64")
-  FW=$(ls /usr/share/AAVMF/AAVMF_CODE.no-secboot.fd "$Q/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd" 2>/dev/null | head -1)
+  FW=""
+  for f in /usr/share/AAVMF/AAVMF_CODE.no-secboot.fd "$Q/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd"; do [ -f "$f" ] && { FW=$f; break; }; done
+  [ -n "$FW" ] || { echo "AAVMF firmware not found"; exit 1; }
   cp "$(dirname "$FW")/AAVMF_VARS.fd" "$STATE/vars.fd"; chmod u+w "$STATE/vars.fd"
   # The empty disk boots first: the CD runs the installer once, then the
   # installed system starts from the disk.
