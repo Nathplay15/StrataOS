@@ -520,6 +520,18 @@ check "append-only: deletion refused" "$(curl -sk -o /dev/null -w '%{http_code}'
 check "vault refuses unknown clients" "$(curl -sk -o /dev/null -w '%{http_code}' "${VURL}config")" "401"
 check "client listed on the vault" "$(c GET /api/vaults | py 'print([(c["name"], c["size"] > 0) for v in d for c in v["clients"]])')" "True)"
 
+section "Metrics (Prometheus, Grafana)"
+check "metrics off by default" "$(curl -s -o /dev/null -w '%{http_code}' $B/metrics)" "404"
+MT=$(c PUT /api/metrics -d '{"enabled":true}' | py 'print(d["token"])')
+check "token required" "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer wrong' $B/metrics)" "401"
+curl -s -H "Authorization: Bearer $MT" $B/metrics > "$TMP/metrics.txt"
+check "metrics published" "$(grep -c '^strata_info\|^strata_cpu_seconds_total\|^strata_volume_size_bytes{volume="main"\|^strata_raid_healthy{array=' "$TMP/metrics.txt")" "11"
+check "token masked in the settings" "$(c GET /api/settings | py 'print(d["metricsToken"])')" "********"
+check "Grafana dashboard" "$(c GET /api/metrics/grafana | py 'print(d["title"], len(d["panels"]) > 5)')" "StrataOS True"
+check "Prometheus app installed" "$(job "$(c POST /api/apps/prometheus/install -d "{\"name\":\"prometheus\",\"values\":{\"DATA_DIR\":\"/srv/strata/main/apps/prometheus\",\"METRICS_TOKEN\":\"$MT\",\"WEB_PORT\":\"9090\",\"RETENTION\":\"7d\"}}")")" "success"
+for _ in $(seq 1 60); do vm "curl -s 'http://localhost:9090/api/v1/query?query=strata_info'" | grep -q '"value"' && break; sleep 3; done
+check "Prometheus scrapes the NAS" "$(vm "curl -s 'http://localhost:9090/api/v1/query?query=strata_info'")" '"version"'
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

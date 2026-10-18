@@ -281,7 +281,7 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken} {
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken} {
 			if *p != "" {
 				*p = "********"
 			}
@@ -326,6 +326,7 @@ func (s *Server) systemRoutes() {
 			if req.NtfyToken == "********" {
 				req.NtfyToken = st.Settings.NtfyToken
 			}
+			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics
 			if req.SessionHours <= 0 || req.SessionHours > 24*30 {
 				req.SessionHours = 12
 			}

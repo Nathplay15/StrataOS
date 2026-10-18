@@ -138,6 +138,27 @@ func init() {
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD}
 `},
+		App{ID: "prometheus", Name: "Prometheus", Category: "Monitoring", Description: "Collects the metrics of the NAS (Settings → Monitoring) for Grafana.", Icon: icon("prometheus"), WebPort: "WEB_PORT",
+			Vars: []AppVar{port("WEB_PORT", "9090"), path("DATA_DIR", "Data folder", "/srv/strata/apps/prometheus"), secret("METRICS_TOKEN", "Metrics token (Settings → Monitoring)"), {Key: "RETENTION", Label: "History kept", Default: "90d", Type: "text"}},
+			Compose: `services:
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    user: "0"
+    ports:
+      - ${WEB_PORT}:9090
+    volumes:
+      - ${DATA_DIR}:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - STRATA_TOKEN=${METRICS_TOKEN}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf 'global:\n  scrape_interval: 30s\nscrape_configs:\n  - job_name: strataos\n    authorization:\n      credentials: "%s"\n    static_configs:\n      - targets: ["host.docker.internal:7070"]\n' "$$STRATA_TOKEN" > /prometheus/prometheus.yml
+        exec /bin/prometheus --config.file=/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=${RETENTION}
+`},
 		App{ID: "minio", Name: "MinIO", Category: "Cloud", Description: "S3-compatible object storage on your NAS.", Icon: icon("minio"), WebPort: "CONSOLE_PORT",
 			Vars: []AppVar{port("API_PORT", "9000"), port("CONSOLE_PORT", "9001"), path("DATA_DIR", "Data folder", "/srv/strata/apps/minio"), {Key: "ROOT_USER", Label: "Admin user", Default: "admin", Type: "text"}, secret("ROOT_PASSWORD", "Admin password")},
 			Compose: `services:

@@ -174,6 +174,9 @@ func (s *Server) healthWatcher() {
 			if err != nil {
 				continue
 			}
+			if !info.Standby {
+				smartCache.Store(d.Path, smartEntry{info: *info, model: d.Model, serial: d.Serial})
+			}
 			if info.Passed != nil && !*info.Passed {
 				msg := fmt.Sprintf("Le disque %s (%s %s) échoue au contrôle de santé SMART : remplacez-le", d.Path, d.Model, d.Serial)
 				cur[msg] = true

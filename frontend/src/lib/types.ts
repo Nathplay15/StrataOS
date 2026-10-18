@@ -360,6 +360,7 @@ export interface Settings {
   telegramToken?: string;
   telegramChatId?: string;
   monthlyReport?: boolean;
+  metricsToken?: string;
   notifyLang?: string;
   ntfyUrl?: string;
   ntfyToken?: string;

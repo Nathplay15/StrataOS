@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Clock, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
+import { Activity, Bell, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Settings, SystemInfo } from "../../lib/types";
@@ -63,6 +63,43 @@ function CertificatesCard() {
           </div>
         )}
       </Modal>
+    </Card>
+  );
+}
+
+function MetricsCard({ enabled }: { enabled: boolean }) {
+  const { toast } = useUI();
+  const [token, setToken] = useState("");
+  const toggle = useAction((on: boolean) => api.put<{ token: string }>("/api/metrics", { enabled: on }), { onDone: (r) => setToken(r.token) });
+  const url = `${location.protocol}//${location.host}/metrics`;
+  const yaml = `scrape_configs:\n  - job_name: strataos\n    scheme: ${location.protocol.replace(":", "")}\n    tls_config: { insecure_skip_verify: true }\n    authorization: { credentials: ${token || "<jeton>"} }\n    static_configs:\n      - targets: ["${location.host}"]`;
+  const grafana = async () => {
+    const d = await api.get<unknown>("/api/metrics/grafana");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }));
+    a.download = "strataos-grafana.json";
+    a.click();
+  };
+  return (
+    <Card title={<span className="flex items-center gap-2"><Activity size={16} />{tr("Supervision (Prometheus, Grafana)")}</span>}>
+      <div className="space-y-4">
+        <Switch checked={enabled || !!token} onChange={(v) => toggle.mutate(v)} label={tr("Publier les métriques")} hint={tr("Processeur, mémoire, réseau, disques, volumes, santé RAID/ZFS/SMART, sauvegardes, onduleur, sécurité, au format Prometheus sur {0}", url)} />
+        {token && (
+          <div className="space-y-2">
+            <Notice tone="warn">{tr("Jeton d'accès (affiché une seule fois) : copiez-le dans la configuration de Prometheus.")}</Notice>
+            <div className="flex gap-2"><Input readOnly className="mono" value={token} onFocus={(e) => e.target.select()} /><Button onClick={() => { navigator.clipboard?.writeText(token); toast(tr("Jeton copié")); }}>{tr("Copier")}</Button></div>
+          </div>
+        )}
+        {(enabled || token) && <>
+          <pre className="mono overflow-auto rounded-lg bg-panel-2 p-3 text-[11.5px]">{yaml}</pre>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" icon={<Download size={14} />} onClick={grafana}>{tr("Tableau de bord Grafana")}</Button>
+            {enabled && !token && <Button size="sm" onClick={() => toggle.mutate(true)}>{tr("Nouveau jeton")}</Button>}
+          </div>
+          <p className="text-muted text-[12px]">{tr("Prometheus et Grafana s'installent depuis l'App Center ; importez le tableau dans Grafana puis choisissez la source Prometheus.")}</p>
+        </>}
+        <ErrorBox error={toggle.error} />
+      </div>
     </Card>
   );
 }
@@ -142,6 +179,7 @@ export default function SettingsPage() {
           {report.data && <pre className="mono mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[12px]">{report.data.report}</pre>}
           <p className="mt-3 text-[12.5px] text-muted">{tr("Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein à 90 %, virus détecté, échec d'une tâche, coupure de courant.")}</p>
         </Card>
+        <MetricsCard enabled={!!data?.metricsToken} />
         <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date et heure")}</span>}>
           <div className="flex items-end gap-2">
             <Field label={tr("Fuseau horaire")} className="flex-1">
