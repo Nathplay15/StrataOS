@@ -59,6 +59,7 @@ const nav: { title: string; items: NavItem[] }[] = [
     title: tr("Système"),
     items: [
       { to: "/system/monitor", label: tr("Moniteur"), icon: <Activity size={17} />, admin: true },
+      { to: "/fleet", label: tr("Console multi-NAS"), icon: <Network size={17} />, admin: true },
       { to: "/system/schedules", label: tr("Tâches planifiées"), icon: <CalendarClock size={17} />, admin: true },
       { to: "/system/services", label: tr("Services"), icon: <Cpu size={17} />, admin: true },
       { to: "/system/network", label: tr("Réseau"), icon: <Network size={17} />, admin: true },

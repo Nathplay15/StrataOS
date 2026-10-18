@@ -238,6 +238,30 @@ type HA struct {
 	Continuous bool `json:"continuous,omitempty"`
 }
 
+// Fleet: the NAS this one watches (Members) and those allowed to watch it
+// (Managers, read-only access by token).
+type Fleet struct {
+	Members  []FleetMember  `json:"members,omitempty"`
+	Managers []FleetManager `json:"managers,omitempty"`
+}
+
+type FleetMember struct {
+	ID    string    `json:"id"`
+	Name  string    `json:"name"`
+	Host  string    `json:"host"`
+	Cert  string    `json:"cert"` // SHA-256 of its certificate, pinned at pairing
+	Token string    `json:"token,omitempty"`
+	Added time.Time `json:"added"`
+}
+
+type FleetManager struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	TokenHash string    `json:"tokenHash,omitempty"`
+	Created   time.Time `json:"created"`
+	LastSeen  time.Time `json:"lastSeen,omitzero"`
+}
+
 // Vault receives the backups of other StrataOS NAS (restic REST protocol);
 // each paired NAS gets its own repository folder and token.
 type Vault struct {
@@ -409,6 +433,7 @@ type State struct {
 	Energy    Energy        `json:"energy"`
 	Guard     Guard         `json:"guard"`
 	Vaults    []*Vault      `json:"vaults,omitempty"`
+	Fleet     Fleet         `json:"fleet"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

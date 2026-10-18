@@ -532,6 +532,19 @@ check "Prometheus app installed" "$(job "$(c POST /api/apps/prometheus/install -
 for _ in $(seq 1 60); do vm "curl -s 'http://localhost:9090/api/v1/query?query=strata_info'" | grep -q '"value"' && break; sleep 3; done
 check "Prometheus scrapes the NAS" "$(vm "curl -s 'http://localhost:9090/api/v1/query?query=strata_info'")" '"version"'
 
+section "Multi-NAS console"
+check "wrong authorization code refused" "$(c POST /api/fleet -d '{"host":"127.0.0.1","code":"AAAAA-00000"}')" "wrong or expired"
+FC=$(c POST /api/fleet/code | py 'print(d["code"])')
+FM=$(c POST /api/fleet -d "{\"host\":\"127.0.0.1\",\"code\":\"$FC\"}" | py 'print(d["id"])')
+check "NAS added" "$(c GET /api/fleet | py 'print(len(d), [r["online"] for r in d])')" "2 [True, True]"
+check "remote summary" "$(c GET /api/fleet | py 'r=d[1]["summary"]; print(r["hostname"], len(r["volumes"]) > 0, "backups" in r)')" "strata-vm True True"
+check "access listed on the watched NAS" "$(c GET /api/fleet/managers | py 'print(len(d))')" "1"
+check "summary needs the token" "$(vm "curl -sk -o /dev/null -w '%{http_code}' https://localhost:7443/api/fleet/peer/summary")" "401"
+c DELETE /api/fleet/managers/$(c GET /api/fleet/managers | py 'print(d[0]["id"])') >/dev/null
+check "revoked access refused" "$(c GET /api/fleet | py 'print(d[1]["online"], d[1].get("error",""))')" "False HTTP 401"
+c DELETE /api/fleet/$FM >/dev/null
+check "NAS removed" "$(c GET /api/fleet | py 'print(len(d))')" "1"
+
 section "Share quota and monthly report"
 vm "sudo truncate -s 1200M /srv/strata/main/Photos/big.bin"
 SH=$(c GET /api/shares | py 's=[x for x in d if x["name"]=="Photos"][0]; s["quotaGb"]=1; s["quotaBlock"]=True; print(json.dumps(s))')

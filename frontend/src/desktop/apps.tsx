@@ -30,6 +30,7 @@ const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
 const GuardPage = lazy(() => import("../pages/system/Guard"));
+const FleetPage = lazy(() => import("../pages/Fleet"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
@@ -112,6 +113,7 @@ export const APPS: AppDef[] = [
     ],
   },
   { id: "vms", title: tr("Machines virtuelles"), icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
+  { id: "fleet", title: tr("Console multi-NAS"), icon: Network, colors: ["#38bdf8", "#6366f1"], admin: true, size: [1120, 760], component: page(FleetPage), path: "/fleet" },
   { id: "monitor", title: tr("Moniteur de ressources"), icon: Activity, colors: ["#22c55e", "#059669"], admin: true, size: [1040, 720], component: page(Monitor), path: "/system/monitor" },
   { id: "logs", title: tr("Journaux"), icon: FileText, colors: ["#a855f7", "#7c3aed"], admin: true, size: [1040, 680], component: page(Logs), path: "/system/logs" },
   { id: "terminal", title: tr("Terminal"), icon: SquareTerminal, colors: ["#334155", "#0f172a"], admin: true, size: [900, 560], component: page(TerminalPage), path: "/system/terminal" },
