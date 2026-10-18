@@ -52,6 +52,7 @@ jobs:
           V=$(gh release view --json tagName -q .tagName | sed 's/^v//')
           mkdir -p site
           cp -r dist/apt site/apt
+          cp -r docs/screenshots site/screenshots
           sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" packaging/pages/index.html > site/index.html
           touch site/.nojekyll
 

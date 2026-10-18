@@ -12,7 +12,7 @@ import { tr, srv } from "../../lib/i18n";
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
 const kinds = {
-  rsync: { label: tr("Copy"), sub: tr("Mirror files (rsync) to a disk, a volume or an SSH server"), icon: <FolderSync size={18} /> },
+  rsync: { label: tr("File copy"), sub: tr("Mirror files (rsync) to a disk, a volume or an SSH server"), icon: <FolderSync size={18} /> },
   restic: { label: tr("Versioned backup"), sub: tr("Encrypted and deduplicated (restic): local, SFTP, S3, B2, MinIO…"), icon: <Cloud size={18} /> },
   zfs: { label: tr("ZFS replication"), sub: tr("Snapshots sent to another pool, local or remote"), icon: <Layers size={18} /> },
 };
@@ -78,7 +78,7 @@ function VaultsCard({ sources }: { sources?: Sources }) {
   const del = useAction((id: string) => api.del(`/api/vaults/${id}`), { success: tr("Vault deleted (data is kept)") });
   return (
     <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Backup vaults")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true })}>{tr("New vault")}</Button>}>
-      <p className="mb-3 text-muted text-[12.5px]">{tr("Receive encrypted backups from other StrataOS NAS here (« Vault of another StrataOS NAS » type on the NAS to back up).")}</p>
+      <p className="mb-3 text-muted text-[12.5px]">{tr("Receive encrypted backups from other StrataOS NAS here (“Vault of another StrataOS NAS” type on the NAS to back up).")}</p>
       {!data?.length ? <div className="text-muted text-[13px]">{tr("No vaults.")}</div> : data.map((v) => (
         <div key={v.id} className="mb-3 rounded-xl border border-line p-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -122,7 +122,7 @@ function VaultsCard({ sources }: { sources?: Sources }) {
         )}
       </Modal>
       <Modal open={!!code} onClose={() => setCode(null)} title={tr("Pairing code")} footer={<Button onClick={() => setCode(null)}>{tr("Close")}</Button>}>
-        {code && <div className="space-y-3 text-[13px]"><p className="text-muted">{tr("Enter this code on the NAS to back up, in a backup of type « Vault of another StrataOS NAS ». It is valid for 15 minutes, one time only.")}</p><div className="flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code.code}</code><IconButton title={tr("Copy")} onClick={() => { navigator.clipboard?.writeText(code.code); toast(tr("Code copied")); }}><Copy size={15} /></IconButton></div></div>}
+        {code && <div className="space-y-3 text-[13px]"><p className="text-muted">{tr("Enter this code on the NAS to back up, in a backup of type “Vault of another StrataOS NAS”. It is valid for 15 minutes, one time only.")}</p><div className="flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code.code}</code><IconButton title={tr("Copy")} onClick={() => { navigator.clipboard?.writeText(code.code); toast(tr("Code copied")); }}><Copy size={15} /></IconButton></div></div>}
       </Modal>
     </Card>
   );

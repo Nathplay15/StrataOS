@@ -1,0 +1,41 @@
+name: Bug report
+description: Something doesn't work as expected.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: StrataOS version
+      description: Shown on the Updates page.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How was it installed?
+      options:
+        - Installer ISO (amd64)
+        - Installer ISO (arm64)
+        - Raspberry Pi image
+        - Package on an existing Debian 13
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      placeholder: "e.g. Raspberry Pi 4 (4 GB), 2 × USB HDD / Intel N100 mini PC, 4 × SATA HDD"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Output of `journalctl -u strata -n 200` on the NAS, or the error shown in the interface. Remove anything private."
+      render: text

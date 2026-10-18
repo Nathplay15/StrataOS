@@ -1,11 +1,13 @@
-import { locale, tr } from "./i18n";
+import { lang, locale, tr } from "./i18n";
+
+// French writes bytes as octets (o, Ko, Mo…).
+const units = lang === "fr" ? ["o", "Ko", "Mo", "Go", "To", "Po"] : ["B", "KB", "MB", "GB", "TB", "PB"];
 
 export function bytes(n: number | undefined, digits = 1): string {
   if (n === undefined || n === null || isNaN(n)) return "—";
-  if (n < 1024) return `${Math.round(n)} o`;
-  const units = ["Ko", "Mo", "Go", "To", "Po"];
+  if (n < 1024) return `${Math.round(n)} ${units[0]}`;
   let v = n;
-  let i = -1;
+  let i = 0;
   while (v >= 1024 && i < units.length - 1) {
     v /= 1024;
     i++;
@@ -24,9 +26,9 @@ export function duration(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d} j ${h} h`;
-  if (h > 0) return `${h} h ${m} min`;
-  return `${m} min`;
+  if (d > 0) return tr("{0} d {1} h", d, h);
+  if (h > 0) return tr("{0} h {1} min", h, m);
+  return tr("{0} min", m);
 }
 
 export function dateTime(v: string | number | undefined): string {

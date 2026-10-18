@@ -72,6 +72,8 @@ Details in [vm/README.md](../vm/README.md).
 | `vm/rpi-image-test.sh [image]` | Boots the Raspberry Pi image (`RPI_MODEL=3`: as an emulated Raspberry Pi 3 B) |
 | `vm/restore-lvm-test.sh` | Restore points on an LVM system |
 
+`vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
+
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
 
 ## Releases

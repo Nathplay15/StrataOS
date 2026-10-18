@@ -4,6 +4,8 @@
 
 > *Strata* = layers: disks → RAID and pools → volumes → shared folders → apps.
 
+![The StrataOS desktop with the Storage Manager open](docs/screenshots/desktop.png)
+
 - **Storage**: RAID (mdadm), Btrfs, ZFS and LVM, SSD cache, SMART monitoring, guided disk replacement.
 - **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP, share links, a web file manager and a photo timeline.
 - **Protection**: scheduled and locked snapshots, encrypted backups (restic, rsync, ZFS replication, backup vaults between NAS), cloud sync, ransomware detection, antivirus, address blocking.
@@ -11,6 +13,19 @@
 - **Everything else**: users and groups, Active Directory and LDAP, WireGuard VPN, high availability between two or more NAS, UPS support, power scheduling, alerts (email, Telegram, ntfy, webhooks), Prometheus metrics, and one-click updates with restore points.
 
 The interface is available in English, French, Spanish, German, Italian, Portuguese (Brazil), Dutch and Simplified Chinese. On a computer it looks like a desktop with windows; on a phone it switches to a mobile layout.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Overview: resources, network and disk activity](docs/screenshots/dashboard.png) | ![Shared folders with SMB, NFS and Time Machine](docs/screenshots/shares.png) |
+| **Overview** | **Shared folders** |
+| ![App Center with 34 ready-to-run apps](docs/screenshots/appcenter.png) | ![Encrypted, versioned backups](docs/screenshots/backup.png) |
+| **App Center** | **Backup** |
+
+On a phone, the interface switches to a mobile layout:
+
+<img src="docs/screenshots/mobile.png" alt="StrataOS on a phone" width="260">
 
 ## Requirements
 
@@ -31,6 +46,8 @@ ZFS likes memory (about 1 GB per TB of storage is a comfortable rule of thumb), 
 | **Raspberry Pi 4 / 400 / Compute Module 4** (4 GB or more recommended) | Supported: file sharing, backups, Docker apps. Use a USB SSD or a powered USB disk enclosure for your data. |
 | **Raspberry Pi 3 B / 3 B+** | Supported for basic file sharing and backups. With 1 GB of RAM and USB 2.0, it isn't suited to Docker apps, ZFS or virtual machines. |
 | Raspberry Pi 5 | Not supported yet (the Debian kernel doesn't support it). |
+
+Tested hardware, and how to check yours: [docs/HARDWARE.md](docs/HARDWARE.md).
 
 ## Download
 

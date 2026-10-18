@@ -680,5 +680,7 @@
  "Les notifications StrataOS fonctionnent.": "StrataOS 通知工作正常。",
  "lien de partage": "共享链接",
  "coffre de sauvegarde": "备份保险库",
- "manuel": "手动"
+ "manuel": "手动",
+ "{0} Ko": "{0} KB",
+ "{0} o": "{0} B"
 }

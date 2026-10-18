@@ -1,0 +1,44 @@
+name: Hardware report
+description: Tell others how StrataOS runs on your hardware (working or not).
+labels: [hardware]
+body:
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      placeholder: "e.g. Raspberry Pi 3 B+, HP ProDesk 600 G3, Odroid M1…"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: StrataOS version
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: textarea
+    id: specs
+    attributes:
+      label: Specs
+      description: Processor, memory, system disk, data disks (and how they're connected), network.
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works
+      description: Check what you tried and what worked.
+      options:
+        - label: Installation (ISO or image) and first boot
+        - label: Web interface and setup wizard
+        - label: Disks detected, SMART readable
+        - label: Volume / RAID creation
+        - label: SMB shares (Windows / macOS)
+        - label: Docker apps
+        - label: Update from the interface
+        - label: Restart and power off
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Problems, workarounds, performance (e.g. SMB copy speed), power draw…

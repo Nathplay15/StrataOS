@@ -211,6 +211,8 @@ export const serverTexts: [string, string][] = [
   ["{0} To", "{0} TB"],
   ["{0} Go", "{0} GB"],
   ["{0} Mo", "{0} MB"],
+  ["{0} Ko", "{0} KB"],
+  ["{0} o", "{0} B"],
   // API error messages (written in English by the server)
   ["La prise en charge d'Active Directory n'est pas installée", "Active Directory support is not installed"],
   ["ClamAV n'est pas installé", "ClamAV is not installed"],

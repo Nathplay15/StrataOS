@@ -40,7 +40,7 @@ export default function Links({ me }: { me: Me }) {
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-1">
-                        {l.download && <Badge><Download size={11} className="mr-1 inline" />{tr("Download")}</Badge>}
+                        {l.download && <Badge><Download size={11} className="mr-1 inline" />{tr("Downloads")}</Badge>}
                         {l.upload && <Badge tone="accent"><Inbox size={11} className="mr-1 inline" />{tr("Drop box")}</Badge>}
                         {l.password && <Badge tone="warn"><Lock size={11} className="mr-1 inline" />{tr("Password")}</Badge>}
                       </div>

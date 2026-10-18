@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an improvement or a new feature.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: How do other NAS systems handle it?
+      description: Synology, TrueNAS, Unraid, OpenMediaVault… if you know.

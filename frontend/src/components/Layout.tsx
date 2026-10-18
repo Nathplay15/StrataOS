@@ -32,7 +32,7 @@ const nav: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: tr("Share"),
+    title: tr("Sharing"),
     items: [
       { to: "/files", label: tr("Files"), icon: <FolderOpen size={17} /> },
       { to: "/photos", label: tr("Photos"), icon: <Images size={17} /> },

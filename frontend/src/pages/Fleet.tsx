@@ -78,7 +78,7 @@ export default function Fleet() {
           {data?.map((r) => <NASCard key={r.id} r={r} onRemove={r.id === "local" ? undefined : async () => { if (await confirm({ title: tr("Remove {0} from the console?", r.name), text: tr("This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access)."), danger: true })) remove.mutate(r.id); }} />)}
         </div>
       )}
-      {data && data.length === 1 && <div className="mt-4"><Card><Empty icon={<Network />} title={tr("Add your other NAS")} text={tr("On the other NAS, open Multi-NAS Console and display an authorization code, then click « Add a NAS » here.")} /></Card></div>}
+      {data && data.length === 1 && <div className="mt-4"><Card><Empty icon={<Network />} title={tr("Add your other NAS")} text={tr("On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.")} /></Card></div>}
 
       <Card className="mt-6" title={<span className="flex items-center gap-2"><KeyRound size={16} />{tr("Authorized access to this NAS")}</span>} actions={<Button size="sm" loading={mkCode.isPending} onClick={() => mkCode.mutate()}>{tr("Authorization code")}</Button>}>
         <p className="mb-3 text-muted text-[12.5px]">{tr("The NAS listed here can see the status of this NAS (read-only) in their console.")}</p>

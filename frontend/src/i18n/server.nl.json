@@ -680,5 +680,7 @@
  "Les notifications StrataOS fonctionnent.": "StrataOS-meldingen werken.",
  "lien de partage": "deellink",
  "coffre de sauvegarde": "back-upkluis",
- "manuel": "handmatig"
+ "manuel": "handmatig",
+ "{0} Ko": "{0} KB",
+ "{0} o": "{0} B"
 }

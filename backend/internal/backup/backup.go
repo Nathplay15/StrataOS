@@ -664,7 +664,7 @@ func short(id string) string {
 }
 
 func humanBytes(n int64) string {
-	units := []string{"o", "Ko", "Mo", "Go", "To"}
+	units := []string{"B", "KB", "MB", "GB", "TB"}
 	f := float64(n)
 	i := 0
 	for f >= 1024 && i < len(units)-1 {

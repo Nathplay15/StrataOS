@@ -14,7 +14,7 @@ export function VersionsModal({ path, name, onClose }: { path: string; name: str
   const { data, isLoading, error } = useQuery({ queryKey: ["versions", path], queryFn: () => api.get<{ versions: Version[]; writable: boolean }>(`/api/files/versions${q({ path })}`) });
   const restore = useAction((v: { snapshot: string; replace: boolean }) => api.post<{ path: string }>("/api/files/versions/restore", { path, ...v }), { success: (r) => tr("Version restored: {0}", r.path.split("/").pop() ?? "") });
   return (
-    <Modal open onClose={onClose} wide title={<span className="flex items-center gap-2"><History size={17} />{tr("Versions of « {0} »", name)}</span>} footer={<Button onClick={onClose}>{tr("Close")}</Button>}>
+    <Modal open onClose={onClose} wide title={<span className="flex items-center gap-2"><History size={17} />{tr("Versions of “{0}”", name)}</span>} footer={<Button onClick={onClose}>{tr("Close")}</Button>}>
       <ErrorBox error={error || restore.error} />
       {isLoading ? <Spinner /> : !data?.versions.length ? (
         <Empty icon={<History />} title={tr("No previous versions")} text={tr("Versions come from volume snapshots (Btrfs or ZFS): schedule snapshots in Scheduled Tasks.")} />

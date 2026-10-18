@@ -52,6 +52,7 @@ jobs:
           npm ci --no-audit --no-fund
           npx tsc -b
           node scripts/i18n-extract.cjs --check
+          node scripts/i18n-lint.cjs --check
           node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json --check
 
       - name: Shell scripts

@@ -680,5 +680,7 @@
  "Les notifications StrataOS fonctionnent.": "Le notifiche di StrataOS funzionano.",
  "lien de partage": "link di condivisione",
  "coffre de sauvegarde": "cassaforte di backup",
- "manuel": "manuale"
+ "manuel": "manuale",
+ "{0} Ko": "{0} KB",
+ "{0} o": "{0} B"
 }

@@ -25,6 +25,12 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
+  img { max-width: 100%; height: auto; display: block; }
+  .hero { border-radius: 12px; border: 1px solid var(--line); margin: 8px 0 12px; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .shots figure { margin: 0; }
+  .shots img { border-radius: 8px; border: 1px solid var(--line); }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 4px; }
   footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
 </style>
 </head>
@@ -32,6 +38,14 @@
 <main>
   <h1>StrataOS</h1>
   <p class="lead">A NAS operating system built on Debian 13. Disks, RAID, shares, backups, Docker apps and more, all managed from a web interface. Latest version: <b>@VERSION@</b>.</p>
+
+  <img class="hero" src="screenshots/desktop.png" alt="The StrataOS desktop with the Storage Manager open">
+  <div class="shots">
+    <figure><a href="screenshots/dashboard.png"><img src="screenshots/dashboard.png" alt="Overview"></a><figcaption>Overview</figcaption></figure>
+    <figure><a href="screenshots/shares.png"><img src="screenshots/shares.png" alt="Shared folders"></a><figcaption>Shared folders</figcaption></figure>
+    <figure><a href="screenshots/appcenter.png"><img src="screenshots/appcenter.png" alt="App Center"></a><figcaption>App Center</figcaption></figure>
+    <figure><a href="screenshots/backup.png"><img src="screenshots/backup.png" alt="Backup"></a><figcaption>Backup</figcaption></figure>
+  </div>
 
   <h2>Download</h2>
   <div class="grid">
