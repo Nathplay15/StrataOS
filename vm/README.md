@@ -86,3 +86,7 @@ Pour lancer une deuxième VM à la main : `VM_STATE=$PWD/vm/state-b VM_HOSTNAME=
 ## Tester les points de restauration sur LVM
 
 `./vm/restore-lvm-test.sh` construit une ISO de test qui installe le système sur LVM (`PARTITIONING=lvm`), l'installe dans une VM, crée un point, change le nom d'hôte et un réglage de StrataOS, revient au point et vérifie que seul le système est revenu en arrière. Les points de restauration d'un système sans snapshots (ext4…) sont vérifiés par la suite principale (section « Restore points »).
+
+## Image Raspberry Pi
+
+`make rpi-image` construit `dist/strataos-<version>-raspberrypi.img.xz` sans droits root : la construction (`packaging/rpi/build-rpi-image.sh`) tourne dans une VM arm64 émulée. En CI, le script tourne directement sur la machine (qemu-user-static). `./vm/rpi-image-test.sh` démarre l'image dans une machine arm64 émulée (le micrologiciel du Raspberry Pi ne s'émule pas : le noyau et l'initramfs de l'image sont lancés directement) et vérifie le premier démarrage : partition agrandie, StrataOS qui répond, assistant.

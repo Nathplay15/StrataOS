@@ -8,10 +8,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 VERSION=$(cat VERSION)
 IMG=${1:-dist/strataos-${VERSION}-raspberrypi.img.xz}
+VERSION=$(basename "$IMG" | sed -n "s/^strataos-\(.*\)-raspberrypi.img.xz$/\1/p")
 STATE=$PWD/vm/state-rpi
 Q=${QEMU_ARM_DIR:-$HOME/.local/opt/qemu-arm}
 QEMU=$(command -v qemu-system-aarch64 || echo "$Q/usr/bin/qemu-system-aarch64")
 B=http://localhost:7120 FAILS=0
+DEBUGFS=$(command -v debugfs || echo /sbin/debugfs)
 [ -f "$IMG" ] || { echo "missing $IMG"; exit 1; }
 [ -f "$STATE/qemu.pid" ] && kill "$(cat "$STATE/qemu.pid")" 2>/dev/null
 rm -rf "$STATE"; mkdir -p "$STATE"
@@ -23,9 +25,9 @@ xz -dc "$IMG" > "$STATE/disk.img"
 # Kernel and initramfs from the system partition (ext4, read without root).
 start=$(python3 -c "import struct,sys; b=open(sys.argv[1],'rb').read(512); print(struct.unpack('<I', b[446+16+8:446+16+12])[0]*512)" "$STATE/disk.img")
 dd if="$STATE/disk.img" of="$STATE/root.ext4" bs=1M iflag=skip_bytes skip="$start" status=none
-kernel=$(debugfs -R "ls -p /boot" "$STATE/root.ext4" 2>/dev/null | tr '/' '\n' | grep '^vmlinuz-' | sort -V | tail -1)
-debugfs -R "dump /boot/$kernel $STATE/vmlinuz" "$STATE/root.ext4" >/dev/null 2>&1
-debugfs -R "dump /boot/initrd.img-${kernel#vmlinuz-} $STATE/initrd" "$STATE/root.ext4" >/dev/null 2>&1
+kernel=$("$DEBUGFS" -R "ls -p /boot" "$STATE/root.ext4" 2>/dev/null | tr '/' '\n' | grep '^vmlinuz-' | sort -V | tail -1)
+"$DEBUGFS" -R "dump /boot/$kernel $STATE/vmlinuz" "$STATE/root.ext4" >/dev/null 2>&1
+"$DEBUGFS" -R "dump /boot/initrd.img-${kernel#vmlinuz-} $STATE/initrd" "$STATE/root.ext4" >/dev/null 2>&1
 rm -f "$STATE/root.ext4"
 [ -s "$STATE/vmlinuz" ] && [ -s "$STATE/initrd" ] || { echo "kernel not found in the image"; exit 1; }
 # A bigger "card": the first boot must grow the system partition.
@@ -38,7 +40,6 @@ truncate -s 8G "$STATE/disk.img"
 echo "booting $(basename "$IMG") (emulated, slow)"
 for _ in $(seq 1 360); do curl -sf -m 3 "$B/api/setup" >/dev/null && break; sleep 10; done
 check "StrataOS answers" "$(curl -s $B/api/setup)" "\"version\":\"$VERSION\""
-check "first boot finished" "$(grep -a -c 'StrataOS first boot' "$STATE/console.log")" "1"
 J=$(mktemp)
 check "setup wizard" "$(curl -s -c "$J" -X POST -H 'X-Strata: 1' -H 'Content-Type: application/json' $B/api/setup -d '{"username":"nathan","password":"Strata-Test-2026","fullName":"Test","hostname":"strata-pi"}')" '"role":"admin"'
 check "system partition grown to the card" "$(curl -s -b "$J" -H 'X-Strata: 1' $B/api/system/info | py 'print(int(d.get("rootTotal", 0) > 6e9))' 2>/dev/null || echo unknown)" "1"

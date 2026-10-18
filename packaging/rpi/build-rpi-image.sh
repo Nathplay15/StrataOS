@@ -74,21 +74,20 @@ LABEL=RASPIFIRM /boot/firmware vfat rw,noatime                 0 2
 EOF
 echo strataos > "$ROOT/etc/hostname"
 printf '127.0.0.1\tlocalhost\n127.0.1.1\tstrataos\n::1\tlocalhost ip6-localhost ip6-loopback\n' > "$ROOT/etc/hosts"
+
+echo ">> Kernel, Raspberry Pi firmware, network, SSH"
+in_root() { chroot "$ROOT" env DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8 "$@"; }
+in_root apt-get update -qq
+in_root apt-get install -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold --no-install-recommends \
+  linux-image-arm64 raspi-firmware firmware-brcm80211 wireless-regdb \
+  systemd-resolved systemd-timesyncd openssh-server sudo curl cloud-guest-utils \
+  e2fsprogs dosfstools fdisk iproute2 iputils-ping less nano console-setup keyboard-configuration
 # Kernel command line written by raspi-firmware on every kernel update.
-mkdir -p "$ROOT/etc/default"
 cat > "$ROOT/etc/default/raspi-firmware" <<'EOF'
 ROOTPART=LABEL=RASPIROOT
 CONSOLES="ttyS1,115200 tty0"
 KERNEL_ARCH="arm64"
 EOF
-
-echo ">> Kernel, Raspberry Pi firmware, network, SSH"
-in_root() { chroot "$ROOT" env DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8 "$@"; }
-in_root apt-get update -qq
-in_root apt-get install -y -qq --no-install-recommends \
-  linux-image-arm64 raspi-firmware firmware-brcm80211 wireless-regdb \
-  systemd-resolved systemd-timesyncd openssh-server sudo curl cloud-guest-utils \
-  e2fsprogs dosfstools fdisk iproute2 iputils-ping less nano console-setup keyboard-configuration >/dev/null
 # Copy the kernel, initramfs and device trees to the firmware partition (the
 # hook may have run before raspi-firmware was configured).
 for k in "$ROOT"/boot/vmlinuz-*; do in_root /etc/kernel/postinst.d/z50-raspi-firmware "${k##*/vmlinuz-}"; done
@@ -110,7 +109,7 @@ in_root systemctl enable systemd-networkd systemd-resolved systemd-timesyncd ssh
 
 echo ">> StrataOS"
 cp "$DEB" "$ROOT/tmp/strataos.deb"
-in_root apt-get install -y -qq /tmp/strataos.deb >/dev/null
+in_root apt-get install -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold /tmp/strataos.deb >/dev/null
 rm -f "$ROOT/tmp/strataos.deb"
 
 echo ">> First boot: grow the system partition, new SSH keys and machine id"

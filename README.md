@@ -11,6 +11,7 @@ Le **[guide d'utilisation](docs/GUIDE.md)** explique pas à pas l'installation e
 Chaque version est publiée dans les [Releases GitHub](https://github.com/Nathplay15/StrataOS/releases) pour **amd64** (PC, serveurs) et **arm64** (cartes ARM 64 bits, serveurs ARM) :
 
 - **ISO d'installation** (`strataos-<version>-<arch>.iso`) : à écrire sur une clé USB ; l'installation de Debian 13 et de StrataOS est automatique (amd64 : BIOS et UEFI ; arm64 : UEFI).
+- **Image Raspberry Pi** (`strataos-<version>-raspberrypi.img.xz`) pour Raspberry Pi 4, 400 et Compute Module 4 : à écrire sur une carte microSD ou un SSD USB (Raspberry Pi Imager, balenaEtcher) ; au premier démarrage la partition système s'agrandit, puis l'interface web demande le compte administrateur. Le Raspberry Pi 5 n'est pas encore pris en charge par le noyau Debian.
 - **Paquet Debian** (`strataos_<version>_<arch>.deb`) pour un Debian 13 existant : `sudo apt install ./strataos_<version>_<arch>.deb`.
 - `SHA256SUMS` pour vérifier les fichiers.
 
