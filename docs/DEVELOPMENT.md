@@ -79,7 +79,7 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and runs `.github/workflows/pages.yml`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
 
 ### One-time setup of the update repository
 

@@ -1,13 +1,12 @@
 # Publishes the StrataOS website on GitHub Pages: a download page and the
 # signed APT repository (/apt) that installed systems update from. It runs
-# after each release (called by release.yml) and can be started by hand.
+# after each release (started by release.yml) and can be started by hand.
 # Needs: Settings → Pages → Source "GitHub Actions", and the repository
 # secret APT_SIGNING_KEY (the armored private archive key, see
 # docs/DEVELOPMENT.md).
 name: Pages
 
 on:
-  workflow_call:
   workflow_dispatch:
 
 permissions:
