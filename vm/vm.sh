@@ -18,12 +18,16 @@
 # VM_HOSTNAME (strata-vm), VM_HTTPS_PORT (7443), VM_SMB_PORT (4450), SEED_PORT (8719),
 # VM_LAN (multicast address:port, e.g. 230.0.0.1:12345): an extra NIC on a LAN shared
 # by every VM started with the same value (high availability tests).
+# VM_ARCH (amd64 | arm64): arm64 runs an emulated ARM machine (much slower, no KVM)
+# with virtio disks only, to check the arm64 package.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGES="$DIR/images"
 STATE="${VM_STATE:-$DIR/state}"
-BASE="$IMAGES/debian-13-generic-amd64.qcow2"
+VM_ARCH=${VM_ARCH:-amd64}
+BASE="$IMAGES/debian-13-generic-$VM_ARCH.qcow2"
+QEMU_ARM_DIR=${QEMU_ARM_DIR:-$HOME/.local/opt/qemu-arm}
 BASE_URL="https://cloud.debian.org/images/cloud/trixie/latest"
 SYSDISK="$STATE/system.qcow2"
 KEY="$STATE/id_ed25519"
@@ -51,11 +55,27 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 
 need() {
-  for b in qemu-system-x86_64 qemu-img ssh scp python3; do
+  for b in qemu-img ssh scp python3; do
     command -v "$b" >/dev/null || die "$b is required"
   done
+  if [ "$VM_ARCH" = arm64 ]; then
+    [ -x "$(qemu_bin)" ] || die "qemu-system-aarch64 is required (package qemu-system-arm, or extracted in $QEMU_ARM_DIR)"
+    [ -f "$(aavmf)" ] || die "the AAVMF firmware is required (package qemu-efi-aarch64)"
+    return
+  fi
+  command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 is required"
   [ -r /dev/kvm ] && [ -w /dev/kvm ] || die "/dev/kvm is not accessible (add yourself to the kvm group)"
 }
+
+qemu_bin() {
+  if [ "$VM_ARCH" = arm64 ]; then
+    command -v qemu-system-aarch64 2>/dev/null || echo "$QEMU_ARM_DIR/usr/bin/qemu-system-aarch64"
+  else
+    echo qemu-system-x86_64
+  fi
+}
+
+aavmf() { for f in /usr/share/AAVMF/AAVMF_CODE.no-secboot.fd "$QEMU_ARM_DIR/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd"; do [ -f "$f" ] && { echo "$f"; return; }; done; }
 
 fetch_base() {
   mkdir -p "$IMAGES"
@@ -64,7 +84,7 @@ fetch_base() {
     curl -fSL -o "$BASE.part" "$BASE_URL/$(basename "$BASE")"
     curl -fsSL -o "$IMAGES/SHA512SUMS" "$BASE_URL/SHA512SUMS"
     mv "$BASE.part" "$BASE"
-    (cd "$IMAGES" && sha512sum -c --ignore-missing SHA512SUMS) || { rm -f "$BASE"; die "checksum mismatch"; }
+    (cd "$IMAGES" && grep " $(basename "$BASE")\$" SHA512SUMS | sha512sum -c -) || { rm -f "$BASE"; die "checksum mismatch"; }
   fi
 }
 
@@ -110,11 +130,16 @@ EOF
 qemu_start() {
   local extra_fwd=""
   for p in $VM_EXTRA_PORTS; do extra_fwd+=",hostfwd=tcp:127.0.0.1:$p-:$p"; done
+  local machine=(-machine q35,accel=kvm -cpu host -device ahci,id=ahci0)
+  if [ "$VM_ARCH" = arm64 ]; then
+    [ -f "$STATE/efivars.fd" ] || { cp "$(dirname "$(aavmf)")/AAVMF_VARS.fd" "$STATE/efivars.fd"; chmod u+w "$STATE/efivars.fd"; }
+    machine=(-machine virt -cpu max
+      -drive "if=pflash,format=raw,readonly=on,file=$(aavmf)" -drive "if=pflash,format=raw,file=$STATE/efivars.fd")
+  fi
   local args=(
-    -name "$VM_HOSTNAME" -machine q35,accel=kvm -cpu host -smp "$VM_CPUS" -m "$VM_MEM"
+    -name "$VM_HOSTNAME" "${machine[@]}" -smp "$VM_CPUS" -m "$VM_MEM"
     -drive "file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap"
     -device virtio-blk-pci,drive=sys,bootindex=0
-    -device ahci,id=ahci0
     -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$VM_SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$VM_WEB_PORT-:7070,hostfwd=tcp:127.0.0.1:$VM_HTTPS_PORT-:7443,hostfwd=tcp:127.0.0.1:$VM_SMB_PORT-:445$extra_fwd"
     -device virtio-net-pci,netdev=n0
     $(for k in $(seq 2 "${VM_NICS:-1}"); do echo "-netdev user,id=n$k -device virtio-net-pci,netdev=n$k"; done)
@@ -132,7 +157,9 @@ qemu_start() {
     i=$n
     case " ${VM_DETACH:-} " in *" $i "*) echo "  (data disk $i unplugged)"; continue ;; esac
     args+=(-drive "file=$STATE/data$i.qcow2,if=none,id=data$i,format=qcow2")
-    if [ "$i" -le 6 ]; then
+    if [ "$VM_ARCH" = arm64 ]; then
+      args+=(-device "virtio-blk-pci,drive=data$i,serial=STRATA-VD-$i")
+    elif [ "$i" -le 6 ]; then
       args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200")
     elif [ "$i" -eq 9 ]; then
       # Disk 9: an SSD (non-rotational), for the SSD cache tests.
@@ -142,7 +169,7 @@ qemu_start() {
       args+=(-device "virtio-blk-pci,drive=data$i,serial=STRATA-VD-$i")
     fi
   done
-  qemu-system-x86_64 "${args[@]}"
+  "$(qemu_bin)" "${args[@]}"
 }
 
 wait_ssh() {
@@ -173,7 +200,7 @@ cmd_create() {
   trap 'kill "${SEED_PID:-}" 2>/dev/null || true' EXIT
   log "First boot"
   qemu_start
-  wait_ssh 600
+  if [ "$VM_ARCH" = arm64 ]; then wait_ssh 2400; else wait_ssh 600; fi
   log "Waiting for cloud-init to finish"
   ssh "${SSH_OPTS[@]}" debian@127.0.0.1 "sudo cloud-init status --wait >/dev/null; test -f /var/lib/strata-vm-ready" || die "cloud-init failed"
   kill "$SEED_PID" 2>/dev/null || true
@@ -185,7 +212,7 @@ cmd_start() {
   running && { log "already running"; return; }
   [ -f "$SYSDISK" ] || die "no VM, run: vm.sh create"
   qemu_start
-  wait_ssh 180
+  if [ "$VM_ARCH" = arm64 ]; then wait_ssh 1800; else wait_ssh 180; fi
   log "VM started — SSH: vm.sh ssh — web UI: http://localhost:$VM_WEB_PORT"
 }
 

@@ -4,6 +4,16 @@
 
 > *Strata* = les couches : disques → RAID / pools → volumes → partages → applications.
 
+## Téléchargement
+
+Chaque version est publiée dans les [Releases GitHub](https://github.com/Nathplay15/StrataOS/releases) pour **amd64** (PC, serveurs) et **arm64** (cartes ARM 64 bits, serveurs ARM) :
+
+- **ISO d'installation** (`strataos-<version>-<arch>.iso`) : à écrire sur une clé USB ; l'installation de Debian 13 et de StrataOS est automatique (amd64 : BIOS et UEFI ; arm64 : UEFI).
+- **Paquet Debian** (`strataos_<version>_<arch>.deb`) pour un Debian 13 existant : `sudo apt install ./strataos_<version>_<arch>.deb`.
+- `SHA256SUMS` pour vérifier les fichiers.
+
+Une release est construite par GitHub Actions (`.github/workflows/release.yml`) quand une étiquette `v<version>` correspondant au fichier `VERSION` est poussée, avec ses notes dans `packaging/release-notes/<version>.md`.
+
 ## Interface
 
 Disponible en français, anglais, espagnol, allemand, italien, portugais (Brésil), néerlandais et chinois simplifié (choix dans le menu utilisateur, sur l'écran de connexion ou dans l'assistant ; par défaut, la langue du navigateur). Chaque langue est chargée à la demande. Les textes sont écrits en français dans le code, entourés de `tr("…")` ; `frontend/src/i18n/<langue>.json` contiennent leur traduction (l'anglais sert de repli) (`node frontend/scripts/i18n-extract.cjs` liste les textes et signale ceux qui manquent) ; les textes envoyés par le serveur (tâches, historique, alertes) sont traduits à l'affichage par les motifs de `frontend/src/i18n/server.ts`.

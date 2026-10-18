@@ -166,6 +166,14 @@ export const serverTexts: [string, string][] = [
   ["Vous ne pouvez pas écrire dans ce dossier", "you cannot write to this folder"],
   ["Photo introuvable : {0}", "photo not found: {0}"],
   ["Album introuvable", "album not found"],
+  // Encryption, address blocking, vaults, console, SSD cache
+  ["Cache SSD pour {0}", "SSD cache for {0}"],
+  ["Retrait du cache SSD de {0}", "Removing the SSD cache of {0}"],
+  ["Adresse {0} bloquée pendant {1} : trop d'échecs de connexion ({2})", "Address {0} blocked for {1}: too many failed sign-ins ({2})"],
+  ["Dossiers chiffrés à déverrouiller : {0}", "Encrypted folders to unlock: {0}"],
+  ["Dossiers chiffrés verrouillés", "Encrypted folders locked"],
+  ["Le NAS {0} peut maintenant envoyer ses sauvegardes dans le coffre", "The NAS {0} can now send its backups to the vault"],
+  ["Le NAS {0} peut maintenant superviser ce NAS", "The NAS {0} can now monitor this NAS"],
   // Monthly report
   ["Rapport mensuel de {0}", "Monthly report of {0}"],
   ["Stockage", "Storage"],

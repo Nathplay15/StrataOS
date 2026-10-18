@@ -15,8 +15,8 @@ echo ">> Updating package lists"
 apt-get update
 
 echo ">> Installing kernel headers and ZFS (the module build can take several minutes)"
-# linux-headers-amd64 follows kernel upgrades, so DKMS rebuilds ZFS for every new kernel.
-pkgs="linux-headers-amd64 dpkg-dev"
+# linux-headers-<arch> follows kernel upgrades, so DKMS rebuilds ZFS for every new kernel.
+pkgs="linux-headers-$(dpkg --print-architecture) dpkg-dev"
 for k in /lib/modules/*; do
   v=$(basename "$k")
   apt-cache show "linux-headers-$v" >/dev/null 2>&1 && pkgs="$pkgs linux-headers-$v"

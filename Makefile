@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend backend build deb repo iso dev clean test vm-test ha-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend backend build deb repo iso dev clean test vm-test ha-test arm64-test upgrade-test vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -23,7 +23,7 @@ deb: build
 
 # Installer ISO (Debian 13 netinst + automated StrataOS installation), built with Docker.
 iso: deb
-	./packaging/iso/build-iso.sh
+	ARCH=$(ARCH) ./packaging/iso/build-iso.sh
 
 # Signed APT repository in dist/apt (serve it, and build with REPO_URL=<its URL>).
 repo:
@@ -52,6 +52,15 @@ vm-test: deb
 
 ha-test: deb
 	./vm/ha-test.sh
+
+# Upgrade from the previous version (latest git tag, or OLD_REF=<ref>) with data.
+upgrade-test: deb
+	./vm/upgrade-test.sh
+
+# arm64 package in an emulated ARM VM (slow: about an hour).
+arm64-test:
+	$(MAKE) deb ARCH=arm64
+	./vm/arm64-test.sh
 
 clean:
 	rm -rf build dist backend/web/dist/assets
