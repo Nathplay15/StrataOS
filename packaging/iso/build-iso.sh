@@ -25,12 +25,14 @@ cp packaging/iso/install.sh "$DEB" "$STAGE/strata/"
 # Random root password, never stored: only its hash goes in the preseed.
 ROOT_HASH=$(head -c 32 /dev/urandom | base64 | openssl passwd -6 -stdin)
 sed "s|@ROOT_HASH@|$ROOT_HASH|" packaging/iso/preseed.cfg > "$STAGE/strata/preseed.cfg"
+[ "$ARCH" = arm64 ] && sed -i -e 's|^d-i debian-installer/locale string .*|d-i debian-installer/locale string en_US.UTF-8|' \
+  -e 's|^d-i debian-installer/language string .*|d-i debian-installer/language string en|' "$STAGE/strata/preseed.cfg"
 # arm64 machines often install on a serial console, where only English can be
-# shown (language=fr would be refused and asked); the system still gets the
-# French locale and keymap.
-LANG_ARG=language=fr
-[ "$ARCH" = arm64 ] && LANG_ARG=language=en
-BOOT="auto=true priority=critical preseed/file=/cdrom/strata/preseed.cfg $LANG_ARG country=FR locale=fr_FR.UTF-8 keymap=fr"
+# shown: a French language or locale would be refused and asked, stopping the
+# automatic installation (the web interface has its own language anyway).
+LANG_ARGS="language=fr country=FR locale=fr_FR.UTF-8"
+[ "$ARCH" = arm64 ] && LANG_ARGS="language=en country=FR locale=en_US.UTF-8"
+BOOT="auto=true priority=critical preseed/file=/cdrom/strata/preseed.cfg $LANG_ARGS keymap=fr"
 echo "$BOOT" > "$STAGE/bootargs"
 
 docker run --rm -v "$PWD:/w" -v "$STAGE:/stage" -w /w -e VERSION="$VERSION" -e SRC="$SRC" -e OUT="$OUT" -e ARCH="$ARCH" -e KDIR="$KDIR" \
