@@ -59,6 +59,14 @@ func main() {
 	if os.Geteuid() != 0 {
 		slog.Warn("strata is not running as root: storage, users and shares management will fail")
 	}
+	// During an ISO installation the post-install step runs in the installer's
+	// chroot, where LVM cannot always create volumes: try again at each start
+	// (it does nothing once done, or when the system has no snapshots).
+	if os.Geteuid() == 0 {
+		if err := system.SeparateStrataData(*dataDir); err != nil {
+			slog.Warn("settings outside restore points", "err", err)
+		}
+	}
 	st, err := store.Open(*dataDir)
 	if err != nil {
 		slog.Error("open state", "err", err)

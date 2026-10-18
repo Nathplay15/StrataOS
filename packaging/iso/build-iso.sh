@@ -25,6 +25,13 @@ cp packaging/iso/install.sh "$DEB" "$STAGE/strata/"
 # Random root password, never stored: only its hash goes in the preseed.
 ROOT_HASH=$(head -c 32 /dev/urandom | base64 | openssl passwd -6 -stdin)
 sed "s|@ROOT_HASH@|$ROOT_HASH|" packaging/iso/preseed.cfg > "$STAGE/strata/preseed.cfg"
+# Test images only: PARTITIONING=lvm installs the system on LVM (ext4), with
+# free space left in the volume group, like a "guided LVM" Debian install.
+if [ "${PARTITIONING:-}" = lvm ]; then
+  sed -i -e 's|^d-i partman-auto/method string .*|d-i partman-auto/method string lvm|' \
+    -e 's|^d-i partman/default_filesystem string .*|d-i partman/default_filesystem string ext4\nd-i partman-auto-lvm/guided_size string 60%|' "$STAGE/strata/preseed.cfg"
+  OUT=dist/strataos-${VERSION}-${ARCH}-lvm-test.iso
+fi
 [ "$ARCH" = arm64 ] && sed -i -e 's|^d-i debian-installer/locale string .*|d-i debian-installer/locale string en_US.UTF-8|' \
   -e 's|^d-i debian-installer/language string .*|d-i debian-installer/language string en|' "$STAGE/strata/preseed.cfg"
 # arm64 machines often install on a serial console, where only English can be

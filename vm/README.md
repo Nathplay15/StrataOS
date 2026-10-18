@@ -82,3 +82,7 @@ Pour lancer une deuxième VM à la main : `VM_STATE=$PWD/vm/state-b VM_HOSTNAME=
 ## Tester le paquet arm64
 
 `make arm64-test` construit le paquet arm64 et l'installe dans une VM ARM émulée (`VM_ARCH=arm64`, sans KVM : environ une heure ; ports 7090 et 2242) : assistant, volume Btrfs, partage SMB, envoi de fichier, dossier chiffré, blocage d'adresses, métriques. Il faut `qemu-system-aarch64` et le micrologiciel AAVMF (paquets `qemu-system-arm` et `qemu-efi-aarch64`, installés ou extraits dans `~/.local/opt/qemu-arm`).
+
+## Tester les points de restauration sur LVM
+
+`./vm/restore-lvm-test.sh` construit une ISO de test qui installe le système sur LVM (`PARTITIONING=lvm`), l'installe dans une VM, crée un point, change le nom d'hôte et un réglage de StrataOS, revient au point et vérifie que seul le système est revenu en arrière. Les points de restauration d'un système sans snapshots (ext4…) sont vérifiés par la suite principale (section « Restore points »).

@@ -5,7 +5,7 @@ Maintainer: StrataOS <dev@strataos.local>
 Section: admin
 Priority: optional
 Homepage: https://github.com/strataos/strataos
-Depends: mdadm, lvm2, btrfs-progs, xfsprogs, e2fsprogs, smartmontools, samba, nfs-kernel-server, acl, parted, gdisk, util-linux, udev, procps, ca-certificates, rsync, openssh-client, quota, hdparm, ethtool, gocryptfs, nftables
+Depends: mdadm, lvm2, btrfs-progs, xfsprogs, e2fsprogs, smartmontools, samba, nfs-kernel-server, acl, parted, gdisk, util-linux, udev, procps, ca-certificates, rsync, openssh-client, quota, hdparm, ethtool, gocryptfs, nftables, dpkg-repack
 Recommends: docker.io | docker-ce, docker-compose | docker-compose-plugin, avahi-daemon, wsdd2, restic, openssh-server, nut-client, nut-server, rclone
 Suggests: zfsutils-linux
 Installed-Size: @SIZE@

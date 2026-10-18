@@ -80,7 +80,7 @@ export default function Updates() {
   );
 }
 
-type Points = { supported: boolean; reason: string; root: { fsType: string; subvol: string }; points: { name: string; created: string; label: string }[] };
+type Points = { supported: boolean; reason: string; mode?: string; root: { fsType: string; subvol: string }; points: { name: string; created: string; label: string; info?: string; invalid?: boolean }[] };
 
 function RestorePoints() {
   const { confirm } = useUI();
@@ -93,16 +93,17 @@ function RestorePoints() {
   return (
     <Card title={<span className="flex items-center gap-2"><History size={16} className="text-accent" />{tr("Points de restauration du système")}</span>} actions={data.supported && <Button size="sm" icon={<Plus size={14} />} loading={create.isPending} onClick={() => create.mutate()}>{tr("Créer maintenant")}</Button>}>
       {!data.supported ? (
-        <Notice>{tr("Indisponible sur ce NAS : le système est installé sur {0}. Les points de restauration demandent un système Btrfs, comme l'installe l'ISO StrataOS.", data.root.fsType || "?")}</Notice>
+        <Notice>{tr("Indisponible sur ce NAS : {0}", data.reason)}</Notice>
       ) : (
         <div className="space-y-3">
-          <div className="text-muted text-[13px]">{tr("Un point est créé automatiquement avant chaque mise à jour (les 6 derniers sont gardés). Revenir à un point restaure le système et ses programmes, puis redémarre ; vos données et les réglages de StrataOS ne changent pas.")}</div>
+          <div className="text-muted text-[13px]">{tr("Un point est créé automatiquement avant chaque mise à jour. Revenir à un point restaure le système et ses programmes, puis redémarre ; vos données et les réglages de StrataOS ne changent pas.")}</div>
+          <div className="text-muted text-[12px]">{data.mode === "btrfs" ? tr("Snapshots Btrfs du système (les 6 derniers sont gardés).") : data.mode === "lvm" ? tr("Snapshots LVM du volume système (les 3 derniers sont gardés ; un snapshot plein devient inutilisable).") : tr("Système sans snapshots : les versions des paquets qui vont changer, et de StrataOS, sont conservées avant chaque mise à jour (les 3 derniers points sont gardés).")}</div>
           {data.points.length === 0 ? <div className="text-muted text-[13px]">{tr("Aucun point de restauration pour le moment.")}</div> : (
             <div className="divide-y divide-line rounded-xl border border-line">
               {data.points.map((p) => (
                 <div key={p.name} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-[13px]">
-                  <div className="flex-1"><b>{dateTime(p.created)}</b> <span className="text-muted">· {label(p.label)}</span></div>
-                  <Button size="sm" icon={<Undo2 size={14} />} onClick={async () => { if (await confirm({ title: tr("Revenir à ce point ?"), text: tr("Le système revient à son état du {0} et le NAS redémarre. Les programmes installés ou mis à jour depuis seront annulés ; les comptes créés depuis devront voir leur mot de passe redéfini.", dateTime(p.created)), confirm: tr("Restaurer et redémarrer"), danger: true })) rollback.mutate(p.name); }}>{tr("Restaurer")}</Button>
+                  <div className="flex-1"><b>{dateTime(p.created)}</b> <span className="text-muted">· {label(p.label)}{p.info ? ` · ${p.info}` : ""}</span>{p.invalid && <span className="ml-2 text-danger">{tr("inutilisable (snapshot plein)")}</span>}</div>
+                  <Button size="sm" icon={<Undo2 size={14} />} disabled={p.invalid} onClick={async () => { if (await confirm({ title: tr("Revenir à ce point ?"), text: tr("Le système revient à son état du {0} et le NAS redémarre. Les programmes installés ou mis à jour depuis seront annulés ; les comptes créés depuis devront voir leur mot de passe redéfini.", dateTime(p.created)), confirm: tr("Restaurer et redémarrer"), danger: true })) rollback.mutate(p.name); }}>{tr("Restaurer")}</Button>
                   <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={() => del.mutate(p.name)} />
                 </div>
               ))}

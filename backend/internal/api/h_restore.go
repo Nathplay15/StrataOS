@@ -25,7 +25,8 @@ func (s *Server) restorePointBeforeUpdate(j *jobs.Job) {
 func (s *Server) restoreRoutes() {
 	s.admin("GET /api/system/restore-points", func(r *http.Request) (any, error) {
 		ok, why := system.RestoreSupported()
-		out := map[string]any{"supported": ok, "reason": why, "root": system.Root(), "points": []system.RestorePoint{}}
+		mode, _ := system.Mode()
+		out := map[string]any{"supported": ok, "reason": why, "root": system.Root(), "mode": mode, "points": []system.RestorePoint{}}
 		if ok {
 			list, err := system.ListRestorePoints()
 			if err != nil {
@@ -58,10 +59,12 @@ func (s *Server) restoreRoutes() {
 		}
 		s.audit(r, "system", "Rolled the system back to "+name+", rebooting")
 		s.store.Log("warning", "system", userOf(r), "Retour au point de restauration "+name+" : redémarrage")
-		go func() {
-			time.Sleep(2 * time.Second)
-			_, _ = sys.Run("systemctl", "reboot")
-		}()
+		if !system.RebootsItself() {
+			go func() {
+				time.Sleep(2 * time.Second)
+				_, _ = sys.Run("systemctl", "reboot")
+			}()
+		}
 		return nil, nil
 	})
 }

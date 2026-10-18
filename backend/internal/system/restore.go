@@ -65,8 +65,8 @@ func Root() RootFS {
 	return RootFS{}
 }
 
-// RestoreSupported tells whether restore points can be made, and why not.
-func RestoreSupported() (bool, string) {
+// btrfsSupported tells whether restore points can be made, and why not.
+func btrfsSupported() (bool, string) {
 	r := Root()
 	if r.FSType != "btrfs" {
 		return false, fmt.Sprintf("the system is installed on %s: restore points need a Btrfs system (install from the StrataOS ISO)", r.FSType)
@@ -96,13 +96,15 @@ type RestorePoint struct {
 	Name    string    `json:"name"`
 	Created time.Time `json:"created"`
 	Label   string    `json:"label"`
+	Info    string    `json:"info,omitempty"`
+	Invalid bool      `json:"invalid,omitempty"`
 }
 
 var pointRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_([a-z0-9-]{1,40})$`)
 
-// ListRestorePoints returns the restore points, newest first.
-func ListRestorePoints() ([]RestorePoint, error) {
-	if ok, why := RestoreSupported(); !ok {
+// btrfsList returns the restore points, newest first.
+func btrfsList() ([]RestorePoint, error) {
+	if ok, why := btrfsSupported(); !ok {
 		return nil, fmt.Errorf("%s", why)
 	}
 	top, done, err := mountTop()
@@ -124,10 +126,10 @@ func ListRestorePoints() ([]RestorePoint, error) {
 	return out, nil
 }
 
-// CreateRestorePoint snapshots the system (label: before-update, manual…)
+// btrfsCreate snapshots the system (label: before-update, manual…)
 // and keeps the most recent ones.
-func CreateRestorePoint(label string) (string, error) {
-	if ok, why := RestoreSupported(); !ok {
+func btrfsCreate(label string) (string, error) {
+	if ok, why := btrfsSupported(); !ok {
 		return "", fmt.Errorf("%s", why)
 	}
 	if !regexp.MustCompile(`^[a-z0-9-]{1,40}$`).MatchString(label) {
@@ -160,8 +162,8 @@ func CreateRestorePoint(label string) (string, error) {
 	return name, nil
 }
 
-// DeleteRestorePoint removes one restore point.
-func DeleteRestorePoint(name string) error {
+// btrfsDelete removes one restore point.
+func btrfsDelete(name string) error {
 	if !pointRe.MatchString(name) {
 		return fmt.Errorf("invalid restore point")
 	}
@@ -174,11 +176,11 @@ func DeleteRestorePoint(name string) error {
 	return err
 }
 
-// RollbackTo replaces the system subvolume by a writable copy of the restore
+// btrfsRollback replaces the system subvolume by a writable copy of the restore
 // point; the current system is kept as <subvol>.before-<date>. A reboot is
 // needed (the running system is unchanged until then).
-func RollbackTo(name string) error {
-	if ok, why := RestoreSupported(); !ok {
+func btrfsRollback(name string) error {
+	if ok, why := btrfsSupported(); !ok {
 		return fmt.Errorf("%s", why)
 	}
 	if !pointRe.MatchString(name) {
@@ -205,10 +207,10 @@ func RollbackTo(name string) error {
 	return nil
 }
 
-// SeparateStrataData moves /var/lib/strata to the top-level subvolume @strata
+// btrfsSeparate moves /var/lib/strata to the top-level subvolume @strata
 // (once, on Btrfs systems) so restore points leave the settings alone.
-func SeparateStrataData(dataDir string) error {
-	if ok, _ := RestoreSupported(); !ok {
+func btrfsSeparate(dataDir string) error {
+	if ok, _ := btrfsSupported(); !ok {
 		return nil
 	}
 	if out, _ := sys.Run("findmnt", "-n", "-o", "SOURCE", dataDir); strings.Contains(out, "@strata") {

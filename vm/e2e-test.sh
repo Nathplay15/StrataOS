@@ -661,6 +661,26 @@ for id in $(c GET /api/schedules | py 'print(" ".join(s["id"] for s in d if s["t
   check "task: $name" "$(job "$(c POST /api/schedules/$id/run)")" "success"
 done
 
+section "Restore points (system without snapshots)"
+check "package restore points on an ext4 system" "$(c GET /api/system/restore-points | py 'print(d["supported"], d["mode"])')" "True packages"
+check "restore point created" "$(c POST /api/system/restore-points | py 'print(d["name"])')" "_manuel"
+RP=$(c GET /api/system/restore-points | py 'print(d["points"][0]["name"])')
+check "StrataOS kept in the point" "$(c GET /api/system/restore-points | py 'print(d["points"][0]["info"])')" "paquet(s)"
+OLDV=$(curl -s $B/api/setup | py 'print(d["version"])')
+# A "newer" StrataOS: the same package with a higher version.
+rm -rf "$TMP/deb" && dpkg-deb -R dist/strataos_${OLDV}_amd64.deb "$TMP/deb" && sed -i "s/^Version: .*/Version: ${OLDV}+test1/" "$TMP/deb/DEBIAN/control" && dpkg-deb -b --root-owner-group "$TMP/deb" "$TMP/strataos-test.deb" >/dev/null
+./vm/vm.sh deploy "$TMP/strataos-test.deb" >/dev/null 2>&1
+wait_api
+check "newer version installed" "$(vm "dpkg-query -W -f '\${Version}' strataos")" "${OLDV}+test1"
+c POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
+check "rollback started" "$(c POST /api/system/restore-points/$RP/rollback)" '"ok":true'
+sleep 20
+for _ in $(seq 1 60); do vm true && break; sleep 3; done
+wait_api
+check "previous version back after the reboot" "$(vm "dpkg-query -W -f '\${Version}' strataos")" "$OLDV"
+c POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
+check "settings kept by the rollback" "$(c GET /api/shares | py 'print(any(s["name"]=="Photos" for s in d))')" "True"
+
 section "Reboot"
 vm "sudo systemctl reboot"; sleep 8
 for _ in $(seq 1 60); do vm true && break; sleep 3; done
