@@ -124,7 +124,7 @@ func (s *Server) shareRoutes() {
 		if req.QuotaGB < 0 || req.QuotaGB > 1e6 {
 			return nil, badRequest("invalid quota")
 		}
-		req.QuotaFull, req.Used = false, 0
+		req.QuotaFull, req.Used, req.Frozen = false, 0, false
 		if err := validPerms(req.Permissions); err != nil {
 			return nil, err
 		}
@@ -198,7 +198,7 @@ func (s *Server) shareRoutes() {
 			}
 			req.CreatedAt = existing.CreatedAt
 			// Measured by StrataOS, not by the form.
-			req.Used, req.UsedAt = existing.Used, existing.UsedAt
+			req.Used, req.UsedAt, req.Frozen = existing.Used, existing.UsedAt, existing.Frozen
 			req.QuotaFull = existing.QuotaFull && req.QuotaBlock && req.QuotaGB > 0 && float64(existing.Used) >= req.QuotaGB*1e9
 			*existing = req
 			return nil

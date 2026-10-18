@@ -59,6 +59,9 @@ type Share struct {
 	CreatedAt  time.Time `json:"createdAt"`
 	// Encrypted: the files live encrypted in CipherDir (gocryptfs) and appear
 	// at Path only while unlocked; Locked is filled in when listed.
+	// Frozen: read-only on every protocol after a trap file was touched
+	// (ransomware protection), until an administrator releases it.
+	Frozen    bool   `json:"frozen,omitempty"`
 	Encrypted bool   `json:"encrypted,omitempty"`
 	CipherDir string `json:"cipherDir,omitempty"`
 	Locked    bool   `json:"locked,omitempty"`
@@ -73,8 +76,11 @@ func (s *Share) DataPath() string {
 	return s.Path
 }
 
-// Writable reports whether a permission allows writing, a full share being read-only.
-func (s *Share) Writable(perm string) bool { return perm == "rw" && !s.QuotaFull }
+// ReadOnly: over its quota, or frozen by the ransomware protection.
+func (s *Share) ReadOnly() bool { return s.QuotaFull || s.Frozen }
+
+// Writable reports whether a permission allows writing, a full or frozen share being read-only.
+func (s *Share) Writable(perm string) bool { return perm == "rw" && !s.ReadOnly() }
 
 type Volume struct {
 	ID         string    `json:"id"`
@@ -381,6 +387,10 @@ type Ransomware struct {
 	Threshold int      `json:"threshold"` // renames + deletions per user per minute
 	Block     bool     `json:"block"`     // block the account and close its sessions
 	Blocked   []string `json:"blocked"`   // accounts blocked by the protection
+	// Traps puts decoy files in the shares: touching one freezes the share.
+	Traps bool `json:"traps,omitempty"`
+	// NFSPaused: NFS exports suspended after mass changes through NFS.
+	NFSPaused bool `json:"nfsPaused,omitempty"`
 }
 
 // FileServices are the optional file access protocols.

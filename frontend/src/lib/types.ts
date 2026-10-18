@@ -204,6 +204,7 @@ export interface Share {
   createdAt?: string;
   encrypted?: boolean;
   locked?: boolean;
+  frozen?: boolean;
 }
 
 export interface Sample {

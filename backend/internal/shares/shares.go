@@ -131,7 +131,7 @@ func Prepare(sh *store.Share) error {
 	specs := []string{"u::rwx", "g::" + groupBits, "o::" + other, "d:u::rwx", "d:g::" + groupBits, "d:o::" + other}
 	for who, perm := range sh.Permissions {
 		bits := "---"
-		if perm == "rw" && sh.QuotaFull {
+		if perm == "rw" && sh.ReadOnly() {
 			perm = "ro"
 		}
 		switch perm {
@@ -169,7 +169,7 @@ func Prepare(sh *store.Share) error {
 func smbList(sh *store.Share, perm string) []string {
 	var out []string
 	for who, p := range sh.Permissions {
-		if p == "rw" && sh.QuotaFull {
+		if p == "rw" && sh.ReadOnly() {
 			p = "ro" // full share: read-only for everyone
 		}
 		if p == perm {
@@ -327,7 +327,7 @@ func Apply(st *store.State) error {
 		rw, ro := smbList(sh, "rw"), smbList(sh, "ro")
 		valid := append(append([]string{}, rw...), ro...)
 		if sh.Guest {
-			b.WriteString("   guest ok = yes\n   read only = " + yesno(sh.QuotaFull) + "\n")
+			b.WriteString("   guest ok = yes\n   read only = " + yesno(sh.ReadOnly()) + "\n")
 		} else {
 			b.WriteString("   guest ok = no\n")
 			if len(valid) == 0 {
@@ -403,7 +403,7 @@ func Apply(st *store.State) error {
 	var n strings.Builder
 	n.WriteString("# Managed by StrataOS - manual changes will be overwritten.\n")
 	for _, sh := range st.Shares {
-		if !sh.NFS || sh.Encrypted {
+		if !sh.NFS || sh.Encrypted || st.Ransom.NFSPaused {
 			continue // encrypted shares: SMB, WebDAV, SFTP only
 		}
 		if err := ValidateNFS(sh.NFSClients, sh.NFSOptions); err != nil {
@@ -425,7 +425,7 @@ func Apply(st *store.State) error {
 		if opts == "" {
 			opts = "rw,sync,no_subtree_check,root_squash"
 		}
-		if sh.QuotaFull {
+		if sh.ReadOnly() {
 			opts = strings.Replace(","+opts+",", ",rw,", ",ro,", 1)
 			opts = strings.Trim(opts, ",")
 		}

@@ -12,12 +12,18 @@ walk(path.join(__dirname, "../src"));
 const out = {};
 for (const k of [...keys].sort()) out[k] = en[k] ?? "";
 const missing = Object.values(out).filter((v) => !v).length;
-fs.writeFileSync(process.argv[2] || "/dev/stdout", JSON.stringify(out, null, 1));
+const check = process.argv.includes("--check");
+const outFile = process.argv.slice(2).find((a) => !a.startsWith("--"));
+if (!check) fs.writeFileSync(outFile || "/dev/stdout", JSON.stringify(out, null, 1));
 console.error(`${keys.size} keys, ${missing} untranslated (en)`);
+let failed = missing > 0;
 for (const f of fs.readdirSync(path.dirname(enPath))) {
   const m = f.match(/^([a-z]{2})\.json$/);
   if (!m || m[1] === "en") continue;
   const d = JSON.parse(fs.readFileSync(path.join(path.dirname(enPath), f), "utf8"));
   const miss = [...keys].filter((k) => !d[k]).length;
   if (miss) console.error(`${m[1]}: ${miss} untranslated (English is shown instead)`);
+  failed = failed || miss > 0;
 }
+// --check (CI): fail when a text is not translated in every language.
+if (check && failed) process.exit(1);

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -177,6 +179,7 @@ func (s *Server) ransomLoop() {
 			if !ok {
 				continue
 			}
+			rememberSMB(user, ip, share)
 			s.ransomObserve(user, ip, share, target)
 		}
 		cancel()
@@ -187,6 +190,10 @@ func (s *Server) ransomLoop() {
 }
 
 func (s *Server) ransomAlert(user, ip, share, reason string) {
+	if user == nfsPseudoUser {
+		s.pauseNFS(reason)
+		return
+	}
 	var block bool
 	s.store.Read(func(st *store.State) { block = st.Ransom.Block })
 	msg := fmt.Sprintf("Rançongiciel suspecté : le compte %s (%s) sur le partage %s : %s", user, ip, share, reason)
@@ -237,7 +244,18 @@ func (s *Server) ransomRoutes() {
 		if c.Blocked == nil {
 			c.Blocked = []string{}
 		}
-		return c, nil
+		frozen := []string{}
+		s.store.Read(func(st *store.State) {
+			for _, sh := range st.Shares {
+				if sh.Frozen {
+					frozen = append(frozen, sh.Name)
+				}
+			}
+		})
+		return struct {
+			store.Ransomware
+			Frozen []string `json:"frozen"`
+		}{c, frozen}, nil
 	})
 	s.admin("PUT /api/ransomware", func(r *http.Request) (any, error) {
 		var req store.Ransomware
@@ -251,7 +269,7 @@ func (s *Server) ransomRoutes() {
 			return nil, badRequest("invalid threshold")
 		}
 		err := s.store.Update(func(st *store.State) error {
-			req.Blocked = st.Ransom.Blocked
+			req.Blocked, req.NFSPaused = st.Ransom.Blocked, st.Ransom.NFSPaused
 			st.Ransom = req
 			return nil
 		})
@@ -267,10 +285,55 @@ func (s *Server) ransomRoutes() {
 		case fanotifyWake <- struct{}{}:
 		default:
 		}
+		wakeTraps()
 		for i := 0; req.Enabled && (!ransomFollowing.Load() || !fanotifyReady.Load()) && i < 50; i++ {
 			time.Sleep(100 * time.Millisecond)
 		}
 		s.audit(r, "ransomware", fmt.Sprintf("Ransomware protection: enabled=%v threshold=%d block=%v", req.Enabled, req.Threshold, req.Block))
+		return nil, s.applyShares()
+	})
+	// Releases a share frozen by a trap file (its traps are put back).
+	s.admin("POST /api/ransomware/unfreeze", func(r *http.Request) (any, error) {
+		var req struct {
+			Share string `json:"share"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		var p string
+		s.store.Read(func(st *store.State) {
+			if sh := st.Share(req.Share); sh != nil && sh.Frozen {
+				p = sh.Path
+			}
+		})
+		if p == "" {
+			return nil, notFound("frozen share not found")
+		}
+		// First keep the touched traps aside for the investigation (while the
+		// share is still frozen, so that this does not count as an attack).
+		for _, n := range trapNames {
+			f := filepath.Join(p, n)
+			if b, err := os.ReadFile(f); err != nil || string(b) != trapContent {
+				_ = os.Rename(f, f+".modifie-"+time.Now().Format("20060102-150405"))
+			}
+		}
+		err := s.store.Update(func(st *store.State) error {
+			if sh := st.Share(req.Share); sh != nil {
+				sh.Frozen = false
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "ransomware", "Share released: "+req.Share)
+		wakeTraps()
+		return nil, s.applyShares()
+	})
+	s.admin("POST /api/ransomware/nfs-resume", func(r *http.Request) (any, error) {
+		_ = s.store.Update(func(st *store.State) error { st.Ransom.NFSPaused = false; return nil })
+		ransomW.reset(nfsPseudoUser)
+		s.audit(r, "ransomware", "NFS exports resumed")
 		return nil, s.applyShares()
 	})
 	s.admin("POST /api/ransomware/unblock", func(r *http.Request) (any, error) {

@@ -229,6 +229,7 @@ export default function Shares() {
                     {s.timeMachine && <Badge>{tr("Time Machine")}</Badge>}
                     {!s.browseable && <Badge>{tr("Masqué")}</Badge>}
                     {s.quotaFull && <Badge tone="danger">{tr("Quota atteint : lecture seule")}</Badge>}
+                    {s.frozen && <Badge tone="danger">{tr("Fichier piège touché : lecture seule")}</Badge>}
                   </div>
                   {!!s.quotaGb && (
                     <div className="mt-3">

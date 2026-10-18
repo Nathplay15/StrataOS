@@ -12,8 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // Change is a folder to copy again; Recursive when its whole tree is new
@@ -29,6 +32,7 @@ type Watcher struct {
 	mu      sync.Mutex
 	dirs    map[int]string // watch descriptor → folder
 	roots   []string
+	closed  atomic.Bool
 	Changes chan Change
 	// Full is set when the kernel limit of watches is reached: some folders
 	// are not followed and only the periodic replication covers them.
@@ -57,7 +61,8 @@ func skipWatch(name string) bool {
 // NewWatcher starts following roots and their sub-folders.
 func NewWatcher(roots []string) (*Watcher, error) {
 	raiseWatchLimit(524288)
-	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC)
+	// Non-blocking with poll: closing a descriptor does not wake a blocked read.
+	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC | syscall.IN_NONBLOCK)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +101,7 @@ func (w *Watcher) addTree(root string) {
 }
 
 // Close stops the watcher (Changes is closed).
-func (w *Watcher) Close() { _ = syscall.Close(w.fd) }
+func (w *Watcher) Close() { w.closed.Store(true) }
 
 func (w *Watcher) send(c Change) {
 	select {
@@ -107,13 +112,17 @@ func (w *Watcher) send(c Change) {
 
 func (w *Watcher) read() {
 	defer close(w.Changes)
+	defer syscall.Close(w.fd)
 	buf := make([]byte, 64*1024)
-	for {
+	for !w.closed.Load() {
+		if ready, _ := unix.Poll([]unix.PollFd{{Fd: int32(w.fd), Events: unix.POLLIN}}, 500); ready <= 0 {
+			continue
+		}
 		n, err := syscall.Read(w.fd, buf)
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINTR) {
+			continue
+		}
 		if err != nil || n <= 0 {
-			if errors.Is(err, syscall.EINTR) {
-				continue
-			}
 			return
 		}
 		for off := 0; off+syscall.SizeofInotifyEvent <= n; {

@@ -340,6 +340,31 @@ check "blocked account refused over WebDAV" "$(curl -s -o /dev/null -w '%{http_c
 c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/sftpatk /srv/strata/main/Photos/w*.crypt"
 c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
+# Trap files and NFS.
+c PUT /api/ransomware -d '{"enabled":true,"threshold":20,"block":true,"traps":true}' >/dev/null
+for _ in $(seq 1 30); do vm "sudo test -f '/srv/strata/main/Photos/!0000 - NE PAS MODIFIER (StrataOS).docx'" && break; sleep 1; done
+check "trap files placed" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER'")" "2"
+sleep 2
+vm "echo chiffre > /tmp/t.txt; smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt \"!0000 - NE PAS MODIFIER (StrataOS).docx\"' >/dev/null 2>&1"
+for _ in $(seq 1 15); do c GET /api/ransomware | grep -q '"frozen":\["Photos"' && break; sleep 1; done
+check "touching a trap freezes the share" "$(c GET /api/ransomware | py 'print(d["frozen"])')" "Photos"
+check "account behind the trap blocked" "$(c GET /api/ransomware | py 'print(d["blocked"])')" "$USER_NAME"
+c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
+check "frozen share read-only over SMB" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt x.txt' 2>&1")" "ACCESS_DENIED"
+check "frozen share read-only over NFS" "$(vm "sudo exportfs -v | grep -A1 /srv/strata/main/Photos | grep -o ',ro,'")" ",ro,"
+check "share released" "$(c POST /api/ransomware/unfreeze -d '{"share":"Photos"}')" '"ok":true'
+for _ in $(seq 1 30); do vm "sudo grep -q 'Fichier piège' '/srv/strata/main/Photos/!0000 - NE PAS MODIFIER (StrataOS).docx'" && break; sleep 1; done
+check "trap put back, modified one kept aside" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER'")" "3"
+check "writes back after release" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c 'put /tmp/t.txt x.txt' 2>&1")" "putting file"
+# NFS squashes root: the "attack" runs as a regular user of the client.
+vm "sudo mkdir -p /mnt/nfs && sudo mount -t nfs -o vers=4 10.0.2.15:/srv/strata/main/Photos /mnt/nfs && sudo -u $USER_NAME sh -c 'mkdir -p /mnt/nfs/nfsatk && for i in \$(seq 1 30); do echo x > /mnt/nfs/nfsatk/f\$i.txt; mv /mnt/nfs/nfsatk/f\$i.txt /mnt/nfs/nfsatk/f\$i.txt.locked; done'; sudo umount -l /mnt/nfs"
+for _ in $(seq 1 15); do c GET /api/ransomware | grep -q '"nfsPaused":true' && break; sleep 1; done
+check "mass renames over NFS suspend NFS" "$(c GET /api/ransomware | py 'print(d.get("nfsPaused"))') $(vm "sudo exportfs -v | grep -c /srv/strata")" "True 0"
+check "NFS resumed" "$(c POST /api/ransomware/nfs-resume; vm "sudo exportfs -v | grep -c /srv/strata/main/Photos")" "1"
+c PUT /api/ransomware -d '{"enabled":true,"threshold":20,"block":true,"traps":false}' >/dev/null
+for _ in $(seq 1 30); do [ "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER (StrataOS).docx$'")" = 0 ] && break; sleep 1; done
+check "traps removed when turned off" "$(vm "sudo ls /srv/strata/main/Photos | grep -c 'NE PAS MODIFIER (StrataOS).docx$'")" "0"
+vm "sudo rm -rf /srv/strata/main/Photos/nfsatk /srv/strata/main/Photos/x.txt /srv/strata/main/Photos/*modifie-*"
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
 

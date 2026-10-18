@@ -53,7 +53,7 @@ func sharePerm(sh *store.Share, me string, groups []string) string {
 	if perm == "" && sh.Guest {
 		perm = "rw"
 	}
-	if perm == "rw" && sh.QuotaFull {
+	if perm == "rw" && sh.ReadOnly() {
 		perm = "ro" // over its quota: read-only until space is freed
 	}
 	return perm

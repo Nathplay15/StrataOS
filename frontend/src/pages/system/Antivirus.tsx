@@ -62,7 +62,7 @@ export default function Antivirus() {
   );
 }
 
-type Ransom = { enabled: boolean; threshold: number; block: boolean; blocked: string[] };
+type Ransom = { enabled: boolean; threshold: number; block: boolean; blocked: string[]; traps?: boolean; nfsPaused?: boolean; frozen?: string[] };
 
 function RansomwareCard() {
   const { data } = useQuery({ queryKey: ["ransomware"], queryFn: () => api.get<Ransom>("/api/ransomware"), refetchInterval: 10000 });
@@ -70,8 +70,11 @@ function RansomwareCard() {
   useEffect(() => { if (data && !c) setC(data); }, [data, c]);
   const save = useAction(() => api.put("/api/ransomware", c), { success: tr("Protection anti-rançongiciel enregistrée") });
   const unblock = useAction((user: string) => api.post("/api/ransomware/unblock", { user }), { success: tr("Compte débloqué") });
+  const unfreeze = useAction((share: string) => api.post("/api/ransomware/unfreeze", { share }), { success: tr("Partage rétabli") });
+  const resumeNFS = useAction(() => api.post("/api/ransomware/nfs-resume"), { success: tr("Partages NFS rétablis") });
   if (!c || !data) return null;
-  const dirty = JSON.stringify({ ...c, blocked: [] }) !== JSON.stringify({ ...data, blocked: [] });
+  const clean = (x: Ransom) => JSON.stringify({ enabled: x.enabled, threshold: x.threshold, block: x.block, traps: !!x.traps });
+  const dirty = clean(c) !== clean(data);
   return (
     <Card title={<span className="flex items-center gap-2"><ShieldAlert size={16} className="text-accent" />{tr("Protection anti-rançongiciel")}</span>} actions={<Button size="sm" variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>{tr("Enregistrer")}</Button>}>
       <div className="space-y-4">
@@ -80,8 +83,22 @@ function RansomwareCard() {
           <>
             <Field label={tr("Seuil (fichiers renommés ou supprimés par minute et par compte)")} className="max-w-sm"><Input type="number" min={5} value={c.threshold} onChange={(e) => setC({ ...c, threshold: Math.max(5, +e.target.value) })} /></Field>
             <Switch checked={c.block} onChange={(v) => setC({ ...c, block: v })} label={tr("Bloquer le compte et couper ses connexions")} hint={tr("Recommandé : arrête le chiffrement en cours. Le compte reste utilisable dans l'interface web.")} />
+            <Switch checked={!!c.traps} onChange={(v) => setC({ ...c, traps: v })} label={tr("Fichiers pièges")} hint={tr("Deux fichiers « NE PAS MODIFIER » dans chaque partage : s'ils sont modifiés, renommés ou supprimés, le partage passe en lecture seule sur tous les protocoles, NFS compris. Les renommages en masse par NFS suspendent aussi les partages NFS.")} />
             <div className="text-muted text-[12.5px]">{tr("Pour récupérer les fichiers, programmez des snapshots verrouillés dans les tâches planifiées : même un rançongiciel avec un compte administrateur ne peut pas les supprimer.")}</div>
           </>
+        )}
+        {!!data.frozen?.length && (
+          <Notice tone="warn">
+            <div className="space-y-2">
+              <div>{tr("Partages en lecture seule après la modification d'un fichier piège :")}</div>
+              <div className="flex flex-wrap gap-2">{data.frozen.map((s) => <Button key={s} size="sm" icon={<Unlock size={14} />} loading={unfreeze.isPending} onClick={() => unfreeze.mutate(s)}>{tr("Rétablir {0}", s)}</Button>)}</div>
+            </div>
+          </Notice>
+        )}
+        {data.nfsPaused && (
+          <Notice tone="warn">
+            <div className="flex flex-wrap items-center gap-3"><span>{tr("Les partages NFS sont suspendus après des renommages en masse par NFS.")}</span><Button size="sm" icon={<Unlock size={14} />} loading={resumeNFS.isPending} onClick={() => resumeNFS.mutate()}>{tr("Rétablir NFS")}</Button></div>
+          </Notice>
         )}
         {data.blocked.length > 0 && (
           <Notice tone="warn">

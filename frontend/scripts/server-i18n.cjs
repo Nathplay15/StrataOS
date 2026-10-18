@@ -7,11 +7,19 @@ const js = ts.transpileModule(fs.readFileSync(path.join(dir, "server.ts"), "utf8
 const mod = { exports: {} };
 new Function("module", "exports", js)(mod, mod.exports);
 const out = { pairs: mod.exports.serverTexts };
+let failed = false;
 for (const f of fs.readdirSync(dir).sort()) {
   const m = f.match(/^server\.([a-z]{2})\.json$/);
   if (!m) continue;
   out[m[1]] = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
   const miss = out.pairs.filter(([fr]) => !out[m[1]][fr]).length;
   if (miss) console.error(`${m[1]}: ${miss} server texts untranslated (English is used instead)`);
+  failed = failed || miss > 0;
 }
-fs.writeFileSync(process.argv[2] || "/dev/stdout", JSON.stringify(out) + "\n");
+const target = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const text = JSON.stringify(out) + "\n";
+if (process.argv.includes("--check")) {
+  // CI: every text translated, and the backend copy up to date.
+  if (target && fs.readFileSync(target, "utf8") !== text) { console.error(`${target} is out of date: run make frontend`); failed = true; }
+  if (failed) process.exit(1);
+} else fs.writeFileSync(target || "/dev/stdout", text);

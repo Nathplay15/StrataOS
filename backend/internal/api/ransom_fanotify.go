@@ -24,6 +24,9 @@ import (
 )
 
 // fileServiceComm maps the processes of the file services to their protocol.
+// nfsPseudoUser stands for all NFS clients in the counts.
+const nfsPseudoUser = "nfs-clients"
+
 var fileServiceComm = map[string]string{"sshd-session": "SFTP", "sshd": "SFTP", "sftp-server": "SFTP", "vsftpd": "FTP"}
 
 // volumeMounts lists the file systems under the NAS storage.
@@ -64,7 +67,11 @@ func processOwner(pid int32) (user, proto string) {
 	if err != nil {
 		return "", ""
 	}
-	proto = fileServiceComm[strings.TrimSpace(string(comm))]
+	name := strings.TrimSpace(string(comm))
+	if name == "nfsd" {
+		return nfsPseudoUser, "NFS" // kernel threads: no account to blame
+	}
+	proto = fileServiceComm[name]
 	if proto == "" {
 		return "", ""
 	}
@@ -119,7 +126,8 @@ func (s *Server) ransomFileServicesLoop() {
 			}
 			continue
 		}
-		fd, err := unix.FanotifyInit(unix.FAN_CLASS_NOTIF|unix.FAN_CLOEXEC|unix.FAN_REPORT_DFID_NAME, unix.O_RDONLY|unix.O_LARGEFILE)
+		// Non-blocking with poll: closing a descriptor does not wake a blocked read.
+		fd, err := unix.FanotifyInit(unix.FAN_CLASS_NOTIF|unix.FAN_CLOEXEC|unix.FAN_NONBLOCK|unix.FAN_REPORT_DFID_NAME, unix.O_RDONLY|unix.O_LARGEFILE)
 		if err != nil {
 			time.Sleep(time.Minute)
 			continue
@@ -137,29 +145,27 @@ func (s *Server) ransomFileServicesLoop() {
 		}
 		fanotifyReady.Store(true)
 		// Stop when the protection is turned off or the volumes change.
-		done := make(chan struct{})
+		var stop atomic.Bool
 		go func() {
-			defer unix.Close(fd)
-			for {
-				select {
-				case <-done:
-					return
-				case <-time.After(15 * time.Second):
-				}
+			for !stop.Load() {
+				time.Sleep(15 * time.Second)
 				var on bool
 				s.store.Read(func(st *store.State) { on = st.Ransom.Enabled })
 				if !on || !slices.Equal(volumeMounts(), mounts) {
-					return
+					stop.Store(true)
 				}
 			}
 		}()
 		buf := make([]byte, 64*1024)
-		for {
+		for !stop.Load() {
+			if ready, _ := unix.Poll([]unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}, 1000); ready <= 0 {
+				continue
+			}
 			n, err := unix.Read(fd, buf)
+			if err == unix.EAGAIN || err == unix.EINTR {
+				continue
+			}
 			if err != nil || n <= 0 {
-				if err == unix.EINTR {
-					continue
-				}
 				break
 			}
 			for off := 0; off+unix.FAN_EVENT_METADATA_LEN <= n; {
@@ -179,7 +185,8 @@ func (s *Server) ransomFileServicesLoop() {
 				}
 			}
 		}
-		close(done)
+		stop.Store(true)
+		unix.Close(fd)
 		fanotifyReady.Store(false)
 		time.Sleep(2 * time.Second)
 	}
