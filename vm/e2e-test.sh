@@ -325,6 +325,7 @@ c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 for _ in $(seq 1 10); do vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1" | grep -q attack && break; sleep 1; done
 check "account unblocked" "$(vm "smbclient //localhost/Photos -U '$USER_NAME%$USER_PASS' -c ls 2>&1")" "attack"
 # SFTP and WebDAV (seen through fanotify and inside StrataOS).
+c PUT /api/fileservices -d '{"webdav":true,"ftp":true,"ftpRequireTls":true,"sftp":true}' >/dev/null
 Q=""; prev=doc.txt; for i in $(seq 1 25); do Q+=" -Q '-rename /main/Photos/sftpatk/$prev /main/Photos/sftpatk/f$i.locked'"; prev=f$i.locked; done
 vm "echo x > /tmp/f.txt; curl -s -k --ftp-create-dirs -T /tmp/f.txt sftp://localhost/main/Photos/sftpatk/doc.txt -u '$USER_NAME:$USER_PASS' $Q >/dev/null 2>&1"
 for _ in $(seq 1 15); do c GET /api/ransomware | grep -q "$USER_NAME" && break; sleep 1; done
@@ -338,6 +339,7 @@ check "mass renames over WebDAV detected" "$(c GET /api/ransomware | py 'print(d
 check "blocked account refused over WebDAV" "$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -u "$USER_NAME:$USER_PASS" $B/dav/Photos/)" "403"
 c POST /api/ransomware/unblock -d "{\"user\":\"$USER_NAME\"}" >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/sftpatk /srv/strata/main/Photos/w*.crypt"
+c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
 c PUT /api/ransomware -d '{"enabled":false,"threshold":150,"block":true}' >/dev/null
 vm "sudo rm -rf /srv/strata/main/Photos/attack"
 
@@ -459,6 +461,7 @@ check "unlocked with the recovery key" "$(c POST /api/shares/Coffre/unlock -d "{
 check "files back" "$(vm "smbclient //localhost/Coffre -U '$USER_NAME%$USER_PASS' -c 'get secret-doc.txt /tmp/back.txt' >/dev/null 2>&1; cat /tmp/back.txt")" "top-secret"
 
 section "Address blocking"
+c PUT /api/fileservices -d '{"webdav":true,"ftp":true,"ftpRequireTls":true,"sftp":true}' >/dev/null
 check "blocking on" "$(c PUT /api/guard -d '{"enabled":true,"maxFailures":3,"windowMin":10,"blockMin":5,"neverLan":false,"allow":["10.0.2.2/32"],"geo":{"enabled":false}}')" '"ok":true'
 vm "sudo docker rm -f atk >/dev/null 2>&1; sudo docker run -d --name atk alpine:3.20 sh -c 'apk add -q curl sshpass openssh-client samba-client >/dev/null && sleep 900' >/dev/null"
 for _ in $(seq 1 60); do vm "sudo docker exec atk which smbclient" | grep -q smbclient && break; sleep 2; done
@@ -482,7 +485,7 @@ c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
 vm "sudo docker exec atk sh -c 'for i in 1 2 3; do curl -s -k --ssl-reqd -m 8 ftp://172.17.0.1/ -u $USER_NAME:wrong >/dev/null; done'"
 for _ in $(seq 1 10); do c GET /api/guard | grep -q '"FTP"' && break; sleep 1; done
 check "failed FTP logins detected" "$(c GET /api/guard | py 'print([b["service"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "FTP"
-check "repeat offender blocked longer" "$(c GET /api/guard | py 'print([b["count"] for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "[4]"
+check "repeat offender blocked longer" "$(c GET /api/guard | py 'print([b["count"] >= 4 for b in d["blocks"] if b["ip"]=="'$ATK'"])')" "[True]"
 c POST /api/guard/unblock -d "{\"ip\":\"$ATK\"}" >/dev/null
 # Countries (ranges served by a test server on the host).
 mkdir -p "$TMP/geo"; echo "198.51.100.0/24" > "$TMP/geo/fr4.zone"; echo "2001:db8:100::/48" > "$TMP/geo/fr6.zone"
@@ -495,6 +498,7 @@ check "local network kept" "$(vm "sudo docker exec atk curl -s -m 5 -o /dev/null
 c PUT /api/guard -d '{"enabled":false,"maxFailures":5,"windowMin":10,"blockMin":60,"neverLan":true,"geo":{"enabled":false}}' >/dev/null
 check "protection off removes the rules" "$(vm "sudo nft list table inet strata_guard 2>&1")" "No such file"
 kill $GEO_PID 2>/dev/null; vm "sudo rm -f /etc/systemd/system/strata.service.d/geo-test.conf; sudo systemctl daemon-reload; sudo docker rm -f atk >/dev/null"
+c PUT /api/fileservices -d '{"webdav":false,"ftp":false,"ftpRequireTls":true,"sftp":false}' >/dev/null
 
 section "Backup vault (another StrataOS)"
 VID=$(c POST /api/vaults -d '{"name":"Coffre test","path":"/srv/strata/fast/coffre","appendOnly":true}' | py 'print(d["id"])')

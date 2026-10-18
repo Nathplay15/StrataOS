@@ -263,7 +263,11 @@ func (s *Server) ransomRoutes() {
 		case ransomWake <- struct{}{}:
 		default:
 		}
-		for i := 0; req.Enabled && !ransomFollowing.Load() && i < 30; i++ {
+		select {
+		case fanotifyWake <- struct{}{}:
+		default:
+		}
+		for i := 0; req.Enabled && (!ransomFollowing.Load() || !fanotifyReady.Load()) && i < 50; i++ {
 			time.Sleep(100 * time.Millisecond)
 		}
 		s.audit(r, "ransomware", fmt.Sprintf("Ransomware protection: enabled=%v threshold=%d block=%v", req.Enabled, req.Threshold, req.Block))

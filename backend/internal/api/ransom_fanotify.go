@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -100,6 +101,11 @@ func fanotifyName(info []byte) string {
 	return string(name)
 }
 
+var (
+	fanotifyWake  = make(chan struct{}, 1) // settings changed
+	fanotifyReady atomic.Bool              // the volumes are watched
+)
+
 // ransomFileServicesLoop follows SFTP/FTP changes while the protection is on.
 func (s *Server) ransomFileServicesLoop() {
 	for {
@@ -107,7 +113,10 @@ func (s *Server) ransomFileServicesLoop() {
 		s.store.Read(func(st *store.State) { on = st.Ransom.Enabled })
 		mounts := volumeMounts()
 		if !on || len(mounts) == 0 {
-			time.Sleep(10 * time.Second)
+			select {
+			case <-fanotifyWake:
+			case <-time.After(10 * time.Second):
+			}
 			continue
 		}
 		fd, err := unix.FanotifyInit(unix.FAN_CLASS_NOTIF|unix.FAN_CLOEXEC|unix.FAN_REPORT_DFID_NAME, unix.O_RDONLY|unix.O_LARGEFILE)
@@ -126,6 +135,7 @@ func (s *Server) ransomFileServicesLoop() {
 			time.Sleep(time.Minute)
 			continue
 		}
+		fanotifyReady.Store(true)
 		// Stop when the protection is turned off or the volumes change.
 		done := make(chan struct{})
 		go func() {
@@ -170,6 +180,7 @@ func (s *Server) ransomFileServicesLoop() {
 			}
 		}
 		close(done)
+		fanotifyReady.Store(false)
 		time.Sleep(2 * time.Second)
 	}
 }
