@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -31,6 +31,7 @@ const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
 const GuardPage = lazy(() => import("../pages/system/Guard"));
 const FleetPage = lazy(() => import("../pages/Fleet"));
+const HelpPage = lazy(() => import("../pages/Help"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("../pages/system/CloudSync"));
 const FileServicesPage = lazy(() => import("../pages/system/FileServices"));
@@ -113,6 +114,7 @@ export const APPS: AppDef[] = [
     ],
   },
   { id: "vms", title: tr("Machines virtuelles"), icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
+  { id: "help", title: tr("Aide"), icon: LifeBuoy, colors: ["#a3e635", "#16a34a"], admin: false, size: [900, 760], component: page(HelpPage), path: "/help" },
   { id: "fleet", title: tr("Console multi-NAS"), icon: Network, colors: ["#38bdf8", "#6366f1"], admin: true, size: [1120, 760], component: page(FleetPage), path: "/fleet" },
   { id: "monitor", title: tr("Moniteur de ressources"), icon: Activity, colors: ["#22c55e", "#059669"], admin: true, size: [1040, 720], component: page(Monitor), path: "/system/monitor" },
   { id: "logs", title: tr("Journaux"), icon: FileText, colors: ["#a855f7", "#7c3aed"], admin: true, size: [1040, 680], component: page(Logs), path: "/system/logs" },

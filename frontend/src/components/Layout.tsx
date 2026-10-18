@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan } from "lucide-react";
+  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
@@ -18,7 +18,7 @@ import { LangSwitch } from "./LangSwitch";
 type NavItem = { to: string; label: string; icon: ReactNode; admin?: boolean };
 
 const nav: { title: string; items: NavItem[] }[] = [
-  { title: "", items: [{ to: "/", label: tr("Tableau de bord"), icon: <LayoutDashboard size={17} /> }] },
+  { title: "", items: [{ to: "/", label: tr("Tableau de bord"), icon: <LayoutDashboard size={17} /> }, { to: "/help", label: tr("Aide"), icon: <LifeBuoy size={17} /> }] },
   {
     title: tr("Stockage"),
     items: [

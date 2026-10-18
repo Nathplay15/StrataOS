@@ -4,6 +4,8 @@
 
 > *Strata* = les couches : disques → RAID / pools → volumes → partages → applications.
 
+Le **[guide d'utilisation](docs/GUIDE.md)** explique pas à pas l'installation et l'usage courant ; il est aussi disponible dans l'interface (menu **Aide**).
+
 ## Téléchargement
 
 Chaque version est publiée dans les [Releases GitHub](https://github.com/Nathplay15/StrataOS/releases) pour **amd64** (PC, serveurs) et **arm64** (cartes ARM 64 bits, serveurs ARM) :

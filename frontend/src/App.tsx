@@ -47,6 +47,7 @@ const LinksPage = lazy(() => import("./pages/Links"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const GuardPage = lazy(() => import("./pages/system/Guard"));
 const FleetPage = lazy(() => import("./pages/Fleet"));
+const HelpPage = lazy(() => import("./pages/Help"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
 
 const qc = new QueryClient({
@@ -122,6 +123,7 @@ function Root() {
             <Route path="system/energy" element={A(<EnergyPage />)} />
             <Route path="system/guard" element={A(<GuardPage />)} />
             <Route path="fleet" element={A(<FleetPage />)} />
+            <Route path="help" element={<HelpPage />} />
             <Route path="vms" element={A(<VirtualMachines />)} />
             <Route path="cloudsync" element={A(<CloudSync />)} />
             <Route path="system/fileservices" element={A(<FileServicesPage />)} />
