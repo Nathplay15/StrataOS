@@ -1,5 +1,5 @@
 #!/bin/bash
-# High availability test with two VMs on a shared LAN (QEMU multicast, no root):
+# High availability test with two (then three) VMs on a shared LAN (QEMU multicast, no root):
 #   A = vm/state (primary, 10.99.0.1), B = vm/state-b (secondary, 10.99.0.2),
 #   shared address 10.99.0.100. Pairing, replication, failover (A killed),
 #   changes on B, A restarted (stays passive), hand back to A.
@@ -100,6 +100,52 @@ check "end of maintenance" "$(api 7070 POST /api/ha/maintenance/end)" '"ok":true
 for _ in $(seq 1 60); do [ "$(state 7070) $(state 7080)" = "MASTER BACKUP" ] && break; sleep 2; done
 check "address back to the primary automatically" "$(state 7070) $(state 7080)" "MASTER BACKUP"
 check "changes made during maintenance kept" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 3"
+section "Third NAS with another volume name"
+C() { VM_STATE=$PWD/vm/state-c VM_HOSTNAME=strata-c VM_WEB_PORT=7110 VM_SSH_PORT=2262 VM_HTTPS_PORT=7483 VM_SMB_PORT=4490 SEED_PORT=8759 VM_EXTRA_PORTS="" VM_DISKS=2 VM_MEM=2560 VM_LAN=$LAN ./vm/vm.sh "$@"; }
+C destroy >/dev/null 2>&1
+C create >/dev/null && C deploy "$DEB" >/dev/null || exit 1
+C ssh 'sudo ip link set enp0s5 up && sudo ip addr add 10.99.0.3/24 dev enp0s5'
+api 7110 POST /api/setup -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\",\"fullName\":\"Test\",\"hostname\":\"nas-7110\"}" >/dev/null
+DC=$(api 7110 GET /api/storage/disks | py 'print([x["path"] for x in d if x["usage"]=="free"][0])')
+check "volume with another name on the third NAS" "$(job 7110 "$(api 7110 POST /api/storage/volumes -d "{\"name\":\"disque2\",\"fsType\":\"btrfs\",\"devices\":[\"$DC\"],\"dataProfile\":\"single\"}")")" "success"
+check "HA components on the third NAS" "$(job 7110 "$(api 7110 POST /api/system/components/ha/install)")" "success"
+CODE=$(api 7110 POST /api/ha/prepare | py 'print(d["code"])')
+check "third NAS added with a volume mapping" "$(api 7070 POST /api/ha/pair -d "{\"peerHost\":\"10.99.0.3\",\"code\":\"$CODE\",\"pathMap\":{\"/srv/strata/volume1\":\"/srv/strata/disque2\"}}")" '"role":"primary"'
+for _ in $(seq 1 60); do [ "$(state 7110)" = BACKUP ] && break; sleep 2; done
+check "two secondaries, ready" "$(api 7070 GET /api/ha | py 'print([(x["host"], x["priority"], x["state"]) for x in d["secondaries"]])')" "('10.99.0.2', 100, 'BACKUP'), ('10.99.0.3', 90, 'BACKUP')"
+A ssh 'echo "version 4" | sudo tee /srv/strata/volume1/Documents/rapport.txt >/dev/null && sync'
+# Adding a secondary starts a full replication; continuous replication then follows the changes.
+for _ in $(seq 1 90); do [ "$(api 7070 GET /api/ha | py 'print([x["lastResult"] for x in d["secondaries"] if x["host"]=="10.99.0.3"][0])')" = OK ] && break; sleep 2; done
+check "replication to the third NAS" "$(api 7070 GET /api/ha | py 'print([x["lastResult"] for x in d["secondaries"] if x["host"]=="10.99.0.3"])')" "['OK']"
+for _ in $(seq 1 60); do [ "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt' 2>/dev/null)" = "version 4" ] && break; sleep 2; done
+check "data in the renamed volume" "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt')" "version 4"
+check "share path mapped on the third NAS" "$(api 7110 GET /api/shares | py 'print([s["path"] for s in d])')" "/srv/strata/disque2/Documents"
+check "accounts on the third NAS" "$(C ssh 'id -u alice')" "$(A ssh 'id -u alice')"
+# The first two go down: the third takes over.
+A ssh 'sync' >/dev/null; kill -9 "$(cat vm/state/qemu.pid)" "$(cat vm/state-b/qemu.pid)"
+for _ in $(seq 1 90); do [ "$(state 7110)" = MASTER ] && break; sleep 1; done
+check "third NAS takes over" "$(state 7110)" "MASTER"
+C ssh 'command -v smbclient >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq smbclient >/dev/null 2>&1'
+for _ in $(seq 1 20); do C ssh "echo 'version 5' > /tmp/v5; smbclient //10.99.0.100/Documents -U '$ADMIN_USER%$ADMIN_PASS' -c 'put /tmp/v5 rapport.txt' >/dev/null 2>&1" && break; sleep 2; done
+check "served from the renamed volume" "$(C ssh 'sudo cat /srv/strata/disque2/Documents/rapport.txt')" "version 5"
+# The primary comes back, then the third NAS hands back (reverse mapping).
+A start >/dev/null
+A ssh 'sudo ip link set enp0s5 up; sudo ip addr add 10.99.0.1/24 dev enp0s5; sudo systemctl restart keepalived'
+for _ in $(seq 1 60); do curl -sf http://localhost:7070/api/setup >/dev/null && break; sleep 2; done
+api 7070 POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
+sleep 8
+check "hand back from the third NAS" "$(job 7110 "$(api 7110 POST /api/ha/switchback)")" "success"
+for _ in $(seq 1 30); do [ "$(state 7070)" = MASTER ] && break; sleep 1; done
+check "primary active again" "$(state 7070)" "MASTER"
+check "changes copied back to the primary's volume" "$(A ssh 'sudo cat /srv/strata/volume1/Documents/rapport.txt')" "version 5"
+# The second NAS comes back too; the third is removed.
+B start >/dev/null
+B ssh 'sudo ip link set enp0s5 up; sudo ip addr add 10.99.0.2/24 dev enp0s5; sudo systemctl restart keepalived'
+for _ in $(seq 1 60); do [ "$(state 7080 2>/dev/null)" = BACKUP ] && break; api 7080 POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null 2>&1; sleep 3; done
+check "third NAS removed" "$(api 7070 DELETE /api/ha/secondaries/10.99.0.3)" '"ok":true'
+check "third NAS independent again" "$(api 7110 GET /api/ha | py 'print(d["config"]["role"] or "none")') $(api 7070 GET /api/ha | py 'print(len(d["secondaries"]))')" "none 1"
+C destroy >/dev/null 2>&1
+
 check "unpaired" "$(api 7070 POST /api/ha/unpair)" '"ok":true'
 check "both independent again" "$(api 7080 GET /api/ha | py 'print(d["config"]["role"] or "none")') $(A ssh 'systemctl is-active keepalived')" "none inactive"
 

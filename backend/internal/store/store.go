@@ -244,6 +244,26 @@ type HA struct {
 	// Continuous: changed folders are copied a few seconds after the change
 	// (the periodic replication still runs, as a safety net).
 	Continuous bool `json:"continuous,omitempty"`
+	// More than two NAS: the VRRP priority of this secondary (100, 90…), the
+	// addresses of every other member, and (on a secondary, and on the
+	// primary for its first secondary) the volume mapping: primary volume
+	// mount point → mount point on the secondary.
+	Priority int               `json:"priority,omitempty"`
+	Peers    []string          `json:"peers,omitempty"`
+	PathMap  map[string]string `json:"pathMap,omitempty"`
+	// Extra secondaries of the primary (the first one is PeerHost…).
+	Extra []HASecondary `json:"extra,omitempty"`
+}
+
+// HASecondary is a secondary NAS beyond the first one.
+type HASecondary struct {
+	Host       string            `json:"host"`
+	Name       string            `json:"name"`
+	Cert       string            `json:"cert"`
+	Priority   int               `json:"priority"`
+	PathMap    map[string]string `json:"pathMap,omitempty"`
+	LastSync   time.Time         `json:"lastSync"`
+	LastResult string            `json:"lastResult"`
 }
 
 // Fleet: the NAS this one watches (Members) and those allowed to watch it

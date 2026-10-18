@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -111,7 +112,8 @@ func (s *Server) haContinuousLoop() {
 			dirs = append(dirs, d)
 		}
 		slices.Sort(dirs)
-		_, peer := s.peer()
+		_, hc := s.peer()
+		targets := haTargets(hc)
 		key := filepath.Join(backup.KeyDir, "id_ed25519")
 		known := filepath.Join(backup.KeyDir, "known_hosts")
 		var failed error
@@ -126,7 +128,12 @@ func (s *Server) haContinuousLoop() {
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-			err := ha.SyncDir(ctx, key, known, peer.PeerHost, d, rec, func(string, ...any) {})
+			var err error
+			for _, t := range targets {
+				if e := ha.SyncDirTo(ctx, key, known, t.Host, d, ha.MapPath(d, t.PathMap), rec, func(string, ...any) {}); e != nil {
+					err = fmt.Errorf("%s: %w", t.Host, e)
+				}
+			}
 			cancel()
 			if err != nil {
 				failed = err

@@ -136,8 +136,15 @@ func InterfaceFor(vip string) string {
 // secondary may hold newer data).
 func RenderKeepalived(c store.HA, self string) string {
 	prio, delay := 100, 30
+	if c.Priority > 0 {
+		prio = c.Priority
+	}
 	if c.Role == "primary" {
 		prio, delay = 150, 0
+	}
+	peers := c.Peers
+	if len(peers) == 0 {
+		peers = []string{c.PeerHost}
 	}
 	startup := ""
 	if delay > 0 {
@@ -172,7 +179,7 @@ vrrp_instance STRATA {
     }
     notify %s
 }
-`, c.Role, startup, c.Interface, c.VRID, prio, c.AuthPass, self, c.PeerHost, c.VIP, c.Interface, NotifyScript)
+`, c.Role, startup, c.Interface, c.VRID, prio, c.AuthPass, self, strings.Join(peers, "\n        "), c.VIP, c.Interface, NotifyScript)
 }
 
 // ApplyKeepalived writes the configuration and (re)starts keepalived, or stops
@@ -330,10 +337,18 @@ func SyncPath(ctx context.Context, key, knownHosts, peer, path string, logf func
 // direct content (files, and removal of what was deleted) when recursive is
 // false, for the near-continuous replication.
 func SyncDir(ctx context.Context, key, knownHosts, peer, path string, recursive bool, logf func(string, ...any)) error {
+	return SyncDirTo(ctx, key, knownHosts, peer, path, path, recursive, logf)
+}
+
+// SyncDirTo is SyncDir to another path on the peer (volumes named differently).
+func SyncDirTo(ctx context.Context, key, knownHosts, peer, path, dst string, recursive bool, logf func(string, ...any)) error {
 	clean := filepath.Clean(path)
-	rel, ok := strings.CutPrefix(clean, StorageRoot+"/")
-	if !ok || rel == "" || strings.HasPrefix(rel, "..") {
+	if _, ok := strings.CutPrefix(clean, StorageRoot+"/"); !ok {
 		return fmt.Errorf("%s is not inside the storage", path)
+	}
+	rel, ok := strings.CutPrefix(filepath.Clean(dst), StorageRoot+"/")
+	if !ok || rel == "" || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("%s is not inside the storage", dst)
 	}
 	ssh := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%s -o ConnectTimeout=15", key, knownHosts)
 	mode := []string{"-aHAX"}
@@ -361,4 +376,28 @@ func bracket(h string) string {
 func lastLine(s string) string {
 	l := strings.Split(strings.TrimSpace(s), "\n")
 	return l[len(l)-1]
+}
+
+// MapPath translates a path through a volume mapping (longest prefix first);
+// paths outside every mapped volume are kept.
+func MapPath(p string, m map[string]string) string {
+	best := ""
+	for from := range m {
+		if (p == from || strings.HasPrefix(p, from+"/")) && len(from) > len(best) {
+			best = from
+		}
+	}
+	if best == "" {
+		return p
+	}
+	return m[best] + strings.TrimPrefix(p, best)
+}
+
+// Reverse returns the mapping the other way round.
+func Reverse(m map[string]string) map[string]string {
+	r := make(map[string]string, len(m))
+	for k, v := range m {
+		r[v] = k
+	}
+	return r
 }

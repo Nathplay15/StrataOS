@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"strataos/internal/sys"
@@ -35,6 +36,8 @@ type Info struct {
 	Version   string     `json:"version"`
 	Vendor    string     `json:"vendor"`
 	Product   string     `json:"product"`
+	RootTotal int64      `json:"rootTotal"` // system file system
+	RootFree  int64      `json:"rootFree"`
 }
 
 type Temp struct {
@@ -86,6 +89,10 @@ func GetInfo(version string) Info {
 	i.Vendor = readTrim("/sys/class/dmi/id/sys_vendor")
 	i.Product = readTrim("/sys/class/dmi/id/product_name")
 	i.Temps = Temps()
+	var fs syscall.Statfs_t
+	if syscall.Statfs("/", &fs) == nil {
+		i.RootTotal, i.RootFree = int64(fs.Blocks)*fs.Bsize, int64(fs.Bavail)*fs.Bsize
+	}
 	return i
 }
 

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -55,15 +56,84 @@ func (s *Server) peer() (ha.Peer, store.HA) {
 	return ha.Peer{Host: c.PeerHost, Token: c.Token, CertFP: c.PeerCert}, c
 }
 
+// haTarget is a secondary the primary replicates to.
+type haTarget struct {
+	Host, Name, Cert string
+	Priority         int
+	PathMap          map[string]string
+}
+
+// haTargets lists the secondaries of a primary, the first one first.
+func haTargets(c store.HA) []haTarget {
+	var out []haTarget
+	if c.PeerHost != "" {
+		out = append(out, haTarget{c.PeerHost, c.PeerName, c.PeerCert, 100, c.PathMap})
+	}
+	for _, x := range c.Extra {
+		out = append(out, haTarget{x.Host, x.Name, x.Cert, x.Priority, x.PathMap})
+	}
+	return out
+}
+
+func (t haTarget) peer(token string) ha.Peer {
+	return ha.Peer{Host: t.Host, Token: token, CertFP: t.Cert}
+}
+
+// mapShare rewrites the paths of a share for a secondary.
+func mapShare(sh store.Share, m map[string]string) store.Share {
+	sh.Path = ha.MapPath(sh.Path, m)
+	if sh.CipherDir != "" {
+		sh.CipherDir = ha.MapPath(sh.CipherDir, m)
+	}
+	return sh
+}
+
+// clusterIPs lists every member but one (its unicast VRRP peers).
+func clusterIPs(c store.HA, self, except string) []string {
+	var out []string
+	for _, ip := range append([]string{self}, func() []string {
+		var l []string
+		for _, t := range haTargets(c) {
+			l = append(l, t.Host)
+		}
+		return l
+	}()...) {
+		if ip != except && ip != "" {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
+// pushMembers tells every secondary the current members (after a change).
+func (s *Server) pushMembers(ctx context.Context, c store.HA) {
+	self := ha.SelfIP(c.Interface, c.VIP)
+	for _, t := range haTargets(c) {
+		_ = t.peer(c.Token).Call(ctx, "members", map[string]any{"peers": clusterIPs(c, self, t.Host)}, nil)
+	}
+}
+
+func (s *Server) recordTarget(host string, res string) {
+	_ = s.store.Update(func(st *store.State) error {
+		for i := range st.HA.Extra {
+			if st.HA.Extra[i].Host == host {
+				st.HA.Extra[i].LastSync, st.HA.Extra[i].LastResult = time.Now(), res
+			}
+		}
+		return nil
+	})
+}
+
 type haSyncPayload struct {
 	Accounts ha.Accounts   `json:"accounts"`
 	Users    []store.User  `json:"users"`
 	Shares   []store.Share `json:"shares"`
 }
 
-// replicate copies accounts, share definitions and data to the secondary.
+// replicate copies accounts, share definitions and data to every secondary
+// (paths translated for secondaries whose volumes are named differently).
 func (s *Server) replicate(ctx context.Context, logf func(string, ...any)) error {
-	p, c := s.peer()
+	_, c := s.peer()
 	if c.Role != "primary" {
 		return fmt.Errorf("only the primary NAS replicates")
 	}
@@ -95,27 +165,46 @@ func (s *Server) replicate(ctx context.Context, logf func(string, ...any)) error
 	if err != nil {
 		return err
 	}
-	logf("Comptes et partages envoyés à %s", c.PeerHost)
-	var res struct {
-		Problems []string `json:"problems"`
-	}
-	if err := p.Call(ctx, "sync", haSyncPayload{Accounts: acc, Users: users, Shares: shareList}, &res); err != nil {
-		return fmt.Errorf("%s: %w", c.PeerHost, err)
-	}
-	for _, pr := range res.Problems {
-		logf("%s : %s", c.PeerHost, pr)
-	}
 	key := filepath.Join(backup.KeyDir, "id_ed25519")
 	known := filepath.Join(backup.KeyDir, "known_hosts")
-	var failed []string
-	for _, sh := range shareList {
-		if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.DataPath(), logf); err != nil {
-			logf("%v", err)
-			failed = append(failed, sh.Name)
+	var failedAll []string
+	for i, t := range haTargets(c) {
+		mapped := make([]store.Share, 0, len(shareList))
+		for _, sh := range shareList {
+			mapped = append(mapped, mapShare(sh, t.PathMap))
+		}
+		logf("Comptes et partages envoyés à %s", t.Host)
+		var res struct {
+			Problems []string `json:"problems"`
+		}
+		var failed []string
+		if err := t.peer(c.Token).Call(ctx, "sync", haSyncPayload{Accounts: acc, Users: users, Shares: mapped}, &res); err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", t.Host, err))
+		} else {
+			for _, pr := range res.Problems {
+				logf("%s : %s", t.Host, pr)
+			}
+			for _, sh := range shareList {
+				dst := mapShare(sh, t.PathMap)
+				if err := ha.SyncDirTo(ctx, key, known, t.Host, sh.DataPath(), dst.DataPath(), true, logf); err != nil {
+					logf("%v", err)
+					failed = append(failed, sh.Name)
+				}
+			}
+		}
+		if i > 0 { // the first secondary's result is recorded by the caller
+			r := "OK"
+			if len(failed) > 0 {
+				r = "replication failed for " + strings.Join(failed, ", ")
+			}
+			s.recordTarget(t.Host, r)
+		}
+		if len(failed) > 0 {
+			failedAll = append(failedAll, fmt.Sprintf("%s (%s)", t.Host, strings.Join(failed, ", ")))
 		}
 	}
-	if len(failed) > 0 {
-		return fmt.Errorf("replication failed for %s", strings.Join(failed, ", "))
+	if len(failedAll) > 0 {
+		return fmt.Errorf("replication failed for %s", strings.Join(failedAll, "; "))
 	}
 	return nil
 }
@@ -200,6 +289,40 @@ func (s *Server) haRoutes() {
 		out := map[string]any{"installed": ha.Installed(), "config": maskHA(c), "state": ha.State()}
 		if c.Role == "primary" {
 			out["continuous"] = haContSnapshot()
+			type sec struct {
+				Host       string            `json:"host"`
+				Name       string            `json:"name"`
+				Priority   int               `json:"priority"`
+				PathMap    map[string]string `json:"pathMap,omitempty"`
+				LastSync   time.Time         `json:"lastSync"`
+				LastResult string            `json:"lastResult"`
+				State      string            `json:"state"`
+			}
+			targets := haTargets(c)
+			list := make([]sec, len(targets))
+			var wg sync.WaitGroup
+			for i, t := range targets {
+				list[i] = sec{Host: t.Host, Name: t.Name, Priority: t.Priority, PathMap: t.PathMap, LastSync: c.LastSync, LastResult: c.LastResult}
+				if i > 0 {
+					list[i].LastSync, list[i].LastResult = c.Extra[i-1].LastSync, c.Extra[i-1].LastResult
+				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+					defer cancel()
+					var st struct {
+						State string `json:"state"`
+					}
+					if t.peer(c.Token).Call(ctx, "status", nil, &st) == nil {
+						list[i].State = st.State
+					} else {
+						list[i].State = "UNREACHABLE"
+					}
+				}()
+			}
+			wg.Wait()
+			out["secondaries"] = list
 		}
 		haPairing.Lock()
 		if haPairing.code != "" && time.Now().Before(haPairing.expires) {
@@ -246,7 +369,19 @@ func (s *Server) haRoutes() {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
+		var cur store.HA
+		s.store.Read(func(st *store.State) { cur = st.HA })
+		if cur.Role == "primary" {
+			return s.addSecondary(r, cur, req.PeerHost, req.Code, req.PathMap)
+		}
+		if cur.Role != "" {
+			return nil, badRequest("this NAS is already paired")
+		}
 		c := req.HA
+		c.Extra, c.Peers, c.Priority = nil, []string{c.PeerHost}, 0
+		if err := validPathMap(c.PathMap); err != nil {
+			return nil, badRequest(err.Error())
+		}
 		if !ha.Installed() {
 			return nil, badRequest("install the high availability component first")
 		}
@@ -273,7 +408,7 @@ func (s *Server) haRoutes() {
 			Name      string `json:"name"`
 			PublicKey string `json:"publicKey"`
 		}
-		join := map[string]any{"code": strings.ToUpper(strings.TrimSpace(req.Code)), "primaryHost": self, "primaryName": host, "publicKey": pub, "vip": c.VIP, "vrid": c.VRID, "authPass": c.AuthPass, "token": c.Token, "interval": c.Interval}
+		join := map[string]any{"code": strings.ToUpper(strings.TrimSpace(req.Code)), "primaryHost": self, "primaryName": host, "publicKey": pub, "vip": c.VIP, "vrid": c.VRID, "authPass": c.AuthPass, "token": c.Token, "interval": c.Interval, "priority": 100, "peers": []string{self}, "pathMap": c.PathMap}
 		if err := (ha.Peer{Host: c.PeerHost, CertFP: fp}).Call(ctx, "join", join, &res); err != nil {
 			return nil, badRequest("pairing refused by " + c.PeerHost + ": " + err.Error())
 		}
@@ -373,6 +508,51 @@ func (s *Server) haRoutes() {
 		return nil, err
 	})
 
+	// Removes one secondary of the primary (the others stay paired).
+	s.admin("DELETE /api/ha/secondaries/{host}", func(r *http.Request) (any, error) {
+		host := r.PathValue("host")
+		var c store.HA
+		s.store.Read(func(st *store.State) { c = st.HA })
+		if c.Role != "primary" {
+			return nil, badRequest("not a primary")
+		}
+		targets := haTargets(c)
+		idx := -1
+		for i, t := range targets {
+			if t.Host == host {
+				idx = i
+			}
+		}
+		if idx < 0 {
+			return nil, notFound("secondary not found")
+		}
+		if len(targets) == 1 {
+			return nil, badRequest("this is the only secondary: unpair instead")
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		warn := ""
+		if err := targets[idx].peer(c.Token).Call(ctx, "unpair", nil, nil); err != nil {
+			warn = host + " could not be reached: unpair it there too"
+		}
+		targets = append(targets[:idx], targets[idx+1:]...)
+		err := s.store.Update(func(st *store.State) error {
+			setTargets(&st.HA, targets)
+			c = st.HA
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		_ = ha.ApplyKeepalived(c)
+		s.pushMembers(ctx, c)
+		s.audit(r, "ha", "Secondary removed: "+host)
+		if warn != "" {
+			return map[string]string{"warning": warn}, nil
+		}
+		return nil, nil
+	})
+
 	s.admin("POST /api/ha/unpair", func(r *http.Request) (any, error) {
 		p, c := s.peer()
 		if c.Role == "" {
@@ -381,7 +561,13 @@ func (s *Server) haRoutes() {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		warn := ""
-		if err := p.Call(ctx, "unpair", nil, nil); err != nil {
+		if c.Role == "primary" {
+			for _, t := range haTargets(c) {
+				if err := t.peer(c.Token).Call(ctx, "unpair", nil, nil); err != nil {
+					warn = t.Host + " could not be reached: unpair it there too"
+				}
+			}
+		} else if err := p.Call(ctx, "unpair", nil, nil); err != nil {
 			warn = "the other NAS could not be reached: unpair it there too"
 		}
 		s.haReset()
@@ -425,15 +611,18 @@ func (s *Server) haRoutes() {
 			return nil, &Error{Status: http.StatusTooManyRequests, Msg: "too many attempts"}
 		}
 		var req struct {
-			Code        string `json:"code"`
-			PrimaryHost string `json:"primaryHost"`
-			PrimaryName string `json:"primaryName"`
-			PublicKey   string `json:"publicKey"`
-			VIP         string `json:"vip"`
-			VRID        int    `json:"vrid"`
-			AuthPass    string `json:"authPass"`
-			Token       string `json:"token"`
-			Interval    int    `json:"interval"`
+			Code        string            `json:"code"`
+			PrimaryHost string            `json:"primaryHost"`
+			PrimaryName string            `json:"primaryName"`
+			PublicKey   string            `json:"publicKey"`
+			VIP         string            `json:"vip"`
+			VRID        int               `json:"vrid"`
+			AuthPass    string            `json:"authPass"`
+			Token       string            `json:"token"`
+			Interval    int               `json:"interval"`
+			Priority    int               `json:"priority"`
+			Peers       []string          `json:"peers"`
+			PathMap     map[string]string `json:"pathMap"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -452,7 +641,21 @@ func (s *Server) haRoutes() {
 		if len(req.Token) != 64 || len(req.AuthPass) < 8 {
 			return nil, badRequest("invalid pairing data")
 		}
-		c := store.HA{Role: "secondary", PeerHost: req.PrimaryHost, PeerName: req.PrimaryName, VIP: req.VIP, VRID: req.VRID, AuthPass: req.AuthPass[:8], Token: req.Token, Interval: req.Interval, PairedAt: time.Now()}
+		if err := validPathMap(req.PathMap); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		for _, to := range req.PathMap {
+			if !s.pathOnVolume(to) {
+				return nil, badRequest("no volume at " + to + " on this NAS")
+			}
+		}
+		if req.Priority < 1 || req.Priority > 140 {
+			req.Priority = 100
+		}
+		if len(req.Peers) == 0 {
+			req.Peers = []string{req.PrimaryHost}
+		}
+		c := store.HA{Role: "secondary", PeerHost: req.PrimaryHost, PeerName: req.PrimaryName, VIP: req.VIP, VRID: req.VRID, AuthPass: req.AuthPass[:8], Token: req.Token, Interval: req.Interval, PairedAt: time.Now(), Priority: req.Priority, Peers: req.Peers, PathMap: req.PathMap}
 		c.Interface = ha.InterfaceFor(c.VIP)
 		if c.Interface == "" {
 			return nil, badRequest("this NAS has no interface in the network of " + c.VIP)
@@ -528,7 +731,7 @@ func (s *Server) haRoutes() {
 			return nil, err
 		}
 		for _, n := range missing {
-			problems = append(problems, "share "+n+": no volume with the same name on this NAS")
+			problems = append(problems, "share "+n+": its volume does not exist on this NAS (check the volume mapping)")
 		}
 		var list []store.Share
 		s.store.Read(func(st *store.State) {
@@ -563,6 +766,31 @@ func (s *Server) haRoutes() {
 		return nil, err
 	})
 
+	// The members of the cluster changed (a secondary was added or removed).
+	peerHandle("POST /api/ha/peer/members", true, func(r *http.Request) (any, error) {
+		var req struct {
+			Peers []string `json:"peers"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if len(req.Peers) == 0 || len(req.Peers) > 16 {
+			return nil, badRequest("invalid members")
+		}
+		var c store.HA
+		same := false
+		err := s.store.Update(func(st *store.State) error {
+			same = slices.Equal(st.HA.Peers, req.Peers)
+			st.HA.Peers = req.Peers
+			c = st.HA
+			return nil
+		})
+		if err != nil || same {
+			return nil, err // unchanged: no restart (a secondary would wait 30 s again)
+		}
+		return nil, ha.ApplyKeepalived(c)
+	})
+
 	peerHandle("POST /api/ha/peer/unpair", true, func(r *http.Request) (any, error) {
 		s.haReset()
 		s.store.Log("warning", "ha", "", "Unpaired by the other NAS")
@@ -595,7 +823,8 @@ func (s *Server) startHandBack(user string) (jobs.Snapshot, error) {
 		known := filepath.Join(backup.KeyDir, "known_hosts")
 		j.Logf("Copie des modifications vers %s…", c.PeerHost)
 		for _, sh := range list {
-			if err := ha.SyncPath(ctx, key, known, c.PeerHost, sh.DataPath(), j.Logf); err != nil {
+			// Back to the primary's paths (its volumes may be named differently).
+			if err := ha.SyncDirTo(ctx, key, known, c.PeerHost, sh.DataPath(), ha.MapPath(sh.DataPath(), ha.Reverse(c.PathMap)), true, j.Logf); err != nil {
 				return err
 			}
 		}
@@ -610,4 +839,110 @@ func (s *Server) haReset() {
 	_ = ha.RevokeKey()
 	_ = ha.ApplyKeepalived(store.HA{})
 	_ = s.applyShares()
+}
+
+// setTargets writes back the list of secondaries (the first in the main fields).
+func setTargets(c *store.HA, targets []haTarget) {
+	extra := map[string]store.HASecondary{}
+	for _, x := range c.Extra {
+		extra[x.Host] = x
+	}
+	if len(targets) == 0 {
+		c.PeerHost, c.PeerName, c.PeerCert, c.PathMap, c.Extra = "", "", "", nil, nil
+		return
+	}
+	first := targets[0]
+	if first.Host != c.PeerHost { // the first secondary changed: carry its results over
+		x := extra[first.Host]
+		c.LastSync, c.LastResult = x.LastSync, x.LastResult
+	}
+	c.PeerHost, c.PeerName, c.PeerCert, c.PathMap = first.Host, first.Name, first.Cert, first.PathMap
+	c.Extra = nil
+	for _, t := range targets[1:] {
+		x := extra[t.Host]
+		c.Extra = append(c.Extra, store.HASecondary{Host: t.Host, Name: t.Name, Cert: t.Cert, Priority: t.Priority, PathMap: t.PathMap, LastSync: x.LastSync, LastResult: x.LastResult})
+	}
+	c.Peers = nil
+	for _, t := range targets {
+		c.Peers = append(c.Peers, t.Host)
+	}
+}
+
+// validPathMap checks a volume mapping (mount points under the storage).
+func validPathMap(m map[string]string) error {
+	if len(m) > 64 {
+		return fmt.Errorf("too many mapped volumes")
+	}
+	for from, to := range m {
+		for _, p := range []string{from, to} {
+			if filepath.Clean(p) != p || !strings.HasPrefix(p, "/srv/strata/") || strings.Count(p, "/") > 4 {
+				return fmt.Errorf("invalid volume path %q", p)
+			}
+		}
+	}
+	return nil
+}
+
+// addSecondary pairs one more secondary with the active primary.
+func (s *Server) addSecondary(r *http.Request, c store.HA, host, code string, pathMap map[string]string) (any, error) {
+	if err := validPathMap(pathMap); err != nil {
+		return nil, badRequest(err.Error())
+	}
+	targets := haTargets(c)
+	if len(targets) >= 8 {
+		return nil, badRequest("too many secondaries")
+	}
+	for _, t := range targets {
+		if t.Host == host {
+			return nil, badRequest(host + " is already a secondary")
+		}
+	}
+	self := ha.SelfIP(c.Interface, c.VIP)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	fp, err := ha.CertFingerprint(ctx, host)
+	if err != nil {
+		return nil, badRequest(err.Error())
+	}
+	pub, err := backup.PublicKey()
+	if err != nil {
+		return nil, err
+	}
+	// Each new secondary comes after the others (lower VRRP priority).
+	prio := 100 - 10*len(targets)
+	peers := append([]string{self}, func() []string {
+		var l []string
+		for _, t := range targets {
+			l = append(l, t.Host)
+		}
+		return l
+	}()...)
+	me, _ := hostname()
+	var res struct {
+		Name      string `json:"name"`
+		PublicKey string `json:"publicKey"`
+	}
+	join := map[string]any{"code": strings.ToUpper(strings.TrimSpace(code)), "primaryHost": self, "primaryName": me, "publicKey": pub, "vip": c.VIP, "vrid": c.VRID, "authPass": c.AuthPass, "token": c.Token, "interval": c.Interval, "priority": prio, "peers": peers, "pathMap": pathMap}
+	if err := (ha.Peer{Host: host, CertFP: fp}).Call(ctx, "join", join, &res); err != nil {
+		return nil, badRequest("pairing refused by " + host + ": " + err.Error())
+	}
+	if err := ha.AuthorizeKey(res.PublicKey); err != nil {
+		return nil, err
+	}
+	targets = append(targets, haTarget{Host: host, Name: res.Name, Cert: fp, Priority: prio, PathMap: pathMap})
+	err = s.store.Update(func(st *store.State) error {
+		setTargets(&st.HA, targets)
+		c = st.HA
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := ha.ApplyKeepalived(c); err != nil {
+		return nil, err
+	}
+	s.pushMembers(ctx, c)
+	s.audit(r, "ha", fmt.Sprintf("Secondary added: %s (priority %d)", host, prio))
+	go func() { _, _ = s.runReplication(userOf(r)) }()
+	return maskHA(c), nil
 }

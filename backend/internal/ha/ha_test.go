@@ -28,3 +28,21 @@ func TestKeepalived(t *testing.T) {
 		}
 	}
 }
+
+func TestMapPath(t *testing.T) {
+	m := map[string]string{"/srv/strata/volume1": "/srv/strata/disque2", "/srv/strata/volume1/big": "/srv/strata/gros"}
+	for in, want := range map[string]string{
+		"/srv/strata/volume1/Docs":    "/srv/strata/disque2/Docs",
+		"/srv/strata/volume1":         "/srv/strata/disque2",
+		"/srv/strata/volume1/big/x":   "/srv/strata/gros/x",
+		"/srv/strata/volume10/Docs":   "/srv/strata/volume10/Docs",
+		"/srv/strata/other/Documents": "/srv/strata/other/Documents",
+	} {
+		if got := MapPath(in, m); got != want {
+			t.Errorf("MapPath(%s) = %s, want %s", in, got, want)
+		}
+	}
+	if MapPath(MapPath("/srv/strata/volume1/Docs", m), Reverse(m)) != "/srv/strata/volume1/Docs" {
+		t.Error("reverse mapping")
+	}
+}

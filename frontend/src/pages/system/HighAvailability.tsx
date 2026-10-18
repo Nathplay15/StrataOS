@@ -1,22 +1,82 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, Copy, KeyRound, Plug, RefreshCcw, Server, ServerCog, Unlink, Wrench } from "lucide-react";
+import { ArrowLeftRight, Copy, KeyRound, Plug, Plus, RefreshCcw, Server, ServerCog, Unlink, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, dateTime } from "../../lib/format";
-import { Badge, Button, Card, ErrorBox, Field, Input, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
+import { Badge, Button, Card, ErrorBox, Field, Input, Notice, Modal, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
 
 type Config = { continuous?: boolean; maintenance?: boolean; autoReturn?: boolean; role: "" | "primary" | "secondary"; peerHost: string; peerName: string; vip: string; interface: string; vrid: number; interval: number; lastSync: string; lastResult: string; pairedAt: string };
+type Sec = { host: string; name: string; priority: number; pathMap?: Record<string, string>; lastSync: string; lastResult: string; state: string };
 type Cont = { pending: number; last?: string; error?: string; watchLimit?: boolean; active: boolean };
-type Data = { installed: boolean; config: Config; continuous?: Cont; state: string; pairingCode?: string; pairingExpires?: string; interfaces?: Record<string, string> };
+type Data = { installed: boolean; config: Config; continuous?: Cont; secondaries?: Sec[]; state: string; pairingCode?: string; pairingExpires?: string; interfaces?: Record<string, string> };
+
+/** Volume mapping: the volume of the secondary for each volume of this NAS. */
+function VolumeMap({ value, onChange }: { value: Record<string, string>; onChange: (m: Record<string, string>) => void }) {
+  const locs = useQuery({ queryKey: ["locations"], queryFn: () => api.get<{ path: string; label: string }[]>("/api/storage/locations") });
+  const vols = (locs.data ?? []).filter((l) => l.path.split("/").length === 4); // /srv/strata/<volume>
+  if (!vols.length) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-muted text-[12.5px]">{tr("Volume correspondant sur le secondaire (laissez le même nom s'il existe là-bas) :")}</div>
+      {vols.map((v) => {
+        const name = v.path.split("/").pop()!;
+        const cur = (value[v.path] ?? v.path).split("/").pop()!;
+        return (
+          <div key={v.path} className="flex items-center gap-2 text-[13px]">
+            <span className="mono w-40 truncate">{name}</span><span className="text-muted">→</span>
+            <Input className="mono max-w-[200px]" value={cur} onChange={(e) => { const n = e.target.value.trim().replace(/[^A-Za-z0-9_.-]/g, ""); const m = { ...value }; if (!n || n === name) delete m[v.path]; else m[v.path] = `/srv/strata/${n}`; onChange(m); }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Secondaries({ data }: { data: Data }) {
+  const { confirm } = useUI();
+  const [f, setF] = useState<{ peerHost: string; code: string; pathMap: Record<string, string> } | null>(null);
+  const add = useAction(() => api.post("/api/ha/pair", f), { success: tr("NAS secondaire ajouté : la réplication démarre"), onDone: () => setF(null) });
+  const remove = useAction((host: string) => api.del<{ warning?: string } | null>(`/api/ha/secondaries/${encodeURIComponent(host)}`), { success: (r) => r?.warning ?? tr("NAS secondaire retiré") });
+  const list = data.secondaries ?? [];
+  return (
+    <Card title={tr("NAS secondaires")} actions={<Button size="sm" icon={<Plus size={14} />} disabled={data.state !== "MASTER"} onClick={() => setF({ peerHost: "", code: "", pathMap: {} })}>{tr("Ajouter un NAS secondaire")}</Button>}>
+      <div className="space-y-2">
+        {list.map((x, i) => (
+          <div key={x.host} className="flex flex-wrap items-center gap-3 rounded-xl border border-line px-4 py-2.5 text-[13px]">
+            <div className="min-w-0 flex-1">
+              <div><b>{x.name || x.host}</b> <span className="mono text-muted">{x.host}</span> <span className="text-muted">· {tr("ordre de relève {0}", i + 1)}</span></div>
+              <div className="text-muted text-[12px]">{x.lastSync && !x.lastSync.startsWith("0001") ? tr("Dernière réplication {0}", ago(x.lastSync)) : tr("Pas encore répliqué")}{x.lastResult && x.lastResult !== "OK" ? <span className="text-danger"> · {srv(x.lastResult)}</span> : ""}</div>
+              {x.pathMap && Object.keys(x.pathMap).length > 0 && <div className="mono text-muted text-[11.5px]">{Object.entries(x.pathMap).map(([a, b]) => `${a.split("/").pop()} → ${b.split("/").pop()}`).join(", ")}</div>}
+            </div>
+            <Badge tone={x.state === "BACKUP" ? "ok" : x.state === "MASTER" ? "warn" : "danger"} dot>{x.state === "BACKUP" ? tr("Prêt") : x.state === "MASTER" ? tr("Actif") : tr("Injoignable")}</Badge>
+            {list.length > 1 && <Button size="sm" variant="ghost" icon={<Unlink size={14} />} onClick={async () => { if (await confirm({ title: tr("Retirer {0} ?", x.name || x.host), text: tr("Ce NAS ne reçoit plus les réplications et ne prend plus le relais. Ses données restent en place."), danger: true })) remove.mutate(x.host); }} />}
+          </div>
+        ))}
+        <p className="text-muted text-[12px]">{tr("En cas de panne, le premier secondaire disponible dans l'ordre de relève prend l'adresse partagée.")}</p>
+      </div>
+      <Modal open={!!f} onClose={() => setF(null)} title={tr("Ajouter un NAS secondaire")} footer={<><Button onClick={() => setF(null)}>{tr("Annuler")}</Button><Button variant="primary" loading={add.isPending} disabled={!f?.peerHost || !f.code} onClick={() => add.mutate()}>{tr("Appairer")}</Button></>}>
+        {f && <div className="space-y-4">
+          <Notice>{tr("Sur le nouveau NAS, ouvrez Haute disponibilité et affichez un code d'appairage.")}</Notice>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={tr("Adresse du NAS secondaire")}><Input className="mono" value={f.peerHost} onChange={(e) => setF({ ...f, peerHost: e.target.value.trim() })} placeholder="192.168.1.22" /></Field>
+            <Field label={tr("Code d'appairage")}><Input className="mono uppercase" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} placeholder="ABCDE-FGHIJ" /></Field>
+          </div>
+          <VolumeMap value={f.pathMap} onChange={(m) => setF({ ...f, pathMap: m })} />
+          <ErrorBox error={add.error} />
+        </div>}
+      </Modal>
+    </Card>
+  );
+}
 
 export default function HighAvailability() {
   const { confirm, toast } = useUI();
   const { data, isLoading, error } = useQuery({ queryKey: ["ha"], queryFn: () => api.get<Data>("/api/ha"), refetchInterval: 3000 });
   const install = useAction(() => api.post("/api/system/components/ha/install"));
   const prepare = useAction(() => api.post("/api/ha/prepare"));
-  const [f, setF] = useState({ peerHost: "", vip: "", interface: "", interval: 15, code: "", continuous: true });
+  const [f, setF] = useState<{ peerHost: string; vip: string; interface: string; interval: number; code: string; continuous: boolean; pathMap: Record<string, string> }>({ peerHost: "", vip: "", interface: "", interval: 15, code: "", continuous: true, pathMap: {} });
   const [mode, setMode] = useState<{ continuous: boolean; interval: number } | null>(null);
   const saveMode = useAction(() => api.put("/api/ha/settings", mode), { success: tr("Mode de réplication enregistré"), onDone: () => setMode(null) });
   const pair = useAction(() => api.post("/api/ha/pair", f), { success: tr("NAS appairés : la première réplication démarre") });
@@ -77,6 +137,7 @@ export default function HighAvailability() {
               <Button variant="danger" icon={<Unlink size={15} />} onClick={async () => { if (await confirm({ title: tr("Supprimer l'appairage ?"), text: tr("Les deux NAS redeviennent indépendants ; l'adresse partagée n'est plus servie. Les données déjà répliquées restent sur le secondaire."), danger: true })) unpair.mutate(); }}>{tr("Désappairer")}</Button>
             </div>
           </Card>
+          {c.role === "primary" && <Secondaries data={data} />}
           {c.role === "primary" && (
             <Card title={tr("Mode de réplication")}>
               <div className="space-y-4">
@@ -104,7 +165,7 @@ export default function HighAvailability() {
     <div>
       {header}
       <ErrorBox error={pair.error || prepare.error} />
-      <div className="mb-5"><Notice>{tr("Il faut deux NAS StrataOS sur le même réseau local, avec des volumes portant les mêmes noms. Préparez d'abord le secondaire pour obtenir un code d'appairage, puis saisissez-le sur le principal.")}</Notice></div>
+      <div className="mb-5"><Notice>{tr("Il faut au moins deux NAS StrataOS sur le même réseau local. Préparez d'abord le secondaire pour obtenir un code d'appairage, puis saisissez-le sur le principal ; si ses volumes portent d'autres noms, indiquez la correspondance. D'autres secondaires pourront être ajoutés ensuite.")}</Notice></div>
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title={<span className="flex items-center gap-2"><Server size={16} className="text-accent" />{tr("Ce NAS sera le principal")}</span>}>
           <div className="space-y-4">
@@ -119,6 +180,7 @@ export default function HighAvailability() {
               <Field label={tr("Réplication toutes les (minutes)")}><Input type="number" min={1} value={f.interval} onChange={(e) => setF({ ...f, interval: Math.max(1, +e.target.value) })} /></Field>
               <Field label={tr("Code d'appairage")} hint={tr("Affiché sur le secondaire")}><Input className="mono uppercase" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} placeholder="ABCDE-FGHIJ" /></Field>
             </div>
+            <VolumeMap value={f.pathMap} onChange={(m) => setF({ ...f, pathMap: m })} />
             <Switch checked={f.continuous} onChange={(v) => setF({ ...f, continuous: v })} label={tr("Réplication continue")} hint={tr("Copie chaque modification en quelques secondes, en plus de la réplication complète.")} />
             <div className="flex justify-end"><Button variant="primary" icon={<KeyRound size={15} />} loading={pair.isPending} disabled={!f.peerHost || !f.vip || !f.code} onClick={() => pair.mutate()}>{tr("Appairer")}</Button></div>
           </div>

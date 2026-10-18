@@ -1,6 +1,6 @@
 # Publishes a GitHub release when a version tag (v1.2.3, matching VERSION) is
-# pushed: Debian packages for amd64 and arm64, installer ISOs for both, and
-# their SHA-256 checksums. Release notes: packaging/release-notes/<version>.md.
+# pushed: Debian packages for amd64 and arm64, installer ISOs for both, the
+# Raspberry Pi image, and their SHA-256 checksums. Release notes: packaging/release-notes/<version>.md.
 name: Release
 
 on:
@@ -13,7 +13,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -63,10 +63,17 @@ jobs:
           ARCH=amd64 ./packaging/iso/build-iso.sh
           ARCH=arm64 ./packaging/iso/build-iso.sh
 
+      - name: Raspberry Pi image
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq debootstrap qemu-user-static binfmt-support parted dosfstools xz-utils debian-archive-keyring
+          sudo ./packaging/rpi/build-rpi-image.sh "dist/strataos_${V}_arm64.deb"
+          sudo chown -R "$(id -u):$(id -g)" dist
+
       - name: Checksums
         run: |
           cd dist
-          sha256sum "strataos_${V}_amd64.deb" "strataos_${V}_arm64.deb" "strataos-${V}-amd64.iso" "strataos-${V}-arm64.iso" > SHA256SUMS
+          sha256sum "strataos_${V}_amd64.deb" "strataos_${V}_arm64.deb" "strataos-${V}-amd64.iso" "strataos-${V}-arm64.iso" "strataos-${V}-raspberrypi.img.xz" > SHA256SUMS
           cat SHA256SUMS
 
       - name: Publish the release
@@ -75,4 +82,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --title "StrataOS $V" --notes-file "packaging/release-notes/$V.md" \
             "dist/strataos_${V}_amd64.deb" "dist/strataos_${V}_arm64.deb" \
-            "dist/strataos-${V}-amd64.iso" "dist/strataos-${V}-arm64.iso" dist/SHA256SUMS
+            "dist/strataos-${V}-amd64.iso" "dist/strataos-${V}-arm64.iso" "dist/strataos-${V}-raspberrypi.img.xz" dist/SHA256SUMS
