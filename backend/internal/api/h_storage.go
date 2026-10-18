@@ -267,10 +267,15 @@ func (s *Server) storageRoutes() {
 		return out, nil
 	})
 	s.admin("POST /api/storage/volumes", func(r *http.Request) (any, error) {
-		var req storage.CreateFSReq
-		if err := decode(r, &req); err != nil {
+		var body struct {
+			storage.CreateFSReq
+			CacheDevice string `json:"cacheDevice"` // optional SSD cache
+			CacheMode   string `json:"cacheMode"`
+		}
+		if err := decode(r, &body); err != nil {
 			return nil, err
 		}
+		req := body.CreateFSReq
 		if err := storage.ValidName(req.Name); err != nil {
 			return nil, badRequest(err.Error())
 		}
@@ -280,10 +285,40 @@ func (s *Server) storageRoutes() {
 		if err := storage.ValidateFreeDisks(req.Devices, false); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		managed := ""
+		if body.CacheDevice != "" {
+			if len(req.Devices) != 1 {
+				return nil, badRequest("an SSD cache needs a single data device: create a RAID array first for several disks")
+			}
+			if body.CacheMode == "" {
+				body.CacheMode = "writethrough"
+			}
+			if body.CacheMode != "writethrough" && body.CacheMode != "writeback" {
+				return nil, badRequest("invalid cache mode")
+			}
+			if err := storage.ValidateFreeDisks([]string{body.CacheDevice}, false); err != nil {
+				return nil, badRequest(err.Error())
+			}
+			managed = "vol_" + req.Name
+			if err := storage.ValidName(managed); err != nil {
+				return nil, badRequest(err.Error())
+			}
+		}
 		s.audit(r, "storage", fmt.Sprintf("Creating %s volume %s on %s", req.FSType, req.Name, strings.Join(req.Devices, ", ")))
 		return s.jobs.Start("volume", "Create volume "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			if managed != "" {
+				j.Logf("Groupe LVM %s avec cache SSD %s (%s)", managed, body.CacheDevice, body.CacheMode)
+				lv, err := storage.CreateCachedLV(managed, req.Devices[0], body.CacheDevice, body.CacheMode)
+				if err != nil {
+					return err
+				}
+				req.Devices = []string{lv}
+			}
 			uuid, mp, err := storage.CreateFilesystem(ctx, req, j.Logf)
 			if err != nil {
+				if managed != "" {
+					_ = storage.RemoveManagedVG(managed)
+				}
 				return err
 			}
 			profile := ""
@@ -291,7 +326,7 @@ func (s *Server) storageRoutes() {
 				profile = req.DataProfile
 			}
 			return s.store.Update(func(st *store.State) error {
-				st.Volumes = append(st.Volumes, &store.Volume{ID: shortID(), Name: req.Name, Devices: req.Devices, FSType: req.FSType, UUID: uuid, MountPoint: mp, Profile: profile, CreatedAt: time.Now()})
+				st.Volumes = append(st.Volumes, &store.Volume{ID: shortID(), Name: req.Name, Devices: req.Devices, FSType: req.FSType, UUID: uuid, MountPoint: mp, Profile: profile, ManagedVG: managed, CreatedAt: time.Now()})
 				return nil
 			})
 		}), nil
@@ -353,7 +388,12 @@ func (s *Server) storageRoutes() {
 		if err := storage.UnmountVolume(v.MountPoint); err != nil {
 			return nil, err
 		}
-		if wipe {
+		if wipe && v.ManagedVG != "" {
+			// The LVM group made for the volume goes, freeing the disks and the SSD.
+			if err := storage.RemoveManagedVG(v.ManagedVG); err != nil {
+				return nil, err
+			}
+		} else if wipe {
 			storage.Lock.Lock()
 			for _, d := range devices {
 				if err := storage.Wipe(d); err != nil {

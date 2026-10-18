@@ -26,8 +26,9 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const [devices, setDevices] = useState<string[]>([]);
   const [dataProfile, setDataProfile] = useState("raid1");
   const [compression, setCompression] = useState(true);
+  const [cache, setCache] = useState<{ on: boolean; dev: string[]; mode: string }>({ on: false, dev: [], mode: "writethrough" });
   const { confirm } = useUI();
-  const create = useAction(() => api.post("/api/storage/volumes", { name, fsType, devices, dataProfile: fsType === "btrfs" ? (devices.length > 1 ? dataProfile : "single") : "", compression }), { onDone: onClose });
+  const create = useAction(() => api.post("/api/storage/volumes", { name, fsType, devices, dataProfile: fsType === "btrfs" ? (devices.length > 1 ? dataProfile : "single") : "", compression, cacheDevice: cache.on ? cache.dev[0] : undefined, cacheMode: cache.on ? cache.mode : undefined }), { onDone: onClose });
   const multi = fsType === "btrfs";
   const submit = async () => {
     if (await confirm({ title: tr("Créer le volume ?"), text: <>{tr("Le contenu de")}{" "}{devices.join(", ")} sera <b>{tr("effacé")}</b> {" "}{tr("et formaté en")}{" "}{fsType}.</>, danger: true, confirm: tr("Formater et créer") })) create.mutate();
@@ -35,7 +36,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={tr("Nouveau volume")} wide footer={<>
       <Button onClick={onClose}>{tr("Annuler")}</Button>
-      <Button variant="primary" onClick={submit} loading={create.isPending} disabled={!devices.length || !name}>{tr("Créer")}</Button>
+      <Button variant="primary" onClick={submit} loading={create.isPending} disabled={!devices.length || !name || (cache.on && cache.dev.length !== 1)}>{tr("Créer")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -60,6 +61,19 @@ function CreateModal({ onClose }: { onClose: () => void }) {
               </Select>
             </Field>
             <div className="pt-6"><Switch checked={compression} onChange={setCompression} label={tr("Compression zstd")} hint={tr("Économise de l'espace, coût CPU minime")} /></div>
+          </div>
+        )}
+        {devices.length === 1 && (
+          <div className="space-y-3 rounded-xl border border-line p-4">
+            <Switch checked={cache.on} onChange={(v) => setCache({ ...cache, on: v })} label={tr("Cache SSD")} hint={tr("Un SSD libre accélère le volume (les données souvent lues y sont gardées). StrataOS crée lui-même la couche LVM nécessaire.")} />
+            {cache.on && <>
+              <DiskPicker value={cache.dev} onChange={(v) => setCache({ ...cache, dev: v.slice(-1) })} includeVirtual single exclude={devices} />
+              <Select value={cache.mode} onChange={(e) => setCache({ ...cache, mode: e.target.value })}>
+                <option value="writethrough">{tr("Écriture immédiate (recommandé) : accélère les lectures, sans risque")}</option>
+                <option value="writeback">{tr("Écriture différée : accélère aussi les écritures")}</option>
+              </Select>
+              {cache.mode === "writeback" && <Notice tone="warn">{tr("En écriture différée, les données pas encore recopiées sur les disques sont perdues si le SSD tombe en panne. Utilisez un SSD fiable, idéalement en miroir.")}</Notice>}
+            </>}
           </div>
         )}
         {multi && (dataProfile === "raid5" || dataProfile === "raid6") && devices.length > 1 && <Notice tone="warn">{tr("Le RAID 5/6 Btrfs reste déconseillé en production. Préférez RAID 1/10 Btrfs, mdadm ou ZFS.")}</Notice>}
@@ -245,7 +259,7 @@ export default function Volumes() {
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><Database size={20} /></div>
                 <div className="min-w-[180px] flex-1">
-                  <div className="flex items-center gap-2 font-semibold">{v.name} <Badge>{v.fsType}</Badge>{v.profile && <Badge tone="accent">{v.profile}</Badge>} <Health value={v.health} /></div>
+                  <div className="flex items-center gap-2 font-semibold">{v.name} <Badge>{v.fsType}</Badge>{v.profile && <Badge tone="accent">{v.profile}</Badge>}{v.managedVg && <Badge tone="ok">{tr("Cache SSD")}</Badge>} <Health value={v.health} /></div>
                   <div className="text-muted text-[12px]">{v.mountPoint} · {v.devices.join(", ")}</div>
                 </div>
                 <div className="w-full max-w-sm sm:w-72">

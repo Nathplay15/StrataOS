@@ -141,3 +141,46 @@ func LVCache(vg, lv string) *CacheInfo {
 	}
 	return nil
 }
+
+// CreateCachedLV builds, on one device (a RAID array or a disk), an LVM group
+// holding a single logical volume cached by an SSD, and returns its path.
+func CreateCachedLV(vg, dev, ssd, mode string) (string, error) {
+	if dev == ssd {
+		return "", fmt.Errorf("the SSD must differ from the data device")
+	}
+	if err := CreateVG(vg, []string{dev}); err != nil {
+		return "", err
+	}
+	if err := CreateLV(vg, CreateLVReq{Name: "data"}); err != nil {
+		_ = RemoveManagedVG(vg)
+		return "", err
+	}
+	// The cache pool needs a little room for its metadata: shrink nothing,
+	// the SSD brings its own space to the group.
+	if err := AttachCache(vg, "data", ssd, mode); err != nil {
+		_ = RemoveManagedVG(vg)
+		return "", err
+	}
+	return "/dev/" + vg + "/data", nil
+}
+
+// RemoveManagedVG deletes a group made by StrataOS, its volumes and its PVs
+// (the data is lost).
+func RemoveManagedVG(vg string) error {
+	if err := ValidName(vg); err != nil {
+		return err
+	}
+	rows, _ := lvmReport("pvs", "pv_name,vg_name")
+	Lock.Lock()
+	defer Lock.Unlock()
+	_, _ = sys.Run("lvremove", "-f", vg)
+	if _, err := sys.Run("vgremove", "-f", vg); err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if r["vg_name"] == vg {
+			_, _ = sys.Run("pvremove", "-ff", "-y", r["pv_name"])
+		}
+	}
+	return nil
+}

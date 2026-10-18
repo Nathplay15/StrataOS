@@ -83,14 +83,16 @@ func (s *Share) ReadOnly() bool { return s.QuotaFull || s.Frozen }
 func (s *Share) Writable(perm string) bool { return perm == "rw" && !s.ReadOnly() }
 
 type Volume struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Devices    []string  `json:"devices"`
-	FSType     string    `json:"fsType"`
-	UUID       string    `json:"uuid"`
-	MountPoint string    `json:"mountPoint"`
-	Profile    string    `json:"profile,omitempty"` // btrfs data profile
-	CreatedAt  time.Time `json:"createdAt"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Devices    []string `json:"devices"`
+	FSType     string   `json:"fsType"`
+	UUID       string   `json:"uuid"`
+	MountPoint string   `json:"mountPoint"`
+	Profile    string   `json:"profile,omitempty"` // btrfs data profile
+	// ManagedVG: the volume sits on an LVM group StrataOS made for it (SSD cache).
+	ManagedVG string    `json:"managedVg,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Event struct {

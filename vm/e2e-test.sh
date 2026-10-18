@@ -57,6 +57,12 @@ check "cache listed" "$(c GET /api/storage/lvm | py 'print([(l["cache"]["mode"],
 check "SSD cache removed" "$(job "$(c DELETE /api/storage/lvm/vg0/lv/lv0/cache)")" "success"
 check "SSD free again" "$(c GET /api/storage/disks | py "print([x['usage'] for x in d if x['serial']=='STRATA-SSD-1'][0])")" "free"
 check "LVM cleanup" "$(c DELETE /api/storage/lvm/vg0/lv/lv0; c DELETE /api/storage/lvm/vg0)" '{"ok":true}'
+check "volume created with an SSD cache" "$(job "$(c POST /api/storage/volumes -d '{"name":"cached","fsType":"ext4","devices":["'"$H6"'"],"cacheDevice":"'"$SSD"'","cacheMode":"writethrough"}')")" "success"
+check "cached volume mounted" "$(c GET /api/storage/volumes | py 'print([(v["mounted"], v.get("managedVg")) for v in d if v["name"]=="cached"])')" "(True, 'vol_cached')"
+check "cache active under the volume" "$(vm "sudo lvs --noheadings -o segtype,cache_mode vol_cached/data")" "cache"
+CV=$(c GET /api/storage/volumes | py 'print([v["id"] for v in d if v["name"]=="cached"][0])')
+check "cached volume deleted" "$(c DELETE "/api/storage/volumes/$CV?wipe=1")" '"ok":true'
+check "disk and SSD freed" "$(c GET /api/storage/disks | py "print(sorted(x['usage'] for x in d if x['serial'] in ('STRATA-SSD-1','STRATA-HDD-6')))")" "['free', 'free']"
 check "refuses system disk" "$(c POST /api/storage/disks/wipe -d '{"device":"/dev/vda"}')" "system disk"
 
 section "Users & shares"

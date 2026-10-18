@@ -102,6 +102,7 @@ export interface Volume {
   uuid: string;
   mountPoint: string;
   profile?: string;
+  managedVg?: string;
   createdAt: string;
   mounted: boolean;
   usage: Usage;
