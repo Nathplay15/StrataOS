@@ -661,6 +661,14 @@ for id in $(c GET /api/schedules | py 'print(" ".join(s["id"] for s in d if s["t
   check "task: $name" "$(job "$(c POST /api/schedules/$id/run)")" "success"
 done
 
+# Feature tests in their own files (same helpers and state: volumes main,
+# fast and tank, user alice, share Photos…), in name order.
+for f in vm/e2e.d/*.sh; do
+  [ -f "$f" ] || continue
+  # shellcheck source=/dev/null
+  . "$f"
+done
+
 section "Restore points (system without snapshots)"
 check "package restore points on an ext4 system" "$(c GET /api/system/restore-points | py 'print(d["supported"], d["mode"])')" "True packages"
 check "restore point created" "$(c POST /api/system/restore-points | py 'print(d["name"])')" "_manual"
