@@ -311,6 +311,9 @@ func (s *Server) systemRoutes() {
 		if req.NotifyLang != "" && !i18n.Valid(req.NotifyLang) {
 			return nil, badRequest("invalid language")
 		}
+		if err := validNotifyPrefs(req); err != nil {
+			return nil, err
+		}
 		switch req.SMBMinProto {
 		case "", "SMB2", "SMB2_10", "SMB3", "SMB3_11":
 		default:
@@ -357,8 +360,26 @@ func (s *Server) systemRoutes() {
 		}
 		return chats, nil
 	})
+	// Test notification: by default on every enabled channel; with a level,
+	// filtered like a real event of that level (minimum levels, quiet hours).
 	s.admin("POST /api/settings/test-notification", func(r *http.Request) (any, error) {
-		return nil, s.sendNotification("Test de notification", "StrataOS notifications work.")
+		var req struct {
+			Level string `json:"level"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if !validLevel(req.Level) {
+			return nil, badRequest("invalid notification level")
+		}
+		sent, err := s.sendNotification(req.Level, "Test de notification", "StrataOS notifications work.")
+		if err != nil {
+			return nil, err
+		}
+		if sent == nil {
+			sent = []string{}
+		}
+		return map[string]any{"ok": true, "sent": sent}, nil
 	})
 
 	// Optional components installed through bundled scripts.

@@ -215,7 +215,7 @@ func (s *Server) ransomAlert(user, ip, share, reason string) {
 	}
 	slog.Warn("ransomware suspected", "user", user, "ip", ip, "share", share)
 	s.store.Log("error", "ransomware", user, msg)
-	s.notify("Ransomware suspected", msg)
+	s.notify("error", "Ransomware suspected", msg)
 }
 
 // closeSMBSessions ends the Samba connections of a user.

@@ -73,13 +73,13 @@ func New(c Config) *Server {
 		}
 		s.store.Log(level, "job", j.User, msg)
 		if level == "error" {
-			s.notify("Task failed", msg)
+			s.notify("error", "Task failed", msg)
 		}
 	}
 	network.OnRollback = func(reason string) {
 		msg := "Network change rolled back (" + reason + "): the previous configuration is active again"
 		s.store.Log("warning", "network", "", msg)
-		s.notify("Network restored", msg)
+		s.notify("warning", "Network restored", msg)
 	}
 	network.Recover()
 	s.routes()

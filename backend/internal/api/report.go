@@ -166,7 +166,7 @@ func (s *Server) reportRoutes() {
 		var lang string
 		s.store.Read(func(st *store.State) { lang = st.Settings.NotifyLang })
 		shown := i18n.Lines(lang, body)
-		if err := s.sendNotification(subject, body); err != nil {
+		if _, err := s.sendNotification("", subject, body); err != nil {
 			return map[string]string{"report": shown, "warning": err.Error()}, nil
 		}
 		return map[string]string{"report": shown}, nil

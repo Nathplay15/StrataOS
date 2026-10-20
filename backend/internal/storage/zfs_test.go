@@ -36,3 +36,25 @@ errors: No known data errors
 		t.Fatalf("unexpected problems: %+v", p)
 	}
 }
+
+func TestParseZScan(t *testing.T) {
+	cases := []struct {
+		line string
+		want ZScan
+	}{
+		{"  scan: scrub in progress since Tue Oct 20 10:00:00 2026\n\t1.2G scanned at 100M/s, 42.10% done", ZScan{Kind: "scrub", Running: true}},
+		{"  scan: resilver in progress since Tue Oct 20 10:00:00 2026", ZScan{Kind: "resilver", Running: true}},
+		{"  scan: scrub paused since Tue Oct 20 10:00:00 2026", ZScan{Kind: "scrub", Running: true}},
+		{"  scan: scrub repaired 0B in 00:00:01 with 0 errors on Tue Oct 20 10:00:00 2026", ZScan{Kind: "scrub"}},
+		{"  scan: scrub repaired 12K in 01:02:03 with 3 errors on Tue Oct 20 10:00:00 2026", ZScan{Kind: "scrub", Errors: 3}},
+		{"  scan: resilvered 1.50G in 00:01:02 with 0 errors on Tue Oct 20 10:00:00 2026", ZScan{Kind: "resilver"}},
+		{"  scan: scrub canceled on Tue Oct 20 10:00:00 2026", ZScan{Kind: "scrub", Canceled: true}},
+		{"  scan: none requested", ZScan{}},
+		{"  pool: tank\n state: ONLINE", ZScan{}},
+	}
+	for _, c := range cases {
+		if got := ParseZScan("  pool: tank\n state: ONLINE\n" + c.line + "\nconfig:\n"); got != c.want {
+			t.Errorf("%q: got %+v, want %+v", c.line, got, c.want)
+		}
+	}
+}

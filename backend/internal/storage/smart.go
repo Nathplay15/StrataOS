@@ -188,8 +188,8 @@ func rawCount(raw string) int {
 }
 
 // SmartWarnings returns the early signs that a disk is getting weak, before
-// its overall SMART test fails. Counts are part of the text, so a growing
-// count produces a new alert.
+// its overall SMART test fails. Counts are part of the text for the
+// dashboard; notifications are keyed by the kind of warning (api.weakDiskKey).
 func SmartWarnings(info *SmartInfo) []string {
 	var w []string
 	counters := map[int]string{

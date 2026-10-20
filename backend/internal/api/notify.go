@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -18,7 +19,6 @@ import (
 	"strataos/internal/i18n"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"strataos/internal/docker"
@@ -29,6 +29,37 @@ import (
 type alert struct {
 	Level   string `json:"level"`
 	Message string `json:"message"`
+	// Key identifies the problem for notifications when the message holds
+	// changing numbers (percentages, counts); "" = the message itself.
+	// "progress:" keys are operations notified by the progress tracker.
+	Key string `json:"-"`
+	// Subject of the notification ("" = Alert).
+	Subject string `json:"-"`
+}
+
+func (a alert) dedupKey() string {
+	if a.Key != "" {
+		return a.Key
+	}
+	return a.Message
+}
+
+// freshAlerts returns the alerts not present at the previous check (known),
+// and the keys of the current ones. Progress alerts are left out.
+func freshAlerts(known map[string]bool, list []alert) ([]alert, map[string]bool) {
+	cur := map[string]bool{}
+	var fresh []alert
+	for _, a := range list {
+		k := a.dedupKey()
+		if strings.HasPrefix(k, "progress:") || cur[k] {
+			continue
+		}
+		cur[k] = true
+		if !known[k] {
+			fresh = append(fresh, a)
+		}
+	}
+	return fresh, cur
 }
 
 type volumeSummary struct {
@@ -117,56 +148,60 @@ func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols [
 	if d := s.diskAlerts.Load(); d != nil {
 		out = append(out, (*d)...)
 	}
+	return append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken())...)
+}
+
+func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volumeSummary, zfsBroken bool) []alert {
+	var out []alert
 	for _, r := range raids {
 		switch r.Health {
 		case "degraded", "failed":
-			out = append(out, alert{"error", fmt.Sprintf("RAID array %s (%s) %s", r.Label, r.Name, map[string]string{"degraded": "is degraded", "failed": "has failed"}[r.Health])})
+			out = append(out, alert{Level: "error", Message: fmt.Sprintf("RAID array %s (%s) %s", r.Label, r.Name, map[string]string{"degraded": "is degraded", "failed": "has failed"}[r.Health])})
 		case "rebuilding":
-			out = append(out, alert{"warning", fmt.Sprintf("RAID array %s is rebuilding (%.1f%%)", r.Label, r.SyncProgress)})
+			// The dashboard shows the progress; notifications come from the progress tracker.
+			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("RAID array %s is rebuilding (%.1f%%)", r.Label, r.SyncProgress), Key: "progress:" + raidOpKey(r)})
 		}
 	}
-	if storage.ZFSBroken() {
-		out = append(out, alert{"error", "The ZFS module does not load (kernel updated?): ZFS pools are unavailable. Reinstall ZFS from Storage → ZFS"})
+	if zfsBroken {
+		out = append(out, alert{Level: "error", Message: "The ZFS module does not load (kernel updated?): ZFS pools are unavailable. Reinstall ZFS from Storage → ZFS"})
 	}
 	for _, p := range pools {
 		if p.Health != "ONLINE" {
-			out = append(out, alert{"error", fmt.Sprintf("ZFS pool %s is %s", p.Name, p.Health)})
+			out = append(out, alert{Level: "error", Message: fmt.Sprintf("ZFS pool %s is %s", p.Name, p.Health)})
 		}
 	}
 	for _, v := range vols {
 		if v.Health == "unmounted" {
-			out = append(out, alert{"warning", fmt.Sprintf("Volume %s is not mounted", v.Name)})
+			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("Volume %s is not mounted", v.Name)})
 		}
 		if v.Total > 0 && float64(v.Used)/float64(v.Total) > 0.9 {
-			out = append(out, alert{"warning", fmt.Sprintf("Volume %s is %.0f%% full", v.Name, 100*float64(v.Used)/float64(v.Total))})
+			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("Volume %s is %.0f%% full", v.Name, 100*float64(v.Used)/float64(v.Total)), Key: "volume-full:" + v.Name})
 		}
 	}
 	return out
 }
 
+var digitsRe = regexp.MustCompile(`[0-9]+`)
+
+// weakDiskKey identifies the warnings of a disk by their kind, not their
+// counts: a growing sector count or a temperature that moves is not new.
+func weakDiskKey(path, serial string, warnings []string) string {
+	kinds := make([]string, len(warnings))
+	for i, w := range warnings {
+		kinds[i] = digitsRe.ReplaceAllString(w, "#")
+	}
+	return "disk-weak:" + path + ":" + serial + ":" + strings.Join(kinds, ",")
+}
+
 // healthWatcher periodically checks storage health and notifies on new problems.
 func (s *Server) healthWatcher() {
 	known := map[string]bool{}
-	var mu sync.Mutex
+	var progress progressTracker
 	check := func() {
 		s.recoverStorage()
 		raids, _ := storage.ListRaid()
 		pools, _ := storage.ListZPools(false)
 		vols := s.volumeSummaries(raids, pools)
-		cur := map[string]bool{}
-		for _, a := range s.alerts(raids, pools, vols) {
-			if strings.HasPrefix(a.Message, "Reconstruction") {
-				continue // progress changes constantly
-			}
-			cur[a.Message] = true
-			mu.Lock()
-			isNew := !known[a.Message]
-			mu.Unlock()
-			if isNew {
-				s.store.Log(a.Level, "health", "", a.Message)
-				s.notify("Alerte", a.Message)
-			}
-		}
 		disks, _ := storage.ListDisks()
 		var weak []alert
 		for _, d := range disks {
@@ -178,29 +213,40 @@ func (s *Server) healthWatcher() {
 				smartCache.Store(d.Path, smartEntry{info: *info, model: d.Model, serial: d.Serial})
 			}
 			if info.Passed != nil && !*info.Passed {
-				msg := fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial)
-				cur[msg] = true
-				weak = append(weak, alert{"error", msg})
-				if !known[msg] {
-					s.store.Log("error", "health", "", msg)
-					s.notify("Failing disk", msg)
-				}
+				weak = append(weak, alert{Level: "error", Message: fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial), Subject: "Failing disk"})
 				continue
 			}
 			if len(info.Warnings) > 0 {
 				msg := fmt.Sprintf("Disk %s (%s %s) is getting weak: %s. Check your backups and plan its replacement", d.Path, d.Model, d.Serial, strings.Join(info.Warnings, ", "))
-				cur[msg] = true
-				weak = append(weak, alert{"warning", msg})
-				if !known[msg] {
-					s.store.Log("warning", "health", "", msg)
-					s.notify("Disk weakening", msg)
-				}
+				weak = append(weak, alert{Level: "warning", Message: msg, Key: weakDiskKey(d.Path, d.Serial, info.Warnings), Subject: "Disk weakening"})
 			}
 		}
-		mu.Lock()
-		known = cur
-		mu.Unlock()
 		s.diskAlerts.Store(&weak)
+		var fresh []alert
+		fresh, known = freshAlerts(known, s.alerts(raids, pools, vols))
+		for _, a := range fresh {
+			subject := firstNonEmpty(a.Subject, "Alert")
+			s.store.Log(a.Level, "health", "", a.Message)
+			s.notify(a.Level, subject, a.Message)
+		}
+		// Long operations: once when they start, once when they end.
+		scans := map[string]storage.ZScan{}
+		scanned := true
+		for _, p := range pools {
+			z, err := storage.ZPoolScan(p.Name)
+			if err != nil {
+				scanned = false // unknown this time: don't take it for an end
+				break
+			}
+			scans[p.Name] = z
+		}
+		if scanned {
+			ops := append(raidOps(raids), zfsOps(scans)...)
+			for _, e := range progress.update(ops, time.Now(), storageEnd(raids, scans)) {
+				s.store.Log(e.level, "health", "", e.msg)
+				s.notify(e.level, "Storage", e.msg)
+			}
+		}
 	}
 	time.Sleep(30 * time.Second)
 	// First pass after boot: recover storage, then regenerate Samba/NFS config so an
@@ -216,23 +262,38 @@ func (s *Server) healthWatcher() {
 	}
 }
 
-func (s *Server) notify(subject, msg string) {
+// notify sends a notification of level info, warning or error to the
+// channels that accept it (switch, minimum level, quiet hours).
+func (s *Server) notify(level, subject, msg string) {
 	go func() {
-		if err := s.sendNotification(subject, msg); err != nil {
+		if _, err := s.sendNotification(level, subject, msg); err != nil && !errors.Is(err, errNoChannel) {
 			slog.Warn("notification failed", "err", err)
 		}
 	}()
 }
 
-func (s *Server) sendNotification(subject, msg string) error {
+var errNoChannel = badRequest("no notification channel configured")
+
+// sendNotification delivers a notification and returns the channels used.
+// Level "" is an explicit send (test, monthly report): it ignores the
+// minimum levels and quiet hours, but not a disabled channel.
+func (s *Server) sendNotification(level, subject, msg string) ([]string, error) {
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
 	subject, msg = i18n.Lines(set.NotifyLang, subject), i18n.Lines(set.NotifyLang, msg)
 	host, _ := hostname()
-	var errs []string
-	sent := false
-	if set.WebhookURL != "" {
-		sent = true
+	quiet := !quietAllows(set.QuietHours, level, time.Now())
+	ch := set.NotifyChannels
+	configured, enabled := false, false
+	// use tells whether a configured channel sends this notification.
+	use := func(c store.NotifyChannel) bool {
+		configured = true
+		enabled = enabled || !c.Disabled
+		return !quiet && channelAccepts(c, level)
+	}
+	var errs, sent []string
+	if set.WebhookURL != "" && use(ch.Webhook) {
+		sent = append(sent, "webhook")
 		body, _ := json.Marshal(map[string]string{"title": subject, "message": msg, "host": host, "text": subject + ": " + msg, "content": subject + ": " + msg})
 		cl := &http.Client{Timeout: 10 * time.Second}
 		resp, err := cl.Post(set.WebhookURL, "application/json", bytes.NewReader(body))
@@ -245,20 +306,20 @@ func (s *Server) sendNotification(subject, msg string) error {
 			}
 		}
 	}
-	if set.TelegramToken != "" && set.TelegramChatID != "" {
-		sent = true
+	if set.TelegramToken != "" && set.TelegramChatID != "" && use(ch.Telegram) {
+		sent = append(sent, "telegram")
 		if err := sendTelegram(set.TelegramToken, set.TelegramChatID, "🖥 "+host+"\n<b>"+html.EscapeString(subject)+"</b>\n"+html.EscapeString(msg)); err != nil {
 			errs = append(errs, "telegram: "+err.Error())
 		}
 	}
-	if set.NtfyURL != "" {
-		sent = true
+	if set.NtfyURL != "" && use(ch.Ntfy) {
+		sent = append(sent, "ntfy")
 		if err := sendNtfy(set.NtfyURL, set.NtfyToken, "["+host+"] "+subject, msg); err != nil {
 			errs = append(errs, "ntfy: "+err.Error())
 		}
 	}
-	if set.SMTPHost != "" && set.NotifyEmail != "" {
-		sent = true
+	if set.SMTPHost != "" && set.NotifyEmail != "" && use(ch.Email) {
+		sent = append(sent, "email")
 		from := set.SMTPFrom
 		if from == "" {
 			from = set.SMTPUser
@@ -278,13 +339,15 @@ func (s *Server) sendNotification(subject, msg string) error {
 			errs = append(errs, "email: "+err.Error())
 		}
 	}
-	if !sent {
-		return badRequest("no notification channel configured")
+	switch {
+	case !configured:
+		return nil, errNoChannel
+	case !enabled:
+		return nil, badRequest("all notification channels are disabled")
+	case len(errs) > 0:
+		return sent, fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "; "))
-	}
-	return nil
+	return sent, nil
 }
 
 // sendMail sends one message. security: "tls" (implicit TLS, usually port 465),
@@ -472,5 +535,5 @@ func (s *Server) checkMissingAccounts() {
 	}
 	msg := "Accounts missing from the system (back to a restore point?): " + strings.Join(missing, ", ") + ". Set their password again in Users to recreate them."
 	s.store.Log("warning", "users", "", msg)
-	s.notify("Accounts to recreate", msg)
+	s.notify("warning", "Accounts to recreate", msg)
 }

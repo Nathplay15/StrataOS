@@ -398,6 +398,6 @@ func (s *Server) lockedSharesNotice() {
 	if len(names) > 0 {
 		msg := "Encrypted folders to unlock: " + strings.Join(names, ", ")
 		s.store.Log("warning", "shares", "", msg)
-		s.notify("Encrypted folders locked", msg)
+		s.notify("warning", "Encrypted folders locked", msg)
 	}
 }

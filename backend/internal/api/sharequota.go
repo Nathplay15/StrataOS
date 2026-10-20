@@ -60,11 +60,11 @@ func (s *Server) checkShareQuotas() {
 				msg += ": it is read-only until space is freed"
 			}
 			s.store.Log("error", "quota", "", msg)
-			s.notify("Quota reached", msg)
+			s.notify("error", "Quota reached", msg)
 		case pct >= 90 && prev < 90:
 			msg := fmt.Sprintf("Shared folder %s is %.0f%% of its quota (%.1f GB of %.1f GB)", sh.Name, pct, float64(used)/1e9, sh.QuotaGB)
 			s.store.Log("warning", "quota", "", msg)
-			s.notify("Quota almost reached", msg)
+			s.notify("warning", "Quota almost reached", msg)
 		case !full && sh.QuotaFull:
 			s.store.Log("info", "quota", "", fmt.Sprintf("Shared folder %s is under its quota again: writing restored", sh.Name))
 		}
