@@ -257,37 +257,8 @@ func writeConfig(ctx context.Context, t *store.CloudSync) (string, error) {
 	return path, nil
 }
 
-// knownHost records the server's SSH key the first time it is used (like
-// StrictHostKeyChecking=accept-new) and returns the known_hosts file.
 func knownHost(ctx context.Context, host, port string) (string, error) {
-	kh := filepath.Join(backup.KeyDir, "known_hosts")
-	if port == "" {
-		port = "22"
-	}
-	name := host
-	if port != "22" {
-		name = "[" + host + "]:" + port
-	}
-	if out, _ := sys.Run("ssh-keygen", "-F", name, "-f", kh); strings.TrimSpace(out) != "" {
-		return kh, nil
-	}
-	if strings.HasPrefix(host, "-") {
-		return "", fmt.Errorf("invalid host")
-	}
-	keys, err := sys.RunOpts(ctx, sys.Opts{Timeout: 20 * time.Second}, "ssh-keyscan", "-p", port, "-T", "10", host)
-	if err != nil || strings.TrimSpace(keys) == "" {
-		return "", fmt.Errorf("cannot reach the SSH server %s:%s", host, port)
-	}
-	if err := os.MkdirAll(backup.KeyDir, 0o700); err != nil {
-		return "", err
-	}
-	f, err := os.OpenFile(kh, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	_, err = f.WriteString(keys)
-	return kh, err
+	return backup.KnownHost(ctx, host, port)
 }
 
 // oneDrive asks Microsoft Graph for the default drive of the account behind the token

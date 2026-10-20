@@ -369,6 +369,9 @@ func Apply(st *store.State) error {
 		}
 		if sh.TimeMachine {
 			b.WriteString("   fruit:time machine = yes\n")
+			if sh.TimeMachineMaxGB > 0 {
+				fmt.Fprintf(&b, "   fruit:time machine max size = %d\n", int64(sh.TimeMachineMaxGB*1e9)) // bytes
+			}
 		}
 		var veto []string
 		if sh.RecycleBin {

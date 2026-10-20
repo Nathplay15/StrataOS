@@ -1,4 +1,5 @@
-// Package backup runs backup tasks: rsync mirrors, restic versioned backups and ZFS replication.
+// Package backup runs backup tasks: rsync mirrors, restic versioned backups, ZFS
+// replication (push or pull), pulls from other NAS and two-way syncs.
 package backup
 
 import (
@@ -73,6 +74,18 @@ func Validate(t *store.BackupTask) error {
 	if len(t.Sources) == 0 {
 		return fmt.Errorf("choose at least one source")
 	}
+	if t.Kind == "sync" {
+		return validateSync(t)
+	}
+	if IsPull(t) {
+		switch t.Kind {
+		case "rsync":
+			return validatePull(t)
+		case "zfs":
+			return validateZFSPull(t)
+		}
+		return fmt.Errorf("this backup type cannot pull from another NAS")
+	}
 	if t.Kind != "zfs" {
 		for i, src := range t.Sources {
 			c := filepath.Clean(src)
@@ -82,10 +95,8 @@ func Validate(t *store.BackupTask) error {
 			t.Sources[i] = c
 		}
 	}
-	for _, e := range t.Excludes {
-		if strings.ContainsAny(e, "\n\r") || strings.HasPrefix(e, "-") {
-			return fmt.Errorf("invalid exclude pattern %q", e)
-		}
+	if err := validExtras(t); err != nil {
+		return err
 	}
 	remote := t.DestType == "ssh" || t.DestType == "sftp"
 	if remote {
@@ -211,11 +222,19 @@ type Progress struct {
 func Run(ctx context.Context, t store.BackupTask, p Progress) (string, error) {
 	switch t.Kind {
 	case "rsync":
+		if IsPull(&t) {
+			return runPull(ctx, &t, p)
+		}
 		return runRsync(ctx, &t, p)
 	case "restic":
 		return runRestic(ctx, &t, p)
 	case "zfs":
+		if IsPull(&t) {
+			return runZFSPull(ctx, &t, p)
+		}
 		return runZFS(ctx, &t, p)
+	case "sync":
+		return runSync(ctx, &t, p)
 	}
 	return "", fmt.Errorf("unknown backup type")
 }
@@ -233,14 +252,7 @@ func runRsync(ctx context.Context, t *store.BackupTask, p Progress) (string, err
 			return "", fmt.Errorf("source %s is missing", src)
 		}
 		name := filepath.Base(src)
-		args := []string{"-aHAX", "--numeric-ids", "--info=progress2", "--no-inc-recursive", "--protect-args"}
-		if t.Delete {
-			args = append(args, "--delete", "--delete-excluded")
-		}
-		args = append(args, "--exclude=/.recycle/", "--exclude=/.snapshots/")
-		for _, e := range t.Excludes {
-			args = append(args, "--exclude="+e)
-		}
+		args := rsyncCommonArgs(t, []string{"-aHAX", "--numeric-ids"})
 		var dest string
 		if t.DestType == "local" {
 			if err := os.MkdirAll(t.DestPath, 0o755); err != nil {
@@ -485,12 +497,7 @@ func remoteZFS(ctx context.Context, t *store.BackupTask, args ...string) (string
 	if t.DestType == "local" {
 		return sys.RunCtx(ctx, "zfs", args...)
 	}
-	quoted := make([]string, len(args))
-	for i, a := range args {
-		quoted[i] = shellQuote(a)
-	}
-	full := append(sshArgs(t), t.User+"@"+t.Host, "zfs "+strings.Join(quoted, " "))
-	return sys.RunCtx(ctx, "ssh", full...)
+	return sshZFS(ctx, t, args...)
 }
 
 func runZFS(ctx context.Context, t *store.BackupTask, p Progress) (string, error) {
@@ -623,6 +630,12 @@ func ownSnapshots(src string, t *store.BackupTask) ([]string, error) {
 // Test checks that the destination is reachable with the stored settings.
 func Test(ctx context.Context, t store.BackupTask) (string, error) {
 	switch {
+	case t.Kind == "sync":
+		return testSync(ctx, &t)
+	case IsPull(&t) && t.Kind == "zfs":
+		return testZFSPull(ctx, &t)
+	case IsPull(&t):
+		return testPull(ctx, &t)
 	case t.Kind == "restic":
 		if err := ensureRepo(ctx, &t, Progress{Set: func(float64) {}, Log: func(string, ...any) {}}); err != nil {
 			return "", err
