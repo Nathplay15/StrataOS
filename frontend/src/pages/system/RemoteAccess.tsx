@@ -7,6 +7,7 @@ import { useAction } from "../../lib/hooks";
 import { ago, bytes, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
+import RemoteExtras from "./RemoteExtras";
 
 type Peer = { id: string; name: string; mode: "nas" | "lan" | "all"; ip: string; publicKey: string; createdAt: string };
 type VPN = { enabled: boolean; port: number; subnet: string; endpoint: string; lan: string; publicKey: string; peers: Peer[] };
@@ -134,6 +135,8 @@ export default function RemoteAccess() {
             )}
           </div>
         </Card>
+
+        <RemoteExtras />
       </div>
       {show && <ConfigModal name={show.name} config={show.config} onClose={() => setShow(null)} />}
     </div>

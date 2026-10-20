@@ -1,0 +1,202 @@
+[
+ [
+  "Domaine d'application {0} retiré",
+  "App domain {0} removed"
+ ],
+ [
+  "Domaine d'application {0} enregistré",
+  "App domain {0} saved"
+ ],
+ [
+  "Domaines d'application désactivés",
+  "App domains disabled"
+ ],
+ [
+  "Domaines d'application activés (ports 80 et 443)",
+  "App domains enabled (ports 80 and 443)"
+ ],
+ [
+  "Tunnel Cloudflare désactivé",
+  "Cloudflare Tunnel disabled"
+ ],
+ [
+  "Tunnel Cloudflare activé ({0})",
+  "Cloudflare Tunnel enabled ({0})"
+ ],
+ [
+  "Options Tailscale enregistrées",
+  "Tailscale options saved"
+ ],
+ [
+  "NAS déconnecté de Tailscale",
+  "NAS signed out of Tailscale"
+ ],
+ [
+  "Connexion à Tailscale lancée",
+  "Tailscale sign-in started"
+ ],
+ [
+  "NAS connecté à Tailscale",
+  "NAS signed in to Tailscale"
+ ],
+ [
+  "Certificat obtenu pour {0}",
+  "Certificate obtained for {0}"
+ ],
+ [
+  "Certificat pour {0} non obtenu : {1}",
+  "Certificate for {0} not obtained: {1}"
+ ],
+ [
+  "Échec du renouvellement du certificat",
+  "Certificate renewal failed"
+ ],
+ [
+  "Le certificat de {0} expire le {1} : {2}",
+  "The certificate of {0} expires on {1}: {2}"
+ ],
+ [
+  "Activez d'abord les domaines d'application",
+  "enable the app domains first"
+ ],
+ [
+  "{0} est déjà publié",
+  "{0} is already published"
+ ],
+ [
+  "Installez d'abord cloudflared",
+  "install cloudflared first"
+ ],
+ [
+  "Installez d'abord Tailscale",
+  "install Tailscale first"
+ ],
+ [
+  "Clé d'authentification invalide (elle commence par tskey-)",
+  "invalid auth key (it starts with tskey-)"
+ ],
+ [
+  "Let's Encrypt ne certifie que les noms publics : {0} garde son certificat auto-signé",
+  "Let's Encrypt only certifies public names: {0} keeps its self-signed certificate"
+ ],
+ [
+  "Collez d'abord le jeton du tunnel",
+  "paste the tunnel token first"
+ ],
+ [
+  "Une demande de certificat pour {0} est déjà en cours",
+  "a certificate request for {0} is already running"
+ ],
+ [
+  "Choisissez une application",
+  "choose an app"
+ ],
+ [
+  "Choisissez le service à publier",
+  "choose the service to publish"
+ ],
+ [
+  "Cloudflare injoignable",
+  "Cloudflare unreachable"
+ ],
+ [
+  "Saisissez un nom d'hôte complet (par exemple jellyfin.exemple.fr)",
+  "enter a full host name (for example jellyfin.example.com)"
+ ],
+ [
+  "Saisissez un nom d'hôte, pas une adresse IP",
+  "enter a host name, not an IP address"
+ ],
+ [
+  "Hôte invalide dans l'adresse",
+  "invalid host in the address"
+ ],
+ [
+  "Nom d'hôte invalide",
+  "invalid host name"
+ ],
+ [
+  "Nom d'hôte invalide {0}",
+  "invalid host name {0}"
+ ],
+ [
+  "Réseau invalide {0} (attendu : 192.168.1.0/24)",
+  "invalid network {0} (expected 192.168.1.0/24)"
+ ],
+ [
+  "Port invalide",
+  "invalid port"
+ ],
+ [
+  "Jeton de tunnel invalide",
+  "invalid tunnel token"
+ ],
+ [
+  "Jeton de tunnel invalide (copiez-le depuis Cloudflare : Networks → Tunnels → votre tunnel → commande d'installation)",
+  "invalid tunnel token (copy it from Cloudflare: Networks → Tunnels → your tunnel → install command)"
+ ],
+ [
+  "Compte Let's Encrypt : {0}",
+  "Let's Encrypt account: {0}"
+ ],
+ [
+  "Let's Encrypt ne propose pas de défi {0}",
+  "Let's Encrypt offers no {0} challenge"
+ ],
+ [
+  "Le port {0} est déjà utilisé par un autre programme : libérez-le avant d'activer les domaines d'application",
+  "port {0} is already used by another program: free it before enabling the app domains"
+ ],
+ [
+  "Le port {0} est déjà utilisé par {1} : arrêtez-le (ou changez son port) avant d'activer les domaines d'application",
+  "port {0} is already used by {1}: stop it (or change its port) before enabling the app domains"
+ ],
+ [
+  "{0} n'est pas sur le réseau local",
+  "{0} is not on the local network"
+ ],
+ [
+  "Tailscale n'a pas donné d'adresse de connexion (tailscaled est-il démarré ?)",
+  "Tailscale did not give a sign-in address (is tailscaled running?)"
+ ],
+ [
+  "L'adresse doit ressembler à http://192.168.1.20:8080",
+  "the address must look like http://192.168.1.20:8080"
+ ],
+ [
+  "L'application {0} n'a pas d'interface web",
+  "the app {0} has no web interface"
+ ],
+ [
+  "L'application {0} n'est pas installée",
+  "the app {0} is not installed"
+ ],
+ [
+  "Le service doit être sur ce NAS ou le réseau local",
+  "the service must be on this NAS or the local network"
+ ],
+ [
+  "Pour publier l'interface StrataOS, choisissez « Interface StrataOS » comme service",
+  "to publish the StrataOS interface, choose \"StrataOS interface\" as the service"
+ ],
+ [
+  "Nom d'hôte inconnu",
+  "unknown host name"
+ ],
+ [
+  "Port inconnu pour l'application {0}",
+  "unknown port for the app {0}"
+ ],
+ [
+  "État de Tailscale illisible : {0}",
+  "unreadable tailscale status: {0}"
+ ],
+ [
+  "Utilisez l'option nœud de sortie pour router tout le trafic",
+  "use the exit node option to route all traffic"
+ ],
+ [
+  "Domaines d'application non servis : {0}",
+  "App domains not served: {0}"
+ ]
+]

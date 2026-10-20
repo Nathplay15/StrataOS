@@ -36,6 +36,10 @@ type Manager struct {
 	domain     string
 	email      string
 	httpSrv    *http.Server
+	httpH      http.Handler
+	// external: another server owns port 80 (app domains) and passes the
+	// requests through HTTPHandler.
+	external bool
 	// HTTPSPort is used to redirect plain HTTP requests received on port 80.
 	HTTPSPort string
 }
@@ -143,16 +147,19 @@ func (m *Manager) SetACME(domain, email string) error {
 		cancel()
 		m.httpSrv = nil
 	}
-	m.acme, m.domain, m.email = nil, "", ""
+	m.acme, m.domain, m.email, m.httpH = nil, "", "", nil
 	if domain == "" {
 		return nil
 	}
 	if !domainRe.MatchString(domain) {
 		return fmt.Errorf("invalid domain name")
 	}
-	ln, err := net.Listen("tcp", ":80")
-	if err != nil {
-		return fmt.Errorf("port 80 is not available (an application may be using it): %w", err)
+	var ln net.Listener
+	if !m.external {
+		var err error
+		if ln, err = net.Listen("tcp", ":80"); err != nil {
+			return fmt.Errorf("port 80 is not available (an application may be using it): %w", err)
+		}
 	}
 	am := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
@@ -168,14 +175,44 @@ func (m *Manager) SetACME(domain, email string) error {
 		}
 		http.Redirect(w, r, "https://"+net.JoinHostPort(host, port)+r.URL.RequestURI(), http.StatusFound)
 	})
-	srv := &http.Server{Handler: am.HTTPHandler(redirect), ReadHeaderTimeout: 10 * time.Second}
+	h := am.HTTPHandler(redirect)
+	m.acme, m.domain, m.email, m.httpH = am, domain, email, h
+	if ln == nil {
+		return nil
+	}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("acme http listener", "err", err)
 		}
 	}()
-	m.acme, m.domain, m.email, m.httpSrv = am, domain, email, srv
+	m.httpSrv = srv
 	return nil
+}
+
+// SetExternalHTTP hands port 80 over to another server (on = true), which then
+// passes the requests it does not handle to HTTPHandler, or takes it back.
+func (m *Manager) SetExternalHTTP(on bool) error {
+	m.mu.Lock()
+	if m.external == on {
+		m.mu.Unlock()
+		return nil
+	}
+	m.external = on
+	domain, email := m.domain, m.email
+	m.mu.Unlock()
+	if domain == "" {
+		return nil
+	}
+	return m.SetACME(domain, email)
+}
+
+// HTTPHandler answers the challenges of the interface certificate and
+// redirects to HTTPS; nil when Let's Encrypt is off.
+func (m *Manager) HTTPHandler() http.Handler {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.httpH
 }
 
 // Obtain requests the Let's Encrypt certificate now, to report errors immediately.

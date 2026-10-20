@@ -224,6 +224,7 @@ func (s *Server) routes() {
 	s.vaultRoutes()
 	s.metricsRoutes()
 	s.fleetRoutes()
+	s.remoteRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

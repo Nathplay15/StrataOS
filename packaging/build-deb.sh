@@ -24,6 +24,8 @@ install -Dm755 packaging/scripts/install-antivirus.sh "$ROOT/usr/lib/strata/scri
 install -Dm755 packaging/scripts/install-ha.sh "$ROOT/usr/lib/strata/scripts/install-ha.sh"
 install -Dm755 packaging/scripts/install-vpn.sh "$ROOT/usr/lib/strata/scripts/install-vpn.sh"
 install -Dm755 packaging/scripts/install-photos.sh "$ROOT/usr/lib/strata/scripts/install-photos.sh"
+install -Dm755 packaging/scripts/install-tailscale.sh "$ROOT/usr/lib/strata/scripts/install-tailscale.sh"
+install -Dm755 packaging/scripts/install-cloudflared.sh "$ROOT/usr/lib/strata/scripts/install-cloudflared.sh"
 install -Dm755 packaging/scripts/ha-notify "$ROOT/usr/lib/strata/scripts/ha-notify"
 install -Dm755 packaging/scripts/upssched-cmd "$ROOT/usr/lib/strata/scripts/upssched-cmd"
 # APT repository for StrataOS updates (see packaging/make-repo.sh).
