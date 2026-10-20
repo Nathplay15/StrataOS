@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"strataos/internal/proxy"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 )
@@ -183,6 +184,11 @@ func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
+	}
+	// Through a tunnel running on the NAS (cloudflared…), the client is in
+	// the forwarding headers: otherwise every visitor would look local.
+	if f := proxy.ForwardedFor(host, r.Header); f != "" {
+		return f
 	}
 	return host
 }
