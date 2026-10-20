@@ -183,7 +183,7 @@ func (s *Server) freezeShare(share, file string) {
 		msg = fmt.Sprintf("Trap file modified in share %s by account %s (%s): the share is now read-only. Check the computers, restore from the snapshots if needed, then release it in Antivirus", share, user, ip)
 	}
 	s.store.Log("error", "ransomware", user, msg)
-	s.notify("Ransomware suspected", msg)
+	s.notify("error", "Ransomware suspected", msg)
 }
 
 // pauseNFS suspends the NFS exports after mass changes through NFS.
@@ -192,7 +192,7 @@ func (s *Server) pauseNFS(reason string) {
 	_ = s.applyShares()
 	msg := "Ransomware suspected through NFS (" + reason + "): NFS shares are suspended. Check the NFS clients, then resume them in Antivirus"
 	s.store.Log("error", "ransomware", "", msg)
-	s.notify("Ransomware suspected", msg)
+	s.notify("error", "Ransomware suspected", msg)
 }
 
 // trapLoop keeps the trap files in place and watches them.

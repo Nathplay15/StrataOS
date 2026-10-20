@@ -1,0 +1,134 @@
+[
+ [
+  "Grappe RAID {0} : la reconstruction a commencé",
+  "RAID array {0}: rebuild started"
+ ],
+ [
+  "Grappe RAID {0} : la reconstruction est terminée en {1}",
+  "RAID array {0}: rebuild finished in {1}"
+ ],
+ [
+  "Grappe RAID {0} : la reconstruction a échoué après {1}",
+  "RAID array {0}: rebuild failed after {1}"
+ ],
+ [
+  "Grappe RAID {0} : la reconstruction s'est arrêtée avant la fin",
+  "RAID array {0}: rebuild stopped before the end"
+ ],
+ [
+  "Grappe RAID {0} : la resynchronisation a commencé",
+  "RAID array {0}: resync started"
+ ],
+ [
+  "Grappe RAID {0} : la resynchronisation est terminée en {1}",
+  "RAID array {0}: resync finished in {1}"
+ ],
+ [
+  "Grappe RAID {0} : la resynchronisation a échoué après {1}",
+  "RAID array {0}: resync failed after {1}"
+ ],
+ [
+  "Grappe RAID {0} : la resynchronisation s'est arrêtée avant la fin",
+  "RAID array {0}: resync stopped before the end"
+ ],
+ [
+  "Grappe RAID {0} : la vérification a commencé",
+  "RAID array {0}: check started"
+ ],
+ [
+  "Grappe RAID {0} : la vérification est terminée en {1}",
+  "RAID array {0}: check finished in {1}"
+ ],
+ [
+  "Grappe RAID {0} : la vérification a échoué après {1}",
+  "RAID array {0}: check failed after {1}"
+ ],
+ [
+  "Grappe RAID {0} : la vérification s'est arrêtée avant la fin",
+  "RAID array {0}: check stopped before the end"
+ ],
+ [
+  "Grappe RAID {0} : la réparation a commencé",
+  "RAID array {0}: repair started"
+ ],
+ [
+  "Grappe RAID {0} : la réparation est terminée en {1}",
+  "RAID array {0}: repair finished in {1}"
+ ],
+ [
+  "Grappe RAID {0} : la réparation a échoué après {1}",
+  "RAID array {0}: repair failed after {1}"
+ ],
+ [
+  "Grappe RAID {0} : la réparation s'est arrêtée avant la fin",
+  "RAID array {0}: repair stopped before the end"
+ ],
+ [
+  "Grappe RAID {0} : la restructuration a commencé",
+  "RAID array {0}: reshape started"
+ ],
+ [
+  "Grappe RAID {0} : la restructuration est terminée en {1}",
+  "RAID array {0}: reshape finished in {1}"
+ ],
+ [
+  "Grappe RAID {0} : la restructuration a échoué après {1}",
+  "RAID array {0}: reshape failed after {1}"
+ ],
+ [
+  "Grappe RAID {0} : la restructuration s'est arrêtée avant la fin",
+  "RAID array {0}: reshape stopped before the end"
+ ],
+ [
+  "Pool ZFS {0} : le nettoyage (scrub) a commencé",
+  "ZFS pool {0}: scrub started"
+ ],
+ [
+  "Pool ZFS {0} : le nettoyage (scrub) est terminé en {1}",
+  "ZFS pool {0}: scrub finished in {1}"
+ ],
+ [
+  "Pool ZFS {0} : le nettoyage (scrub) est terminé en {1} avec {2} erreurs",
+  "ZFS pool {0}: scrub finished in {1} with {2} errors"
+ ],
+ [
+  "Pool ZFS {0} : le nettoyage (scrub) s'est arrêté avant la fin",
+  "ZFS pool {0}: scrub stopped before the end"
+ ],
+ [
+  "Pool ZFS {0} : la resynchronisation (resilver) a commencé",
+  "ZFS pool {0}: resilver started"
+ ],
+ [
+  "Pool ZFS {0} : la resynchronisation (resilver) est terminée en {1}",
+  "ZFS pool {0}: resilver finished in {1}"
+ ],
+ [
+  "Pool ZFS {0} : la resynchronisation (resilver) est terminée en {1} avec {2} erreurs",
+  "ZFS pool {0}: resilver finished in {1} with {2} errors"
+ ],
+ [
+  "Pool ZFS {0} : la resynchronisation (resilver) s'est arrêtée avant la fin",
+  "ZFS pool {0}: resilver stopped before the end"
+ ],
+ [
+  "Tous les canaux de notification sont désactivés",
+  "all notification channels are disabled"
+ ],
+ [
+  "Heures calmes : les heures doivent être au format HH:MM",
+  "quiet hours: times must be HH:MM"
+ ],
+ [
+  "Heures calmes : le début et la fin doivent être différents",
+  "quiet hours: start and end must differ"
+ ],
+ [
+  "Niveau de notification invalide {0}",
+  "invalid notification level {0}"
+ ],
+ [
+  "Niveau de notification invalide",
+  "invalid notification level"
+ ]
+]

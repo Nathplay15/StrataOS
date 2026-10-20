@@ -33,14 +33,14 @@ func (s *Server) recoverStorage() {
 				msg := fmt.Sprintf("RAID array %s cannot start: too many disks missing (%v)", name, err)
 				if s.firstTime(msg) {
 					s.store.Log("error", "health", "", msg)
-					s.notify("RAID unavailable", msg)
+					s.notify("error", "RAID unavailable", msg)
 				}
 				continue
 			}
 			changed = true
 			msg := fmt.Sprintf("RAID array %s started degraded: a disk is missing, replace it soon", name)
 			s.store.Log("warning", "health", "", msg)
-			s.notify("RAID degraded", msg)
+			s.notify("error", "RAID degraded", msg)
 		}
 	}
 	if changed {

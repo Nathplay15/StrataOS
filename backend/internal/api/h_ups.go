@@ -47,7 +47,8 @@ func (s *Server) upsWatcher() {
 		case strings.Contains(status, "LB"):
 			level, msg = "error", "UPS battery low: the NAS is shutting down"
 		case strings.HasPrefix(status, "OB"):
-			level, msg = "warning", "Power outage: the NAS runs on battery"
+			// An error: a shutdown may follow, it must pass "errors only" filters.
+			level, msg = "error", "Power outage: the NAS runs on battery"
 			if c.ShutdownAfter > 0 {
 				msg += " (automatic shutdown in " + (time.Duration(c.ShutdownAfter) * time.Second).String() + " if power does not return)"
 			}
@@ -59,7 +60,7 @@ func (s *Server) upsWatcher() {
 			continue
 		}
 		s.store.Log(level, "ups", "", msg)
-		s.notify("UPS", msg)
+		s.notify(level, "UPS", msg)
 	}
 }
 

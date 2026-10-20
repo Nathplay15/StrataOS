@@ -94,7 +94,7 @@ func (s *Server) runCloud(id, user string, manual bool) (jobs.Snapshot, error) {
 			slog.Error("save cloud sync history", "err", uerr)
 		}
 		if err != nil {
-			s.notify("Cloud sync failed", t.Name+" : "+err.Error())
+			s.notify("error", "Cloud sync failed", t.Name+" : "+err.Error())
 		}
 		return err
 	}), nil

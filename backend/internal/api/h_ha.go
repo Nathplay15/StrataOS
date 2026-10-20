@@ -248,7 +248,7 @@ func (s *Server) haLoop() {
 			if cur == "MASTER" && c.Role == "secondary" {
 				msg := fmt.Sprintf("Failover: the secondary NAS takes over address %s (the primary %s no longer answers)", c.VIP, c.PeerHost)
 				s.store.Log("error", "ha", "", msg)
-				s.notify("High availability failover", msg)
+				s.notify("error", "High availability failover", msg)
 			} else if cur == "MASTER" {
 				s.store.Log("info", "ha", "", "This NAS serves the shared address "+c.VIP)
 			} else if last == "MASTER" {

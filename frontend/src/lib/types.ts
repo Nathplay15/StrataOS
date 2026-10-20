@@ -347,6 +347,22 @@ export interface StrataEvent {
   user?: string;
 }
 
+export type NotifyChannelId = "email" | "telegram" | "ntfy" | "webhook";
+export type NotifyLevel = "" | "info" | "warning" | "error";
+
+// Zero values (as saved before 0.6.0) mean enabled, every level.
+export interface NotifyChannel {
+  disabled?: boolean;
+  minLevel?: NotifyLevel;
+}
+
+export interface QuietHours {
+  enabled?: boolean;
+  start?: string;
+  end?: string;
+  silenceAll?: boolean;
+}
+
 export interface Settings {
   workgroup: string;
   serverString: string;
@@ -366,6 +382,8 @@ export interface Settings {
   notifyLang?: string;
   ntfyUrl?: string;
   ntfyToken?: string;
+  notifyChannels?: Partial<Record<NotifyChannelId, NotifyChannel>>;
+  quietHours?: QuietHours;
   smbMinProtocol: string;
   trashDays: number;
 }

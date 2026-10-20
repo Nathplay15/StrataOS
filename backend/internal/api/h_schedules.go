@@ -71,7 +71,7 @@ func (s *Server) schedulerLoop() {
 			if on {
 				go func() {
 					subject, body := s.monthlyReport()
-					s.notify(subject, body)
+					s.notify("", subject, body) // asked for: no level filter
 				}()
 			}
 		}
@@ -108,7 +108,7 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 			run.Status, run.Message = "failed", err.Error()
 			if errors.Is(err, antivirus.ErrInfected) {
 				s.store.Log("error", "antivirus", "", err.Error())
-				s.notify("Virus detected", err.Error())
+				s.notify("error", "Virus detected", err.Error())
 			}
 		} else {
 			j.Logf("%s", msg)

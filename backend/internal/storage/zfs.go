@@ -581,3 +581,57 @@ func MarkLocks(list []ZDataset) []ZDataset {
 	}
 	return list
 }
+
+// ZScan is the scrub or resilver state of a pool (the "scan:" line of zpool status).
+type ZScan struct {
+	Kind     string // scrub | resilver | "" (never scanned)
+	Running  bool   // in progress (or paused)
+	Canceled bool
+	Errors   int // errors found by the last completed scan
+}
+
+var zscanDoneRe = regexp.MustCompile(`^(scrub repaired|resilvered) .* with (\d+) errors`)
+
+// ParseZScan reads the scan state from `zpool status` output.
+func ParseZScan(status string) ZScan {
+	for _, l := range strings.Split(status, "\n") {
+		l = strings.TrimSpace(l)
+		if !strings.HasPrefix(l, "scan:") {
+			continue
+		}
+		l = strings.TrimSpace(strings.TrimPrefix(l, "scan:"))
+		var z ZScan
+		switch {
+		case strings.HasPrefix(l, "scrub"):
+			z.Kind = "scrub"
+		case strings.HasPrefix(l, "resilver"):
+			z.Kind = "resilver"
+		default:
+			return ZScan{}
+		}
+		switch {
+		case strings.Contains(l, "in progress since"), strings.Contains(l, "paused since"):
+			z.Running = true
+		case strings.Contains(l, "canceled"), strings.Contains(l, "cancelled"):
+			z.Canceled = true
+		default:
+			if m := zscanDoneRe.FindStringSubmatch(l); m != nil {
+				z.Errors, _ = strconv.Atoi(m[2])
+			}
+		}
+		return z
+	}
+	return ZScan{}
+}
+
+// ZPoolScan returns the scrub or resilver state of a pool.
+func ZPoolScan(pool string) (ZScan, error) {
+	if err := validDS(pool); err != nil {
+		return ZScan{}, err
+	}
+	out, err := sys.Run("zpool", "status", pool)
+	if err != nil {
+		return ZScan{}, err
+	}
+	return ParseZScan(out), nil
+}

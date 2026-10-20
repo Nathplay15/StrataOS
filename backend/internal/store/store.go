@@ -122,6 +122,9 @@ type Settings struct {
 	// self-hosted server) and an optional access token.
 	NtfyURL   string `json:"ntfyUrl,omitempty"`
 	NtfyToken string `json:"ntfyToken,omitempty"`
+	// Per-channel switch and minimum level, and quiet hours (store/notify.go).
+	NotifyChannels NotifyChannels `json:"notifyChannels"`
+	QuietHours     QuietHours     `json:"quietHours"`
 	// MetricsToken enables /metrics (Prometheus) for clients sending it.
 	MetricsToken string `json:"metricsToken,omitempty"`
 	// NotifyLang is the language of notifications and reports ("" = en).

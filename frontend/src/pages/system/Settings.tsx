@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, Bell, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import type { Settings, SystemInfo } from "../../lib/types";
+import type { NotifyChannel, NotifyChannelId, NotifyLevel, Settings, SystemInfo } from "../../lib/types";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, locale, languages } from "../../lib/i18n";
 
@@ -114,7 +114,7 @@ export default function SettingsPage() {
   useEffect(() => { if (data) setS(data); }, [data]);
   useEffect(() => { if (info.data) setZone(info.data.timezone); }, [info.data]);
   const save = useAction(() => api.put("/api/settings", s), { success: tr("Settings saved") });
-  const test = useAction(() => api.post("/api/settings/test-notification"), { success: tr("Notification sent") });
+  const test = useAction(() => api.post<{ sent: string[] }>("/api/settings/test-notification"), { success: (r) => tr("Notification sent ({0})", r.sent.join(", ")) });
   const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Time zone updated") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
   const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Report sent") });
@@ -172,6 +172,7 @@ export default function SettingsPage() {
               </Select>
             </Field>
           </div>
+          <NotifyDelivery s={s} set={set} />
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line p-4">
             <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Monthly report")} hint={tr("On the 1st of each month at 8 AM: space, disk health, backups, antivirus, updates")} /></div>
             <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Send now")}</Button>
@@ -225,6 +226,51 @@ function TelegramFields({ s, set }: { s: Settings; set: <K extends keyof Setting
           {chats.data.map((c) => <Button key={c.id} size="sm" variant={s.telegramChatId === c.id ? "primary" : "secondary"} onClick={() => set("telegramChatId", c.id)}>{c.name || c.id} <span className="text-muted">({c.type})</span></Button>)}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Per-channel switch and minimum level, and quiet hours.
+function NotifyDelivery({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const channels: { id: NotifyChannelId; name: string; configured: boolean }[] = [
+    { id: "email", name: tr("Email"), configured: !!s.smtpHost && !!s.notifyEmail },
+    { id: "telegram", name: "Telegram", configured: !!s.telegramToken && !!s.telegramChatId },
+    { id: "ntfy", name: "ntfy", configured: !!s.ntfyUrl },
+    { id: "webhook", name: tr("Webhook"), configured: !!s.webhookUrl },
+  ];
+  const prefs = s.notifyChannels ?? {};
+  const setChannel = (id: NotifyChannelId, v: NotifyChannel) => set("notifyChannels", { ...prefs, [id]: { ...prefs[id], ...v } });
+  const q = s.quietHours ?? {};
+  const setQuiet = (v: Partial<typeof q>) => set("quietHours", { start: "22:00", end: "07:00", ...q, ...v });
+  return (
+    <div className="mt-4 space-y-4 rounded-xl border border-line p-4">
+      <div className="font-medium text-[13px]">{tr("Delivery")}</div>
+      <div className="space-y-2">
+        {channels.map((c) => {
+          const p = prefs[c.id] ?? {};
+          return (
+            <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg bg-panel-2 px-3 py-2">
+              <div className="min-w-32 flex-1"><Switch checked={!p.disabled} onChange={(v) => setChannel(c.id, { disabled: !v })} label={c.name} hint={c.configured ? undefined : tr("Not configured")} /></div>
+              <Select className="w-56" value={p.minLevel ?? ""} disabled={p.disabled} onChange={(e) => setChannel(c.id, { minLevel: e.target.value as NotifyLevel })}>
+                <option value="">{tr("Everything (information and above)")}</option>
+                <option value="warning">{tr("Warnings and errors")}</option>
+                <option value="error">{tr("Errors only")}</option>
+              </Select>
+            </div>
+          );
+        })}
+      </div>
+      <div className="space-y-3 border-t border-line pt-4">
+        <Switch checked={!!q.enabled} onChange={(v) => setQuiet({ enabled: v })} label={tr("Quiet hours")} hint={tr("During this time only errors are sent. Other notifications are dropped, not sent later (they stay in the event log).")} />
+        {q.enabled && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={tr("From")}><Input type="time" value={q.start ?? ""} onChange={(e) => setQuiet({ start: e.target.value })} /></Field>
+            <Field label={tr("To")} hint={tr("NAS local time; may end the next day")}><Input type="time" value={q.end ?? ""} onChange={(e) => setQuiet({ end: e.target.value })} /></Field>
+            <div className="sm:col-span-2"><Switch checked={!!q.silenceAll} onChange={(v) => setQuiet({ silenceAll: v })} label={tr("Silence everything, errors included")} /></div>
+          </div>
+        )}
+      </div>
+      <p className="text-[12px] text-muted">{tr("The Test button and the monthly report ignore levels and quiet hours, but not a disabled channel.")}</p>
     </div>
   );
 }
