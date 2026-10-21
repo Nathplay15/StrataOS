@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -9,6 +9,8 @@ const Raid = lazy(() => import("../pages/storage/Raid"));
 const Volumes = lazy(() => import("../pages/storage/Volumes"));
 const Zfs = lazy(() => import("../pages/storage/Zfs"));
 const Lvm = lazy(() => import("../pages/storage/Lvm"));
+const SpaceAnalyzer = lazy(() => import("../pages/storage/SpaceAnalyzer"));
+const Duplicates = lazy(() => import("../pages/storage/Duplicates"));
 const Shares = lazy(() => import("../pages/Shares"));
 const UsersPage = lazy(() => import("../pages/Users"));
 const Files = lazy(() => import("../pages/Files"));
@@ -29,6 +31,7 @@ const Schedules = lazy(() => import("../pages/system/Schedules"));
 const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
+const HardwarePage = lazy(() => import("../pages/system/Hardware"));
 const GuardPage = lazy(() => import("../pages/system/Guard"));
 const FleetPage = lazy(() => import("../pages/Fleet"));
 const HelpPage = lazy(() => import("../pages/Help"));
@@ -80,6 +83,8 @@ export const APPS: AppDef[] = [
       { id: "zfs", label: "ZFS", icon: <Boxes size={16} />, component: page(Zfs), path: "/storage/zfs" },
       { id: "lvm", label: "LVM", icon: <Server size={16} />, component: page(Lvm), path: "/storage/lvm" },
       { id: "disks", label: tr("Disks"), icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
+      { id: "analyzer", label: tr("Space analyzer"), icon: <PieChart size={16} />, component: page(SpaceAnalyzer), path: "/storage/analyzer" },
+      { id: "duplicates", label: tr("Duplicates"), icon: <Copy size={16} />, component: page(Duplicates), path: "/storage/duplicates" },
     ],
   },
   {
@@ -97,6 +102,7 @@ export const APPS: AppDef[] = [
       { id: "ha", label: tr("High availability"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },
       { id: "ups", label: tr("UPS"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
       { id: "energy", label: tr("Power"), icon: <Leaf size={16} />, component: page(EnergyPage), path: "/system/energy" },
+      { id: "hardware", label: tr("Hardware"), icon: <Fan size={16} />, component: page(HardwarePage), path: "/system/hardware" },
       { id: "services", label: tr("Services"), icon: <Cpu size={16} />, component: page(Services), path: "/system/services" },
       { id: "updates", label: tr("Updates"), icon: <RefreshCcw size={16} />, component: page(Updates), path: "/system/updates" },
       { id: "settings", label: tr("Settings"), icon: <Settings size={16} />, component: page(SettingsPage), path: "/system/settings" },

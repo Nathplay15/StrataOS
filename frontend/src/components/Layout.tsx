@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
+  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
@@ -27,6 +27,8 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/storage/volumes", label: tr("Volumes"), icon: <Database size={17} />, admin: true },
       { to: "/storage/zfs", label: "ZFS", icon: <Boxes size={17} />, admin: true },
       { to: "/storage/lvm", label: "LVM", icon: <Server size={17} />, admin: true },
+      { to: "/storage/analyzer", label: tr("Space analyzer"), icon: <PieChart size={17} />, admin: true },
+      { to: "/storage/duplicates", label: tr("Duplicates"), icon: <Copy size={17} />, admin: true },
       { to: "/backup", label: tr("Backup"), icon: <DatabaseBackup size={17} />, admin: true },
       { to: "/cloudsync", label: tr("Cloud sync"), icon: <CloudCog size={17} />, admin: true },
     ],
@@ -67,6 +69,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/system/ha", label: tr("High availability"), icon: <ServerCog size={17} />, admin: true },
       { to: "/system/ups", label: tr("UPS"), icon: <BatteryCharging size={17} />, admin: true },
       { to: "/system/energy", label: tr("Power"), icon: <Leaf size={17} />, admin: true },
+      { to: "/system/hardware", label: tr("Hardware"), icon: <Fan size={17} />, admin: true },
       { to: "/system/updates", label: tr("Updates"), icon: <RefreshCcw size={17} />, admin: true },
       { to: "/system/logs", label: tr("Logs"), icon: <FileText size={17} />, admin: true },
       { to: "/system/terminal", label: tr("Terminal"), icon: <SquareTerminal size={17} />, admin: true },

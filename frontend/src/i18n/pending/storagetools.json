@@ -1,0 +1,278 @@
+[
+ [
+  "Analyse de l'espace de {0}",
+  "Space analysis of {0}"
+ ],
+ [
+  "Recherche de doublons",
+  "Duplicate search"
+ ],
+ [
+  "Test d'endurance de {0}",
+  "Burn-in test of {0}"
+ ],
+ [
+  "Doublons : {0} fichier(s) placé(s) dans la corbeille, {1} supprimé(s)",
+  "Duplicates: {0} file(s) moved to the recycle bin, {1} deleted"
+ ],
+ [
+  "Test d'endurance de {0} ({1} {2}) : {3}",
+  "Burn-in test of {0} ({1} {2}): {3}"
+ ],
+ [
+  "test de lecture non destructif",
+  "non-destructive read test"
+ ],
+ [
+  "test d'écriture destructif (efface le disque)",
+  "destructive write test (erases the disk)"
+ ],
+ [
+  "Le disque {0} a réussi son test d'endurance",
+  "Disk {0} passed its burn-in test"
+ ],
+ [
+  "Test d'endurance du disque réussi",
+  "Disk burn-in test passed"
+ ],
+ [
+  "Test d'endurance de {0} annulé",
+  "Burn-in test of {0} cancelled"
+ ],
+ [
+  "le disque {0} a échoué à son test d'endurance : {1}",
+  "disk {0} failed its burn-in test: {1}"
+ ],
+ [
+  "test d'endurance annulé",
+  "burn-in test cancelled"
+ ],
+ [
+  "le disque a refusé l'autotest : {0}",
+  "the disk refused the self-test: {0}"
+ ],
+ [
+  "l'autotest ne s'est pas terminé à temps",
+  "the self-test did not finish in time"
+ ],
+ [
+  "résultat non fourni par le disque",
+  "result not reported by the disk"
+ ],
+ [
+  "pas de données SMART sur ce périphérique",
+  "no SMART data on this device"
+ ],
+ [
+  "aucun bloc défectueux en {0}",
+  "no bad block in {0}"
+ ],
+ [
+  "{0} bloc(s) défectueux, {1} erreur(s) de lecture / {2} d'écriture / {3} de comparaison",
+  "{0} bad block(s), {1} read / {2} write / {3} comparison error(s)"
+ ],
+ [
+  "badblocks : {0}",
+  "badblocks: {0}"
+ ],
+ [
+  "Secteurs réalloués",
+  "Reallocated sectors"
+ ],
+ [
+  "Secteurs en attente",
+  "Pending sectors"
+ ],
+ [
+  "Secteurs irrécupérables hors ligne",
+  "Offline uncorrectable"
+ ],
+ [
+  "Erreurs non corrigées signalées",
+  "Reported uncorrectable"
+ ],
+ [
+  "Reprises de démarrage",
+  "Spin retries"
+ ],
+ [
+  "Erreurs CRC UDMA",
+  "UDMA CRC errors"
+ ],
+ [
+  "Erreurs de support",
+  "Media errors"
+ ],
+ [
+  "{0} : {1} → {2}",
+  "{0}: {1} → {2}"
+ ],
+ [
+  "{0} : {1} → {2} (vérifiez le câble)",
+  "{0}: {1} → {2} (check the cable)"
+ ],
+ [
+  "le disque échoue à son contrôle de santé SMART",
+  "the disk fails its SMART health check"
+ ],
+ [
+  "smart-short : {0}",
+  "smart-short: {0}"
+ ],
+ [
+  "smart-long : {0}",
+  "smart-long: {0}"
+ ],
+ [
+  "Ventilateurs rendus au BIOS",
+  "Fans given back to the BIOS"
+ ],
+ [
+  "Contrôle des ventilateurs : {0}",
+  "Fan control: {0}"
+ ],
+ [
+  "Profil des ventilateurs : {0}",
+  "Fan profile: {0}"
+ ],
+ [
+  "LED {0} : {1}",
+  "LED {0}: {1}"
+ ],
+ [
+  "le dossier doit se trouver sur un volume du NAS",
+  "the folder must be on a NAS volume"
+ ],
+ [
+  "dossier introuvable",
+  "folder not found"
+ ],
+ [
+  "dossier absent de l'analyse",
+  "folder not in the analysis"
+ ],
+ [
+  "choisissez un volume, un jeu de données ou un dossier partagé",
+  "choose a volume, a dataset or a shared folder"
+ ],
+ [
+  "une analyse de ce dossier est déjà en cours",
+  "an analysis of this folder is already running"
+ ],
+ [
+  "choisissez de 1 à 20 dossiers",
+  "choose 1 to 20 folders"
+ ],
+ [
+  "taille minimale invalide",
+  "invalid minimum size"
+ ],
+ [
+  "une recherche de doublons est déjà en cours",
+  "a duplicate search is already running"
+ ],
+ [
+  "une recherche de doublons est en cours",
+  "a duplicate search is running"
+ ],
+ [
+  "aucun fichier sélectionné",
+  "no file selected"
+ ],
+ [
+  "aucun résultat de recherche de doublons",
+  "no duplicate search result"
+ ],
+ [
+  "toutes les copies de {0} sont sélectionnées : il faut en garder au moins une",
+  "every copy of {0} is selected: at least one must stay"
+ ],
+ [
+  "{0} n'est pas dans la liste des doublons (relancez la recherche)",
+  "{0} is not in the duplicate list (search again)"
+ ],
+ [
+  "rapport introuvable",
+  "report not found"
+ ],
+ [
+  "le mode doit être read ou write",
+  "mode must be read or write"
+ ],
+ [
+  "seul un disque entier libre peut être testé",
+  "only a free whole disk can be tested"
+ ],
+ [
+  "tapez le nom du disque pour confirmer : ce test efface tout le disque",
+  "type the disk name to confirm: this test erases the whole disk"
+ ],
+ [
+  "plage de blocs invalide",
+  "invalid block range"
+ ],
+ [
+  "{0} est occupé ({1})",
+  "{0} is busy ({1})"
+ ],
+ [
+  "le disque {0} est occupé ({1})",
+  "disk {0} is busy ({1})"
+ ],
+ [
+  "test d'endurance",
+  "burn-in test"
+ ],
+ [
+  "courbe du processeur : {0}",
+  "processor curve: {0}"
+ ],
+ [
+  "courbe des disques : {0}",
+  "disk curve: {0}"
+ ],
+ [
+  "profil de ventilation inconnu",
+  "unknown fan profile"
+ ],
+ [
+  "aucun ventilateur pilotable sur ce matériel",
+  "no controllable fans on this hardware"
+ ],
+ [
+  "LED introuvable",
+  "LED not found"
+ ],
+ [
+  "une courbe de ventilation doit avoir de 2 à 8 points",
+  "a fan curve needs 2 to 8 points"
+ ],
+ [
+  "température hors limites (0–100 °C)",
+  "temperature out of range (0–100 °C)"
+ ],
+ [
+  "la vitesse doit être comprise entre {0} et 100 %",
+  "fan speed must be between {0} and 100 %"
+ ],
+ [
+  "les températures de la courbe doivent croître",
+  "curve temperatures must increase"
+ ],
+ [
+  "la vitesse ne doit pas baisser quand la température monte",
+  "fan speed must not decrease when the temperature rises"
+ ],
+ [
+  "nom de LED invalide",
+  "invalid LED name"
+ ],
+ [
+  "LED {0} introuvable",
+  "LED {0} not found"
+ ],
+ [
+  "le mode de la LED doit être on, off ou disk",
+  "LED mode must be on, off or disk"
+ ]
+]

@@ -286,6 +286,9 @@ func ValidateFreeDisks(paths []string, allowInUse bool) error {
 		if err := ValidateDevice(p); err != nil {
 			return err
 		}
+		if r := BusyReason(p); r != "" {
+			return fmt.Errorf("disk %s is busy (%s)", p, r)
+		}
 		var found *BlockDevice
 		for i := range disks {
 			if disks[i].Path == p {
@@ -312,6 +315,9 @@ func ValidateFreeDisks(paths []string, allowInUse bool) error {
 func Wipe(path string) error {
 	if err := ValidateDevice(path); err != nil {
 		return err
+	}
+	if r := BusyReason(path); r != "" {
+		return fmt.Errorf("%s is busy (%s)", path, r)
 	}
 	// Compare resolved paths: a /dev/disk/by-id link must not skip the checks below.
 	real := resolve(path)
