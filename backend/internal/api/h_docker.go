@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -336,22 +338,31 @@ func (s *Server) dockerRoutes() {
 	// ---- App store ----
 	s.admin("GET /api/apps", func(r *http.Request) (any, error) {
 		stacks, _ := docker.ListStacks(r.Context(), s.docker)
-		installed := map[string]string{}
-		for _, st := range stacks {
-			if st.App != "" {
-				installed[st.App] = st.Name
-			}
-		}
+		installed := installedApps(stacks)
 		// Web port actually chosen at install time (read from the stack's .env).
 		ports := map[string]string{}
 		for appID, stack := range installed {
-			if app := docker.FindApp(appID); app != nil && app.WebPort != "" {
-				if p := docker.EnvValue(stack, app.WebPort); p != "" {
-					ports[appID] = p
-				}
+			if p := docker.AppWebPort(stack); p != "" {
+				ports[appID] = p
 			}
 		}
-		return map[string]any{"apps": docker.Catalog, "installed": installed, "ports": ports}, nil
+		apps := slices.Clone(docker.Catalog)
+		sort.Slice(apps, func(i, j int) bool { return strings.ToLower(apps[i].Name) < strings.ToLower(apps[j].Name) })
+		// Defaults taken from other installed apps; passwords stay on the
+		// server (an empty value says "filled in at install").
+		linked := map[string]map[string]string{}
+		for _, a := range apps {
+			l := a.Linked(appLookup(installed))
+			for _, v := range a.Vars {
+				if _, ok := l[v.Key]; ok && v.Type == "password" {
+					l[v.Key] = ""
+				}
+			}
+			if len(l) > 0 {
+				linked[a.ID] = l
+			}
+		}
+		return map[string]any{"apps": apps, "installed": installed, "ports": ports, "linked": linked, "custom": customApps(stacks)}, nil
 	})
 	s.admin("POST /api/apps/{id}/install", func(r *http.Request) (any, error) {
 		if err := s.requireDocker(); err != nil {
@@ -376,6 +387,15 @@ func (s *Server) dockerRoutes() {
 		}
 		if _, err := os.Stat(docker.StacksDir + "/" + req.Name); err == nil {
 			return nil, badRequest("an app or stack named " + req.Name + " already exists")
+		}
+		if req.Values == nil {
+			req.Values = map[string]string{}
+		}
+		stacks, _ := docker.ListStacks(r.Context(), s.docker)
+		for k, v := range app.Linked(appLookup(installedApps(stacks))) {
+			if req.Values[k] == "" {
+				req.Values[k] = v
+			}
 		}
 		env, dirs, err := app.RenderEnv(req.Values)
 		if err != nil {

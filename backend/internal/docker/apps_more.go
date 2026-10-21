@@ -189,7 +189,7 @@ func init() {
     environment:
 ` + ids + tz},
 		App{ID: "duplicati", Name: "Duplicati", Category: "Backup", Description: "Encrypted backups to many cloud services.", Icon: icon("duplicati"), WebPort: "WEB_PORT",
-			Vars: []AppVar{port("WEB_PORT", "8200"), path("CONFIG_DIR", "Config folder", "/srv/strata/apps/duplicati"), path("SOURCE_DIR", "Folder to back up", "/srv/strata"), secret("SETTINGS_KEY", "Settings encryption key")},
+			Vars: []AppVar{port("WEB_PORT", "8201"), path("CONFIG_DIR", "Config folder", "/srv/strata/apps/duplicati"), path("SOURCE_DIR", "Folder to back up", "/srv/strata"), secret("SETTINGS_KEY", "Settings encryption key")},
 			Compose: `services:
   duplicati:
     image: lscr.io/linuxserver/duplicati:latest

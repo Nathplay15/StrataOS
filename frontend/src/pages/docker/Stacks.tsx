@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownToLine, Edit3, FileText, Package, Play, Plus, RotateCw, Square, Trash2 } from "lucide-react";
+import { AppWindow, ArrowDownToLine, Edit3, FileText, Package, Play, Plus, RotateCw, Square, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Container, Stack } from "../../lib/types";
 import { ago } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, Input, Modal, PageHeader, Spinner, Tabs, useUI } from "../../components/ui";
 import { DockerGuard } from "./Containers";
+import { CustomMetaModal } from "./AppStore";
 import { tr } from "../../lib/i18n";
 
 const sample = `services:
@@ -60,6 +61,7 @@ export default function Stacks() {
   const { confirm } = useUI();
   const [edit, setEdit] = useState<string | null | undefined>(undefined);
   const [logs, setLogs] = useState<string | null>(null);
+  const [meta, setMeta] = useState<Stack | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["stacks"], queryFn: () => api.get<Stack[]>("/api/docker/stacks"), refetchInterval: 8000 });
   const act = useAction((p: { name: string; action: string }) => api.post(`/api/docker/stacks/${p.name}/${p.action}`));
   const del = useAction((p: { name: string; volumes: boolean }) => api.del(`/api/docker/stacks/${p.name}${p.volumes ? "?volumes=1" : ""}`), { success: tr("Stack deleted") });
@@ -85,6 +87,7 @@ export default function Stacks() {
                     <span>{tr("· modified")}{" "}{ago(s.modifiedAt)}</span>
                   </div>
                   {s.app && <div className="mt-2"><Badge tone="accent">{tr("App Center:")}{" "}{s.app}</Badge></div>}
+                  {s.custom && <div className="mt-2"><Badge tone="accent">{tr("My apps:")}{" "}{s.custom.name}</Badge></div>}
                 </div>
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
                   {s.status === "stopped" ? (
@@ -98,6 +101,7 @@ export default function Stacks() {
                   <Button size="sm" variant="ghost" icon={<ArrowDownToLine size={14} />} title={tr("Update images")} onClick={() => act.mutate({ name: s.name, action: "update" })} />
                   <Button size="sm" variant="ghost" icon={<FileText size={14} />} onClick={() => setLogs(s.name)} />
                   <Button size="sm" variant="ghost" icon={<Edit3 size={14} />} onClick={() => setEdit(s.name)} />
+                  {!s.app && <Button size="sm" variant="ghost" icon={<AppWindow size={14} />} title={s.custom ? tr("App Center details") : tr("Add to My apps")} onClick={() => setMeta(s)} />}
                   <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={async () => {
                     if (await confirm({ title: tr("Delete stack {0}?", s.name), text: tr("Containers and networks will be deleted. Named Docker volumes too; folders mounted from /srv/strata are kept."), danger: true, typeToConfirm: s.name })) del.mutate({ name: s.name, volumes: true });
                   }} />
@@ -109,6 +113,7 @@ export default function Stacks() {
       </DockerGuard>
       {edit !== undefined && <Editor name={edit} onClose={() => setEdit(undefined)} />}
       {logs && <LogsView name={logs} onClose={() => setLogs(null)} />}
+      {meta && <CustomMetaModal stack={meta.name} initial={meta.custom} onClose={() => setMeta(null)} />}
     </div>
   );
 }

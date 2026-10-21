@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Bell, CheckCircle2, ExternalLink, Image as ImageIcon, KeyRound, LayoutGrid, LogOut, Monitor as MonitorIcon, Moon, Power, RefreshCcw, Search, ShieldCheck, Sun, XCircle } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
-import type { App, Me, Overview, Sample, SystemInfo } from "../lib/types";
+import type { AppStoreData, Me, Overview, Sample, SystemInfo } from "../lib/types";
 import { bytes, cx, duration, pct, rate } from "../lib/format";
 import { Progress, useUI } from "../components/ui";
 import { JobsMenu, PasswordModal, useTheme } from "../components/Layout";
@@ -309,17 +309,21 @@ function DesktopInner({ me }: { me: Me }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const apps = APPS.filter((a) => !a.admin || me.role === "admin");
   const ov = useQuery({ queryKey: ["overview"], queryFn: () => api.get<Overview>("/api/system/overview"), refetchInterval: 15000 });
-  const store = useQuery({ queryKey: ["apps"], queryFn: () => api.get<{ apps: App[]; installed: Record<string, string>; ports: Record<string, string> }>("/api/apps"), enabled: me.role === "admin" });
+  const store = useQuery({ queryKey: ["apps"], queryFn: () => api.get<AppStoreData>("/api/apps"), enabled: me.role === "admin" });
 
   // Installed App Center applications get a desktop shortcut to their web interface.
   const webApps: WebApp[] = useMemo(() => {
     const d = store.data;
     if (!d) return [];
-    return Object.keys(d.installed).flatMap((id) => {
-      const a = d.apps.find((x) => x.id === id);
-      const port = d.ports[id];
-      return a && port ? [{ id, name: a.name, icon: a.icon, url: `${location.protocol}//${location.hostname}:${port}` }] : [];
-    });
+    const url = (port: string | number) => `${location.protocol}//${location.hostname}:${port}`;
+    return [
+      ...Object.keys(d.installed).flatMap((id) => {
+        const a = d.apps.find((x) => x.id === id);
+        const port = d.ports[id];
+        return a && port ? [{ id, name: a.name, icon: a.icon, url: url(port) }] : [];
+      }),
+      ...(d.custom ?? []).flatMap((c) => (c.webPort ? [{ id: "custom-" + c.stack, name: c.name, icon: c.icon ?? "", url: url(c.webPort) }] : [])),
+    ];
   }, [store.data]);
 
   return (
@@ -335,7 +339,7 @@ function DesktopInner({ me }: { me: Me }) {
           {webApps.map((w) => (
             <DesktopIcon key={w.id} label={w.name} onOpen={() => window.open(w.url, "_blank", "noopener")}>
               <div className="relative flex h-14 w-14 items-center justify-center rounded-[15px] bg-white/90 p-2 shadow-lg">
-                <img src={w.icon} alt="" className="h-full w-full object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+                {w.icon ? <img src={w.icon} alt="" referrerPolicy="no-referrer" className="h-full w-full object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <span className="text-[22px] font-semibold text-slate-700">{w.name[0]?.toUpperCase()}</span>}
                 <ExternalLink size={12} className="absolute -bottom-1 -right-1 rounded bg-black/60 p-0.5 text-white" />
               </div>
             </DesktopIcon>
