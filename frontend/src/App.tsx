@@ -18,6 +18,7 @@ const Raid = lazy(() => import("./pages/storage/Raid"));
 const Volumes = lazy(() => import("./pages/storage/Volumes"));
 const Zfs = lazy(() => import("./pages/storage/Zfs"));
 const Lvm = lazy(() => import("./pages/storage/Lvm"));
+const Iscsi = lazy(() => import("./pages/storage/Iscsi"));
 const Shares = lazy(() => import("./pages/Shares"));
 const Users = lazy(() => import("./pages/Users"));
 const Files = lazy(() => import("./pages/Files"));
@@ -101,6 +102,7 @@ function Root() {
             <Route path="storage/volumes" element={A(<Volumes />)} />
             <Route path="storage/zfs" element={A(<Zfs />)} />
             <Route path="storage/lvm" element={A(<Lvm />)} />
+            <Route path="storage/iscsi" element={A(<Iscsi />)} />
             <Route path="files" element={<Files />} />
             <Route path="photos" element={<PhotosPage me={me} />} />
             <Route path="links" element={<LinksPage me={me} />} />

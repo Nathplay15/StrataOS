@@ -447,6 +447,7 @@ type CreateDatasetReq struct {
 	RecordSize  string `json:"recordSize"`
 	Volume      bool   `json:"volume"` // create a zvol
 	VolSize     int64  `json:"volSize"`
+	Sparse      bool   `json:"sparse,omitempty"` // zvol without reservation (thin)
 }
 
 func CreateDataset(r CreateDatasetReq) error {
@@ -460,6 +461,9 @@ func CreateDataset(r CreateDatasetReq) error {
 	if r.Volume {
 		if r.VolSize <= 0 {
 			return fmt.Errorf("a zvol needs a size")
+		}
+		if r.Sparse {
+			args = append(args, "-s")
 		}
 		args = append(args, "-V", fmt.Sprintf("%d", r.VolSize))
 	} else {

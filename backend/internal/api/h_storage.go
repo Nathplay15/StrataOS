@@ -217,6 +217,11 @@ func (s *Server) storageRoutes() {
 		return nil, storage.SnapshotLV(r.PathValue("vg"), r.PathValue("lv"), req.Name, req.Size)
 	})
 	s.admin("DELETE /api/storage/lvm/{vg}/lv/{lv}", func(r *http.Request) (any, error) {
+		if err := s.iscsiGuard(func(l store.ISCSILUN) bool {
+			return l.Kind == "lvm" && l.Path == r.PathValue("vg")+"/"+r.PathValue("lv")
+		}); err != nil {
+			return nil, err
+		}
 		if err := storage.RemoveLV(r.PathValue("vg"), r.PathValue("lv")); err != nil {
 			return nil, err
 		}
@@ -380,6 +385,9 @@ func (s *Server) storageRoutes() {
 		if len(used) > 0 {
 			return nil, badRequest("volume is used by shares: " + strings.Join(used, ", "))
 		}
+		if err := s.iscsiGuard(func(l store.ISCSILUN) bool { return l.Kind == "fileio" && strings.HasPrefix(l.Path, v.MountPoint+"/") }); err != nil {
+			return nil, err
+		}
 		if v.FSType == "btrfs" && storage.BtrfsSnapshotsLocked(v.MountPoint) {
 			return nil, badRequest("this volume holds locked snapshots: it cannot be deleted before they expire")
 		}
@@ -528,6 +536,11 @@ func (s *Server) storageRoutes() {
 		if len(used) > 0 {
 			return nil, badRequest("pool is used by shares: " + strings.Join(used, ", "))
 		}
+		if err := s.iscsiGuard(func(l store.ISCSILUN) bool {
+			return strings.HasPrefix(l.Path, pool+"/") && l.Kind == "zvol" || strings.HasPrefix(l.Path, storage.MountRoot+"/"+pool+"/")
+		}); err != nil {
+			return nil, err
+		}
 		if err := storage.DestroyZPool(pool); err != nil {
 			return nil, err
 		}
@@ -573,6 +586,11 @@ func (s *Server) storageRoutes() {
 	})
 	s.admin("DELETE /api/storage/zfs-datasets", func(r *http.Request) (any, error) {
 		name := r.URL.Query().Get("name")
+		if err := s.iscsiGuard(func(l store.ISCSILUN) bool {
+			return l.Kind == "zvol" && (l.Path == name || strings.HasPrefix(l.Path, name+"/")) || strings.HasPrefix(l.Path, storage.MountRoot+"/"+name+"/")
+		}); err != nil {
+			return nil, err
+		}
 		s.audit(r, "storage", "Destroyed ZFS dataset "+name)
 		return nil, storage.DestroyDataset(name, r.URL.Query().Get("recursive") == "1")
 	})
