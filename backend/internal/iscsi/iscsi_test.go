@@ -17,7 +17,9 @@ func TestValidIQN(t *testing.T) {
 		{"iqn.1993-08.org.debian:01:a1b2c3d4e5f6", true},
 		{"iqn.1991-05.com.microsoft:desktop-ab12.corp.example.com", true},
 		{"iqn.1998-01.com.vmware:esx01-5d3f6a1b", true},
-		{"iqn.2026-01.strata-vm", true},
+		{"iqn.2026-01.local.strata-vm", true},
+		{"iqn.2026-01.strata-vm:e2e", false}, // rtslib needs a second dot
+		{"iqn.2026-01.strata-vm", false},
 		{"eui.02004567a425678d", true},
 		{"naa.52004567ba64678d", true},
 		{"naa.60014059ddb4c26b3a1d4cbd8f0a7c11", true},
@@ -43,9 +45,9 @@ func TestValidIQN(t *testing.T) {
 func TestGenerateIQN(t *testing.T) {
 	for _, c := range []struct{ host, want string }{
 		{"nas.home.lan", "iqn.2026-01.lan.home.nas:disks"},
-		{"Strata-VM", "iqn.2026-01.strata-vm:disks"},
+		{"Strata-VM", "iqn.2026-01.local.strata-vm:disks"},
 		{"my_nas.example.org.", "iqn.2026-01.org.example.mynas:disks"},
-		{"", "iqn.2026-01.strataos:disks"},
+		{"", "iqn.2026-01.local.strataos:disks"},
 	} {
 		got := GenerateIQN(c.host, "disks")
 		if got != c.want {

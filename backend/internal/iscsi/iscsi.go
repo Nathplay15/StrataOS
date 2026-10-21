@@ -87,7 +87,9 @@ func ValidIQN(s string) error {
 	if len(s) == 0 || len(s) > 223 {
 		return fmt.Errorf("invalid iSCSI name %q", s)
 	}
-	if iqnRe.MatchString(s) || euiRe.MatchString(s) || naaRe.MatchString(s) {
+	// rtslib also wants a dot after the date part (iqn.yyyy-mm.x.y…): one name
+	// it rejects makes targetctl fail on the whole configuration.
+	if iqnRe.MatchString(s) && strings.Contains(s[len("iqn.2026-01."):], ".") || euiRe.MatchString(s) || naaRe.MatchString(s) {
 		return nil
 	}
 	return fmt.Errorf("invalid iSCSI name %q (expected iqn.yyyy-mm.reversed.domain:name)", s)
@@ -101,7 +103,8 @@ func ValidName(s string) error {
 	return nil
 }
 
-// Authority turns a host name into the reversed domain of the IQNs: nas.home.lan → lan.home.nas.
+// Authority turns a host name into the reversed domain of the IQNs:
+// nas.home.lan → lan.home.nas, nas → local.nas.
 func Authority(hostname string) string {
 	var labels []string
 	for _, l := range strings.Split(strings.ToLower(hostname), ".") {
@@ -116,7 +119,12 @@ func Authority(hostname string) string {
 		}
 	}
 	if len(labels) == 0 {
-		return "strataos"
+		labels = []string{"strataos"}
+	}
+	// A single-label host name gets the mDNS domain: rtslib (targetctl, which
+	// saves and restores the configuration) rejects an IQN without a second dot.
+	if len(labels) == 1 {
+		labels = append(labels, "local")
 	}
 	slices.Reverse(labels)
 	return strings.Join(labels, ".")
