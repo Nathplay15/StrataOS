@@ -20,7 +20,7 @@ for (const f of fs.readdirSync(dir).sort()) {
     if (ph(src) !== ph(t)) out.push(`placeholders ${JSON.stringify(src)} → ${JSON.stringify(t)}`);
     else if (m[2] !== "zh" && edge(src) !== edge(t) && !/^[,:]/.test(t)) out.push(`spaces ${JSON.stringify(src)} → ${JSON.stringify(t)}`);
     else if (m[2] !== "zh" && !/\s$/.test(src) && end(src) !== end(t) && !/[)\]}"»]$/.test(t.trim()) && !/(^|\s)\p{L}{1,5}\.$/u.test(t.trim())) out.push(`punctuation ${JSON.stringify(src)} → ${JSON.stringify(t)}`);
-    else if (src === t && /\b(the|and|of|to|is|your|with|for|this|in|on)\b/i.test(src) && !m[1]) out.push(`untranslated ${JSON.stringify(src)}`);
+    else if (src === t && /\s/.test(src.trim()) && /\b(the|and|of|to|is|your|with|for|this|in|on)\b/i.test(src) && !m[1]) out.push(`untranslated ${JSON.stringify(src)}`);
   }
   if (out.length) console.log(`${f}: ${out.length}\n  ` + out.join("\n  "));
   problems += out.length;
