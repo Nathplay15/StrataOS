@@ -65,7 +65,7 @@ check "qcow2 inspected" "$(c POST /api/vms/import/inspect -d "{\"source\":\"$VMD
 check "OVF read from the OVA" "$(c POST /api/vms/import/inspect -d "{\"source\":\"$VMDIR/e2e-appliance.ova\"}" | py 'o=d["ovf"]; print(o["name"], o["vcpus"], o["memoryMb"], o["disks"])')" "OVA Appliance 1 256 ['e2e-ova-disk1.vmdk']"
 check "import confined to the volumes" "$(c POST /api/vms/import/inspect -d '{"source":"/etc/shadow"}')" "inside a volume"
 check "qcow2 imported" "$(job "$(c POST /api/vms/import -d "{\"name\":\"e2e-imp\",\"source\":\"$VMDIR/import-test.qcow2\",\"os\":\"other\",\"vcpus\":1,\"memoryMb\":256,\"storage\":\"$VMDIR\",\"network\":\"nat\",\"firmware\":\"bios\"}")")" "success"
-check "imported disk converted into the VM folder" "$(vm "sudo qemu-img info $VMDIR/e2e-imp/disk0.qcow2 | grep -E '^file format'")" "qcow2"
+check "imported disk converted into the VM folder" "$(vm "sudo qemu-img info -U $VMDIR/e2e-imp/disk0.qcow2 | grep -E '^file format'")" "qcow2"
 c POST /api/vms/e2e-imp/destroy >/dev/null; c DELETE '/api/vms/e2e-imp?disks=1' >/dev/null
 check "OVA imported with its settings" "$(job "$(c POST /api/vms/import -d "{\"name\":\"e2e-ova\",\"source\":\"$VMDIR/e2e-appliance.ova\",\"storage\":\"$VMDIR\",\"network\":\"nat\"}")"; vmjson e2e-ova 'print(v.get("vcpus"), v.get("memoryMb"))')" "success"
 check "OVA VM sized from the OVF" "$(vmjson e2e-ova 'print(v.get("vcpus"), v.get("memoryMb"))')" "1 256"
@@ -129,19 +129,22 @@ PUB=$(vm "sudo cat /root/.ssh/e2e_vm.pub")
 check "cloud-init settings validated" "$(c POST /api/vms/cloud -d "{\"name\":\"e2e-cloud\",\"image\":\"debian13\",\"vcpus\":1,\"memoryMb\":512,\"diskGb\":4,\"storage\":\"$VMDIR\",\"network\":\"nat\",\"firmware\":\"bios\",\"cloudInit\":{\"user\":\"root\",\"password\":\"x\"}}")" "invalid user name"
 check "VM created from the Debian cloud image" "$(job "$(c POST /api/vms/cloud -d "{\"name\":\"e2e-cloud\",\"image\":\"debian13\",\"vcpus\":1,\"memoryMb\":512,\"diskGb\":4,\"storage\":\"$VMDIR\",\"network\":\"nat\",\"firmware\":\"bios\",\"cloudInit\":{\"user\":\"e2e\",\"password\":\"E2e-Cloud-1\",\"sshKeys\":[\"$PUB\"],\"packages\":[\"curl\"]}}")")" "success"
 check "cloud image cached and verified" "$(c GET /api/vms/cloud-images | py 'print([i["cached"] for i in d if i["id"]=="debian13"])'; vm "sudo cat /srv/strata/main/.strata-cloud-images/debian-13-genericcloud-amd64.qcow2.verified | wc -c")" "[True]"
-check "seed ISO holds the user and the key" "$(vm "sudo xorriso -osirrox on -indev $VMDIR/e2e-cloud/seed.iso -extract /user-data /tmp/e2e-ud >/dev/null 2>&1; sudo cat /tmp/e2e-ud; sudo rm -f /tmp/e2e-ud")" "\"name\": \"e2e\""
-check "password stored hashed" "$(vm "sudo grep -c 'passwd: \"\$6\$' $VMDIR/e2e-cloud/cloud-init/user-data")" "1"
-check "cloud VM disk grown" "$(vm "sudo qemu-img info $VMDIR/e2e-cloud/disk0.qcow2 | grep 'virtual size'")" "4 GiB"
+check "seed ISO holds the user and the key" "$(vm "sudo xorriso -osirrox on -indev $VMDIR/e2e-cloud/seed.iso -extract /user-data /tmp/e2e-ud >/dev/null 2>&1; sudo cat /tmp/e2e-ud; sudo rm -f /tmp/e2e-ud")" "- name: \"e2e\""
+check "password stored hashed" "$(vm "sudo grep -cF 'passwd: \"\$6\$' $VMDIR/e2e-cloud/cloud-init/user-data")" "1"
+check "cloud VM disk grown" "$(vm "sudo qemu-img info -U $VMDIR/e2e-cloud/disk0.qcow2 | grep 'virtual size'")" "4 GiB"
 READY=""
 for _ in $(seq 1 60); do
   IP=$(vmjson e2e-cloud 'print(([n.get("ip") for n in v.get("nics", []) if n.get("ip")] + [""])[0])')
-  if [ -n "$IP" ] && vm "sudo ssh -i /root/.ssh/e2e_vm -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes e2e@$IP id" | grep -q "uid="; then READY="ssh-ok"; break; fi
+  ID=""
+  [ -n "$IP" ] && ID=$(vm "sudo ssh -i /root/.ssh/e2e_vm -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes e2e@$IP id")
+  case "$ID" in *uid=*) READY="ssh-ok"; break ;; esac
   sleep 5
 done
 LOG=$(c GET /api/vms/e2e-cloud/console-log | py 'print(d["log"][-4000:])')
 [ -z "$READY" ] && echo "    (no SSH within 5 min; console log tail:)" && echo "$LOG" | tail -5
 check "cloud VM ready (SSH as the new user, or cloud-init done on the console)" "$READY$(echo "$LOG" | grep -o 'strata-cloud-init-done' | head -1)" "s"
-check "cloud-init created the user (console log)" "$LOG" "e2e"
+[ -n "$READY" ] && check "cloud-init created the user, in sudo" "$ID" "(sudo)"
+check "serial console logged (host name at the login prompt)" "$LOG" "e2e-cloud"
 c POST /api/vms/e2e-cloud/destroy >/dev/null
 check "cloud VM deleted" "$(c DELETE '/api/vms/e2e-cloud?disks=1')" '"ok":true'
 vm "sudo rm -rf /srv/strata/main/.strata-cloud-images /root/.ssh/e2e_vm /root/.ssh/e2e_vm.pub"

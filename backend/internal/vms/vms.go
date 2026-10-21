@@ -602,6 +602,7 @@ func Delete(name string, removeDisks bool) error {
 			return err
 		}
 	}
+	_ = os.Remove(consoleLogPath(name))
 	if removeDisks && vm.Dir != "" && strings.HasPrefix(vm.Dir, "/srv/strata/") && filepath.Base(vm.Dir) == name {
 		return os.RemoveAll(vm.Dir)
 	}

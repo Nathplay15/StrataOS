@@ -35,6 +35,7 @@ func rewriteClone(doc string, o cloneOpts) (string, error) {
 		return "", fmt.Errorf("not a libvirt domain")
 	}
 	root.delAttr("id")
+	oldName := root.ensure("name").text()
 	root.ensure("name").setText(o.Name)
 	if !o.KeepIdentity {
 		root.remove(func(c *node) bool { return c.name == "uuid" })
@@ -100,6 +101,9 @@ func rewriteClone(doc string, o cloneOpts) (string, error) {
 			if s := n.child("source"); s != nil {
 				s.delAttr("path")
 			}
+		}
+		if n.name == "log" && oldName != "" && n.attr("file") == consoleLogPath(oldName) {
+			n.setAttr("file", consoleLogPath(o.Name))
 		}
 		for _, a := range n.attrs {
 			if o.OldDir != "" && strings.HasPrefix(a.Value, o.OldDir+"/") && o.NewDir != "" {
