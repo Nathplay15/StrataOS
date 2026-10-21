@@ -7,6 +7,8 @@
 # configuration generation, camera removal. E2E_FRIGATE=1 also installs
 # Frigate (large image) and checks it starts with the generated configuration.
 section "Surveillance (NVR)"
+DOWN0=$(c GET /api/system/events | grep -o 'E2E door has been unreachable' | wc -l)
+UP0=$(c GET /api/system/events | grep -o 'E2E door is back online' | wc -l)
 NV=/srv/strata/main/e2e-nvr
 CAMPASS='p@ss#1;x=y&z'
 check "recorder component installed" "$(job "$(c POST /api/system/components/nvr/install)")" "success"
@@ -91,14 +93,16 @@ check "old segment gone, recent ones kept" "$(vm "test -e $NV/$CID/20200101-0000
 vm "sudo systemctl stop e2e-nvr-pub"
 for _ in $(seq 1 20); do camst | grep -q "'recording'" || break; sleep 2; done
 check "camera offline detected" "$(camst)" "('offline',"
-for _ in $(seq 1 45); do c GET /api/system/events | grep -q 'E2E door has been unreachable' && break; sleep 2; done
-check "offline alert after the delay" "$(c GET /api/system/events)" "Camera E2E door has been unreachable"
+# Count only the alerts of this run (the VM may have run this test before).
+nev() { c GET /api/system/events | grep -o "$1" | wc -l; }
+for _ in $(seq 1 45); do [ "$(nev 'E2E door has been unreachable')" -gt "$DOWN0" ] && break; sleep 2; done
+check "offline alert after the delay" "$(nev 'E2E door has been unreachable')" "$((DOWN0 + 1))"
 check "offline error has no credentials" "$(c GET /api/nvr | grep -c 'w/rd\|cam:' || true)" "0"
 publish
 for _ in $(seq 1 45); do camst | grep -q "'recording'" && break; sleep 2; done
 check "camera recording again (restart with backoff)" "$(camst)" "('recording',"
-for _ in $(seq 1 15); do c GET /api/system/events | grep -q 'E2E door is back online' && break; sleep 2; done
-check "back online notice" "$(c GET /api/system/events)" "Camera E2E door is back online"
+for _ in $(seq 1 15); do [ "$(nev 'E2E door is back online')" -gt "$UP0" ] && break; sleep 2; done
+check "back online notice" "$(nev 'E2E door is back online')" "$((UP0 + 1))"
 
 # Frigate: a second camera given to Frigate (not installed: config only),
 # with the default options (a previous run may have changed them).

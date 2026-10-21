@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,6 +35,12 @@ var (
 // Go's client prefers ECDSA/RSA and reports a "key mismatch" when the type it
 // gets is not listed: the other key types the server offers are added, once
 // a key already known is confirmed unchanged.
+// scanned remembers when each host was last scanned for its keys.
+var (
+	scannedMu sync.Mutex
+	scanned   = map[string]time.Time{}
+)
+
 func KnownHost(ctx context.Context, host, port string) (string, error) {
 	kh := knownHostsPath()
 	if port == "" || port == "0" {
@@ -47,6 +54,15 @@ func KnownHost(ctx context.Context, host, port string) (string, error) {
 		return "", fmt.Errorf("invalid host")
 	}
 	known, _ := sys.Run("ssh-keygen", "-F", name, "-f", kh)
+	// A scan is a connection that closes without signing in: OpenSSH 9.8+
+	// penalises those (PerSourcePenalties) and soon refuses the NAS. Once
+	// the host is known, look again at most once a day for missing key types.
+	scannedMu.Lock()
+	last := scanned[name]
+	scannedMu.Unlock()
+	if strings.TrimSpace(known) != "" && time.Since(last) < 24*time.Hour {
+		return kh, nil
+	}
 	keys, err := sys.RunOpts(ctx, sys.Opts{Timeout: 20 * time.Second}, "ssh-keyscan", "-p", port, "-T", "10", host)
 	if err != nil || strings.TrimSpace(keys) == "" {
 		if strings.TrimSpace(known) != "" {
@@ -58,6 +74,9 @@ func KnownHost(ctx context.Context, host, port string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s:%s: %w", host, port, err)
 	}
+	scannedMu.Lock()
+	scanned[name] = time.Now()
+	scannedMu.Unlock()
 	if add == "" {
 		return kh, nil
 	}
