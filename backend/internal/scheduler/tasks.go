@@ -148,55 +148,68 @@ func expired[T any](items []T, created func(T) time.Time, keepCount, keepDays in
 }
 
 func zfsSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
-	name := autoPrefix(s) + time.Now().Format(stampLayout)
-	logf("Creating %s@%s", s.Target, name)
-	if err := storage.Snapshot(s.Target, name, s.Recursive); err != nil {
+	return SnapshotZFS(s.Target, autoPrefix(s), s.Recursive, s.KeepCount, s.KeepDays, s.LockDays, logf)
+}
+
+func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (string, error) {
+	return SnapshotBtrfs(mp, s.Subvolume, autoPrefix(s), s.KeepCount, s.KeepDays, s.LockDays, logf)
+}
+
+// SnapshotZFS snapshots dataset as <tag><stamp> and applies retention to the
+// snapshots carrying the same tag (others, manual or from other tasks, are never touched).
+func SnapshotZFS(dataset, tag string, recursive bool, keepCount, keepDays, lockDays int, logf func(string, ...any)) (string, error) {
+	name := tag + time.Now().Format(stampLayout)
+	logf("Creating %s@%s", dataset, name)
+	if err := storage.Snapshot(dataset, name, recursive); err != nil {
 		return "", err
 	}
-	if s.LockDays > 0 {
-		if err := storage.LockZFSSnapshot(s.Target+"@"+name, time.Now().AddDate(0, 0, s.LockDays), s.Recursive); err != nil {
+	if lockDays > 0 {
+		if err := storage.LockZFSSnapshot(dataset+"@"+name, time.Now().AddDate(0, 0, lockDays), recursive); err != nil {
 			return "", fmt.Errorf("snapshot created but not locked: %w", err)
 		}
 	}
-	all, err := storage.SnapshotsOf(s.Target)
+	all, err := storage.SnapshotsOf(dataset)
 	if err != nil {
 		return "", err
 	}
 	var mine []storage.ZSnapshot
 	for _, sn := range all {
-		if strings.HasPrefix(sn.Name, s.Target+"@"+autoPrefix(s)) {
+		if strings.HasPrefix(sn.Name, dataset+"@"+tag) {
 			mine = append(mine, sn)
 		}
 	}
 	sort.Slice(mine, func(i, j int) bool { return mine[i].Creation.After(mine[j].Creation) })
 	removed := 0
-	for _, sn := range expired(mine, func(z storage.ZSnapshot) time.Time { return z.Creation }, s.KeepCount, s.KeepDays, time.Now()) {
+	for _, sn := range expired(mine, func(z storage.ZSnapshot) time.Time { return z.Creation }, keepCount, keepDays, time.Now()) {
 		if time.Now().Before(storage.ZFSLockUntil(sn.Name)) {
 			continue // still locked: kept until its date
 		}
 		logf("Retention: destroying %s", sn.Name)
-		if err := storage.DestroyDataset(sn.Name, s.Recursive); err != nil {
+		if err := storage.DestroyDataset(sn.Name, recursive); err != nil {
 			logf("warning: %v", err)
 			continue
 		}
 		removed++
 	}
-	return fmt.Sprintf("Snapshot %s@%s created, %d old one(s) deleted, %d kept", s.Target, name, removed, len(mine)-removed), nil
+	return fmt.Sprintf("Snapshot %s@%s created, %d old one(s) deleted, %d kept", dataset, name, removed, len(mine)-removed), nil
 }
 
-func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (string, error) {
+// SnapshotBtrfs snapshots the sub-volume sub of the Btrfs volume mp (the whole
+// volume when empty) as .snapshots/<sub>@<tag><stamp>, then applies retention
+// to the snapshots carrying the same tag.
+func SnapshotBtrfs(mp, sub, tag string, keepCount, keepDays, lockDays int, logf func(string, ...any)) (string, error) {
 	base := "root"
-	if s.Subvolume != "" {
-		base = strings.ReplaceAll(strings.Trim(s.Subvolume, "/"), "/", "_")
+	if sub != "" {
+		base = strings.ReplaceAll(strings.Trim(sub, "/"), "/", "_")
 	}
-	prefix := base + "@" + autoPrefix(s)
+	prefix := base + "@" + tag
 	name := prefix + time.Now().Format(stampLayout)
 	logf("Creating %s/.snapshots/%s", mp, name)
-	if _, err := storage.BtrfsSnapshot(mp, s.Subvolume, name); err != nil {
+	if _, err := storage.BtrfsSnapshot(mp, sub, name); err != nil {
 		return "", err
 	}
-	if s.LockDays > 0 {
-		if err := storage.LockBtrfsSnapshot(mp, name, time.Now().AddDate(0, 0, s.LockDays)); err != nil {
+	if lockDays > 0 {
+		if err := storage.LockBtrfsSnapshot(mp, name, time.Now().AddDate(0, 0, lockDays)); err != nil {
 			return "", fmt.Errorf("snapshot created but not locked: %w", err)
 		}
 	}
@@ -221,7 +234,7 @@ func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (str
 	}
 	sort.Slice(mine, func(i, j int) bool { return mine[i].at.After(mine[j].at) })
 	removed := 0
-	for _, sn := range expired(mine, func(x snap) time.Time { return x.at }, s.KeepCount, s.KeepDays, time.Now()) {
+	for _, sn := range expired(mine, func(x snap) time.Time { return x.at }, keepCount, keepDays, time.Now()) {
 		if time.Now().Before(storage.BtrfsLockUntil(mp, sn.name)) {
 			continue // still locked: kept until its date
 		}

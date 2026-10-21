@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, CheckCircle2, Cloud, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RotateCcw, Trash2, Vault as VaultIcon, XCircle } from "lucide-react";
+import { ArchiveRestore, ArrowLeftRight, CheckCircle2, Cloud, Download, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RefreshCw, RotateCcw, Trash2, Vault as VaultIcon, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { BackupTask, ResticSnapshot } from "../../lib/types";
@@ -8,14 +8,29 @@ import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { tr, srv } from "../../lib/i18n";
+import { TimeMachineCard } from "./TimeMachine";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
 const kinds = {
   rsync: { label: tr("File copy"), sub: tr("Mirror files (rsync) to a disk, a volume or an SSH server"), icon: <FolderSync size={18} /> },
+  pull: { label: tr("Back up another NAS"), sub: tr("Fetch folders from another NAS or server (rsync, SSH, SMB), with versions"), icon: <Download size={18} /> },
   restic: { label: tr("Versioned backup"), sub: tr("Encrypted and deduplicated (restic): local, SFTP, S3, B2, MinIO…"), icon: <Cloud size={18} /> },
-  zfs: { label: tr("ZFS replication"), sub: tr("Snapshots sent to another pool, local or remote"), icon: <Layers size={18} /> },
+  zfs: { label: tr("ZFS replication"), sub: tr("Snapshots sent to or fetched from another pool, local or remote"), icon: <Layers size={18} /> },
+  sync: { label: tr("Two-way sync"), sub: tr("Keep a folder identical on two NAS, changes on both sides (SFTP)"), icon: <ArrowLeftRight size={18} /> },
 };
+type CardKind = keyof typeof kinds;
+const cardOf = (b: BackupTask): CardKind => (b.kind === "rsync" && b.sourceType ? "pull" : b.kind);
+
+function srcLabel(b: BackupTask) {
+  if (b.kind === "zfs" && b.sourceType) return `${b.user}@${b.host}:${b.sources[0] ?? ""}`;
+  switch (b.kind === "rsync" ? b.sourceType : "") {
+    case "ssh": return b.sources.map((s) => `${b.user}@${b.host}:${s}`).join(", ");
+    case "rsyncd": return b.sources.map((s) => `rsync://${b.host}/${s}`).join(", ");
+    case "smb": return b.sources.map((s) => `//${b.host}/${s}`).join(", ");
+  }
+  return b.sources.join(", ");
+}
 
 const blank: BackupTask = { id: "", name: "", kind: "rsync", sources: [], destType: "local", destPath: "", port: 22, cron: "0 1 * * *", enabled: true, history: [], keepDaily: 7, keepWeekly: 4, keepMonthly: 12, keepLast: 7 };
 
@@ -128,98 +143,220 @@ function VaultsCard({ sources }: { sources?: Sources }) {
   );
 }
 
+const pullProtos = {
+  ssh: { label: tr("rsync over SSH"), port: 22, hint: tr("Absolute folders of the other NAS, one per line, e.g. /volume1/photos") },
+  rsyncd: { label: tr("rsync daemon (rsync://)"), port: 873, hint: tr("Modules, optionally with a sub-folder, one per line, e.g. photos or photos/2024 (Synology, QNAP and TrueNAS offer an rsync server)") },
+  smb: { label: tr("SMB share (Windows, any NAS)"), port: 445, hint: tr("Shares, optionally with a sub-folder, one per line, e.g. Photos or home/alice. Mounted read-only during the copy.") },
+};
+
+function RemoteFields({ b, set, userLabel, userOptional }: { b: BackupTask; set: (k: Partial<BackupTask>) => void; userLabel?: string; userOptional?: boolean }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <Field label={tr("Server")} className="sm:col-span-2"><Input value={b.host ?? ""} onChange={(e) => set({ host: e.target.value.trim() })} placeholder={tr("nas2.local or 192.168.1.20")} /></Field>
+      <Field label={tr("Port")}><Input type="number" value={b.port ?? 22} onChange={(e) => set({ port: +e.target.value })} /></Field>
+      <Field label={userLabel ?? tr("User")} hint={userOptional ? tr("Empty for anonymous access") : undefined}><Input value={b.user ?? ""} onChange={(e) => set({ user: e.target.value.trim() })} /></Field>
+    </div>
+  );
+}
+
+function VersionsFields({ b, set, always }: { b: BackupTask; set: (k: Partial<BackupTask>) => void; always?: boolean }) {
+  return (
+    <div className="space-y-3">
+      {!always && <Switch checked={!!b.versions} onChange={(v) => set({ versions: v, keepLast: v && !b.keepLast && !b.keepDays ? 14 : b.keepLast })} label={tr("Keep versions (snapshots)")} hint={tr("After each run, a read-only snapshot of the destination is taken when it is on Btrfs or ZFS: earlier states stay recoverable even if files were deleted or encrypted at the source.")} />}
+      {(always || b.versions) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tr("Snapshots kept")} hint={tr("0: no limit by number")}><Input type="number" min={0} value={b.keepLast ?? 0} onChange={(e) => set({ keepLast: Math.max(0, +e.target.value) })} /></Field>
+          <Field label={tr("Days kept")} hint={tr("0: no limit by age")}><Input type="number" min={0} value={b.keepDays ?? 0} onChange={(e) => set({ keepDays: Math.max(0, +e.target.value) })} /></Field>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LocalFolder({ value, onChange, sources, suffix }: { value: string; onChange: (v: string) => void; sources: Sources; suffix: string }) {
+  return (
+    <div className="flex gap-2">
+      <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && onChange(`${e.target.value}/${suffix}`)}>
+        <option value="">{tr("Volume…")}</option>
+        {sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
+      </Select>
+      <Input className="mono" value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
 function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sources: Sources; onClose: () => void }) {
   const editing = !!initial;
   const [b, setB] = useState<BackupTask>(initial ?? blank);
   const [scheduled, setScheduled] = useState(!!(initial ?? blank).cron);
   const [plan, setPlan] = useState<Plan>(fromCron((initial ?? blank).cron || "0 1 * * *"));
   const [excludes, setExcludes] = useState((initial?.excludes ?? []).join("\n"));
+  const [remoteSources, setRemoteSources] = useState(initial?.sourceType && initial.kind === "rsync" ? initial.sources.join("\n") : "");
   const set = (k: Partial<BackupTask>) => setB((p) => ({ ...p, ...k }));
-  const payload = () => ({ ...b, cron: scheduled ? toCron(plan) : "", excludes: excludes.split("\n").map((x) => x.trim()).filter(Boolean) });
+  const card = cardOf(b);
+  const pull = !!b.sourceType;
+  const payload = () => ({
+    ...b,
+    sources: card === "pull" ? remoteSources.split("\n").map((x) => x.trim()).filter(Boolean) : b.sources,
+    cron: scheduled ? toCron(plan) : "",
+    excludes: excludes.split("\n").map((x) => x.trim()).filter(Boolean),
+  });
   const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Backup updated") : tr("Backup created"), onDone: onClose });
   const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => srv(r.message) });
-  const remote = b.destType === "ssh" || b.destType === "sftp";
+  const remote = !pull && (b.destType === "ssh" || b.destType === "sftp");
   const destTypes = b.kind === "restic" ? [["local", tr("Local folder / USB disk")], ["sftp", tr("SFTP server (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("restic REST server")], ["strataos", tr("Vault of another StrataOS NAS")]] : [["local", b.kind === "zfs" ? tr("Local pool") : tr("Local folder / USB disk")], ["ssh", tr("Remote server (SSH)")]];
-  const pickKind = (k: BackupTask["kind"]) => set({ kind: k, sources: [], destType: "local", destPath: "" });
+  const pickKind = (k: CardKind) => {
+    const reset = { sources: [], destPath: "", sourceType: "" as const, versions: false };
+    if (k === "pull") set({ ...reset, kind: "rsync", sourceType: "ssh", destType: "local", port: 22, versions: true, keepLast: 14, keepDays: 0 });
+    else if (k === "sync") set({ ...reset, kind: "sync", destType: "sftp", port: 22, keepLast: 7, keepDays: 0 });
+    else set({ ...reset, kind: k, destType: "local", keepLast: 7 });
+    setRemoteSources("");
+  };
+  const hasDest = card === "sync" || b.destType === "strataos" ? true : !!b.destPath;
+  const hasSources = card === "pull" ? !!remoteSources.trim() : b.sources.length > 0;
 
   return (
     <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", b.name) : tr("New backup")} wide footer={<>
-      <Button className="mr-auto" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test destination")}</Button>
+      <Button className="mr-auto" loading={test.isPending} onClick={() => test.mutate()}>{pull || card === "sync" ? tr("Test connection") : tr("Test destination")}</Button>
       <Button onClick={onClose}>{tr("Cancel")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!b.name || !b.sources.length || !b.destPath} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!b.name || !hasSources || !hasDest || (card === "sync" && !b.destPath)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-2 sm:grid-cols-3">
-          {(Object.keys(kinds) as BackupTask["kind"][]).map((k) => (
-            <button key={k} type="button" disabled={editing} onClick={() => pickKind(k)} className={cx("flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60", b.kind === k ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
+          {(Object.keys(kinds) as CardKind[]).map((k) => (
+            <button key={k} type="button" disabled={editing} onClick={() => pickKind(k)} className={cx("flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60", card === k ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
               <span className="mt-0.5 text-accent">{kinds[k].icon}</span>
               <span><span className="block text-[13px] font-medium">{kinds[k].label}</span><span className="block text-muted text-[11.5px]">{kinds[k].sub}</span></span>
             </button>
           ))}
         </div>
-        <Field label={tr("Name")}><Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder={tr("e.g. Photos to USB disk")} /></Field>
+        <Field label={tr("Name")}><Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder={card === "pull" ? tr("e.g. Office NAS to this NAS") : tr("e.g. Photos to USB disk")} /></Field>
 
-        <div>
-          <div className="mb-2 text-[12.5px] font-medium text-muted">{b.kind === "zfs" ? tr("Dataset to replicate") : tr("Folders to back up")}</div>
-          {b.kind === "zfs" ? (
-            sources.datasets.length === 0 ? <Notice tone="warn">{tr("No ZFS datasets.")}</Notice> : (
+        {card === "pull" && (
+          <div className="space-y-4 rounded-xl border border-line p-4">
+            <div className="font-medium text-[13px]">{tr("Source: the other NAS")}</div>
+            <Field label={tr("Protocol")}>
+              <Select value={b.sourceType} disabled={editing} onChange={(e) => { const st = e.target.value as keyof typeof pullProtos; set({ sourceType: st, port: pullProtos[st].port, remotePassword: "", domain: "" }); }}>
+                {(Object.keys(pullProtos) as (keyof typeof pullProtos)[]).map((p) => <option key={p} value={p}>{pullProtos[p].label}</option>)}
+              </Select>
+            </Field>
+            <RemoteFields b={b} set={set} userLabel={b.sourceType === "ssh" ? tr("SSH user") : tr("User")} userOptional={b.sourceType !== "ssh"} />
+            {b.sourceType !== "ssh" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={tr("Password")} hint={tr("Stored on this NAS and never shown again; handed to rsync or mount.cifs through a file readable by root only.")}><Input type="password" autoComplete="new-password" value={b.remotePassword ?? ""} onChange={(e) => set({ remotePassword: e.target.value })} /></Field>
+                {b.sourceType === "smb" && <Field label={tr("Domain or workgroup")} hint={tr("Optional")}><Input value={b.domain ?? ""} onChange={(e) => set({ domain: e.target.value.trim() })} placeholder="WORKGROUP" /></Field>}
+              </div>
+            )}
+            <Field label={b.sourceType === "rsyncd" ? tr("Modules") : b.sourceType === "smb" ? tr("Shares") : tr("Remote folders")} hint={pullProtos[(b.sourceType || "ssh") as keyof typeof pullProtos].hint}>
+              <textarea className="input mono h-20" value={remoteSources} onChange={(e) => setRemoteSources(e.target.value)} />
+            </Field>
+            {b.sourceType === "ssh" && <><Notice>{tr("Authentication by key only (no password is stored): install the StrataOS key on the other NAS.")}</Notice><SSHKey /></>}
+          </div>
+        )}
+
+        {card === "sync" && (
+          <div className="space-y-4">
+            <Notice tone="warn">{tr("Deletions propagate both ways: a file deleted on one NAS is deleted on the other at the next run. A snapshot of the local folder is taken before each run (Btrfs or ZFS volume), so a mistake can be recovered from Snapshots / Previous versions.")}</Notice>
+            <Field label={tr("Folder of this NAS")}>
               <Select value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value ? [e.target.value] : [] })}>
                 <option value="">{tr("Choose…")}</option>
-                {sources.datasets.map((d) => <option key={d.path} value={d.path}>{d.label}</option>)}
+                {sources.folders.map((f) => <option key={f.path} value={f.path}>{srv(f.label)} — {f.path}</option>)}
               </Select>
-            )
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {sources.folders.map((f) => (
-                <Checkbox key={f.path} checked={b.sources.includes(f.path)} onChange={(v) => set({ sources: v ? [...b.sources, f.path] : b.sources.filter((x) => x !== f.path) })} label={<span><span className="text-[13px]">{srv(f.label)}</span> <span className="mono text-muted text-[11px]">{f.path}</span></span>} />
-              ))}
+            </Field>
+            <div className="space-y-4 rounded-xl border border-line p-4">
+              <div className="font-medium text-[13px]">{tr("The other NAS (SFTP)")}</div>
+              <RemoteFields b={b} set={set} userLabel={tr("SSH user")} />
+              <Field label={tr("Remote folder")} hint={tr("Absolute path, e.g. /volume1/shared. On another StrataOS NAS, an account without SSH access sees the volumes at the root: /main/Shared")}><Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} /></Field>
+              <SSHKey />
             </div>
-          )}
-        </div>
+            <p className="text-muted text-[12px]">{tr("The first run merges both folders without deleting anything. A file changed on both sides is kept twice (both versions, renamed). Two-way sync works on files, on any file system.")}</p>
+          </div>
+        )}
 
-        <div className="space-y-4 rounded-xl border border-line p-4">
-          <div className="font-medium text-[13px]">{tr("Destination")}</div>
-          <Field label={tr("Type")}>
-            <Select value={b.destType} onChange={(e) => set({ destType: e.target.value as BackupTask["destType"], destPath: "" })}>
-              {destTypes.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </Select>
-          </Field>
-          {remote && (
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={tr("Server")} className="sm:col-span-2"><Input value={b.host ?? ""} onChange={(e) => set({ host: e.target.value })} placeholder={tr("nas2.local or 192.168.1.20")} /></Field>
-              <Field label={tr("Port")}><Input type="number" value={b.port ?? 22} onChange={(e) => set({ port: +e.target.value })} /></Field>
-              <Field label={tr("User")}><Input value={b.user ?? ""} onChange={(e) => set({ user: e.target.value })} /></Field>
-            </div>
-          )}
-          {b.destType === "strataos" && <VaultPair b={b} set={set} />}
-          {b.destType === "s3" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr("Endpoint")} className="sm:col-span-2" hint={tr("e.g. https://s3.eu-west-3.amazonaws.com, https://s3.us-west-002.backblazeb2.com, http://minio:9000")}><Input value={b.s3Endpoint ?? ""} onChange={(e) => set({ s3Endpoint: e.target.value })} /></Field>
-              <Field label={tr("Access key")}><Input value={b.accessKey ?? ""} onChange={(e) => set({ accessKey: e.target.value })} /></Field>
-              <Field label={tr("Secret key")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
-            </div>
-          )}
-          {b.destType !== "strataos" && <Field
-            label={b.kind === "zfs" ? tr("Destination dataset") : b.destType === "s3" ? tr("Bucket / folder") : b.destType === "rest" ? tr("REST server URL") : b.destType === "local" ? tr("Destination folder") : tr("Remote path")}
-            hint={b.kind === "zfs" ? tr("e.g. backup/media (created automatically)") : b.destType === "local" ? tr("Inside a volume, e.g. /srv/strata/usb/backups (a USB disk is imported from Storage Manager)") : undefined}
-          >
-            {b.destType === "local" && b.kind !== "zfs" ? (
-              <div className="flex gap-2">
-                <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && set({ destPath: `${e.target.value}/sauvegardes` })}>
-                  <option value="">{tr("Volume…")}</option>
-                  {sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
+        {card !== "pull" && card !== "sync" && (
+          <div>
+            {b.kind === "zfs" && (
+              <Field label={tr("Direction")} className="mb-3">
+                <Select value={b.sourceType ? "pull" : "push"} disabled={editing} onChange={(e) => set(e.target.value === "pull" ? { sourceType: "ssh", destType: "local", sources: [], port: 22 } : { sourceType: "", sources: [] })}>
+                  <option value="push">{tr("Send a dataset of this NAS (push)")}</option>
+                  <option value="pull">{tr("Fetch a dataset from a remote ZFS host (pull)")}</option>
                 </Select>
-                <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />
+              </Field>
+            )}
+            {b.kind === "zfs" && <p className="mb-3 text-muted text-[12px]">{tr("ZFS can only replicate one way: the copy is a read-only image of the source. To keep two folders identical with changes on both sides, use a Two-way sync (it works on files).")}</p>}
+            {b.kind === "zfs" && pull ? (
+              <div className="space-y-4 rounded-xl border border-line p-4">
+                <div className="font-medium text-[13px]">{tr("Source: remote ZFS host (StrataOS or any ZFS server)")}</div>
+                <RemoteFields b={b} set={set} userLabel={tr("SSH user")} />
+                <Field label={tr("Remote dataset")} hint={tr("e.g. tank/photos")}><Input className="mono" value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value.trim() ? [e.target.value.trim()] : [] })} /></Field>
+                <Notice>{tr("This NAS connects to the source; the source holds no access to this NAS, so even compromised it cannot delete its backups. The remote account needs root or: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>")}</Notice>
+                <SSHKey />
               </div>
-            ) : <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />}
-          </Field>}
-          {remote && <SSHKey />}
-        </div>
+            ) : (
+              <>
+                <div className="mb-2 text-[12.5px] font-medium text-muted">{b.kind === "zfs" ? tr("Dataset to replicate") : tr("Folders to back up")}</div>
+                {b.kind === "zfs" ? (
+                  sources.datasets.length === 0 ? <Notice tone="warn">{tr("No ZFS datasets.")}</Notice> : (
+                    <Select value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value ? [e.target.value] : [] })}>
+                      <option value="">{tr("Choose…")}</option>
+                      {sources.datasets.map((d) => <option key={d.path} value={d.path}>{d.label}</option>)}
+                    </Select>
+                  )
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {sources.folders.map((f) => (
+                      <Checkbox key={f.path} checked={b.sources.includes(f.path)} onChange={(v) => set({ sources: v ? [...b.sources, f.path] : b.sources.filter((x) => x !== f.path) })} label={<span><span className="text-[13px]">{srv(f.label)}</span> <span className="mono text-muted text-[11px]">{f.path}</span></span>} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {card !== "sync" && (
+          <div className="space-y-4 rounded-xl border border-line p-4">
+            <div className="font-medium text-[13px]">{tr("Destination")}{pull ? ` ${tr("(this NAS)")}` : ""}</div>
+            {!pull && (
+              <Field label={tr("Type")}>
+                <Select value={b.destType} onChange={(e) => set({ destType: e.target.value as BackupTask["destType"], destPath: "" })}>
+                  {destTypes.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </Select>
+              </Field>
+            )}
+            {remote && <RemoteFields b={b} set={set} />}
+            {b.destType === "strataos" && <VaultPair b={b} set={set} />}
+            {b.destType === "s3" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={tr("Endpoint")} className="sm:col-span-2" hint={tr("e.g. https://s3.eu-west-3.amazonaws.com, https://s3.us-west-002.backblazeb2.com, http://minio:9000")}><Input value={b.s3Endpoint ?? ""} onChange={(e) => set({ s3Endpoint: e.target.value })} /></Field>
+                <Field label={tr("Access key")}><Input value={b.accessKey ?? ""} onChange={(e) => set({ accessKey: e.target.value })} /></Field>
+                <Field label={tr("Secret key")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
+              </div>
+            )}
+            {b.destType !== "strataos" && <Field
+              label={b.kind === "zfs" ? tr("Destination dataset") : b.destType === "s3" ? tr("Bucket / folder") : b.destType === "rest" ? tr("REST server URL") : b.destType === "local" ? tr("Destination folder") : tr("Remote path")}
+              hint={b.kind === "zfs" ? tr("e.g. backup/media (created automatically)") : pull ? tr("Each source is copied into a sub-folder. A new folder on Btrfs or ZFS becomes its own sub-volume or dataset, so its snapshots hold only this backup.") : b.destType === "local" ? tr("Inside a volume, e.g. /srv/strata/usb/backups (a USB disk is imported from Storage Manager)") : undefined}
+            >
+              {b.destType === "local" && b.kind !== "zfs" ? <LocalFolder value={b.destPath} onChange={(v) => set({ destPath: v })} sources={sources} suffix={pull ? "other-nas" : "sauvegardes"} /> : <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />}
+            </Field>}
+            {remote && <SSHKey />}
+          </div>
+        )}
 
         {b.kind === "rsync" && (
           <div className="space-y-3">
-            <Switch checked={!!b.delete} onChange={(v) => set({ delete: v })} label={tr("Exact mirror")} hint={tr("Deletes from the destination the files deleted at the source. Without this option, nothing is ever erased from the copy.")} />
+            <Switch checked={!!b.delete} onChange={(v) => set({ delete: v })} label={tr("Exact mirror")} hint={pull ? tr("Deletes from the copy the files deleted on the other NAS (snapshots still keep them). Without this option, nothing is ever erased from the copy.") : tr("Deletes from the destination the files deleted at the source. Without this option, nothing is ever erased from the copy.")} />
             <Field label={tr("Exclusions (one per line)")} hint={tr("e.g. *.tmp, Thumbs.db, cache/")}><textarea className="input mono h-20" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
+            <Field label={tr("Bandwidth limit")} hint={tr("e.g. 10M (per second); empty: no limit")}><Input className="!w-40" value={b.bwLimit ?? ""} onChange={(e) => set({ bwLimit: e.target.value.trim() })} placeholder={tr("None")} /></Field>
+            {pull && <VersionsFields b={b} set={set} />}
+          </div>
+        )}
+        {card === "sync" && (
+          <div className="space-y-3">
+            <Field label={tr("Exclusions (one per line)")} hint={tr("e.g. *.tmp, Thumbs.db, cache/**")}><textarea className="input mono h-16" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
+            <Field label={tr("Bandwidth limit")} hint={tr("e.g. 10M (per second); empty: no limit")}><Input className="!w-40" value={b.bwLimit ?? ""} onChange={(e) => set({ bwLimit: e.target.value.trim() })} placeholder={tr("None")} /></Field>
+            <div className="text-[12.5px] font-medium text-muted">{tr("Snapshots of the local folder before each run")}</div>
+            <VersionsFields b={b} set={set} always />
           </div>
         )}
         {b.kind === "restic" && (
@@ -309,12 +446,13 @@ export default function Backups() {
   const { data, isLoading, error } = useQuery({ queryKey: ["backups"], queryFn: () => api.get<BackupTask[]>("/api/backups"), refetchInterval: 8000 });
   const sources = useQuery({ queryKey: ["backup-sources"], queryFn: () => api.get<Sources>("/api/backups/sources") });
   const run = useAction((id: string) => api.post(`/api/backups/${id}/run`));
+  const resync = useAction((id: string) => api.post(`/api/backups/${id}/resync`));
   const toggle = useAction((b: BackupTask) => api.put(`/api/backups/${b.id}`, { ...b, enabled: !b.enabled }));
   const del = useAction((id: string) => api.del(`/api/backups/${id}`), { success: tr("Backup deleted (backed-up data is kept)") });
 
   return (
     <div>
-      <PageHeader title={tr("Backup")} subtitle={tr("Copies, versioned backups and replication, to a disk, another NAS or the cloud")} icon={<DatabaseBackup size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => setEdit(null)}>{tr("New backup")}</Button>} />
+      <PageHeader title={tr("Backup")} subtitle={tr("Copies, versioned backups, replication and sync, to or from a disk, another NAS or the cloud")} icon={<DatabaseBackup size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => setEdit(null)}>{tr("New backup")}</Button>} />
       <ErrorBox error={error || sources.error} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card><Empty icon={<DatabaseBackup />} title={tr("No backups")} text={tr("RAID protects against a disk failure, not against deletion, ransomware or fire. Keep at least one copy elsewhere: USB disk, another NAS or the cloud.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Create a backup")}</Button>} /></Card>
@@ -326,16 +464,16 @@ export default function Backups() {
               <Card key={b.id} pad={false} className={b.enabled ? "" : "opacity-70"}>
                 <div className="p-5">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">{kinds[b.kind].icon}</div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">{kinds[cardOf(b)].icon}</div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 font-semibold">{b.name}{b.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}</div>
-                      <div className="text-muted text-[12px]">{kinds[b.kind].label}</div>
+                      <div className="text-muted text-[12px]">{kinds[cardOf(b)].label}{b.kind === "zfs" && b.sourceType ? ` · ${tr("pull")}` : ""}</div>
                     </div>
                     <Switch checked={b.enabled} onChange={() => toggle.mutate(b)} />
                   </div>
                   <div className="mt-3 space-y-1 text-[12.5px]">
-                    <div className="truncate"><span className="text-muted">{tr("From")}{" "}</span><span className="mono">{b.sources.join(", ")}</span></div>
-                    <div className="truncate"><span className="text-muted">{tr("To")}{" "}</span><span className="mono">{destLabel(b)}</span></div>
+                    <div className="truncate"><span className="text-muted">{tr("From")}{" "}</span><span className="mono">{srcLabel(b)}</span></div>
+                    <div className="truncate"><span className="text-muted">{b.kind === "sync" ? tr("With") : tr("To")}{" "}</span><span className="mono">{destLabel(b)}</span></div>
                     <div className="text-muted">{b.cron ? describeCron(b.cron) : tr("On demand")}{b.enabled && b.nextRun ? tr(" · next {0}", dateTime(b.nextRun)) : ""}</div>
                   </div>
                   {last && (
@@ -348,6 +486,7 @@ export default function Backups() {
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
                   <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Run")}</Button>
                   {b.kind === "restic" && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore(b)}>{tr("Restore")}</Button>}
+                  {b.kind === "sync" && b.synced && <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} disabled={b.running} onClick={async () => { if (await confirm({ title: tr("Resynchronise \"{0}\"?", b.name), text: tr("Both folders are merged again, as on the first run: nothing is deleted, and files deleted on one side since the last run come back.") })) resync.mutate(b.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(b)}><History size={15} /></IconButton>
                   <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(b)}><Edit3 size={15} /></IconButton>
                   <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", b.name), text: tr("The task will no longer run. Data already backed up is not deleted."), danger: true })) del.mutate(b.id); }}><Trash2 size={15} /></IconButton>
@@ -357,6 +496,7 @@ export default function Backups() {
           })}
         </div>
       )}
+      <TimeMachineCard volumes={sources.data?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")) ?? []} />
       <VaultsCard sources={sources.data} />
       {edit !== undefined && sources.data && <Editor initial={edit} sources={sources.data} onClose={() => setEdit(undefined)} />}
       {restore && <RestoreModal b={restore} onClose={() => setRestore(null)} />}

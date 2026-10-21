@@ -200,6 +200,7 @@ func (s *Server) routes() {
 	s.fileRoutes()
 	s.scheduleRoutes()
 	s.backupRoutes()
+	s.timeMachineRoutes()
 	s.quotaRoutes()
 	s.twoFactorRoutes()
 	s.certRoutes()

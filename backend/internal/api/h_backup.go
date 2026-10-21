@@ -35,6 +35,9 @@ func maskBackup(b store.BackupTask) store.BackupTask {
 	if b.VaultToken != "" {
 		b.VaultToken = masked
 	}
+	if b.RemotePassword != "" {
+		b.RemotePassword = masked
+	}
 	return b
 }
 
@@ -53,6 +56,9 @@ func (s *Server) unmaskBackup(b *store.BackupTask, id string) {
 		}
 		if b.VaultToken == masked {
 			b.VaultToken = old.VaultToken
+		}
+		if b.RemotePassword == masked {
+			b.RemotePassword = old.RemotePassword
 		}
 	})
 }
@@ -80,7 +86,11 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 		start := time.Now()
 		var msg string
 		var err error
-		if name := s.lockedShareIn(t.Sources); name != "" {
+		local := t.Sources
+		if backup.IsPull(&t) {
+			local = []string{t.DestPath} // the remote paths mean nothing here
+		}
+		if name := s.lockedShareIn(local); name != "" {
 			// An empty mount point would be copied (and, with deletion, wipe the backup).
 			err = fmt.Errorf("the encrypted share %s is locked: unlock it before the backup", name)
 		} else {
@@ -94,6 +104,9 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 		}
 		if uerr := s.store.Update(func(st *store.State) error {
 			if x := st.Backup(id); x != nil {
+				if err == nil && x.Kind == "sync" {
+					x.Synced = true // the next runs propagate changes and deletions
+				}
 				x.History = append([]store.ScheduleRun{run}, x.History...)
 				if len(x.History) > store.MaxScheduleHistory {
 					x.History = x.History[:store.MaxScheduleHistory]
@@ -200,7 +213,7 @@ func (s *Server) backupRoutes() {
 		}
 		err := s.store.Update(func(st *store.State) error {
 			if id == "" {
-				req.ID, req.CreatedAt, req.History = shortID(), time.Now(), []store.ScheduleRun{}
+				req.ID, req.CreatedAt, req.History, req.Synced = shortID(), time.Now(), []store.ScheduleRun{}, false
 				c := req
 				st.Backups = append(st.Backups, &c)
 				return nil
@@ -210,6 +223,8 @@ func (s *Server) backupRoutes() {
 				return notFound("backup not found")
 			}
 			req.ID, req.CreatedAt, req.History = x.ID, x.CreatedAt, x.History
+			// A two-way sync starts again with a merge when its folders change.
+			req.Synced = x.Synced && req.Kind == x.Kind && slices.Equal(req.Sources, x.Sources) && req.Host == x.Host && req.DestPath == x.DestPath
 			*x = req
 			return nil
 		})
@@ -231,6 +246,9 @@ func (s *Server) backupRoutes() {
 				return notFound("backup not found")
 			}
 			name = x.Name
+			if x.Kind == "sync" {
+				backup.RemoveSync(id)
+			}
 			st.Backups = slices.DeleteFunc(st.Backups, func(b *store.BackupTask) bool { return b.ID == id })
 			return nil
 		})
@@ -242,6 +260,27 @@ func (s *Server) backupRoutes() {
 
 	s.admin("POST /api/backups/{id}/run", func(r *http.Request) (any, error) {
 		return s.runBackup(r.PathValue("id"), userOf(r), true)
+	})
+
+	// Two-way sync: start again with a merge of both sides (nothing deleted).
+	s.admin("POST /api/backups/{id}/resync", func(r *http.Request) (any, error) {
+		id := r.PathValue("id")
+		if _, busy := running.Load("backup-" + id); busy {
+			return nil, &Error{Status: http.StatusConflict, Msg: "this backup is already running"}
+		}
+		err := s.store.Update(func(st *store.State) error {
+			x := st.Backup(id)
+			if x == nil || x.Kind != "sync" {
+				return notFound("two-way sync not found")
+			}
+			x.Synced = false
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "backup", "Two-way sync "+id+" initialised again")
+		return s.runBackup(id, userOf(r), true)
 	})
 
 	// Checks a destination before saving (the task may be new or edited).

@@ -195,6 +195,7 @@ export interface Share {
   browseable: boolean;
   recycleBin: boolean;
   timeMachine: boolean;
+  timeMachineMaxGb?: number;
   permissions: Record<string, Perm>;
   nfsClients: string;
   nfsOptions: string;
@@ -427,8 +428,16 @@ export interface ScheduleTarget {
 export interface BackupTask {
   id: string;
   name: string;
-  kind: "rsync" | "restic" | "zfs";
+  kind: "rsync" | "restic" | "zfs" | "sync";
   sources: string[];
+  // Pull from another NAS: "" = this NAS.
+  sourceType?: "" | "ssh" | "rsyncd" | "smb";
+  remotePassword?: string;
+  domain?: string;
+  bwLimit?: string;
+  versions?: boolean;
+  keepDays?: number;
+  synced?: boolean;
   destType: "local" | "ssh" | "sftp" | "s3" | "rest" | "strataos";
   vaultUrl?: string;
   vaultToken?: string;

@@ -45,6 +45,8 @@ type Share struct {
 	Browseable  bool   `json:"browseable"`
 	RecycleBin  bool   `json:"recycleBin"`
 	TimeMachine bool   `json:"timeMachine"`
+	// TimeMachineMaxGB caps the space Macs may use on a Time Machine share (0 = no limit).
+	TimeMachineMaxGB float64 `json:"timeMachineMaxGb,omitempty"`
 	// Permissions maps a username or "@group" to "rw", "ro" or "none".
 	Permissions map[string]string `json:"permissions"`
 	NFSClients  string            `json:"nfsClients"` // e.g. "192.168.1.0/24"
@@ -170,13 +172,26 @@ type ScheduleRun struct {
 
 const MaxScheduleHistory = 30
 
-// BackupTask copies data elsewhere: rsync mirror, restic versioned backup or ZFS replication.
+// BackupTask copies data elsewhere: rsync mirror, restic versioned backup, ZFS
+// replication or two-way sync. With a SourceType, the task pulls from another
+// NAS (Host, User, Port, RemotePassword describe it) into a local destination.
 type BackupTask struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
-	Kind    string   `json:"kind"`    // rsync | restic | zfs
-	Sources []string `json:"sources"` // folders under /srv/strata, or one ZFS dataset
-	// Destination. DestType: local | ssh (rsync, zfs) ; local | sftp | s3 | rest (restic).
+	Kind    string   `json:"kind"`    // rsync | restic | zfs | sync
+	Sources []string `json:"sources"` // folders under /srv/strata, or one ZFS dataset (remote ones when pulling)
+	// SourceType: "" (this NAS) | ssh | rsyncd | smb (rsync) | ssh (zfs).
+	SourceType     string `json:"sourceType,omitempty"`
+	RemotePassword string `json:"remotePassword,omitempty"` // rsync daemon or SMB password
+	Domain         string `json:"domain,omitempty"`         // SMB domain or workgroup
+	BWLimit        string `json:"bwLimit,omitempty"`        // e.g. 10M (rsync, rclone)
+	// Versions: snapshot the destination after each pull (Btrfs/ZFS), keeping
+	// KeepLast snapshots and/or KeepDays days. Two-way syncs always snapshot.
+	Versions bool `json:"versions,omitempty"`
+	KeepDays int  `json:"keepDays,omitempty"`
+	// Synced is set once a two-way sync has been initialised (rclone bisync --resync).
+	Synced bool `json:"synced,omitempty"`
+	// Destination. DestType: local | ssh (rsync, zfs) ; local | sftp | s3 | rest (restic) ; sftp (sync).
 	DestType   string `json:"destType"`
 	DestPath   string `json:"destPath"` // folder, remote path, ZFS dataset, bucket path or REST URL
 	Host       string `json:"host,omitempty"`
