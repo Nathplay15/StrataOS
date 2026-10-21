@@ -1039,7 +1039,7 @@
  "Linux": "Linux",
  "Linux, hypervisors": "Linux, hyperviseurs",
  "Listening on TCP port {0}. Address blocking (Control Panel) applies to it as to the other services.": "Écoute sur le port TCP {0}. Le blocage d'adresses (Panneau de configuration) s'y applique comme aux autres services.",
- "Live": "Direct",
+ "Live": "En direct",
  "Live snapshot (file systems frozen by the guest agent when available)": "Snapshot à chaud (systèmes de fichiers gelés par l'agent invité quand il est disponible)",
  "Load": "Charge",
  "Load / input voltage": "Charge / tension d'entrée",
