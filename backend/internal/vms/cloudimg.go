@@ -292,7 +292,7 @@ func CreateFromCloud(ctx context.Context, r CloudReq, p Progress) error {
 	spec := installSpec{import_: true,
 		disks: []string{"path=" + disk + ",format=qcow2,bus=virtio,cache=none,discard=unmap", "path=" + seed + ",device=cdrom,readonly=on"},
 		// The serial console is logged: cloud-init prints its progress there.
-		extra: []string{"--serial", "pty,log.file=" + filepath.Join(dir, "console.log")},
+		extra: []string{"--serial", "pty,log.file=" + consoleLogPath(r.Name)},
 	}
 	if err := install(ctx, r.CreateReq, spec, p.Log); err != nil {
 		return err
@@ -303,16 +303,23 @@ func CreateFromCloud(ctx context.Context, r CloudReq, p Progress) error {
 	return nil
 }
 
+// consoleLogPath is where the serial console of a VM is logged. It is written
+// by virtlogd, whose AppArmor profile allows libvirt's log folder (not the
+// shared folders holding the disks).
+func consoleLogPath(name string) string {
+	return filepath.Join("/var/log/libvirt/qemu", name+"-console.log")
+}
+
 // ConsoleLog returns the end of the serial console log of a VM (cloud images, imports).
 func ConsoleLog(name string) (string, error) {
 	vm, err := Get(name)
 	if err != nil {
 		return "", err
 	}
-	if vm.Dir == "" {
-		return "", nil
+	f, err := os.Open(consoleLogPath(vm.Name))
+	if err != nil && vm.Dir != "" {
+		f, err = os.Open(filepath.Join(vm.Dir, "console.log")) // VMs created by 0.6.0
 	}
-	f, err := os.Open(filepath.Join(vm.Dir, "console.log"))
 	if err != nil {
 		return "", nil
 	}

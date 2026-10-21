@@ -418,6 +418,15 @@ func Import(ctx context.Context, r ImportReq, p Progress) error {
 	if err != nil {
 		return err
 	}
+	// Settings of an appliance come from its OVF when the request leaves them
+	// out (they are validated with the rest by newVMDir).
+	if format == "ova" || format == "ovf" {
+		info, err := InspectImport(src)
+		if err != nil {
+			return err
+		}
+		applyOVF(&r.CreateReq, info.OVF)
+	}
 	dir, err := newVMDir(&r.CreateReq)
 	if err != nil {
 		return err
@@ -474,25 +483,14 @@ func Import(ctx context.Context, r ImportReq, p Progress) error {
 			}
 			disks = append(disks, disk{filepath.Join(folder, d), f})
 		}
-		if r.VCPUs == 0 {
-			r.VCPUs = o.VCPUs
-		}
-		if r.MemoryMB == 0 {
-			r.MemoryMB = o.MemoryMB
-		}
-		if r.Firmware == "" {
-			r.Firmware = o.Firmware
-		}
-		if r.OS == "" {
-			r.OS = o.OS
-		}
+		applyOVF(&r.CreateReq, o)
 	default:
 		disks = []disk{{src, format}}
 	}
 	if r.VCPUs < 1 || r.MemoryMB < 256 {
 		return fmt.Errorf("invalid CPU, memory or disk size")
 	}
-	spec := installSpec{import_: true, extra: []string{"--serial", "pty,log.file=" + filepath.Join(dir, "console.log")}}
+	spec := installSpec{import_: true, extra: []string{"--serial", "pty,log.file=" + consoleLogPath(r.Name)}}
 	for i, d := range disks {
 		f, err := checkDiskFile(d.path, d.format)
 		if err != nil {
@@ -517,4 +515,23 @@ func Import(ctx context.Context, r ImportReq, p Progress) error {
 	ok = true
 	p.set(100)
 	return nil
+}
+
+// applyOVF fills the settings a request leaves out with those of the appliance.
+func applyOVF(r *CreateReq, o *OVF) {
+	if o == nil {
+		return
+	}
+	if r.VCPUs == 0 {
+		r.VCPUs = o.VCPUs
+	}
+	if r.MemoryMB == 0 {
+		r.MemoryMB = o.MemoryMB
+	}
+	if r.Firmware == "" {
+		r.Firmware = o.Firmware
+	}
+	if r.OS == "" {
+		r.OS = o.OS
+	}
 }

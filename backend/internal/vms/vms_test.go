@@ -46,6 +46,7 @@ const sampleDomain = `<domain type='kvm'>
       <model type='virtio'/>
     </interface>
     <serial type='pty'><log file='/srv/strata/main/VMs/web/console.log'/><target port='0'/></serial>
+    <serial type='pty'><log file='/var/log/libvirt/qemu/web-console.log'/><target port='1'/></serial>
     <channel type='unix'><source mode='bind' path='/run/libvirt/qemu/channel/1-web/org.qemu.guest_agent.0'/><target type='virtio' name='org.qemu.guest_agent.0'/></channel>
     <hostdev mode='subsystem' type='usb' managed='yes'><source><vendor id='0x10c4'/><product id='0xea60'/></source></hostdev>
     <hostdev mode='subsystem' type='pci' managed='yes'><source><address domain='0x0000' bus='0x01' slot='0x00' function='0x0'/></source></hostdev>
@@ -90,6 +91,7 @@ func TestRewriteClone(t *testing.T) {
 		`<mac address="52:54:00:aa:bb:cc"/>`,
 		">/var/lib/libvirt/qemu/nvram/web2_VARS.fd</nvram>",
 		`<log file="/srv/strata/main/VMs/web2/console.log"/>`,
+		`<log file="/var/log/libvirt/qemu/web2-console.log"/>`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s in\n%s", want, out)
