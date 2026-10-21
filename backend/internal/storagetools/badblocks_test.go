@@ -82,3 +82,17 @@ func TestCompareSmart(t *testing.T) {
 		t.Fatalf("pending: %v", p)
 	}
 }
+
+// With -p, each pass starts with the same banner: the run is complete only
+// after the last "Pass completed".
+func TestBadblocksRepeatedPasses(t *testing.T) {
+	p := NewBadblocksProgress(0)
+	p.Feed("Checking for bad blocks (read-only test): done\nPass completed, 0 bad blocks found. (0/0/0 errors)\n")
+	if !p.Completed {
+		t.Fatal("first pass")
+	}
+	p.Feed("Checking for bad blocks (read-only test): " + status(" 10.00% done, 0:01 elapsed. (0/0/0 errors)"))
+	if p.Completed || p.Overall() != 10 {
+		t.Fatalf("second pass: %+v", p)
+	}
+}

@@ -26,6 +26,9 @@ type BurnInOpts struct {
 	LongTest  bool
 	// Blocks > 0 limits badblocks to the first Blocks blocks (end-to-end tests).
 	Blocks int64
+	// Passes > 1 repeats the read-only scan (badblocks -p): keeps a short test
+	// range busy long enough for the end-to-end test to cancel it.
+	Passes int
 	Size   int64
 }
 
@@ -76,6 +79,8 @@ func NewBurnIn(o BurnInOpts, serial, jobID string, logf func(string, ...any), se
 	passes := 1.0
 	if o.Write {
 		passes = 8
+	} else if o.Passes > 1 {
+		passes = float64(o.Passes)
 	}
 	if o.ShortTest {
 		b.order = append(b.order, "smart-short")
@@ -236,7 +241,13 @@ func (b *BurnIn) smartTest(ctx context.Context, kind string) store.BurnInStep {
 	b.logf("SMART %s self-test started (about %d min announced by the disk)", kind, expect)
 	start := time.Now()
 	limit := time.Duration(max(expect, 2)*3)*time.Minute + 30*time.Minute
-	time.Sleep(3 * time.Second)
+	select {
+	case <-ctx.Done():
+		_, _ = sys.RunOpts(context.Background(), sys.Opts{AllowCodes: []int{-2}}, "smartctl", "-X", b.o.Device)
+		step.Status = "cancelled"
+		return step
+	case <-time.After(3 * time.Second):
+	}
 	for {
 		st := readSelfTest(b.o.Device)
 		if !st.Running {
@@ -285,6 +296,9 @@ func (b *BurnIn) badblocks(ctx context.Context) (store.BurnInStep, *BadblocksPro
 		args = append(args, "-w")
 		patterns = 4
 	}
+	if b.o.Passes > 1 && !b.o.Write {
+		args = append(args, "-p", strconv.Itoa(b.o.Passes))
+	}
 	args = append(args, b.o.Device)
 	if b.o.Blocks > 0 {
 		args = append(args, strconv.FormatInt(b.o.Blocks-1, 10), "0")
@@ -301,6 +315,10 @@ func (b *BurnIn) badblocks(ctx context.Context) (store.BurnInStep, *BadblocksPro
 	var bad strings.Builder
 	cmd.Stdout = &limitedWriter{w: &bad, n: 64 << 10}
 	b.logf("badblocks %s", strings.Join(args, " "))
+	if ctx.Err() != nil {
+		step.Status = "cancelled"
+		return step, p
+	}
 	if err := cmd.Start(); err != nil {
 		step.Status, step.Detail = "failed", err.Error()
 		return step, p
@@ -458,7 +476,8 @@ func (b *BurnIn) Run(ctx context.Context, rep *store.BurnInReport) {
 	add := func(s store.BurnInStep) bool {
 		rep.Steps = append(rep.Steps, s)
 		b.logf("%s: %s %s", s.Name, s.Status, s.Detail)
-		return s.Status != "cancelled"
+		// A cancel between two steps must not start the next one.
+		return s.Status != "cancelled" && ctx.Err() == nil
 	}
 	cont := true
 	if b.o.ShortTest {

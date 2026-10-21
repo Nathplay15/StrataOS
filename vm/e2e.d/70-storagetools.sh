@@ -43,9 +43,18 @@ if [ -n "$BD" ]; then
   check "report stored: passed, no bad block" "$(echo "$BR" | py 'r=d["reports"][0]; print(r["device"], r["result"], r["badBlocks"], [s["name"] for s in r["steps"]])')" "$BD passed 0 ['smart-short', 'badblocks']"
   check "badblocks step passed" "$(echo "$BR" | py 'print([s["status"] for s in d["reports"][0]["steps"] if s["name"]=="badblocks"])')" "['passed']"
   check "disk free again" "$(c GET /api/storage/disks | py "print([x['usage'] for x in d if x['path']=='$BD'])")" "['free']"
-  # Cancelling stops badblocks cleanly.
-  BJ=$(c POST /api/storage/burnin -d '{"device":"'$BD'","mode":"read","shortTest":false}')
-  sleep 4
+  # Cancelling stops badblocks cleanly. A full read of an empty virtual disk
+  # takes seconds: repeat the scan of a short range (hidden "passes") so the
+  # test is still running, and cancel once the API shows the badblocks step.
+  BJ=$(c POST /api/storage/burnin -d '{"device":"'$BD'","mode":"read","shortTest":false,"blocks":65536,"passes":1000}')
+  STEP=""
+  for _ in $(seq 1 60); do
+    STEP=$(c GET /api/storage/burnin | py "print([r['step'] for r in d['running'] if r['device']=='$BD'])")
+    [ "$STEP" = "['badblocks']" ] && break
+    sleep 1
+  done
+  check "test reached the badblocks step" "$STEP" "['badblocks']"
+  sleep 2
   c POST "/api/jobs/$(echo "$BJ" | py 'print(d["id"])')/cancel" >/dev/null
   check "cancelled test" "$(job "$BJ")" "failed burn-in test cancelled"
   check "badblocks gone after cancel" "$(vm "pgrep -x badblocks || echo none")" "none"
