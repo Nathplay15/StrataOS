@@ -210,6 +210,7 @@ func (s *Server) routes() {
 	s.timeMachineRoutes()
 	s.quotaRoutes()
 	s.twoFactorRoutes()
+	s.passkeyRoutes()
 	s.certRoutes()
 	s.upsRoutes()
 	s.vmRoutes()

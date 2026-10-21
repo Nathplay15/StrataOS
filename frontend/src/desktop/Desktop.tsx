@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, CheckCircle2, ExternalLink, Image as ImageIcon, KeyRound, LayoutGrid, LogOut, Monitor as MonitorIcon, Moon, Power, RefreshCcw, Search, ShieldCheck, Sun, XCircle } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LogOut, Monitor as MonitorIcon, Moon, Power, RefreshCcw, Search, ShieldCheck, Sun, XCircle } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
 import type { AppStoreData, Me, Overview, Sample, SystemInfo } from "../lib/types";
@@ -8,6 +8,7 @@ import { bytes, cx, duration, pct, rate } from "../lib/format";
 import { Progress, useUI } from "../components/ui";
 import { JobsMenu, PasswordModal, useTheme } from "../components/Layout";
 import { TwoFactorModal } from "../components/TwoFactor";
+import { PasskeysModal } from "../components/Passkeys";
 import { APPS, AppIcon, appById, type AppDef } from "./apps";
 import { AppContent } from "./AppContent";
 import { Window } from "./Window";
@@ -151,6 +152,7 @@ function UserMenu({ me }: { me: Me }) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(false);
   const [tfa, setTfa] = useState(false);
+  const [passkeys, setPasskeys] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useOutside(ref, () => setOpen(false));
   const { confirm } = useUI();
@@ -171,6 +173,7 @@ function UserMenu({ me }: { me: Me }) {
           <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")} · {me.username}</div>
           <button className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
           <button className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
+          <button className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
           <button className={item} onClick={() => setUIMode("classic")}><MonitorIcon size={15} /> {" "}{tr("Classic interface")}</button>
           {me.role === "admin" && (
             <>
@@ -185,6 +188,7 @@ function UserMenu({ me }: { me: Me }) {
       )}
       <PasswordModal open={pw} onClose={() => setPw(false)} />
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
+      <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
     </div>
   );
 }

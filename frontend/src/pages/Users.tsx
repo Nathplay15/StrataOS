@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Edit3, Plus, Shield, ShieldOff, Trash2, UserPlus, Users as UsersIcon } from "lucide-react";
+import { Edit3, FingerprintPattern, Plus, Shield, ShieldOff, Trash2, UserPlus, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Group, Me, User, UserQuota } from "../lib/types";
@@ -125,6 +125,7 @@ export default function Users({ me }: { me: Me }) {
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
   const delUser = useAction((p: { name: string; home: boolean }) => api.del(`/api/users/${encodeURIComponent(p.name)}${p.home ? "?removeHome=1" : ""}`), { success: tr("User deleted") });
   const reset2fa = useAction((n: string) => api.post(`/api/users/${encodeURIComponent(n)}/2fa/reset`), { success: tr("Two-factor authentication reset") });
+  const delPasskeys = useAction((n: string) => api.del(`/api/users/${encodeURIComponent(n)}/passkeys`), { success: tr("Passkeys removed") });
   const delGroup = useAction((n: string) => api.del(`/api/groups/${n}`), { success: tr("Group deleted") });
   const userGroups = (groups.data ?? []).filter((g) => !g.system);
 
@@ -152,11 +153,12 @@ export default function Users({ me }: { me: Me }) {
                       </td>
                       <td>{u.role === "admin" ? <Badge tone="accent"><Shield size={11} /> {" "}{tr("Admin")}</Badge> : <Badge>{tr("User")}</Badge>}{u.disabled && <span className="ml-1"><Badge tone="danger">{tr("Disabled")}</Badge></span>}</td>
                       <td className="text-[12.5px]">{u.groups.join(", ") || <span className="text-muted">—</span>}</td>
-                      <td className="space-x-1">{u.source && <Badge tone="accent">{u.source === "ad" ? "Active Directory" : "LDAP"}</Badge>}{u.ssh && <Badge>SSH</Badge>}{u.docker && <Badge>{tr("Docker")}</Badge>}<Badge>SMB</Badge>{u.twoFactor && <Badge tone="ok">2FA</Badge>}</td>
+                      <td className="space-x-1">{u.source && <Badge tone="accent">{u.source === "ad" ? "Active Directory" : "LDAP"}</Badge>}{u.ssh && <Badge>SSH</Badge>}{u.docker && <Badge>{tr("Docker")}</Badge>}<Badge>SMB</Badge>{u.twoFactor && <Badge tone="ok">2FA</Badge>}{!!u.passkeys && <Badge tone="ok">{u.passkeys === 1 ? tr("1 passkey") : tr("{0} passkeys", u.passkeys)}</Badge>}</td>
                       <td className="text-muted text-[12.5px]">{dateTime(u.createdAt)}</td>
                       <td className="text-right whitespace-nowrap">
                         <Button size="sm" variant="ghost" icon={<Edit3 size={14} />} onClick={() => setEditUser(u)} />
                         {u.twoFactor && u.username !== me.username && <Button size="sm" variant="ghost" title={tr("Reset two-factor authentication")} icon={<ShieldOff size={14} />} onClick={async () => { if (await confirm({ title: tr("Reset two-factor authentication for {0}?", u.username), text: tr("Use if the user has lost their phone and backup codes. They will be able to sign in with their password alone and then set it up again."), danger: true })) reset2fa.mutate(u.username); }} />}
+                        {!!u.passkeys && <Button size="sm" variant="ghost" title={tr("Remove passkeys")} icon={<FingerprintPattern size={14} />} onClick={async () => { if (await confirm({ title: tr("Remove the passkeys of {0}?", u.username), text: tr("Use if a device was lost or stolen. The user signs in with their password (and two-factor code) and can add passkeys again."), danger: true })) delPasskeys.mutate(u.username); }} />}
                         {u.username !== me.username && <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={async () => {
                           if (await confirm({ title: tr("Delete {0}?", u.username), text: tr("The Linux and Samba account will be deleted. Its home folder too."), danger: true, typeToConfirm: u.username })) delUser.mutate({ name: u.username, home: true });
                         }} />}

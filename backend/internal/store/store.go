@@ -33,6 +33,9 @@ type User struct {
 	TOTPPending   string   `json:"totpPending,omitempty"`   // being enrolled, not active yet
 	TOTPLast      int64    `json:"totpLast,omitempty"`      // last accepted time step (anti-replay)
 	RecoveryCodes []string `json:"recoveryCodes,omitempty"` // bcrypt hashes, consumed on use
+	// WebAuthn: random user handle (given at the first passkey) and passkeys.
+	WebAuthnID []byte    `json:"webauthnId,omitempty"`
+	Passkeys   []Passkey `json:"passkeys,omitempty"`
 }
 
 type Share struct {
