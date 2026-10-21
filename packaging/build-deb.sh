@@ -27,6 +27,7 @@ install -Dm755 packaging/scripts/install-photos.sh "$ROOT/usr/lib/strata/scripts
 install -Dm755 packaging/scripts/install-tailscale.sh "$ROOT/usr/lib/strata/scripts/install-tailscale.sh"
 install -Dm755 packaging/scripts/install-cloudflared.sh "$ROOT/usr/lib/strata/scripts/install-cloudflared.sh"
 install -Dm755 packaging/scripts/install-iscsi.sh "$ROOT/usr/lib/strata/scripts/install-iscsi.sh"
+install -Dm755 packaging/scripts/install-surveillance.sh "$ROOT/usr/lib/strata/scripts/install-surveillance.sh"
 install -Dm755 packaging/scripts/ha-notify "$ROOT/usr/lib/strata/scripts/ha-notify"
 install -Dm755 packaging/scripts/upssched-cmd "$ROOT/usr/lib/strata/scripts/upssched-cmd"
 # APT repository for StrataOS updates (see packaging/make-repo.sh).

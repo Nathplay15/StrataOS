@@ -14,6 +14,7 @@ import (
 	"strataos/internal/fileservices"
 	"strataos/internal/ha"
 	"strataos/internal/i18n"
+	"strataos/internal/nvr"
 	"strataos/internal/photos"
 	"strataos/internal/vpn"
 	"strings"
@@ -407,6 +408,7 @@ func (s *Server) systemRoutes() {
 			"vpn":       vpn.Installed(),
 			"photos":    photos.Installed(),
 			"iscsi":     iscsi.Installed(),
+			"nvr":       nvr.Installed(),
 			"rsync":     sys.Has("rsync"),
 			"xfs":       sys.Has("mkfs.xfs"),
 			"tailscale": remote.TailscaleInstalled(),
@@ -415,7 +417,7 @@ func (s *Server) systemRoutes() {
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "nvr": "install-surveillance.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}

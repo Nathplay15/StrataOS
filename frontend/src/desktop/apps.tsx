@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, Cctv } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -16,6 +16,7 @@ const Shares = lazy(() => import("../pages/Shares"));
 const UsersPage = lazy(() => import("../pages/Users"));
 const Files = lazy(() => import("../pages/Files"));
 const PhotosPage = lazy(() => import("../pages/Photos"));
+const SurveillancePage = lazy(() => import("../pages/Surveillance"));
 const LinksPage = lazy(() => import("../pages/Links"));
 const AppStore = lazy(() => import("../pages/docker/AppStore"));
 const Containers = lazy(() => import("../pages/docker/Containers"));
@@ -121,6 +122,7 @@ export const APPS: AppDef[] = [
       { id: "images", label: tr("Images and networks"), icon: <Layers size={16} />, component: page(Images), path: "/docker/images" },
     ],
   },
+  { id: "surveillance", title: tr("Surveillance"), icon: Cctv, colors: ["#f87171", "#b91c1c"], admin: true, size: [1120, 760], component: page(SurveillancePage), path: "/surveillance" },
   { id: "vms", title: tr("Virtual machines"), icon: MonitorIcon, colors: ["#8b5cf6", "#6d28d9"], admin: true, size: [1080, 720], component: page(VirtualMachines), path: "/vms" },
   { id: "help", title: tr("Help"), icon: LifeBuoy, colors: ["#a3e635", "#16a34a"], admin: false, size: [900, 760], component: page(HelpPage), path: "/help" },
   { id: "fleet", title: tr("Multi-NAS Console"), icon: Network, colors: ["#38bdf8", "#6366f1"], admin: true, size: [1120, 760], component: page(FleetPage), path: "/fleet" },

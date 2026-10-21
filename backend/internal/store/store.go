@@ -490,6 +490,7 @@ type State struct {
 	ISCSI     ISCSI           `json:"iscsi"`
 	BurnIns   []*BurnInReport `json:"burnIns,omitempty"`
 	Hardware  Hardware        `json:"hardware"`
+	NVR       NVR             `json:"nvr,omitzero"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`
