@@ -99,6 +99,7 @@ func New(c Config) *Server {
 	go s.guardLoop()
 	go s.iscsiLoop()
 	go s.configAutoLoop()
+	go s.hardwareLoop()
 	return s
 }
 
@@ -230,6 +231,8 @@ func (s *Server) routes() {
 	s.remoteRoutes()
 	s.iscsiRoutes()
 	s.configRoutes()
+	s.storageToolsRoutes()
+	s.hardwareRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

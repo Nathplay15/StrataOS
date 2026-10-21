@@ -19,6 +19,8 @@ const Volumes = lazy(() => import("./pages/storage/Volumes"));
 const Zfs = lazy(() => import("./pages/storage/Zfs"));
 const Lvm = lazy(() => import("./pages/storage/Lvm"));
 const Iscsi = lazy(() => import("./pages/storage/Iscsi"));
+const SpaceAnalyzer = lazy(() => import("./pages/storage/SpaceAnalyzer"));
+const Duplicates = lazy(() => import("./pages/storage/Duplicates"));
 const Shares = lazy(() => import("./pages/Shares"));
 const Users = lazy(() => import("./pages/Users"));
 const Files = lazy(() => import("./pages/Files"));
@@ -46,6 +48,7 @@ const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
 const PhotosPage = lazy(() => import("./pages/Photos"));
 const LinksPage = lazy(() => import("./pages/Links"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
+const HardwarePage = lazy(() => import("./pages/system/Hardware"));
 const GuardPage = lazy(() => import("./pages/system/Guard"));
 const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
@@ -103,6 +106,8 @@ function Root() {
             <Route path="storage/zfs" element={A(<Zfs />)} />
             <Route path="storage/lvm" element={A(<Lvm />)} />
             <Route path="storage/iscsi" element={A(<Iscsi />)} />
+            <Route path="storage/analyzer" element={A(<SpaceAnalyzer />)} />
+            <Route path="storage/duplicates" element={A(<Duplicates />)} />
             <Route path="files" element={<Files />} />
             <Route path="photos" element={<PhotosPage me={me} />} />
             <Route path="links" element={<LinksPage me={me} />} />
@@ -123,6 +128,7 @@ function Root() {
             <Route path="backup" element={A(<Backups />)} />
             <Route path="system/ups" element={A(<UPSPage />)} />
             <Route path="system/energy" element={A(<EnergyPage />)} />
+            <Route path="system/hardware" element={A(<HardwarePage />)} />
             <Route path="system/guard" element={A(<GuardPage />)} />
             <Route path="fleet" element={A(<FleetPage />)} />
             <Route path="help" element={<HelpPage />} />

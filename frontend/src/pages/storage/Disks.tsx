@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Eraser, HardDrive, Thermometer } from "lucide-react";
+import { Activity, Eraser, FlaskConical, HardDrive, Thermometer } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Disk, SmartInfo } from "../../lib/types";
 import { bytes } from "../../lib/format";
 import { useUI, Badge, Button, Card, Empty, ErrorBox, Modal, Notice, PageHeader, Spinner } from "../../components/ui";
 import { tr, locale, srv } from "../../lib/i18n";
+import { BurnInBadge, BurnInModal, useBurnIns } from "./BurnIn";
 
 const usageLabel: Record<string, [string, "neutral" | "ok" | "warn" | "danger" | "accent"]> = {
   free: [tr("Free"), "ok"],
@@ -83,6 +84,8 @@ export default function Disks() {
   const { confirm } = useUI();
   const { data, isLoading, error } = useQuery({ queryKey: ["disks"], queryFn: () => api.get<Disk[]>("/api/storage/disks"), refetchInterval: 15000 });
   const [smart, setSmart] = useState<Disk | null>(null);
+  const [burn, setBurn] = useState<Disk | null>(null);
+  const burnIns = useBurnIns();
   const wipe = useAction((d: string) => api.post("/api/storage/disks/wipe", { device: d }), { success: tr("Disk wiped") });
 
   const doWipe = async (d: Disk) => {
@@ -119,6 +122,10 @@ export default function Disks() {
                     <Badge tone={ut}>{ul}{d.usedBy ? ` · ${d.usedBy}` : ""}</Badge>
                     {d.healthy === true && <Badge tone="ok" dot>{tr("SMART OK")}</Badge>}
                     {d.healthy === false && <Badge tone="danger" dot>{tr("SMART failing")}</Badge>}
+                    {burnIns.data?.running.some((r) => r.device === d.path) ? <Badge tone="accent" dot>{tr("Burn-in test running")}</Badge> : (() => {
+                      const last = burnIns.data?.reports.find((r) => d.serial ? r.serial === d.serial : r.device === d.path);
+                      return last && <BurnInBadge report={last} onClick={() => setBurn(d)} />;
+                    })()}
                   </div>
                   <div className="mt-4 flex gap-5 text-[12.5px] text-muted">
                     <span className="flex items-center gap-1.5"><Thermometer size={14} /> {d.standby ? tr("Standby") : d.temperature ? tr("{0} °C", d.temperature) : "—"}</span>
@@ -137,6 +144,7 @@ export default function Disks() {
                 </div>
                 <div className="flex justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
                   <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>
+                  {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
                   {!d.system && d.usage !== "free" && (
                     <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
                   )}
@@ -147,6 +155,7 @@ export default function Disks() {
         </div>
       )}
       <SmartModal disk={smart} onClose={() => setSmart(null)} />
+      <BurnInModal disk={burn} data={burnIns.data} onClose={() => setBurn(null)} />
     </div>
   );
 }
