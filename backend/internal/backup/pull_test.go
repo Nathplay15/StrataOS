@@ -203,8 +203,8 @@ func TestSync(t *testing.T) {
 	if slices.Contains(bisyncArgs(&s, "/c", false), "--resync") {
 		t.Error("--resync after the first run")
 	}
-	conf := rcloneConfig(&s)
-	for _, want := range []string{"type = sftp\n", "host = nas2\n", "user = bk\n", "port = 22\n", "key_file = /k/id_ed25519\n", "known_hosts_file = /k/known_hosts\n"} {
+	conf := rcloneConfig(&s, "ssh-ed25519")
+	for _, want := range []string{"type = sftp\n", "host = nas2\n", "user = bk\n", "port = 22\n", "key_file = /k/id_ed25519\n", "known_hosts_file = /k/known_hosts\n", "host_key_algorithms = ssh-ed25519\n"} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("rclone config misses %q:\n%s", want, conf)
 		}
@@ -284,5 +284,42 @@ func TestTimeMachineBackups(t *testing.T) {
 	}
 	if v := parsePlist(strings.NewReader("<plist><dict><key>a</key><true/><string>orphan</string></dict></plist>")); v == nil || v["a"] != "" {
 		t.Errorf("a key without string value: %v", v)
+	}
+}
+
+func TestKeyAlgos(t *testing.T) {
+	in := "# Host 127.0.0.1 found: line 1\n|1|abc=|def= ssh-ed25519 AAAA\n127.0.0.1 ssh-rsa AAAB\n127.0.0.1 ecdsa-sha2-nistp256 AAAC\n@revoked 127.0.0.1 ssh-dss AAAD\n|1|x=|y= ssh-ed25519 AAAE\n"
+	want := []string{"ssh-ed25519", "rsa-sha2-512", "rsa-sha2-256", "ssh-rsa", "ecdsa-sha2-nistp256"}
+	if got := keyAlgos(in); !slices.Equal(got, want) {
+		t.Errorf("got %q", got)
+	}
+	if got := keyAlgos(""); got != nil {
+		t.Errorf("empty: %q", got)
+	}
+	if strings.Contains(rcloneConfig(&store.BackupTask{Host: "h", User: "u"}, ""), "host_key_algorithms") {
+		t.Error("no algorithms line without known keys")
+	}
+}
+
+func TestNewHostKeys(t *testing.T) {
+	known := "# Host 127.0.0.1 found: line 3\n|1|aa=|bb= ssh-ed25519 ED1\n"
+	scan := "# 127.0.0.1:22 SSH-2.0-OpenSSH_10.0\n127.0.0.1 ssh-rsa RSA1\n127.0.0.1 ecdsa-sha2-nistp256 EC1\n127.0.0.1 ssh-ed25519 ED1\n"
+	add, err := newHostKeys(known, scan)
+	if err != nil || add != "127.0.0.1 ssh-rsa RSA1\n127.0.0.1 ecdsa-sha2-nistp256 EC1\n" {
+		t.Errorf("missing types: %q %v", add, err)
+	}
+	if add, err := newHostKeys("", scan); err != nil || strings.Count(add, "\n") != 3 {
+		t.Errorf("first use: %q %v", add, err)
+	}
+	if _, err := newHostKeys(known, "127.0.0.1 ssh-ed25519 OTHER\n127.0.0.1 ssh-rsa RSA2\n"); err == nil {
+		t.Error("changed key accepted")
+	}
+	// The known key is not offered any more: nothing is trusted on its own.
+	if add, err := newHostKeys(known, "127.0.0.1 ssh-rsa RSA2\n"); err != nil || add != "" {
+		t.Errorf("unconfirmed: %q %v", add, err)
+	}
+	all := known + "127.0.0.1 ssh-rsa RSA1\n127.0.0.1 ecdsa-sha2-nistp256 EC1\n"
+	if add, err := newHostKeys(all, scan); err != nil || add != "" {
+		t.Errorf("complete: %q %v", add, err)
 	}
 }

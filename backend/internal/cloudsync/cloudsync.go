@@ -247,6 +247,9 @@ func writeConfig(ctx context.Context, t *store.CloudSync) (string, error) {
 			return "", err
 		}
 		fmt.Fprintf(&b, "known_hosts_file = %s\n", kh)
+		if algos := backup.HostKeyAlgorithms(t.Params["host"], t.Params["port"]); algos != "" {
+			fmt.Fprintf(&b, "host_key_algorithms = %s\n", algos)
+		}
 	case "s3":
 		b.WriteString("env_auth = false\nno_check_bucket = true\n")
 	}

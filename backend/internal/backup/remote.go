@@ -28,8 +28,12 @@ var (
 	subNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-/]{0,90}$`)
 )
 
-// KnownHost records the server's SSH key the first time it is used (like
-// StrictHostKeyChecking=accept-new) and returns the known_hosts file.
+// KnownHost records the server's SSH keys the first time it is used (like
+// StrictHostKeyChecking=accept-new) and returns the known_hosts file, for Go
+// SSH clients (rclone). OpenSSH records only the key type it negotiated, while
+// Go's client prefers ECDSA/RSA and reports a "key mismatch" when the type it
+// gets is not listed: the other key types the server offers are added, once
+// a key already known is confirmed unchanged.
 func KnownHost(ctx context.Context, host, port string) (string, error) {
 	kh := knownHostsPath()
 	if port == "" || port == "0" {
@@ -39,15 +43,23 @@ func KnownHost(ctx context.Context, host, port string) (string, error) {
 	if port != "22" {
 		name = "[" + host + "]:" + port
 	}
-	if out, _ := sys.Run("ssh-keygen", "-F", name, "-f", kh); strings.TrimSpace(out) != "" {
-		return kh, nil
-	}
 	if strings.HasPrefix(host, "-") {
 		return "", fmt.Errorf("invalid host")
 	}
+	known, _ := sys.Run("ssh-keygen", "-F", name, "-f", kh)
 	keys, err := sys.RunOpts(ctx, sys.Opts{Timeout: 20 * time.Second}, "ssh-keyscan", "-p", port, "-T", "10", host)
 	if err != nil || strings.TrimSpace(keys) == "" {
+		if strings.TrimSpace(known) != "" {
+			return kh, nil // let the client report why it cannot connect
+		}
 		return "", fmt.Errorf("cannot reach the SSH server %s:%s", host, port)
+	}
+	add, err := newHostKeys(known, keys)
+	if err != nil {
+		return "", fmt.Errorf("%s:%s: %w", host, port, err)
+	}
+	if add == "" {
+		return kh, nil
 	}
 	if err := os.MkdirAll(KeyDir, 0o700); err != nil {
 		return "", err
@@ -57,8 +69,109 @@ func KnownHost(ctx context.Context, host, port string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
-	_, err = f.WriteString(keys)
+	_, err = f.WriteString(add)
 	return kh, err
+}
+
+// newHostKeys returns the ssh-keyscan lines to append to known_hosts given
+// the lines already known for the host (ssh-keygen -F output). With nothing
+// known, all scanned keys; otherwise the key types not known yet, provided a
+// known key is offered unchanged and none of its type differs.
+func newHostKeys(known, scanned string) (string, error) {
+	type key struct{ typ, blob string }
+	parse := func(lines string) []key {
+		var out []key
+		for _, l := range strings.Split(lines, "\n") {
+			f := strings.Fields(l)
+			if len(f) < 3 || strings.HasPrefix(f[0], "#") || strings.HasPrefix(f[0], "@") {
+				continue
+			}
+			out = append(out, key{f[1], f[2]})
+		}
+		return out
+	}
+	have := parse(known)
+	var lines []string
+	for _, l := range strings.Split(scanned, "\n") {
+		if f := strings.Fields(l); len(f) >= 3 && !strings.HasPrefix(f[0], "#") {
+			lines = append(lines, l)
+		}
+	}
+	if len(have) == 0 {
+		if len(lines) == 0 {
+			return "", nil
+		}
+		return strings.Join(lines, "\n") + "\n", nil
+	}
+	knownTypes := map[string]bool{}
+	for _, k := range have {
+		knownTypes[k.typ] = true
+	}
+	confirmed := false
+	var add []string
+	for _, l := range lines {
+		f := strings.Fields(l)
+		k := key{f[1], f[2]}
+		if !knownTypes[k.typ] {
+			add = append(add, l)
+			continue
+		}
+		match := false
+		for _, h := range have {
+			if h == k {
+				match = true
+			}
+		}
+		if !match {
+			return "", fmt.Errorf("the SSH host key changed (possible interception): remove the old key from %s if the server was reinstalled", knownHostsPath())
+		}
+		confirmed = true
+	}
+	if !confirmed || len(add) == 0 {
+		return "", nil
+	}
+	return strings.Join(add, "\n") + "\n", nil
+}
+
+// HostKeyAlgorithms lists, space separated, the host key algorithms matching
+// the keys known_hosts holds for host:port ("" when none). Go's SSH client
+// (rclone) prefers ECDSA and reports a "key mismatch" when only another key
+// type is known, as when OpenSSH recorded just the ed25519 key it negotiated:
+// restricting it to the known types avoids that.
+func HostKeyAlgorithms(host, port string) string {
+	name := host
+	if port != "" && port != "0" && port != "22" {
+		name = "[" + host + "]:" + port
+	}
+	out, _ := sys.Run("ssh-keygen", "-F", name, "-f", knownHostsPath())
+	return strings.Join(keyAlgos(out), " ")
+}
+
+// keyAlgos maps the key types of known_hosts lines to signature algorithms.
+func keyAlgos(lines string) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(a ...string) {
+		for _, x := range a {
+			if !seen[x] {
+				seen[x] = true
+				out = append(out, x)
+			}
+		}
+	}
+	for _, l := range strings.Split(lines, "\n") {
+		f := strings.Fields(l)
+		if len(f) < 3 || strings.HasPrefix(f[0], "#") || f[0] == "@revoked" || f[0] == "@cert-authority" {
+			continue
+		}
+		switch typ := f[1]; {
+		case typ == "ssh-rsa":
+			add("rsa-sha2-512", "rsa-sha2-256", "ssh-rsa")
+		case typ == "ssh-ed25519" || strings.HasPrefix(typ, "ecdsa-sha2-") || strings.HasPrefix(typ, "sk-"):
+			add(typ)
+		}
+	}
+	return out
 }
 
 // secretFile writes content to a new root-only file and returns its path and
