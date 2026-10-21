@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -9,6 +9,7 @@ const Raid = lazy(() => import("../pages/storage/Raid"));
 const Volumes = lazy(() => import("../pages/storage/Volumes"));
 const Zfs = lazy(() => import("../pages/storage/Zfs"));
 const Lvm = lazy(() => import("../pages/storage/Lvm"));
+const Iscsi = lazy(() => import("../pages/storage/Iscsi"));
 const Shares = lazy(() => import("../pages/Shares"));
 const UsersPage = lazy(() => import("../pages/Users"));
 const Files = lazy(() => import("../pages/Files"));
@@ -79,6 +80,7 @@ export const APPS: AppDef[] = [
       { id: "raid", label: "RAID", icon: <Layers size={16} />, component: page(Raid), path: "/storage/raid" },
       { id: "zfs", label: "ZFS", icon: <Boxes size={16} />, component: page(Zfs), path: "/storage/zfs" },
       { id: "lvm", label: "LVM", icon: <Server size={16} />, component: page(Lvm), path: "/storage/lvm" },
+      { id: "iscsi", label: "iSCSI", icon: <HardDriveUpload size={16} />, component: page(Iscsi), path: "/storage/iscsi" },
       { id: "disks", label: tr("Disks"), icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
     ],
   },

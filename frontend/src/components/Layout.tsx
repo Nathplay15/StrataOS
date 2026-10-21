@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard,
   ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -27,6 +27,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/storage/volumes", label: tr("Volumes"), icon: <Database size={17} />, admin: true },
       { to: "/storage/zfs", label: "ZFS", icon: <Boxes size={17} />, admin: true },
       { to: "/storage/lvm", label: "LVM", icon: <Server size={17} />, admin: true },
+      { to: "/storage/iscsi", label: "iSCSI", icon: <HardDriveUpload size={17} />, admin: true },
       { to: "/backup", label: tr("Backup"), icon: <DatabaseBackup size={17} />, admin: true },
       { to: "/cloudsync", label: tr("Cloud sync"), icon: <CloudCog size={17} />, admin: true },
     ],
