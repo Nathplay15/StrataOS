@@ -450,6 +450,8 @@ func (s *Server) storageToolsRoutes() {
 			LongTest  bool   `json:"longTest"`
 			// Blocks limits the test to the first blocks of 4 KiB (end-to-end tests; not in the interface).
 			Blocks int64 `json:"blocks"`
+			// Passes repeats a read-only scan (end-to-end tests: something long enough to cancel).
+			Passes int `json:"passes"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -477,13 +479,16 @@ func (s *Server) storageToolsRoutes() {
 		if req.Mode == "write" && req.Confirm != disk.Name {
 			return nil, badRequest("type the disk name to confirm: this test erases the whole disk")
 		}
+		if req.Passes < 0 || req.Passes > 1000 {
+			return nil, badRequest("invalid number of passes")
+		}
 		if req.Blocks < 0 || req.Blocks*4096 > disk.Size {
 			return nil, badRequest("invalid block range")
 		}
 		if err := storage.SetBusy(disk.Path, "burn-in test"); err != nil {
 			return nil, badRequest(err.Error())
 		}
-		o := storagetools.BurnInOpts{Device: disk.Path, Write: req.Mode == "write", ShortTest: req.ShortTest, LongTest: req.LongTest, Blocks: req.Blocks, Size: disk.Size}
+		o := storagetools.BurnInOpts{Device: disk.Path, Write: req.Mode == "write", ShortTest: req.ShortTest, LongTest: req.LongTest, Blocks: req.Blocks, Passes: req.Passes, Size: disk.Size}
 		rep := &store.BurnInReport{ID: shortID(), Device: disk.Path, Serial: disk.Serial, Model: disk.Model, Size: disk.Size, Mode: req.Mode, Blocks: req.Blocks, User: userOf(r)}
 		mode := "non-destructive read test"
 		if o.Write {

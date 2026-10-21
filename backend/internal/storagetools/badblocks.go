@@ -55,8 +55,10 @@ func (p *BadblocksProgress) token(t string) {
 		p.Phase++
 		p.Percent = 0
 	case strings.Contains(t, "Checking for bad blocks (read-only test)"):
+		// Also the start of each repeated pass (-p).
 		p.Phase = 1
 		p.Percent = 0
+		p.Completed = false
 	}
 	if p.Phase > p.Phases {
 		p.Phase = p.Phases
