@@ -375,6 +375,7 @@ func (im *importer) createUser(u confbackup.User) error {
 		if sec.TOTPSecret != "" {
 			rec.TOTPSecret, rec.RecoveryCodes = sec.TOTPSecret, sec.RecoveryCodes
 		}
+		rec.WebAuthnID, rec.Passkeys = sec.WebAuthnID, sec.Passkeys
 	} else {
 		// No password in the file: an unknown random one, then the account is
 		// disabled everywhere (sign-in, SMB, SSH) until an administrator sets

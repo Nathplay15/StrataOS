@@ -37,6 +37,10 @@ type UserSecrets struct {
 	SMB           string   `json:"smb,omitempty"`          // pdbedit smbpasswd line (NT hash)
 	TOTPSecret    string   `json:"totpSecret,omitempty"`
 	RecoveryCodes []string `json:"recoveryCodes,omitempty"`
+	// Passkeys hold no secret (public keys), but only make sense on an
+	// account restored with its password.
+	WebAuthnID []byte          `json:"webauthnId,omitempty"`
+	Passkeys   []store.Passkey `json:"passkeys,omitempty"`
 }
 
 type BackupSecrets struct {
@@ -138,7 +142,7 @@ func Build(src Source) (Config, Secrets) {
 	c.Users = []User{}
 	for _, u := range st.Users {
 		x := User{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, Source: u.Source, Groups: []string{}}
-		us := UserSecrets{PasswordHash: u.PasswordHash, TOTPSecret: u.TOTPSecret, RecoveryCodes: u.RecoveryCodes}
+		us := UserSecrets{PasswordHash: u.PasswordHash, TOTPSecret: u.TOTPSecret, RecoveryCodes: u.RecoveryCodes, WebAuthnID: u.WebAuthnID, Passkeys: u.Passkeys}
 		if l, ok := src.Linux[u.Username]; ok && u.Source == "" {
 			x.UID, x.GID, us.Shadow, us.SMB = l.UID, l.GID, l.Shadow, src.SMB[u.Username]
 			x.Groups = append(x.Groups, l.Groups...)
