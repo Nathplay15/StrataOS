@@ -23,7 +23,8 @@ T=$(c POST /api/iscsi/targets -d '{"name":"e2e","initiators":["'"$INI"'"],"luns"
 check "target created" "$T" '"name":"e2e"'
 TID=$(echo "$T" | py 'print(d["id"])')
 IQN=$(echo "$T" | py 'print(d["iqn"])')
-check "IQN generated" "$IQN" "iqn.2026-01."
+check "IQN generated from the host name" "$IQN" "iqn.2026-01.local.strata-vm:e2e"
+check "single-label IQN refused (rtslib needs a second dot)" "$(c POST /api/iscsi/targets -d '{"name":"bad","iqn":"iqn.2026-01.nas:bad","luns":[{"kind":"fileio","path":"/srv/strata/main/iscsi/bad.img","size":67108864}]}')" "invalid iSCSI name"
 st() { c GET /api/iscsi | py "print([(t['live'], len(t['luns']), [s['initiator'] for s in t['sessions']]) for t in d['targets'] if t['name']=='e2e'])"; }
 check "target running with 2 LUNs" "$(st)" "(True, 2,"
 check "sparse image file" "$(vm "[ \$(sudo stat -c %b /srv/strata/main/iscsi/e2e.img) -lt 2048 ] && sudo stat -c %s /srv/strata/main/iscsi/e2e.img")" "67108864"
@@ -66,8 +67,9 @@ logout >/dev/null
 check "saved configuration is root-only" "$(vm "sudo stat -c %a /etc/rtslib-fb-target/saveconfig.json")" "600"
 
 # Persistence: clear the kernel target, restore it as at boot.
-vm "sudo targetctl clear"
-check "target cleared" "$(st)" "(False, 2,"
+check "target saved for the next boot" "$(vm "sudo grep -c '\"$IQN\"' /etc/rtslib-fb-target/saveconfig.json")" "1"
+check "targetctl clears the kernel target" "$(vm "sudo targetctl clear 2>&1; sudo ls /sys/kernel/config/target/iscsi | grep -c e2e")" "0"
+check "target reported stopped" "$(st)" "(False, 2,"
 vm "sudo systemctl restart rtslib-fb-targetctl.service"
 check "target restored by rtslib-fb-targetctl" "$(st)" "(True, 2,"
 check "login after restore (CHAP)" "$(login)" "successful"
