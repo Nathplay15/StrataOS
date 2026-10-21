@@ -34,9 +34,83 @@ check "certificate state shown" "$(c GET /api/remote/domains | py 'print([(x["ce
 check "HTTP redirected to HTTPS" "$(R kuma.strata.test -o /dev/null -w '%{http_code} %{redirect_url}' http://kuma.strata.test/x?y=1)" "308 https://kuma.strata.test/x?y=1"
 check "unknown name answers 404" "$(R other.strata.test -o /dev/null -w '%{http_code}' https://other.strata.test/)" "404"
 check "interface through its name" "$(R nas.strata.test https://nas.strata.test/api/setup)" '"needed":false'
-if [ -n "$KUMA" ]; then
-  check "WebSocket upgrade passed through" "$(R kuma.strata.test --http1.1 -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' 'https://kuma.strata.test/socket.io/?EIO=4&transport=websocket')" "101"
-fi
+# WebSocket through the proxy, against a tiny server we control: it answers
+# the handshake (101 + Sec-WebSocket-Accept) only when Connection/Upgrade
+# reached it, echoes one text frame and reports the X-Forwarded-* it saw.
+cat > "$TMP/e2e-ws.py" <<'EOF'
+import base64, hashlib, socket, threading
+GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+def handle(c):
+    try:
+        data = b""
+        while b"\r\n\r\n" not in data:
+            chunk = c.recv(4096)
+            if not chunk:
+                return
+            data += chunk
+        head, rest = data.split(b"\r\n\r\n", 1)
+        h = {}
+        for line in head.decode("latin-1").split("\r\n")[1:]:
+            k, _, v = line.partition(":")
+            h[k.strip().lower()] = v.strip()
+        seen = "X-Seen: for=%s proto=%s host=%s\r\n" % (h.get("x-forwarded-for"), h.get("x-forwarded-proto"), h.get("x-forwarded-host"))
+        if "upgrade" not in h.get("connection", "").lower() or h.get("upgrade", "").lower() != "websocket":
+            c.sendall(("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n" + seen + "\r\nno-upgrade").encode())
+            return
+        acc = base64.b64encode(hashlib.sha1((h["sec-websocket-key"] + GUID).encode()).digest()).decode()
+        c.sendall(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + acc + "\r\n" + seen + "\r\n").encode())
+        # Echo the first (masked, short) client frame back unmasked.
+        while len(rest) < 2:
+            rest += c.recv(4096)
+        n = rest[1] & 0x7F
+        while len(rest) < 6 + n:
+            rest += c.recv(4096)
+        mask, payload = rest[2:6], rest[6:6 + n]
+        text = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+        c.sendall(bytes([0x81, len(text)]) + text)
+    finally:
+        c.close()
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", 18082))
+s.listen(8)
+while True:
+    conn, _ = s.accept()
+    threading.Thread(target=handle, args=(conn,), daemon=True).start()
+EOF
+./vm/vm.sh ssh 'cat > /tmp/e2e-ws.py' < "$TMP/e2e-ws.py" 2>/dev/null
+vm "sudo systemd-run --unit=e2e-ws python3 /tmp/e2e-ws.py >/dev/null 2>&1"
+for _ in $(seq 1 10); do vm "ss -Hltn 'sport = :18082'" | grep -q LISTEN && break; sleep 1; done
+WSDOM=$(c POST /api/remote/domains -d '{"host":"ws.strata.test","kind":"url","target":"http://127.0.0.1:18082"}' | py 'print(d["id"])')
+WSH=(--http1.1 -m 3 -D - -o /dev/null -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==')
+WSOUT=$(R ws.strata.test "${WSH[@]}" https://ws.strata.test/socket | tr -d '\r')
+check "WebSocket upgrade passed through" "$WSOUT" "HTTP/1.1 101"
+check "WebSocket handshake answered by the app" "$WSOUT" "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+check "app sees X-Forwarded-* headers" "$WSOUT" "X-Seen: for=127.0.0.1 proto=https host=ws.strata.test"
+# One frame each way through the proxy (a masked "hello" from the client).
+cat > "$TMP/e2e-wsc.py" <<'EOF'
+import socket, ssl, sys
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 443
+ctx = ssl.create_default_context()
+ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+ctx.set_alpn_protocols(["http/1.1"])
+s = ctx.wrap_socket(socket.create_connection(("127.0.0.1", port), timeout=5), server_hostname="ws.strata.test")
+s.sendall(b"GET /socket HTTP/1.1\r\nHost: ws.strata.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n")
+buf = b""
+while b"\r\n\r\n" not in buf:
+    buf += s.recv(4096)
+status = buf.split(b"\r\n", 1)[0].decode()
+mask = b"\x01\x02\x03\x04"
+s.sendall(bytes([0x81, 0x80 | 5]) + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(b"hello")))
+rest = buf.split(b"\r\n\r\n", 1)[1]
+while len(rest) < 7:
+    rest += s.recv(4096)
+print(status, "echo:" + rest[2:7].decode())
+EOF
+./vm/vm.sh ssh 'cat > /tmp/e2e-wsc.py' < "$TMP/e2e-wsc.py" 2>/dev/null
+check "WebSocket frames relayed" "$(vm "python3 /tmp/e2e-wsc.py")" "101 Switching Protocols echo:hello"
+c DELETE /api/remote/domains/$WSDOM >/dev/null
+vm "sudo systemctl stop e2e-ws; rm -f /tmp/e2e-ws.py /tmp/e2e-wsc.py"
 # Local network only: a visitor coming through a local tunnel (cloudflared
 # passes its address in Cf-Connecting-IP) is refused.
 c PUT /api/remote/domains/$DOM -d "$(echo "$APPDOM" | py 'd["lanOnly"]=True; print(json.dumps(d))')" >/dev/null
