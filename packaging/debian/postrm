@@ -4,5 +4,12 @@ if [ "$1" = "purge" ]; then
   # Configuration only: data volumes under /srv/strata are never touched.
   rm -rf /var/lib/strata
 fi
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+  # Ordered VM shutdown unit, written by the daemon when virtualisation is installed.
+  if [ -f /etc/systemd/system/strata-vms.service ]; then
+    systemctl disable strata-vms.service >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/strata-vms.service
+  fi
+fi
 if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
 exit 0

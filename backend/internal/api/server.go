@@ -97,6 +97,7 @@ func New(c Config) *Server {
 	go s.versionLinksLoop()
 	go s.lockedSharesNotice()
 	go s.guardLoop()
+	go s.vmAutostartLoop()
 	return s
 }
 

@@ -8,6 +8,7 @@ import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { tr, srv } from "../../lib/i18n";
+import { BackupVMPicker } from "./BackupVMs";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -176,6 +177,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
             </div>
           )}
         </div>
+        {b.kind !== "zfs" && <BackupVMPicker b={b} set={set} />}
 
         <div className="space-y-4 rounded-xl border border-line p-4">
           <div className="font-medium text-[13px]">{tr("Destination")}</div>

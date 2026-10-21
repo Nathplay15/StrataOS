@@ -36,6 +36,7 @@ func main() {
 	dataDir := flag.String("data", env("STRATA_DATA", "/var/lib/strata"), "state directory")
 	debug := flag.Bool("debug", os.Getenv("STRATA_DEBUG") != "", "verbose logging")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	vmShutdown := flag.Bool("vm-shutdown", false, "shut down the VMs started with the NAS, in reverse order, and exit (run by strata-vms.service)")
 	prepareData := flag.Bool("prepare-data", false, "on a Btrfs system, move the state directory to its own subvolume (outside restore points) and exit")
 	flag.Parse()
 
@@ -56,6 +57,15 @@ func main() {
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
+	if *vmShutdown {
+		st, err := store.Open(*dataDir)
+		if err != nil {
+			slog.Error("open state", "err", err)
+			os.Exit(1)
+		}
+		api.ShutdownVMs(st)
+		return
+	}
 	if os.Geteuid() != 0 {
 		slog.Warn("strata is not running as root: storage, users and shares management will fail")
 	}

@@ -1,0 +1,310 @@
+[
+ [
+  "Clonage de la VM {0} vers {1}",
+  "Cloning VM {0} into {1}"
+ ],
+ [
+  "Importation de la VM {0}",
+  "Importing VM {0}"
+ ],
+ [
+  "Restauration de la VM {0}",
+  "Restoring VM {0}"
+ ],
+ [
+  "VM {0} démarrée avec le NAS",
+  "VM {0} started with the NAS"
+ ],
+ [
+  "La VM {0} n'a pas démarré avec le NAS : {1}",
+  "VM {0} did not start with the NAS: {1}"
+ ],
+ [
+  "Instantané {0} de la VM {1} créé",
+  "Snapshot {0} of VM {1} created"
+ ],
+ [
+  "VM {0} restaurée à l'instantané {1}",
+  "VM {0} reverted to snapshot {1}"
+ ],
+ [
+  "Instantané {0} de la VM {1} supprimé",
+  "Snapshot {0} of VM {1} deleted"
+ ],
+ [
+  "VM {0} convertie en modèle",
+  "VM {0} converted to a template"
+ ],
+ [
+  "Modèle {0} reconverti en VM",
+  "Template {0} converted back to a VM"
+ ],
+ [
+  "Création de la machine virtuelle {0} depuis l'image cloud {1}",
+  "Creating virtual machine {0} from cloud image {1}"
+ ],
+ [
+  "Importation de {0} comme machine virtuelle {1}",
+  "Importing {0} as virtual machine {1}"
+ ],
+ [
+  "Périphérique USB {0} donné à la VM {1}",
+  "USB device {0} given to VM {1}"
+ ],
+ [
+  "Périphérique USB {0} repris à la VM {1}",
+  "USB device {0} taken back from VM {1}"
+ ],
+ [
+  "Ordre de démarrage des VM modifié",
+  "VM start order changed"
+ ],
+ [
+  "Paramètres IOMMU du noyau ajoutés à GRUB",
+  "IOMMU kernel parameters added to GRUB"
+ ],
+ [
+  "Périphérique PCI {0} donné à la VM {1}",
+  "PCI device {0} given to VM {1}"
+ ],
+ [
+  "Périphérique PCI {0} repris à la VM {1}",
+  "PCI device {0} taken back from VM {1}"
+ ],
+ [
+  "Restauration de la VM {0} depuis la sauvegarde {1} sous le nom {2}",
+  "Restoring VM {0} from backup {1} as {2}"
+ ],
+ [
+  "{0} VM sauvegardée(s) en {1}",
+  "{0} VM(s) backed up in {1}"
+ ],
+ [
+  "VM {0} restaurée",
+  "VM {0} restored"
+ ],
+ [
+  "Paramètres IOMMU ajoutés ({0}) : redémarrez le NAS, et activez VT-d / AMD-Vi dans le micrologiciel si ce n'est pas fait",
+  "IOMMU parameters added ({0}): reboot the NAS, and enable VT-d / AMD-Vi in the firmware if it is not"
+ ],
+ [
+  "Les paramètres sont déjà en place : redémarrez le NAS",
+  "The parameters are already set: reboot the NAS"
+ ],
+ [
+  "Pont PCI",
+  "PCI bridge"
+ ],
+ [
+  "carte graphique de la console du NAS",
+  "graphics card of the NAS console"
+ ],
+ [
+  "interface réseau {0} utilisée",
+  "network interface {0} in use"
+ ],
+ [
+  "contrôleur du disque {0} (contient des données)",
+  "controller of disk {0} (holds data)"
+ ],
+ [
+  "un modèle ne peut pas démarrer avec le NAS",
+  "a template cannot start with the NAS"
+ ],
+ [
+  "ordre ou délai invalide",
+  "invalid order or delay"
+ ],
+ [
+  "{0} est un modèle : créez plutôt une VM à partir de lui",
+  "{0} is a template: create a VM from it instead"
+ ],
+ [
+  "les modèles ne peuvent pas avoir d'instantanés",
+  "templates cannot have snapshots"
+ ],
+ [
+  "nom d'instantané invalide (lettres, chiffres, . - _)",
+  "invalid snapshot name (letters, digits, . - _)"
+ ],
+ [
+  "choisissez où stocker la copie",
+  "choose where to store the copy"
+ ],
+ [
+  "indiquez un mot de passe ou une clé SSH, sinon impossible de se connecter à la VM",
+  "give a password or an SSH key, or the VM cannot be signed in to"
+ ],
+ [
+  "nom d'hôte invalide",
+  "invalid host name"
+ ],
+ [
+  "nom d'utilisateur invalide",
+  "invalid user name"
+ ],
+ [
+  "clé publique SSH invalide",
+  "invalid SSH public key"
+ ],
+ [
+  "nom de paquet invalide {0}",
+  "invalid package name {0}"
+ ],
+ [
+  "le mot de passe doit faire de 6 à 256 caractères",
+  "the password must be 6 to 256 characters"
+ ],
+ [
+  "l'adresse statique doit être en IPv4 avec un préfixe, par ex. 192.168.1.50/24",
+  "the static address must be IPv4 with a prefix, e.g. 192.168.1.50/24"
+ ],
+ [
+  "passerelle invalide",
+  "invalid gateway"
+ ],
+ [
+  "une passerelle nécessite une adresse statique",
+  "a gateway needs a static address"
+ ],
+ [
+  "serveur DNS invalide {0}",
+  "invalid DNS server {0}"
+ ],
+ [
+  "image cloud inconnue {0}",
+  "unknown cloud image {0}"
+ ],
+ [
+  "impossible d'obtenir les sommes de contrôle officielles : {0}",
+  "cannot get the official checksums: {0}"
+ ],
+ [
+  "somme de contrôle incorrecte pour {0} : le téléchargement est corrompu ou a été modifié",
+  "checksum mismatch for {0}: the download is corrupt or was tampered with"
+ ],
+ [
+  "xorriso n'est pas installé (réinstallez le composant de virtualisation)",
+  "xorriso is not installed (reinstall the virtualisation component)"
+ ],
+ [
+  "type de fichier non pris en charge (OVA, OVF, VMDK, qcow2, raw/img, VHD, VHDX ou VDI)",
+  "unsupported file type (OVA, OVF, VMDK, qcow2, raw/img, VHD, VHDX or VDI)"
+ ],
+ [
+  "fichier introuvable",
+  "file not found"
+ ],
+ [
+  "aucun descripteur OVF dans l'archive OVA",
+  "no OVF descriptor in the OVA archive"
+ ],
+ [
+  "l'appliance n'a aucun disque",
+  "the appliance has no disk"
+ ],
+ [
+  "{0} dépend d'une autre image ({1}) : importez l'image complète",
+  "{0} depends on another image ({1}): import the full image"
+ ],
+ [
+  "le descripteur VMDK pointe hors de son dossier ({0})",
+  "the VMDK descriptor points outside its folder ({0})"
+ ],
+ [
+  "{0} ne correspond pas au manifeste de l'appliance (téléchargement endommagé ?)",
+  "{0} does not match the appliance manifest (damaged download?)"
+ ],
+ [
+  "nom de fichier disque dangereux {0} dans l'OVF",
+  "unsafe disk file name {0} in the OVF"
+ ],
+ [
+  "trop de fichiers dans l'archive OVA",
+  "too many files in the OVA archive"
+ ],
+ [
+  "périphérique USB invalide",
+  "invalid USB device"
+ ],
+ [
+  "numéro de série invalide",
+  "invalid serial number"
+ ],
+ [
+  "ce périphérique est déjà donné à la VM",
+  "this device is already given to the VM"
+ ],
+ [
+  "adresse PCI invalide",
+  "invalid PCI address"
+ ],
+ [
+  "périphérique PCI {0} introuvable",
+  "PCI device {0} not found"
+ ],
+ [
+  "l'IOMMU est désactivé : activez-le d'abord",
+  "the IOMMU is off: enable it first"
+ ],
+ [
+  "refusé : {0} ({1}) est dans le même groupe IOMMU et le NAS en a besoin ({2})",
+  "refused: {0} ({1}) is in the same IOMMU group and is needed by the NAS ({2})"
+ ],
+ [
+  "la ligne de commande du noyau ne peut pas être modifiée ici (pas de GRUB, ou processeur inconnu) : activez l'IOMMU (VT-d / AMD-Vi) dans le micrologiciel et ajoutez {0} aux paramètres de démarrage à la main",
+  "the kernel command line cannot be changed here (no GRUB, or unknown CPU): enable the IOMMU (VT-d / AMD-Vi) in the firmware and add {0} to the boot parameters by hand"
+ ],
+ [
+  "la réplication ZFS ne peut pas inclure de machines virtuelles",
+  "ZFS replication cannot include virtual machines"
+ ],
+ [
+  "{0} est listée deux fois",
+  "{0} is listed twice"
+ ],
+ [
+  "mode de sauvegarde de VM inconnu {0}",
+  "unknown VM backup mode {0}"
+ ],
+ [
+  "un dossier source nommé « vms » écraserait les sauvegardes des VM",
+  "a source folder named \"vms\" would overwrite the VM backups"
+ ],
+ [
+  "aucune des VM de cette sauvegarde n'a ses disques dans un volume",
+  "none of the VMs of this backup has its disks in a volume"
+ ],
+ [
+  "les machines virtuelles ne peuvent pas être sauvegardées avec ce type de sauvegarde",
+  "virtual machines cannot be backed up with this backup type"
+ ],
+ [
+  "cet instantané ne contient aucune machine virtuelle",
+  "this snapshot holds no virtual machine"
+ ],
+ [
+  "restaurez les VM depuis un dossier local ou un dépôt restic (recopiez d'abord le dossier depuis le serveur)",
+  "restore VMs from a local folder or a restic repository (copy the folder back from the server first)"
+ ],
+ [
+  "pas une sauvegarde de VM : {0}",
+  "not a VM backup: {0}"
+ ],
+ [
+  "{0} ne s'est pas arrêtée en 5 minutes",
+  "{0} did not shut down within 5 minutes"
+ ],
+ [
+  "échec de l'instantané à chaud : {0}",
+  "live snapshot failed: {0}"
+ ],
+ [
+  "échec de l'instantané : {0} (instantané interne : {1})",
+  "snapshot failed: {0} (internal snapshot: {1})"
+ ],
+ [
+  "{0} existe déjà",
+  "{0} already exists"
+ ]
+]

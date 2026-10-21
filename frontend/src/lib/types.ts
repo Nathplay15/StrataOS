@@ -436,6 +436,9 @@ export interface BackupTask {
   history: ScheduleRun[];
   nextRun?: string | null;
   running?: boolean;
+  // Virtual machines backed up with the folders (see pages/system/BackupVMs.tsx).
+  vms?: string[];
+  vmMode?: "" | "snapshot" | "suspend" | "shutdown";
 }
 
 export interface ResticSnapshot {
