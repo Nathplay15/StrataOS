@@ -46,6 +46,8 @@ type Server struct {
 	dataDir  string
 	mux      *http.ServeMux
 	certs    *certs.Manager
+	// httpPort is the plain HTTP port, given to media receivers in stream URLs.
+	httpPort string
 	// diskAlerts: failing or weakening disks found by the last health check.
 	diskAlerts atomic.Pointer[[]alert]
 }
@@ -56,13 +58,18 @@ type Config struct {
 	Version string
 	DataDir string
 	Certs   *certs.Manager
+	// HTTPPort is the port of the plain HTTP listener ("" = 7070).
+	HTTPPort string
 }
 
 func New(c Config) *Server {
 	s := &Server{
 		store: c.Store, jobs: jobs.NewManager(), monitor: system.NewMonitor(), docker: docker.New(),
 		sessions: newSessions(filepath.Join(c.DataDir, "sessions.json")), limiter: &limiter{hits: map[string][]time.Time{}},
-		web: c.Web, version: c.Version, dataDir: c.DataDir, mux: http.NewServeMux(), certs: c.Certs,
+		web: c.Web, version: c.Version, dataDir: c.DataDir, mux: http.NewServeMux(), certs: c.Certs, httpPort: c.HTTPPort,
+	}
+	if s.httpPort == "" {
+		s.httpPort = "7070"
 	}
 	s.jobs.OnFinish = func(j jobs.Snapshot) {
 		level := "info"
@@ -225,6 +232,7 @@ func (s *Server) routes() {
 	s.metricsRoutes()
 	s.fleetRoutes()
 	s.remoteRoutes()
+	s.mediaRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

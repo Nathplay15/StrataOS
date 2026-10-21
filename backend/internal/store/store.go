@@ -472,6 +472,7 @@ type State struct {
 	Vaults    []*Vault      `json:"vaults,omitempty"`
 	Fleet     Fleet         `json:"fleet"`
 	Remote    Remote        `json:"remote,omitzero"`
+	Media     Media         `json:"media,omitzero"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

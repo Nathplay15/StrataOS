@@ -84,7 +84,11 @@ func main() {
 	if _, port, err := net.SplitHostPort(*httpsAddr); err == nil {
 		cm.HTTPSPort = port
 	}
-	srv := api.New(api.Config{Store: st, Web: web.FS(), Version: version, DataDir: *dataDir, Certs: cm})
+	httpPort := ""
+	if _, port, err := net.SplitHostPort(*httpAddr); err == nil {
+		httpPort = port
+	}
+	srv := api.New(api.Config{Store: st, Web: web.FS(), Version: version, DataDir: *dataDir, Certs: cm, HTTPPort: httpPort})
 	st.Log("info", "system", "", "StrataOS "+version+" started")
 
 	errc := make(chan error, 2)

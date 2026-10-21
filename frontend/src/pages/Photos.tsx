@@ -8,6 +8,7 @@ import type { Me, Share } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, useUI } from "../components/ui";
 import { ShareLinkModal } from "../components/ShareLinkModal";
+import { CastButton } from "../components/Cast";
 import { locale, tr } from "../lib/i18n";
 
 type Item = { path: string; date: number; mtime: number; size: number; video?: boolean };
@@ -37,6 +38,7 @@ function Viewer({ items, index, onIndex, onClose }: { items: Item[]; index: numb
     <div className="fixed inset-0 z-[9600] flex flex-col bg-black/95 text-white">
       <div className="flex items-center gap-3 px-4 py-3 text-[13px]">
         <div className="min-w-0 flex-1"><div className="truncate font-medium">{name}</div><div className="text-white/60">{dateTime(it.date * 1000)} · {bytes(it.size)}</div></div>
+        <CastButton path={it.path} name={name ?? ""} dark />
         <a href={original(it.path, false)} className="rounded-lg p-2 hover:bg-white/10" title={tr("Download")}><Download size={18} /></a>
         <button className="rounded-lg p-2 hover:bg-white/10" onClick={onClose} title={tr("Close")}><X size={20} /></button>
       </div>

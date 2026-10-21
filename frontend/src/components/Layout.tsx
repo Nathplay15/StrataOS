@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
+  ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, Clapperboard } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
@@ -36,6 +36,7 @@ const nav: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/files", label: tr("Files"), icon: <FolderOpen size={17} /> },
       { to: "/photos", label: tr("Photos"), icon: <Images size={17} /> },
+      { to: "/media", label: tr("Media"), icon: <Clapperboard size={17} /> },
       { to: "/links", label: tr("Shared links"), icon: <Link2 size={17} /> },
       { to: "/shares", label: tr("Shared folders"), icon: <Share2 size={17} />, admin: true },
       { to: "/users", label: tr("Users"), icon: <Users size={17} />, admin: true },

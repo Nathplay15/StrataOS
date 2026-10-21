@@ -7,6 +7,7 @@ import type { FileEntry, UserQuota } from "../lib/types";
 import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
 import { VersionsModal } from "../components/VersionsModal";
+import { CastButton } from "../components/Cast";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Progress, Spinner, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
 
@@ -180,6 +181,7 @@ export default function Files() {
                     <td className="mono hidden text-muted md:table-cell">{e.mode}</td>
                     <td className="text-right whitespace-nowrap">
                       <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(e.path)} title={tr("Download")} />
+                      {!e.dir && <CastButton path={e.path} name={e.name} />}
                       {!e.dir && path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => setVersions({ path: e.path, name: e.name })} title={tr("Previous versions")} />}
                       {path !== ROOT && <Button size="sm" variant="ghost" icon={<Link2 size={14} />} onClick={() => setShare({ path: e.path, name: e.name, dir: e.dir })} title={tr("Share a link")} />}
                       {data?.writable && path !== ROOT && <Button size="sm" variant="ghost" icon={<Pencil size={14} />} onClick={() => setRename({ from: e.path, name: e.name })} title={tr("Rename")} />}

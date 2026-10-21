@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy } from "lucide-react";
+import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, Link2, Leaf, ShieldBan, LifeBuoy, Clapperboard } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -39,6 +39,7 @@ const DirectoryPage = lazy(() => import("../pages/system/Directory"));
 const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
 const HAPage = lazy(() => import("../pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("../pages/system/RemoteAccess"));
+const MediaPage = lazy(() => import("../pages/Media"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -71,6 +72,7 @@ export const APPS: AppDef[] = [
   { id: "overview", title: tr("Overview"), icon: LayoutDashboard, colors: ["#6366f1", "#8b5cf6"], admin: false, size: [1080, 760], component: Dashboard as PageComponent, path: "/" },
   { id: "files", title: tr("Files"), icon: FolderOpen, colors: ["#f59e0b", "#f97316"], admin: false, size: [1000, 660], component: page(Files), path: "/files" },
   { id: "photos", title: tr("Photos"), icon: PhotosIcon, colors: ["#f472b6", "#db2777"], admin: false, size: [1120, 760], component: PhotosPage as PageComponent, path: "/photos" },
+  { id: "media", title: tr("Media"), icon: Clapperboard, colors: ["#fb7185", "#9333ea"], admin: false, size: [1120, 780], component: MediaPage as PageComponent, path: "/media" },
   { id: "links", title: tr("Shared links"), icon: Link2, colors: ["#22d3ee", "#0891b2"], admin: false, size: [1000, 640], component: LinksPage as PageComponent, path: "/links" },
   {
     id: "storage", title: tr("Storage Manager"), icon: HardDrive, colors: ["#0ea5e9", "#2563eb"], admin: true, size: [1120, 760],
