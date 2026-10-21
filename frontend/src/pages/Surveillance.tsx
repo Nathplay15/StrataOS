@@ -216,7 +216,7 @@ function Live({ data }: { data: Data }) {
         {!solo && (
           <div className="flex gap-1">{[1, 2, 3, 4].map((n) => <Button key={n} size="sm" variant={cols === n ? "primary" : "ghost"} onClick={() => setCols(n)}>{n}×</Button>)}</div>
         )}
-        {solo && <Button size="sm" onClick={() => setSolo(null)}>{tr("Back to the wall")}</Button>}
+        {solo && <Button size="sm" onClick={() => setSolo(null)}>{tr("Back to all cameras")}</Button>}
       </div>
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${solo ? 1 : cols}, minmax(0, 1fr))` }}>
         {shown.map((c) => <LiveTile key={c.id} cam={c} big={!!solo} onClick={() => setSolo(solo ? null : c.id)} />)}

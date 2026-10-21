@@ -6,11 +6,13 @@
 
 ![The StrataOS desktop with the Storage Manager open](docs/screenshots/desktop.png)
 
-- **Storage**: RAID (mdadm), Btrfs, ZFS and LVM, SSD cache, SMART monitoring, guided disk replacement.
-- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP, share links, a web file manager and a photo timeline.
-- **Protection**: scheduled and locked snapshots, encrypted backups (restic, rsync, ZFS replication, backup vaults between NAS), cloud sync, ransomware detection, antivirus, address blocking.
-- **Apps**: Docker with an App Center of 34 ready-to-run apps (Jellyfin, Nextcloud, Immich, Home Assistant…), Compose stacks and KVM virtual machines.
-- **Everything else**: users and groups, Active Directory and LDAP, WireGuard VPN, high availability between two or more NAS, UPS support, power scheduling, alerts (email, Telegram, ntfy, webhooks), Prometheus metrics, and one-click updates with restore points.
+- **Storage**: RAID (mdadm), Btrfs, ZFS and LVM, SSD cache, iSCSI targets, SMART monitoring, guided disk replacement, burn-in tests for new disks, a space analyzer and a duplicate finder.
+- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP, share links, a web file manager with a tabbed editor (and optional OnlyOffice for office documents), and a photo timeline.
+- **Protection**: scheduled and locked snapshots, encrypted backups (restic, rsync, ZFS replication, backup vaults between NAS), backups pulled from other NAS (rsync, SSH, SMB), two-way sync, cloud sync, ransomware detection, antivirus, address blocking, and a configuration backup you can export and import.
+- **Media and home**: DLNA server, multi-room music on AirPlay and Chromecast speakers, casting videos and photos to TVs, and video surveillance (built-in recorder, or Frigate with AI detection).
+- **Apps and VMs**: Docker with an App Center of 50 ready-to-run apps (Jellyfin, Nextcloud, Immich, Home Assistant, Node-RED, Ollama…) plus your own; KVM virtual machines with cloud images, snapshots, clones and templates, imports from VMware and VirtualBox, USB and PCI passthrough.
+- **Remote access**: WireGuard (devices per user, site-to-site, an outgoing tunnel for chosen apps), Tailscale, Cloudflare Tunnel, and app addresses with automatic HTTPS.
+- **Everything else**: users and groups, sign-in with passkeys, Active Directory and LDAP, high availability between two or more NAS, UPS support, fan control and power scheduling, alerts (email, Telegram, ntfy, webhooks) with quiet hours, Prometheus metrics, and one-click updates with restore points.
 
 The interface is available in English, French, Spanish, German, Italian, Portuguese (Brazil), Dutch and Simplified Chinese. On a computer it looks like a desktop with windows; on a phone it switches to a mobile layout.
 
@@ -20,7 +22,7 @@ The interface is available in English, French, Spanish, German, Italian, Portugu
 |---|---|
 | ![Overview: resources, network and disk activity](docs/screenshots/dashboard.png) | ![Shared folders with SMB, NFS and Time Machine](docs/screenshots/shares.png) |
 | **Overview** | **Shared folders** |
-| ![App Center with 34 ready-to-run apps](docs/screenshots/appcenter.png) | ![Encrypted, versioned backups](docs/screenshots/backup.png) |
+| ![App Center with 50 ready-to-run apps](docs/screenshots/appcenter.png) | ![Encrypted, versioned backups](docs/screenshots/backup.png) |
 | **App Center** | **Backup** |
 
 On a phone, the interface switches to a mobile layout:
