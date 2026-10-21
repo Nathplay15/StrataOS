@@ -49,12 +49,13 @@ func compose(ctx context.Context, name string, out io.Writer, args ...string) (s
 }
 
 type Stack struct {
-	Name       string    `json:"name"`
-	Status     string    `json:"status"`
-	Services   int       `json:"services"`
-	Running    int       `json:"running"`
-	App        string    `json:"app,omitempty"`
-	ModifiedAt time.Time `json:"modifiedAt"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	Services   int        `json:"services"`
+	Running    int        `json:"running"`
+	App        string     `json:"app,omitempty"`
+	Custom     *CustomApp `json:"custom,omitempty"`
+	ModifiedAt time.Time  `json:"modifiedAt"`
 }
 
 type StackDetail struct {
@@ -89,6 +90,7 @@ func ListStacks(ctx context.Context, c *Client) ([]Stack, error) {
 		if app, err := os.ReadFile(filepath.Join(StacksDir, e.Name(), ".strata-app")); err == nil {
 			s.App = strings.TrimSpace(string(app))
 		}
+		s.Custom = ReadCustom(e.Name())
 		for _, ct := range containers {
 			if ct.Labels["com.docker.compose.project"] != s.Name {
 				continue

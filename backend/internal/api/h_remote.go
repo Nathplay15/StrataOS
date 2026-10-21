@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,17 +40,16 @@ var (
 
 // appTarget is the local address of the web interface of an installed app.
 func appTarget(stack string) (*url.URL, error) {
-	b, err := os.ReadFile(filepath.Join(docker.StacksDir, stack, ".strata-app"))
-	if err != nil {
+	if docker.ValidStack(stack) != nil {
 		return nil, fmt.Errorf("the app %s is not installed", stack)
 	}
-	app := docker.FindApp(strings.TrimSpace(string(b)))
-	if app == nil || app.WebPort == "" {
-		return nil, fmt.Errorf("the app %s has no web interface", stack)
+	_, errApp := os.Stat(filepath.Join(docker.StacksDir, stack, ".strata-app"))
+	if errApp != nil && docker.ReadCustom(stack) == nil {
+		return nil, fmt.Errorf("the app %s is not installed", stack)
 	}
-	p := docker.EnvValue(stack, app.WebPort)
-	if n, err := strconv.Atoi(p); err != nil || n < 1 || n > 65535 {
-		return nil, fmt.Errorf("unknown port for the app %s", stack)
+	p := docker.AppWebPort(stack)
+	if p == "" {
+		return nil, fmt.Errorf("the app %s has no web interface", stack)
 	}
 	return &url.URL{Scheme: "http", Host: "127.0.0.1:" + p}, nil
 }
@@ -513,13 +511,15 @@ func (s *Server) remoteRoutes() {
 		apps := []map[string]string{}
 		if stacks, err := docker.ListStacks(r.Context(), s.docker); err == nil {
 			for _, st := range stacks {
-				if st.App == "" {
+				if st.App == "" && st.Custom == nil {
 					continue
 				}
 				if u, err := appTarget(st.Name); err == nil {
 					name := st.Name
 					if a := docker.FindApp(st.App); a != nil {
 						name = a.Name
+					} else if st.Custom != nil {
+						name = st.Custom.Name
 					}
 					apps = append(apps, map[string]string{"stack": st.Name, "name": name, "address": u.String(), "status": st.Status})
 				}

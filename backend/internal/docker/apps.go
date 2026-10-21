@@ -12,7 +12,12 @@ type AppVar struct {
 	Key     string `json:"key"`
 	Label   string `json:"label"`
 	Default string `json:"default"`
-	Type    string `json:"type"` // text | port | path | password
+	Type    string `json:"type"` // text | port | path | password | device
+	// From is a default taken from other installed apps, with {app.KEY}
+	// placeholders (e.g. "http://host.docker.internal:{ollama.API_PORT}").
+	From string `json:"from,omitempty"`
+	// Length is the exact length of a generated password (0: any, at least 8).
+	Length int `json:"length,omitempty"`
 }
 
 type App struct {
@@ -141,7 +146,7 @@ var Catalog = []App{
 volumes:
   model-cache:
 `},
-	{ID: "homeassistant", Name: "Home Assistant", Category: "Home", Description: "Open source home automation.", Icon: icon("home-assistant"), WebPort: "",
+	{ID: "homeassistant", Name: "Home Assistant", Category: "Home automation", Description: "Open source home automation.", Icon: icon("home-assistant"), WebPort: "",
 		Vars: []AppVar{path("CONFIG_DIR", "Config folder", "/srv/strata/apps/homeassistant")},
 		Compose: `services:
   homeassistant:
@@ -356,7 +361,36 @@ func FindApp(id string) *App {
 	return nil
 }
 
-var envKeyRe = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+var (
+	envKeyRe = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+	deviceRe = regexp.MustCompile(`^/dev/[A-Za-z0-9._:+/-]+$`)
+	linkRe   = regexp.MustCompile(`\{([a-z0-9]+)\.([A-Z_][A-Z0-9_]*)\}`)
+)
+
+// Linked resolves the From defaults of the app's variables. lookup returns
+// the value of KEY in the installed app, false when that app is not
+// installed; a variable is left out unless all its references resolve.
+func (a *App) Linked(lookup func(app, key string) (string, bool)) map[string]string {
+	out := map[string]string{}
+	for _, v := range a.Vars {
+		if v.From == "" {
+			continue
+		}
+		ok := true
+		val := linkRe.ReplaceAllStringFunc(v.From, func(m string) string {
+			p := linkRe.FindStringSubmatch(m)
+			x, found := lookup(p[1], p[2])
+			if !found || x == "" {
+				ok = false
+			}
+			return x
+		})
+		if ok {
+			out[v.Key] = val
+		}
+	}
+	return out
+}
 
 // RenderEnv validates user values and produces the .env file content.
 func (a *App) RenderEnv(values map[string]string) (string, []string, error) {
@@ -384,6 +418,14 @@ func (a *App) RenderEnv(values map[string]string) (string, []string, error) {
 		case "password":
 			if len(val) < 8 {
 				return "", nil, fmt.Errorf("%s must be at least 8 characters", v.Label)
+			}
+			if v.Length > 0 && len(val) != v.Length {
+				return "", nil, fmt.Errorf("%s must be %d characters long", v.Label, v.Length)
+			}
+		case "device":
+			// Passed to the container as is: never created like a folder.
+			if !deviceRe.MatchString(val) || strings.Contains(val, "..") {
+				return "", nil, fmt.Errorf("%s must be a device under /dev", v.Label)
 			}
 		}
 		if !envKeyRe.MatchString(v.Key) {

@@ -201,6 +201,7 @@ func (s *Server) routes() {
 	s.userRoutes()
 	s.shareRoutes()
 	s.dockerRoutes()
+	s.customAppRoutes()
 	s.fileRoutes()
 	s.editorRoutes()
 	s.officeRoutes()

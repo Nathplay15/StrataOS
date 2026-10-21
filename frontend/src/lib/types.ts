@@ -291,14 +291,39 @@ export interface Stack {
   services: number;
   running: number;
   app?: string;
+  custom?: CustomApp;
   modifiedAt: string;
+}
+
+/** Metadata of a stack shown in the App Center under "My apps". */
+export interface CustomApp {
+  name: string;
+  description?: string;
+  icon?: string;
+  webPort?: number;
+}
+
+export interface CustomAppEntry extends CustomApp {
+  stack: string;
+  status: Stack["status"];
+}
+
+export interface AppStoreData {
+  apps: App[];
+  installed: Record<string, string>;
+  ports: Record<string, string>;
+  /** Defaults taken from other installed apps (passwords: "" = filled in by the server). */
+  linked?: Record<string, Record<string, string>>;
+  custom?: CustomAppEntry[];
 }
 
 export interface AppVar {
   key: string;
   label: string;
   default: string;
-  type: "text" | "port" | "path" | "password";
+  type: "text" | "port" | "path" | "password" | "device";
+  from?: string;
+  length?: number;
 }
 
 export interface App {
