@@ -64,7 +64,7 @@ func TestMiniDLNAConf(t *testing.T) {
 		}
 	}
 	u := DLNAUnitFile()
-	for _, want := range []string{"User=minidlna", "AmbientCapabilities=CAP_DAC_READ_SEARCH", "ProtectSystem=strict", "-f " + DLNAConfPath, "InaccessiblePaths=-/var/lib/strata"} {
+	for _, want := range []string{"CapabilityBoundingSet=CAP_DAC_READ_SEARCH", "NoNewPrivileges=yes", "ProtectSystem=strict", "-f " + DLNAConfPath, "InaccessiblePaths=-/var/lib/strata"} {
 		if !strings.Contains(u, want) {
 			t.Errorf("unit lacks %s", want)
 		}
@@ -75,23 +75,34 @@ func TestMiniDLNAConf(t *testing.T) {
 	}
 }
 
+// Excerpt of the configuration of the owntone/owntone image (upstream file
+// with the image's paths, trusted_networks = { "any" }).
 const owntoneConf = `general {
-	uid = "abc"
-	db_path = "/config/dbase_and_logs/songs3.db"
+	# Username
+	uid = "owntone"
+	db_path = "/var/cache/owntone/database.db"
+	logfile = "/dev/stderr"
 	# Clients from these networks are trusted
-#	trusted_networks = { "lan" }
-	ipv6 = no
+	trusted_networks = { "any" }
+	ipv6 = yes
 }
 
 library {
 	name = "My Music on %h"
 	port = 3689
-	directories = { "/music" }
+	directories = { "/srv/media" }
 	podcasts = { "/Podcasts" }
 }
 
-airplay "Kitchen" {
-	exclude = false
+#airplay "My AirPlay device" {
+#	exclude = false
+#}
+
+mpd {
+	# TCP port to listen on for MPD client requests.
+	# Default port is 6600, set to 0 to disable MPD support.
+#	port = 6600
+	http_port = 0
 }
 `
 
@@ -100,31 +111,36 @@ func TestPatchOwnToneConf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "\tdirectories = { \"/srv/strata/main/Musique\", \"/srv/strata/tank/media/music\" }\n") || strings.Contains(out, `"/music"`) {
-		t.Errorf("directories not set:\n%s", out)
-	}
-	if !strings.Contains(out, "\ttrusted_networks = { \"localhost\" }\n") || strings.Contains(out, `"lan"`) {
-		t.Errorf("trusted networks not set:\n%s", out)
-	}
-	for _, kept := range []string{`uid = "abc"`, `podcasts = { "/Podcasts" }`, `airplay "Kitchen" {`, `name = "My Music on %h"`} {
-		if !strings.Contains(out, kept) {
-			t.Errorf("lost %s", kept)
+	for _, want := range []string{
+		"\tdirectories = { \"/srv/strata/main/Musique\", \"/srv/strata/tank/media/music\" }\n",
+		"\ttrusted_networks = { \"localhost\" }\n",
+		"\tuid = \"root\"\n",
+		"mpd {\n\t# TCP port to listen on for MPD client requests.\n\t# Default port is 6600, set to 0 to disable MPD support.\n\tport = 0\n",
+		// Kept as they are.
+		`podcasts = { "/Podcasts" }`, `#airplay "My AirPlay device" {`, `name = "My Music on %h"`, "\tport = 3689\n", `db_path = "/var/cache/owntone/database.db"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in\n%s", want, out)
 		}
 	}
-	// Idempotent, and a multi-line value is replaced as a whole.
+	for _, gone := range []string{`"any"`, `"/srv/media"`, `uid = "owntone"`} {
+		if strings.Contains(out, gone) {
+			t.Errorf("%s left", gone)
+		}
+	}
 	again, _ := PatchOwnToneConf(out, []string{"/srv/strata/main/Musique", "/srv/strata/tank/media/music"})
 	if again != out {
 		t.Error("second patch changed the file")
 	}
-	multi := strings.Replace(owntoneConf, `directories = { "/music" }`, "directories = { \"/a\",\n\t\t\"/b\" }", 1)
+	multi := strings.Replace(owntoneConf, `directories = { "/srv/media" }`, "directories = { \"/a\",\n\t\t\"/b\" }", 1)
 	out, _ = PatchOwnToneConf(multi, []string{"/x"})
-	if strings.Contains(out, `"/b"`) || !strings.Contains(out, `directories = { "/x" }`) {
+	if strings.Contains(out, `"/b"`) || !strings.Contains(out, "\tdirectories = { \"/x\" }\n\tpodcasts") {
 		t.Errorf("multi-line value:\n%s", out)
 	}
-	// Missing settings are added to their section.
-	bare := "general {\n\tuid = \"abc\"\n}\nlibrary {\n\tport = 3689\n}\n"
+	// Missing settings are added to their section, a missing mpd section at the end.
+	bare := "general {\n\tlogfile = \"x\"\n}\nlibrary {\n\tport = 3689\n}"
 	out, err = PatchOwnToneConf(bare, nil)
-	if err != nil || !strings.Contains(out, "general {\n\ttrusted_networks = { \"localhost\" }\n") || !strings.Contains(out, "library {\n\tdirectories = { \"/music\" }\n") {
+	if err != nil || !strings.Contains(out, "trusted_networks = { \"localhost\" }\n") || !strings.Contains(out, "library {\n\tdirectories = { \"/srv/media\" }\n") || !strings.HasSuffix(out, "mpd {\n\tport = 0\n}") {
 		t.Errorf("bare config: %v\n%s", err, out)
 	}
 	if _, err := PatchOwnToneConf("library {\n}\n", nil); err == nil {

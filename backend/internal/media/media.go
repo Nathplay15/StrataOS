@@ -150,29 +150,39 @@ func MiniDLNAConf(c DLNAConfig) (string, error) {
 	return b.String(), nil
 }
 
-// DLNAUnitFile runs minidlnad as its own unprivileged user. Shared folders
-// are usually private (ACLs for their users only): CAP_DAC_READ_SEARCH lets
-// it read them without running as root, and the system is read-only for it.
+// DLNAUnitFile runs minidlnad sandboxed. Shared folders are usually private
+// (ACLs for their users only): it keeps a single capability, reading any
+// file, on a read-only system. It runs with uid 0 for that capability to
+// count in access(2), which minidlna uses to check folders and which ignores
+// the capabilities of other users; without CAP_DAC_OVERRIDE, CAP_CHOWN or any
+// other one, uid 0 has no further power on files it does not own.
 func DLNAUnitFile() string {
 	return `[Unit]
 Description=DLNA media server (StrataOS)
-After=network-online.target local-fs.target remote-fs.target
+After=network-online.target local-fs.target remote-fs.target zfs-mount.service
 Wants=network-online.target
 
 [Service]
-User=minidlna
-Group=minidlna
 ExecStart=/usr/sbin/minidlnad -S -f ` + DLNAConfPath + ` -P /run/strata-minidlna/minidlna.pid
 RuntimeDirectory=strata-minidlna
 CacheDirectory=strata-minidlna
 LogsDirectory=strata-minidlna
-AmbientCapabilities=CAP_DAC_READ_SEARCH
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 InaccessiblePaths=-/var/lib/strata -/etc/strata -/etc/shadow -/etc/gshadow -/root
 Restart=on-failure
 RestartSec=5s

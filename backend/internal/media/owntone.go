@@ -14,11 +14,7 @@ const (
 	OwnToneAddr = "127.0.0.1:3689"
 )
 
-var (
-	sectionRe = regexp.MustCompile(`^\s*([a-zA-Z_]+)\s*(?:"[^"]*"\s*)?\{`)
-	dirsRe    = regexp.MustCompile(`^\s*#?\s*directories\s*=`)
-	trustedRe = regexp.MustCompile(`^\s*#?\s*trusted_networks\s*=`)
-)
+var sectionRe = regexp.MustCompile(`^\s*([a-zA-Z_]+)\s*(?:"[^"]*"\s*)?\{`)
 
 func confList(vals []string) string {
 	q := make([]string, len(vals))
@@ -28,10 +24,60 @@ func confList(vals []string) string {
 	return "{ " + strings.Join(q, ", ") + " }"
 }
 
-// PatchOwnToneConf sets the music folders of the library and limits the
-// JSON API and web interface to local clients (StrataOS proxies them with its
-// own authentication) in the configuration written by the container on its
-// first start. The rest of the file is kept as it is.
+// confSetting is one value StrataOS imposes in owntone.conf.
+type confSetting struct {
+	section, key, value string
+	required            bool // the section must exist (else it is appended)
+}
+
+// setConf replaces (or uncomments) key in section, or adds it at the top of
+// the section; a multi-line value ({ … } over several lines) is replaced as
+// a whole.
+func setConf(lines []string, c confSetting) ([]string, bool) {
+	keyRe := regexp.MustCompile(`^\s*#?\s*` + c.key + `\s*=`)
+	line := "\t" + c.key + " = " + c.value
+	section, start := "", -1
+	for i := 0; i < len(lines); i++ {
+		l := lines[i]
+		t := strings.TrimSpace(l)
+		if m := sectionRe.FindStringSubmatch(l); m != nil && !strings.Contains(l, "=") {
+			section = m[1]
+			if section == c.section && start < 0 {
+				start = i
+			}
+			continue
+		}
+		if t == "}" {
+			section = ""
+			continue
+		}
+		if section != c.section || !keyRe.MatchString(l) {
+			continue
+		}
+		end := i + 1
+		if strings.Contains(l, "{") && !strings.Contains(l, "}") && !strings.HasPrefix(t, "#") {
+			for end < len(lines) && !strings.Contains(lines[end-1], "}") {
+				end++
+			}
+		}
+		out := append(append(append([]string{}, lines[:i]...), line), lines[end:]...)
+		return out, true
+	}
+	if start < 0 {
+		return lines, false
+	}
+	out := append(append(append([]string{}, lines[:start+1]...), line), lines[start+1:]...)
+	return out, true
+}
+
+// PatchOwnToneConf adapts the configuration the OwnTone container writes on
+// its first start (the rest of the file is kept as it is):
+//   - the library reads the chosen shared folders;
+//   - the JSON API and web interface only trust local clients (the image
+//     trusts "any"): StrataOS proxies them behind its own sign-in;
+//   - OwnTone keeps running as root after starting, so that it can read
+//     private shares (mounted read-only in the container);
+//   - the MPD server, which has no authentication, is turned off.
 func PatchOwnToneConf(conf string, dirs []string) (string, error) {
 	for _, d := range dirs {
 		if !strings.HasPrefix(d, "/") || strings.ContainsAny(d, "\"\\\n\r\x00") {
@@ -39,71 +85,27 @@ func PatchOwnToneConf(conf string, dirs []string) (string, error) {
 		}
 	}
 	if len(dirs) == 0 {
-		// An empty list would make OwnTone scan nothing; a folder that does
-		// not exist in the container keeps the library empty instead.
-		dirs = []string{"/music"}
+		// An empty list would be invalid; a folder missing from the container
+		// keeps the library empty instead.
+		dirs = []string{"/srv/media"}
 	}
-	trusted := "\ttrusted_networks = { \"localhost\" }"
-	dirLine := "\tdirectories = " + confList(dirs)
-	var out []string
-	section := ""
-	start := map[string]int{} // section → index of its opening line in out
-	done := map[string]bool{}
-	skipping := false // inside a multi-line value being replaced
-	for _, l := range strings.Split(conf, "\n") {
-		if skipping {
-			if strings.Contains(l, "}") {
-				skipping = false
-			}
-			continue
-		}
-		t := strings.TrimSpace(l)
-		if m := sectionRe.FindStringSubmatch(l); m != nil && !strings.Contains(l, "=") {
-			section = m[1]
-			if _, ok := start[section]; !ok {
-				start[section] = len(out)
-			}
-			out = append(out, l)
-			continue
-		}
-		if t == "}" {
-			section = ""
-			out = append(out, l)
-			continue
-		}
-		replace := ""
-		switch {
-		case section == "general" && !done["general"] && trustedRe.MatchString(l):
-			replace, done["general"] = trusted, true
-		case section == "library" && !done["library"] && dirsRe.MatchString(l):
-			replace, done["library"] = dirLine, true
-		}
-		if replace == "" {
-			out = append(out, l)
-			continue
-		}
-		out = append(out, replace)
-		if strings.Contains(l, "{") && !strings.Contains(l, "}") && !strings.HasPrefix(t, "#") {
-			skipping = true
-		}
-	}
-	// Settings missing from their section are added at its top, the later
-	// section first so that the index of the other one stays right.
-	adds := []struct{ name, line string }{{"library", dirLine}, {"general", trusted}}
-	if start["general"] > start["library"] {
-		adds[0], adds[1] = adds[1], adds[0]
-	}
-	for _, sec := range adds {
-		if done[sec.name] {
-			continue
-		}
-		i, ok := start[sec.name]
+	lines := strings.Split(conf, "\n")
+	for _, c := range []confSetting{
+		{"general", "uid", `"root"`, true},
+		{"general", "trusted_networks", `{ "localhost" }`, true},
+		{"library", "directories", confList(dirs), true},
+		{"mpd", "port", "0", false},
+	} {
+		var ok bool
+		lines, ok = setConf(lines, c)
 		if !ok {
-			return "", errors.New("unexpected OwnTone configuration file (no " + sec.name + " section)")
+			if c.required {
+				return "", errors.New("unexpected OwnTone configuration file (no " + c.section + " section)")
+			}
+			lines = append(lines, c.section+" {", "\t"+c.key+" = "+c.value, "}")
 		}
-		out = append(out[:i+1], append([]string{sec.line}, out[i+1:]...)...)
 	}
-	return strings.Join(out, "\n"), nil
+	return strings.Join(lines, "\n"), nil
 }
 
 // OwnToneAllowed filters the OwnTone API paths reachable through the

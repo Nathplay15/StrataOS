@@ -3,25 +3,25 @@ package docker
 // OwnTone, the multi-room music server driven by the Media app (Music & speakers).
 func init() {
 	Catalog = append(Catalog,
-		// Host networking: OwnTone finds the AirPlay and Chromecast speakers by
-		// mDNS, which does not cross the Docker bridge. Its API only trusts
-		// local clients (StrataOS sets trusted_networks), and the Media app
-		// proxies it with the StrataOS sign-in. The shared folders are mounted
-		// read-only, and the music folders are chosen in the Media app. It runs
-		// as root in the container to read private shares.
+		// Official image. Host networking: OwnTone finds the AirPlay and
+		// Chromecast speakers by mDNS, which does not cross the Docker bridge.
+		// The shared folders are mounted read-only; the Media app chooses the
+		// music folders and patches owntone.conf (API trusted for local clients
+		// only, behind the StrataOS proxy; MPD off; root to read private shares).
 		App{ID: "owntone", Name: "OwnTone", Category: "Media", Description: "Multi-room music: plays your library on AirPlay and Chromecast speakers, in sync. Controlled from the Media app.", Icon: icon("owntone"),
-			Vars: []AppVar{path("CONFIG_DIR", "Config folder", "/srv/strata/apps/owntone")},
+			Vars: []AppVar{path("CONFIG_DIR", "Config folder", "/srv/strata/apps/owntone/config"), path("CACHE_DIR", "Database folder", "/srv/strata/apps/owntone/cache")},
 			Compose: `services:
   owntone:
-    image: lscr.io/linuxserver/daapd:latest
+    image: docker.io/owntone/owntone:latest
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ${CONFIG_DIR}:/config
+      - ${CONFIG_DIR}:/etc/owntone
+      - ${CACHE_DIR}:/var/cache/owntone
       - /srv/strata:/srv/strata:ro,rslave
     environment:
-      - PUID=0
-      - PGID=0
+      - UID=1000
+      - GID=1000
 ` + tz},
 	)
 }
