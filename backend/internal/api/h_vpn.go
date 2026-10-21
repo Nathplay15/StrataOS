@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -47,7 +48,19 @@ func maskVPN(c store.VPN) store.VPN {
 		peers[i] = p
 	}
 	c.Peers = peers
+	links := make([]store.VPNLink, len(c.Links))
+	for i, l := range c.Links {
+		l.PrivateKey, l.PresharedKey = "", ""
+		links[i] = l
+	}
+	c.Links = links
+	c.Client = maskClient(c.Client)
 	return c
+}
+
+func maskPeer(p store.VPNPeer) store.VPNPeer {
+	p.PrivateKey, p.PresharedKey = "", ""
+	return p
 }
 
 func maskDDNS(d store.DDNS) store.DDNS {
@@ -103,14 +116,31 @@ func (s *Server) vpnRoutes() {
 	s.admin("GET /api/vpn", func(r *http.Request) (any, error) {
 		var c store.VPN
 		var d store.DDNS
-		s.store.Read(func(st *store.State) { c, d = st.VPN, st.DDNS })
-		if c.Subnet == "" {
+		users := []map[string]any{}
+		s.store.Read(func(st *store.State) {
+			c, d = st.VPN, st.DDNS
+			for _, u := range st.Users {
+				users = append(users, map[string]any{"username": u.Username, "disabled": u.Disabled})
+			}
+		})
+		if c.Subnet == "" || c.DefaultMode == "" {
 			_ = vpn.Validate(&c)
 		}
 		if c.Peers == nil {
 			c.Peers = []store.VPNPeer{}
 		}
-		return map[string]any{"installed": vpn.Installed(), "config": maskVPN(c), "serverIp": vpn.ServerIP(c), "status": vpn.Status(), "lanGuess": localNetwork(), "ddns": maskDDNS(d), "ddnsHost": vpn.FullHostname(d)}, nil
+		if c.Links == nil {
+			c.Links = []store.VPNLink{}
+		}
+		links := map[string]vpn.PeerStatus{}
+		for _, l := range c.Links {
+			for _, st := range vpn.StatusOf(l.Iface) {
+				links[l.ID] = st
+			}
+		}
+		return map[string]any{"installed": vpn.Installed(), "config": maskVPN(c), "serverIp": vpn.ServerIP(c), "status": vpn.Status(), "linkStatus": links,
+			"inactive": s.vpnInactive(c), "users": users, "services": vpn.Services,
+			"lanGuess": localNetwork(), "ddns": maskDDNS(d), "ddnsHost": vpn.FullHostname(d)}, nil
 	})
 
 	s.admin("PUT /api/vpn", func(r *http.Request) (any, error) {
@@ -124,7 +154,6 @@ func (s *Server) vpnRoutes() {
 		if req.Enabled && !vpn.Installed() {
 			return nil, badRequest("install WireGuard first")
 		}
-		var c store.VPN
 		err := s.store.Update(func(st *store.State) error {
 			cur := st.VPN
 			if cur.PrivateKey == "" {
@@ -138,36 +167,49 @@ func (s *Server) vpnRoutes() {
 				return badRequest("delete the devices before changing the VPN network")
 			}
 			cur.Enabled, cur.Port, cur.Subnet, cur.Endpoint, cur.LAN = req.Enabled, req.Port, req.Subnet, req.Endpoint, req.LAN
+			cur.DefaultMode, cur.UserDevices = req.DefaultMode, req.UserDevices
 			st.VPN = cur
-			c = cur
 			return nil
 		})
 		if err != nil {
 			return nil, err
 		}
 		s.audit(r, "vpn", "VPN settings saved")
-		if err := vpn.Apply(c); err != nil {
-			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()}
-		}
-		return nil, nil
+		return nil, s.vpnApplyErr()
 	})
 
 	s.admin("POST /api/vpn/peers", func(r *http.Request) (any, error) {
 		var req struct {
-			Name string `json:"name"`
-			Mode string `json:"mode"`
+			Name  string `json:"name"`
+			Owner string `json:"owner"`
+			Kind  string `json:"kind"`
+			vpn.Policy
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
+		if req.Kind != "" && req.Kind != "site" {
+			return nil, badRequest("invalid peer kind")
+		}
 		var c store.VPN
 		var p store.VPNPeer
+		var host string
 		err := s.store.Update(func(st *store.State) error {
 			if st.VPN.PrivateKey == "" {
 				return badRequest("save the VPN settings first")
 			}
+			if req.Owner != "" && st.User(req.Owner) == nil {
+				return badRequest("unknown user " + req.Owner)
+			}
+			if req.Kind == "site" {
+				req.Owner = ""
+			}
 			var err error
-			if p, err = vpn.NewPeer(st.VPN, req.Name, req.Mode); err != nil {
+			if p, err = vpn.NewPeer(st.VPN, req.Owner, req.Name, req.Mode); err != nil {
+				return badRequest(err.Error())
+			}
+			p.Kind = req.Kind
+			if err := vpn.SetPolicy(st.VPN, &p, req.Policy); err != nil {
 				return badRequest(err.Error())
 			}
 			st.VPN.Peers = append(st.VPN.Peers, p)
@@ -177,43 +219,114 @@ func (s *Server) vpnRoutes() {
 		if err != nil {
 			return nil, err
 		}
-		s.audit(r, "vpn", "Added VPN device "+p.Name)
-		if err := vpn.Apply(c); err != nil {
-			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()}
+		host, _ = os.Hostname()
+		if p.Kind == "site" {
+			s.audit(r, "vpn", "Added VPN site "+p.Name)
+		} else {
+			s.audit(r, "vpn", "Added VPN device "+p.Name)
 		}
-		return map[string]any{"peer": maskVPN(store.VPN{Peers: []store.VPNPeer{p}}).Peers[0], "config": vpn.RenderClient(c, p)}, nil
+		if err := s.vpnApplyErr(); err != nil {
+			return nil, err
+		}
+		if p.Kind == "site" {
+			return map[string]any{"peer": maskPeer(p), "config": vpn.RenderRouter(c, p, host)}, nil
+		}
+		return map[string]any{"peer": maskPeer(p), "config": vpn.RenderClient(c, p)}, nil
+	})
+
+	s.admin("PUT /api/vpn/peers/{id}", func(r *http.Request) (any, error) {
+		var req struct {
+			Name     string `json:"name"`
+			Owner    string `json:"owner"`
+			Disabled bool   `json:"disabled"`
+			vpn.Policy
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		var name string
+		err := s.store.Update(func(st *store.State) error {
+			i := slices.IndexFunc(st.VPN.Peers, func(p store.VPNPeer) bool { return p.ID == r.PathValue("id") })
+			if i < 0 {
+				return notFound("device not found")
+			}
+			p := st.VPN.Peers[i]
+			if n := strings.TrimSpace(req.Name); n != "" && n != p.Name {
+				if err := vpn.CheckName(st.VPN, p.Owner, n, p.ID); err != nil {
+					return badRequest(err.Error())
+				}
+				p.Name = n
+			}
+			if p.Kind != "site" && req.Owner != p.Owner {
+				if req.Owner != "" && st.User(req.Owner) == nil {
+					return badRequest("unknown user " + req.Owner)
+				}
+				p.Owner = req.Owner
+			}
+			if err := vpn.SetPolicy(st.VPN, &p, req.Policy); err != nil {
+				return badRequest(err.Error())
+			}
+			if !req.Disabled && p.Expired {
+				return badRequest("the expiry date has passed: change it to enable the device again")
+			}
+			p.Disabled = req.Disabled || p.Expired
+			st.VPN.Peers[i] = p
+			name = p.Name
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "vpn", "Updated VPN device "+name)
+		// An expiry date already past disables the device at once.
+		s.vpnExpire()
+		return nil, s.vpnApplyErr()
 	})
 
 	s.admin("GET /api/vpn/peers/{id}/config", func(r *http.Request) (any, error) {
 		var c store.VPN
 		s.store.Read(func(st *store.State) { c = st.VPN })
 		for _, p := range c.Peers {
-			if p.ID == r.PathValue("id") {
-				s.audit(r, "vpn", "Viewed the configuration of VPN device "+p.Name)
+			if p.ID != r.PathValue("id") {
+				continue
+			}
+			s.audit(r, "vpn", "Viewed the configuration of VPN device "+p.Name)
+			if p.Kind != "site" {
 				return map[string]string{"config": vpn.RenderClient(c, p), "name": p.Name}, nil
 			}
+			host, _ := os.Hostname()
+			if r.URL.Query().Get("format") == "strataos" {
+				code, err := vpn.PairingCode(c, p, host)
+				if err != nil {
+					return nil, badRequest(err.Error())
+				}
+				return map[string]string{"config": code, "name": p.Name}, nil
+			}
+			return map[string]string{"config": vpn.RenderRouter(c, p, host), "name": p.Name}, nil
 		}
 		return nil, notFound("device not found")
 	})
 
 	s.admin("DELETE /api/vpn/peers/{id}", func(r *http.Request) (any, error) {
 		id := r.PathValue("id")
-		var c store.VPN
 		err := s.store.Update(func(st *store.State) error {
 			n := len(st.VPN.Peers)
 			st.VPN.Peers = slices.DeleteFunc(st.VPN.Peers, func(p store.VPNPeer) bool { return p.ID == id })
 			if len(st.VPN.Peers) == n {
 				return notFound("device not found")
 			}
-			c = st.VPN
 			return nil
 		})
 		if err != nil {
 			return nil, err
 		}
 		s.audit(r, "vpn", "Removed a VPN device")
-		return nil, vpn.Apply(c)
+		return nil, s.vpnApplyErr()
 	})
+
+	s.vpnSiteRoutes()
+	s.vpnUserRoutes()
+	s.vpnClientRoutes()
 
 	s.admin("PUT /api/ddns", func(r *http.Request) (any, error) {
 		var req store.DDNS

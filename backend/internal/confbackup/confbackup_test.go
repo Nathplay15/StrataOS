@@ -27,8 +27,10 @@ func testSource() Source {
 		Schedules: []*store.Schedule{{ID: "s1", Name: "Snap fast", Type: "snapshot", Cron: "0 * * * *", TargetKind: "btrfs", Target: "v2", KeepCount: 5, History: []store.ScheduleRun{{Status: "success"}}}},
 		Backups:   []*store.BackupTask{{ID: "b1", Name: "Offsite", Kind: "restic", Sources: []string{"/srv/strata/main/Photos"}, DestType: "s3", DestPath: "bucket/x", AccessKey: "AK", SecretKey: "SK", Password: "repo-pass"}},
 		Clouds:    []*store.CloudSync{{ID: "c1", Name: "Drive", Provider: "s3", LocalPath: "/srv/strata/main/Photos", Params: map[string]string{"region": "eu"}, Secrets: map[string]string{"secret_access_key": "CS"}, Synced: true}},
-		VPN:       store.VPN{Port: 51820, Subnet: "10.8.0.0/24", PrivateKey: "SRVPRIV", PublicKey: "SRVPUB", Peers: []store.VPNPeer{{ID: "p1", Name: "phone", Mode: "nas", IP: "10.8.0.2", PublicKey: "PEERPUB", PrivateKey: "PEERPRIV", PresharedKey: "PSK"}}},
-		DDNS:      store.DDNS{Provider: "duckdns", Hostname: "nas", Token: "DDTOK", LastIP: "1.2.3.4"},
+		VPN: store.VPN{Port: 51820, Subnet: "10.8.0.0/24", PrivateKey: "SRVPRIV", PublicKey: "SRVPUB", Peers: []store.VPNPeer{{ID: "p1", Name: "phone", Mode: "nas", IP: "10.8.0.2", PublicKey: "PEERPUB", PrivateKey: "PEERPRIV", PresharedKey: "PSK"}},
+			Links:  []store.VPNLink{{ID: "l1", Name: "Office", Iface: "strata-l1", PrivateKey: "LINKPRIV", PresharedKey: "LINKPSK", PeerPublicKey: "LPUB"}},
+			Client: store.VPNClient{Enabled: true, PrivateKey: "CLIPRIV", PeerPublicKey: "CPUB", Scope: "apps", Apps: []string{"qbittorrent"}, Detached: map[string][]string{"qbittorrent": {"bridge"}}}},
+		DDNS: store.DDNS{Provider: "duckdns", Hostname: "nas", Token: "DDTOK", LastIP: "1.2.3.4"},
 		Guard: store.Guard{Config: guard.Config{Enabled: true, MaxFailures: 5}, Blocks: []guard.Block{
 			{IP: "203.0.113.9", Until: now.Add(time.Hour), Manual: true},
 			{IP: "203.0.113.10", Until: now.Add(time.Hour)},                // automatic: runtime
@@ -74,7 +76,7 @@ func export(t *testing.T, pass string) []byte {
 
 func TestPlainExportHasNoSecretsNorRuntime(t *testing.T) {
 	b := string(export(t, ""))
-	for _, s := range []string{"smtp-pass", "repo-pass", "SK", "CS", "SRVPRIV", "PEERPRIV", "PSK", "DDTOK", "s3cret", "adminhash", "aliceshadow", "NTHASH", "TOTPKEY", "auto-passphrase", "secret event", "1.2.3.4", `"bob"`, "203.0.113.10", "203.0.113.11", `"status"`} {
+	for _, s := range []string{"smtp-pass", "repo-pass", "SK", "CS", "SRVPRIV", "PEERPRIV", "LINKPRIV", "LINKPSK", "CLIPRIV", "PSK", "DDTOK", "s3cret", "adminhash", "aliceshadow", "NTHASH", "TOTPKEY", "auto-passphrase", "secret event", "1.2.3.4", `"bob"`, "203.0.113.10", "203.0.113.11", `"status"`} {
 		if strings.Contains(b, s) {
 			t.Errorf("plain export contains %q", s)
 		}
@@ -180,6 +182,9 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if full.Backups[0].Password != "repo-pass" || full.Backups[0].SecretKey != "SK" || full.CloudSyncs[0].Secrets["secret_access_key"] != "CS" {
 		t.Errorf("task secrets: %+v %+v", full.Backups[0], full.CloudSyncs[0].Secrets)
+	}
+	if full.VPN.Links[0].PrivateKey != "LINKPRIV" || full.VPN.Links[0].PresharedKey != "LINKPSK" || full.VPN.Client.PrivateKey != "CLIPRIV" || full.VPN.Client.Detached != nil {
+		t.Errorf("vpn link/client secrets: %+v %+v", full.VPN.Links, full.VPN.Client)
 	}
 	if full.VPN.PrivateKey != "SRVPRIV" || full.VPN.Peers[0].PrivateKey != "PEERPRIV" || full.DDNS.Token != "DDTOK" || full.ConfigBackup.Passphrase != "auto-passphrase" {
 		t.Errorf("vpn/ddns secrets: %+v %+v", full.VPN, full.DDNS)

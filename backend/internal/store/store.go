@@ -394,6 +394,14 @@ type VPN struct {
 	PrivateKey string    `json:"privateKey,omitempty"`
 	PublicKey  string    `json:"publicKey"`
 	Peers      []VPNPeer `json:"peers"`
+	// DefaultMode is the access given to new devices ("" = lan).
+	DefaultMode string `json:"defaultMode,omitempty"`
+	// UserDevices lets users add and revoke their own devices.
+	UserDevices bool `json:"userDevices,omitempty"`
+	// Links are site-to-site tunnels imported from another StrataOS (this
+	// NAS connects out), Client the outgoing tunnel (store/vpn.go).
+	Links  []VPNLink `json:"links,omitempty"`
+	Client VPNClient `json:"client,omitzero"`
 }
 
 // VPNPeer is a device allowed to connect.
@@ -407,6 +415,7 @@ type VPNPeer struct {
 	PresharedKey string    `json:"presharedKey,omitempty"`
 	Disabled     bool      `json:"disabled"`
 	CreatedAt    time.Time `json:"createdAt"`
+	VPNPeerPolicy
 }
 
 // DDNS keeps a host name pointing at the public address.

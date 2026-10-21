@@ -677,9 +677,73 @@ func (im *importer) vpn() {
 			_, err := im.rp.call("PUT", "/api/vpn", f)
 			return err
 		}
+		if id, ok := strings.CutPrefix(it.Key, "link:"); ok {
+			i := slices.IndexFunc(f.Links, func(l store.VPNLink) bool { return l.ID == id })
+			l := f.Links[i]
+			err := im.s.store.Update(func(st *store.State) error {
+				if it.Action == confbackup.Update {
+					for k := range st.VPN.Links {
+						x := &st.VPN.Links[k]
+						if x.ID == l.ID || (x.PeerPublicKey == l.PeerPublicKey && x.Address == l.Address) {
+							x.Name, x.Disabled = l.Name, l.Disabled
+						}
+					}
+					return nil
+				}
+				c := st.VPN
+				if c.Subnet == "" {
+					_ = vpn.Validate(&c)
+				}
+				// The interface name is this NAS's: take the first free one.
+				l.Iface = ""
+				for n := 1; n < 100 && l.Iface == ""; n++ {
+					name := "strata-l" + strconv.Itoa(n)
+					if !slices.ContainsFunc(c.Links, func(x store.VPNLink) bool { return x.Iface == name }) {
+						l.Iface = name
+					}
+				}
+				if err := vpn.ValidateLink(c, l); err != nil {
+					return err
+				}
+				st.VPN.Links = append(st.VPN.Links, l)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			return im.s.applyVPN()
+		}
+		if it.Key == "client" {
+			err := im.s.store.Update(func(st *store.State) error {
+				cl := f.Client
+				cur := st.VPN.Client
+				if cl.PrivateKey == confbackup.Masked || cl.PrivateKey == "" {
+					cl.PrivateKey = cur.PrivateKey
+				}
+				if cl.PresharedKey == confbackup.Masked {
+					cl.PresharedKey = cur.PresharedKey
+				}
+				cl.Detached = cur.Detached
+				if !vpn.ValidKey(cl.PrivateKey) || !vpn.ValidKey(cl.PeerPublicKey) || !vpn.ValidEndpoint(cl.Endpoint) || (cl.PresharedKey != "" && !vpn.ValidKey(cl.PresharedKey)) {
+					return fmt.Errorf("invalid outgoing tunnel")
+				}
+				// The file is written again from these values: check them as a provider file.
+				if _, _, err := vpn.ParseClientConf(vpn.RenderClientTunnel(cl)); err != nil {
+					return err
+				}
+				if err := vpn.ValidateClient(st.VPN, &cl); err != nil {
+					return err
+				}
+				st.VPN.Client = cl
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			return im.s.applyVPN()
+		}
 		i := slices.IndexFunc(f.Peers, func(p store.VPNPeer) bool { return p.ID == it.Key })
 		p := f.Peers[i]
-		var c store.VPN
 		err := im.s.store.Update(func(st *store.State) error {
 			if it.Action == confbackup.Update {
 				for k := range st.VPN.Peers {
@@ -689,6 +753,13 @@ func (im *importer) vpn() {
 							x.Mode = p.Mode
 						}
 						x.Disabled = p.Disabled
+						// Policy: kept only when valid on this NAS.
+						pol := p.VPNPeerPolicy
+						y := *x
+						y.VPNPeerPolicy = pol
+						if vpn.ValidatePeer(store.VPN{Subnet: st.VPN.Subnet, Peers: slices.DeleteFunc(slices.Clone(st.VPN.Peers), func(z store.VPNPeer) bool { return z.ID == x.ID }), LAN: st.VPN.LAN, Links: st.VPN.Links}, y) == nil {
+							x.VPNPeerPolicy = pol
+						}
 					}
 				}
 			} else {
@@ -704,13 +775,12 @@ func (im *importer) vpn() {
 				}
 				st.VPN.Peers = append(st.VPN.Peers, p)
 			}
-			c = st.VPN
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		return vpn.Apply(c)
+		return im.s.applyVPN()
 	})
 }
 

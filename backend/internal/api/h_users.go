@@ -152,6 +152,10 @@ func (s *Server) userRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		if prev.Disabled != req.Disabled {
+			// The VPN devices of the account follow it.
+			go s.vpnUserChanged(name)
+		}
 		if prev.Source != "" {
 			if prev.Role != req.Role || req.Disabled {
 				s.sessions.dropUser(name)
@@ -215,6 +219,7 @@ func (s *Server) userRoutes() {
 			return nil, err
 		}
 		s.sessions.dropUser(name)
+		go s.vpnUserGone(name)
 		if source != "" {
 			// Only the StrataOS profile goes away; the directory account stays.
 			s.audit(r, "users", "Removed directory user "+name)

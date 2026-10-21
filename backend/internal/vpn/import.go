@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"strings"
 
 	"strataos/internal/store"
 )
@@ -24,6 +25,25 @@ func ValidatePeer(c store.VPN, p store.VPNPeer) error {
 	case "nas", "lan", "all":
 	default:
 		return fmt.Errorf("invalid access")
+	}
+	if p.Kind != "" && p.Kind != "site" {
+		return fmt.Errorf("invalid peer kind")
+	}
+	if len(p.Owner) > 64 || strings.ContainsAny(p.Owner, "\n\r/:") {
+		return fmt.Errorf("invalid owner")
+	}
+	if _, err := ValidateServices(p.Services); err != nil {
+		return err
+	}
+	if p.Kind == "site" {
+		if _, err := checkSubnets(c, p.Subnets, p.ID); err != nil {
+			return err
+		}
+		if (p.Endpoint != "" && !ValidEndpoint(p.Endpoint)) || p.Keepalive < 0 || p.Keepalive > 3600 {
+			return fmt.Errorf("invalid site address")
+		}
+	} else if len(p.Subnets) > 0 || p.Endpoint != "" {
+		return fmt.Errorf("only sites have networks")
 	}
 	if !ValidKey(p.PublicKey) || !ValidKey(p.PrivateKey) || (p.PresharedKey != "" && !ValidKey(p.PresharedKey)) {
 		return fmt.Errorf("invalid device keys")

@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
-import { Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan } from "lucide-react";
+import { Activity, Smartphone, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
 
@@ -17,6 +17,7 @@ const UsersPage = lazy(() => import("../pages/Users"));
 const Files = lazy(() => import("../pages/Files"));
 const PhotosPage = lazy(() => import("../pages/Photos"));
 const LinksPage = lazy(() => import("../pages/Links"));
+const MyVpnPage = lazy(() => import("../pages/system/MyVpn"));
 const AppStore = lazy(() => import("../pages/docker/AppStore"));
 const Containers = lazy(() => import("../pages/docker/Containers"));
 const Stacks = lazy(() => import("../pages/docker/Stacks"));
@@ -76,6 +77,7 @@ export const APPS: AppDef[] = [
   { id: "files", title: tr("Files"), icon: FolderOpen, colors: ["#f59e0b", "#f97316"], admin: false, size: [1000, 660], component: page(Files), path: "/files" },
   { id: "photos", title: tr("Photos"), icon: PhotosIcon, colors: ["#f472b6", "#db2777"], admin: false, size: [1120, 760], component: PhotosPage as PageComponent, path: "/photos" },
   { id: "links", title: tr("Shared links"), icon: Link2, colors: ["#22d3ee", "#0891b2"], admin: false, size: [1000, 640], component: LinksPage as PageComponent, path: "/links" },
+  { id: "myvpn", title: tr("My VPN devices"), icon: Smartphone, colors: ["#34d399", "#059669"], admin: false, size: [900, 620], component: page(MyVpnPage), path: "/vpn" },
   {
     id: "storage", title: tr("Storage Manager"), icon: HardDrive, colors: ["#0ea5e9", "#2563eb"], admin: true, size: [1120, 760],
     sections: [
