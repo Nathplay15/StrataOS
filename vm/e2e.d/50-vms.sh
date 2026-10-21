@@ -144,6 +144,8 @@ LOG=$(c GET /api/vms/e2e-cloud/console-log | py 'print(d["log"][-4000:])')
 [ -z "$READY" ] && echo "    (no SSH within 5 min; console log tail:)" && echo "$LOG" | tail -5
 check "cloud VM ready (SSH as the new user, or cloud-init done on the console)" "$READY$(echo "$LOG" | grep -o 'strata-cloud-init-done' | head -1)" "s"
 [ -n "$READY" ] && check "cloud-init created the user, in sudo" "$ID" "(sudo)"
+# The login prompt (with the host name) comes last on the console: wait for it.
+for _ in $(seq 1 30); do echo "$LOG" | grep -q 'e2e-cloud' && break; sleep 3; LOG=$(c GET /api/vms/e2e-cloud/console-log | py 'print(d["log"][-4000:])'); done
 check "serial console logged (host name at the login prompt)" "$LOG" "e2e-cloud"
 c POST /api/vms/e2e-cloud/destroy >/dev/null
 check "cloud VM deleted" "$(c DELETE '/api/vms/e2e-cloud?disks=1')" '"ok":true'

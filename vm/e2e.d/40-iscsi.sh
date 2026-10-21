@@ -52,7 +52,7 @@ sleep 1
 check "no session after logout" "$(c GET /api/iscsi | py 'print(sum(len(t["sessions"]) for t in d["targets"]))')" "0"
 
 # ACL: another initiator only → this one is refused.
-check "ACL changed" "$(c PUT "/api/iscsi/targets/$TID" -d '{"iqn":"'"$IQN"'","initiators":["iqn.2026-01.test:other"]}')" '"ok":true'
+check "ACL changed" "$(c PUT "/api/iscsi/targets/$TID" -d '{"iqn":"'"$IQN"'","initiators":["iqn.2026-01.test.e2e:other"]}')" '"ok":true'
 check "initiator outside the ACL refused" "$(login)" "rc=2"
 # CHAP.
 check "CHAP enabled" "$(c PUT "/api/iscsi/targets/$TID" -d '{"iqn":"'"$IQN"'","initiators":["'"$INI"'"],"chap":{"user":"e2e","secret":"E2e-Chap-Secret1"}}')" '"ok":true'

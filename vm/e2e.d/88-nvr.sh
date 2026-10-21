@@ -11,7 +11,7 @@ NV=/srv/strata/main/e2e-nvr
 CAMPASS='p@ss#1;x=y&z'
 check "recorder component installed" "$(job "$(c POST /api/system/components/nvr/install)")" "success"
 check "recorder reported installed" "$(c GET /api/nvr | py 'print(d["installed"], len(d["cameras"]))')" "True 0"
-check "nothing recorded before setup" "$(vm "pgrep -fc 'ffmpeg.*ffconcat' || true")" "0"
+check "nothing recorded before setup" "$(vm "pgrep -fc '[f]fmpeg.*ffconcat' || true")" "0"
 
 # Test camera: mediamtx (RTSP on 8554, readers must sign in) and a publisher.
 vm "cat > /tmp/e2e-mtx.yml <<'EOF'
@@ -34,7 +34,7 @@ paths:
   all_others:
 EOF
 sudo docker rm -f e2e-mtx >/dev/null 2>&1; sudo docker run -d --name e2e-mtx --network host -v /tmp/e2e-mtx.yml:/mediamtx.yml:ro bluenviron/mediamtx:latest >/dev/null"
-publish() { vm "sudo systemd-run --unit=e2e-nvr-pub ffmpeg -nostdin -loglevel error -re -f lavfi -i testsrc=size=640x360:rate=10 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -g 10 -f rtsp -rtsp_transport tcp rtsp://pub:pubpass@127.0.0.1:8554/cam >/dev/null 2>&1"; }
+publish() { vm "sudo systemctl reset-failed e2e-nvr-pub 2>/dev/null; sudo systemd-run --unit=e2e-nvr-pub ffmpeg -nostdin -loglevel error -re -f lavfi -i testsrc=size=640x360:rate=10 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -g 10 -f rtsp -rtsp_transport tcp rtsp://pub:pubpass@127.0.0.1:8554/cam >/dev/null 2>&1"; }
 for _ in $(seq 1 60); do vm "timeout 2 bash -c '</dev/tcp/127.0.0.1/8554' 2>/dev/null" && break; sleep 2; done
 publish
 sleep 4
@@ -100,7 +100,9 @@ check "camera recording again (restart with backoff)" "$(camst)" "('recording',"
 for _ in $(seq 1 15); do c GET /api/system/events | grep -q 'E2E door is back online' && break; sleep 2; done
 check "back online notice" "$(c GET /api/system/events)" "Camera E2E door is back online"
 
-# Frigate: a second camera given to Frigate (not installed: config only).
+# Frigate: a second camera given to Frigate (not installed: config only),
+# with the default options (a previous run may have changed them).
+c PUT /api/nvr/frigate -d '{"detector":"auto","objects":["person","car"],"notify":true,"notifyMinutes":10}' >/dev/null
 F=$(c POST /api/nvr/cameras -d "$(CAMJ 'E2E garden' $URL "$CAMPASS" frigate)")
 FID=$(echo "$F" | py 'print(d["id"])')
 check "Frigate camera not recorded by the built-in recorder" "$(c GET /api/nvr | py "print([c['status']['state'] for c in d['cameras'] if c['id']=='$FID'])")" "['frigate']"
@@ -125,7 +127,7 @@ fi
 # Removal stops the recorder and removes its files.
 check "camera deleted with its recordings" "$(c DELETE "/api/nvr/cameras/$CID?recordings=1")" '"ok":true'
 sleep 3
-check "recorder process stopped" "$(vm "pgrep -fc '/run/strata/nvr/$CID/' || true")" "0"
+check "recorder process stopped" "$(vm "pgrep -fc '[/]run/strata/nvr/$CID/' || true")" "0"
 check "runtime files removed" "$(vm "sudo test -e /run/strata/nvr/$CID && echo left || echo removed")" "removed"
 check "recordings removed" "$(vm "test -e $NV/$CID && echo left || echo removed")" "removed"
 c DELETE "/api/nvr/cameras/$FID" >/dev/null

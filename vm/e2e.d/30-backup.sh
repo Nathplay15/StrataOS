@@ -6,6 +6,9 @@ section "Backup: other NAS, ZFS pull, two-way sync, Time Machine"
 
 KEY=$(c GET /api/backups/ssh-key | py 'print(d["publicKey"])')
 check "StrataOS backup key" "$KEY" "ssh-ed25519 "
+# The VM plays the remote NAS at 127.0.0.1: forget the host key a previous
+# run may have recorded (a re-created test VM has new host keys).
+vm "sudo ssh-keygen -R 127.0.0.1 -f /var/lib/strata/ssh/known_hosts >/dev/null 2>&1; sudo rm -f /var/lib/strata/ssh/known_hosts.old"
 # A local account trusting the StrataOS key stands for the remote NAS.
 vm "sudo useradd -m -s /bin/bash e2ebk 2>/dev/null; sudo install -d -m 700 -o e2ebk -g e2ebk /home/e2ebk/.ssh; echo '$KEY' | sudo tee /home/e2ebk/.ssh/authorized_keys >/dev/null; sudo chown e2ebk: /home/e2ebk/.ssh/authorized_keys; sudo chmod 600 /home/e2ebk/.ssh/authorized_keys"
 vm "sudo -u e2ebk mkdir -p /home/e2ebk/data/docs && echo 'from ssh' | sudo -u e2ebk tee /home/e2ebk/data/docs/a.txt >/dev/null"
