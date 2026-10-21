@@ -496,6 +496,7 @@ type State struct {
 	BurnIns   []*BurnInReport `json:"burnIns,omitempty"`
 	Hardware  Hardware        `json:"hardware"`
 	VMs       VMSettings      `json:"vmSettings"`
+	Office    Office          `json:"office"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`
