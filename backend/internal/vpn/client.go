@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"slices"
@@ -330,9 +331,10 @@ func TunnelPublicIP(ctx context.Context, cl store.VPNClient) (string, error) {
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	body := strings.TrimSpace(string(b))
-	if net.ParseIP(body) == nil || resp.StatusCode != 200 {
+	addr, err := netip.ParseAddr(strings.Trim(strings.TrimSpace(string(b)), "[]"))
+	if err != nil || resp.StatusCode != 200 {
 		return "", fmt.Errorf("could not read the public address")
 	}
-	return body, nil
+	// Some echo services answer an IPv4 client in IPv4-mapped IPv6 form.
+	return addr.Unmap().String(), nil
 }

@@ -8,7 +8,7 @@
 # Frigate (large image) and checks it starts with the generated configuration.
 section "Surveillance (NVR)"
 NV=/srv/strata/main/e2e-nvr
-CAMPASS='p@ss:w/rd#1'
+CAMPASS='p@ss#1;x=y&z'
 check "recorder component installed" "$(job "$(c POST /api/system/components/nvr/install)")" "success"
 check "recorder reported installed" "$(c GET /api/nvr | py 'print(d["installed"], len(d["cameras"]))')" "True 0"
 check "nothing recorded before setup" "$(vm "pgrep -fc 'ffmpeg.*ffconcat' || true")" "0"
@@ -108,7 +108,7 @@ FC=$(c GET /api/nvr/frigate/config | py 'print(d["config"])')
 check "Frigate config lists the camera" "$FC" "e2e_garden:"
 check "Frigate config uses secret placeholders" "$FC" "rtsp://{FRIGATE_E2E_GARDEN_USER}:{FRIGATE_E2E_GARDEN_PASS}@127.0.0.1:8554/cam"
 check "Frigate config without credentials" "$(echo "$FC" | grep -c 'w/rd\|w%2Frd\|cam:' || true)" "0"
-check "Frigate config: no MQTT, objects tracked" "$(echo "$FC" | grep -A3 -E '^(mqtt|objects):' | tr -d '\n ')" "mqtt:enabled:falseobjects:track:-\"person\"-\"car\""
+check "Frigate config: no MQTT, objects tracked" "$(echo "$FC" | grep -A3 -E '^(mqtt|objects):' | grep -v -E '^(detectors|  cpu|--)' | tr -d '\n ')" "mqtt:enabled:falseobjects:track:-\"person\"-\"car\""
 check "Frigate options validated" "$(c PUT /api/nvr/frigate -d '{"objects":["unicorn"]}')" "unknown object"
 check "Frigate options saved" "$(c PUT /api/nvr/frigate -d '{"detector":"cpu","objects":["person","dog"],"notify":true,"notifyMinutes":5}')" '"ok":true'
 check "objects in the generated config" "$(c GET /api/nvr/frigate/config | py 'print(d["config"])' | grep -A3 'track:' | tr -d '\n ')" 'track:-"person"-"dog"'

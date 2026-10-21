@@ -18,7 +18,7 @@ EOF
 # The other site: its network 192.168.77.0/24 behind a WireGuard router.
 ip link add lan0 type dummy && ip addr add 192.168.77.1/24 dev lan0 && ip link set lan0 up
 mkdir -p /etc/wireguard && cp /t/site.conf /etc/wireguard/wg0.conf && wg-quick up wg0
-exec socat TCP-LISTEN:8080,fork,reuseaddr SYSTEM:'sh /t/echo.sh'
+exec socat TCP4-LISTEN:8080,fork,reuseaddr SYSTEM:'sh /t/echo.sh'
 EOF
 ./vm/vm.sh ssh 'sudo tee /tmp/wgtest/srv-up.sh >/dev/null' 2>/dev/null <<'EOF'
 # A VPN provider: WireGuard server, "Internet" address 203.0.113.1 behind it.
@@ -30,7 +30,7 @@ printf '[Interface]\nAddress = 10.66.0.1/24\nListenPort = 51821\nPrivateKey = %s
 wg-quick up wg0
 printf '# Provider file\n[Interface]\nPrivateKey = %s\nAddress = 10.66.0.2/32, fd66::2/128\nDNS = 10.66.0.1\nPostUp = touch /tmp/pwned\n\n[Peer]\nPublicKey = %s\nEndpoint = %s:51821\nAllowedIPs = 0.0.0.0/0, ::/0\n' "$(cat /tmp/c.key)" "$(cat /tmp/s.pub)" "$(hostname -i | cut -d' ' -f1)" > /tmp/provider.conf
 touch /tmp/ready
-exec socat TCP-LISTEN:8080,fork,reuseaddr SYSTEM:'sh /t/echo.sh'
+exec socat TCP4-LISTEN:8080,fork,reuseaddr SYSTEM:'sh /t/echo.sh'
 EOF
 # wgrun name conf: WireGuard client in a container, up once 10.8.0.1 answers.
 wgrun() {
@@ -47,7 +47,7 @@ c PUT /api/vpn -d "{\"enabled\":true,$VPNSET,\"userDevices\":true}" >/dev/null
 u POST /api/vpn/my/devices -d '{"name":"Alice phone"}' | py 'print(d["config"])' > "$TMP/alice.conf"
 check "alice adds her own device" "$(cat "$TMP/alice.conf")" "Endpoint = 172.17.0.1:51820"
 ALICE_DEV=$(u GET /api/vpn/my | py 'print(d["devices"][0]["id"])')
-check "device owned by alice, default access" "$(peer "$ALICE_DEV" "p['owner'], p['mode']")" "('alice', 'nas')"
+check "device owned by alice, default access" "$(peer "$ALICE_DEV" "p['owner'], p['mode']")" "alice nas"
 check "alice sees only her devices, no keys" "$(u GET /api/vpn/my | py 'print(len(d["devices"]), "privateKey" in json.dumps(d))')" "1 False"
 ADMIN_DEV=$(c POST /api/vpn/peers -d '{"name":"Admin laptop","mode":"lan"}' | py 'print(d["peer"]["id"])')
 check "alice cannot read another device" "$(u GET /api/vpn/my/devices/$ADMIN_DEV/config)" "device not found"
@@ -75,7 +75,7 @@ check "SMB port reachable from the restricted device" "$(vm "sudo docker exec wg
 check "web interface port blocked for it" "$(vm "sudo docker exec wgr nc -z -w3 10.8.0.1 7070 && echo open || echo closed")" "closed"
 check "handshake, transfer and endpoint reported" "$(c GET /api/vpn | py "s=d['status'].get('$(peer "$SMB_ID" "p['publicKey']")',{}); print(s.get('handshake',0)>0, s.get('rx',0)>0, bool(s.get('endpoint')))")" "True True True"
 c PUT /api/vpn/peers/$SMB_ID -d '{"name":"SMB only","mode":"nas","services":["smb"],"expires":"2020-01-01"}' >/dev/null
-check "expiry in the past disables the device" "$(peer "$SMB_ID" "p['disabled'], p.get('expired'), d['inactive'].get(p['id'])")" "(True, True, 'expired')"
+check "expiry in the past disables the device" "$(peer "$SMB_ID" "p['disabled'], p.get('expired'), d['inactive'].get(p['id'])")" "True True expired"
 check "expired device cut off" "$(vm "sudo docker exec wgr ping -c1 -W2 10.8.0.1 >/dev/null 2>&1 && echo up || echo down")" "down"
 check "expiry event" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:20]]')" "VPN device SMB only expired and was disabled"
 check "enabling an expired device refused" "$(c PUT /api/vpn/peers/$SMB_ID -d '{"name":"SMB only","mode":"nas","services":["smb"],"expires":"2020-01-01","disabled":false}')" "expiry date has passed"
