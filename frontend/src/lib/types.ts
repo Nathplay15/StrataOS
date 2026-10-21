@@ -173,6 +173,7 @@ export interface User {
   groups: string[];
   createdAt: string;
   twoFactor?: boolean;
+  passkeys?: number;
   source?: string;
 }
 

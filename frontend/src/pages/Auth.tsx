@@ -1,12 +1,13 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { FingerprintPattern, Lock, ShieldCheck } from "lucide-react";
 import logo from "../logo.svg";
 import { api, ApiError } from "../lib/api";
 import type { Me } from "../lib/types";
 import { Button, Checkbox, ErrorBox, Field, Input } from "../components/ui";
 import { useTheme } from "../components/Layout";
-import { tr } from "../lib/i18n";
+import { srv, tr } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
+import { cancelled, getPasskey, passkeysSupported } from "../lib/webauthn";
 
 function Shell({ children, subtitle }: { children: ReactNode; subtitle: string }) {
   useTheme();
@@ -34,6 +35,25 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
   const [needCode, setNeedCode] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  // Passkeys: only offered when the browser has WebAuthn and the page is open on a name.
+  const [pk, setPk] = useState<{ available: boolean; reason?: string } | null>(null);
+  const [pkBusy, setPkBusy] = useState(false);
+  useEffect(() => {
+    if (passkeysSupported()) api.get<{ available: boolean; reason?: string }>("/api/login/passkey").then(setPk, () => setPk(null));
+  }, []);
+  const passkey = async () => {
+    setPkBusy(true);
+    setErr(null);
+    try {
+      const b = await api.post<{ flow: string; publicKey: unknown }>("/api/login/passkey/begin", { username });
+      const credential = await getPasskey(b.publicKey);
+      onLogin(await api.post<Me>("/api/login/passkey/finish", { flow: b.flow, remember, credential }));
+    } catch (e) {
+      if (!cancelled(e)) setErr(e);
+    } finally {
+      setPkBusy(false);
+    }
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -77,6 +97,10 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
         <Button variant="primary" className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
           {needCode ? tr("Check") : tr("Sign in")}
         </Button>
+        {!needCode && pk?.available && (
+          <Button type="button" className="w-full" loading={pkBusy} icon={<FingerprintPattern size={15} />} onClick={passkey}>{tr("Sign in with a passkey")}</Button>
+        )}
+        {!needCode && pk && !pk.available && <p className="text-center text-muted text-[12px]">{tr("Passkeys unavailable here:")}{" "}{srv(pk.reason)}</p>}
       </form>
     </Shell>
   );

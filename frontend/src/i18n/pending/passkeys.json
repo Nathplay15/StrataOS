@@ -1,0 +1,21 @@
+[
+  ["Ouvrez le NAS par son nom, par exemple https://strataos.local:7443 ou votre domaine, pour utiliser les clés d'accès", "Open the NAS by its name, e.g. https://strataos.local:7443 or your domain, to use passkeys"],
+  ["Les clés d'accès demandent une connexion sécurisée : ouvrez l'interface en HTTPS avec un certificat valide", "Passkeys need a secure connection: open the interface over HTTPS with a valid certificate"],
+  ["Les clés d'accès demandent un nom d'hôte valide dans l'adresse", "Passkeys need a valid host name in the address"],
+  ["Cette demande de clé d'accès a expiré, réessayez", "This passkey request has expired, try again"],
+  ["clé d'accès refusée", "passkey not accepted"],
+  ["trop de demandes de clé d'accès, réessayez dans quelques minutes", "too many passkey requests, try again in a few minutes"],
+  ["nom de clé d'accès invalide (64 caractères au plus)", "invalid passkey name (64 characters at most)"],
+  ["{0} clés d'accès au plus par compte : supprimez-en une d'abord", "{0} passkeys at most per account: delete one first"],
+  ["cette clé d'accès est déjà enregistrée", "this passkey is already registered"],
+  ["la clé d'accès n'a pas pu être vérifiée", "the passkey could not be verified"],
+  ["clé d'accès introuvable", "passkey not found"],
+  ["Échec de connexion par clé d'accès depuis {0}", "Failed passkey sign-in from {0}"],
+  ["Connecté avec une clé d'accès depuis {0}", "Signed in with a passkey from {0}"],
+  ["Clé d'accès {0} ajoutée ({1})", "Passkey {0} added ({1})"],
+  ["Clé d'accès renommée en {0}", "Passkey renamed to {0}"],
+  ["Clé d'accès {0} supprimée", "Passkey {0} deleted"],
+  ["Clés d'accès retirées pour {0}", "Passkeys removed for {0}"],
+  ["Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)", "Passkey {0} of {1} refused: its signature counter went backwards (cloned authenticator?)"],
+  ["Clé d'accès suspecte", "Suspicious passkey"]
+]

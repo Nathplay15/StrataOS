@@ -23,6 +23,7 @@ type userView struct {
 	Groups    []string  `json:"groups"`
 	CreatedAt time.Time `json:"createdAt"`
 	TwoFactor bool      `json:"twoFactor"`
+	Passkeys  int       `json:"passkeys"`
 	Source    string    `json:"source,omitempty"`
 }
 
@@ -52,7 +53,7 @@ func (s *Server) userRoutes() {
 		out := []userView{}
 		for _, u := range users {
 			groups := accounts.UserGroups(u.Username)
-			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != "", Source: u.Source}
+			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != "", Passkeys: len(u.Passkeys), Source: u.Source}
 			for _, g := range groups {
 				if g == "docker" {
 					v.Docker = true
