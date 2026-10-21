@@ -25,24 +25,27 @@ func TestServerAndClient(t *testing.T) {
 	if err := Validate(&c); err != nil {
 		t.Fatal(err)
 	}
-	p1, err := NewPeer(c, "Téléphone", "nas")
+	p1, err := NewPeer(c, "", "Téléphone", "nas")
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Peers = append(c.Peers, p1)
-	p2, _ := NewPeer(c, "Portable", "lan")
+	p2, _ := NewPeer(c, "", "Portable", "lan")
 	c.Peers = append(c.Peers, p2)
 	if p1.IP != "10.8.0.2" || p2.IP != "10.8.0.3" {
 		t.Errorf("addresses %s %s", p1.IP, p2.IP)
 	}
-	if _, err := NewPeer(c, "téléphone", "nas"); err == nil {
+	if _, err := NewPeer(c, "", "téléphone", "nas"); err == nil {
 		t.Error("duplicate name accepted")
 	}
-	if _, err := NewPeer(c, "x\nPostUp = rm -rf /", "nas"); err == nil {
+	if _, err := NewPeer(c, "", "x\nPostUp = rm -rf /", "nas"); err == nil {
 		t.Error("injection in name accepted")
 	}
 	srv := RenderServer(c)
-	for _, want := range []string{"Address = 10.8.0.1/24", "ListenPort = 51820", "AllowedIPs = 10.8.0.2/32", "masquerade"} {
+	if !strings.Contains(RenderFirewall(c), "masquerade") {
+		t.Error("no NAT for the VPN network")
+	}
+	for _, want := range []string{"Address = 10.8.0.1/24", "ListenPort = 51820", "AllowedIPs = 10.8.0.2/32"} {
 		if !strings.Contains(srv, want) {
 			t.Errorf("server config lacks %q", want)
 		}

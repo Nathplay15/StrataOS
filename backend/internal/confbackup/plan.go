@@ -433,6 +433,27 @@ func Plan(file, cur *Config, env Env) []Section {
 				items = append(items, Item{Key: p.ID, Name: p.Name, Action: Create})
 			}
 		}
+		// Sites imported from another StrataOS, then the outgoing tunnel.
+		for _, l := range v.Links {
+			i := slices.IndexFunc(c.Links, func(x store.VPNLink) bool {
+				return x.ID == l.ID || (x.PeerPublicKey == l.PeerPublicKey && x.Address == l.Address)
+			})
+			switch {
+			case i >= 0:
+				items = append(items, diff("link:"+l.ID, l.Name, l, c.Links[i], true, "createdAt", "privateKey", "presharedKey", "iface"))
+			case !env.Secrets:
+				items = append(items, skip("link:"+l.ID, l.Name, "Site keys not in the file (export with secrets)"))
+			default:
+				items = append(items, Item{Key: "link:" + l.ID, Name: l.Name, Action: Create})
+			}
+		}
+		if v.Client.PeerPublicKey != "" {
+			if !env.Secrets && c.Client.PrivateKey == "" {
+				items = append(items, skip("client", "Outgoing tunnel", "Tunnel keys not in the file (export with secrets)"))
+			} else {
+				items = append(items, diff("client", "Outgoing tunnel", v.Client, c.Client, c.Client.PeerPublicKey != "", "privateKey", "presharedKey", "detached"))
+			}
+		}
 		add("vpn", items)
 	}
 
@@ -538,15 +559,17 @@ func missingPath(paths bool, list []string, env Env) string {
 }
 
 type vpnSet struct {
-	Enabled  bool   `json:"enabled"`
-	Port     int    `json:"port"`
-	Subnet   string `json:"subnet"`
-	Endpoint string `json:"endpoint"`
-	LAN      string `json:"lan"`
+	Enabled     bool   `json:"enabled"`
+	Port        int    `json:"port"`
+	Subnet      string `json:"subnet"`
+	Endpoint    string `json:"endpoint"`
+	LAN         string `json:"lan"`
+	DefaultMode string `json:"defaultMode,omitempty"`
+	UserDevices bool   `json:"userDevices,omitempty"`
 }
 
 func vpnSettings(v store.VPN) vpnSet {
-	return vpnSet{v.Enabled, v.Port, v.Subnet, v.Endpoint, v.LAN}
+	return vpnSet{v.Enabled, v.Port, v.Subnet, v.Endpoint, v.LAN, v.DefaultMode, v.UserDevices}
 }
 
 // Mapped is set by Remap on the copy of the volume list (its new mount point).

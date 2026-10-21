@@ -1,56 +1,28 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import QRCode from "qrcode";
-import { Download, Globe, Plug, Plus, QrCode, Smartphone, Trash2, Waypoints } from "lucide-react";
+import { Globe, Plug, Waypoints } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import { ago, bytes, dateTime } from "../../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
+import { dateTime } from "../../lib/format";
+import { Button, Card, ErrorBox, Field, Input, PageHeader, Select, Spinner, Switch } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
 import RemoteExtras from "./RemoteExtras";
+import { modes, WireGuardTabs, type Mode, type WGConfig, type WGData } from "./WireGuard";
 
-type Peer = { id: string; name: string; mode: "nas" | "lan" | "all"; ip: string; publicKey: string; createdAt: string };
-type VPN = { enabled: boolean; port: number; subnet: string; endpoint: string; lan: string; publicKey: string; peers: Peer[] };
+type VPN = WGConfig & { port: number; publicKey: string };
 type DDNS = { provider: "" | "duckdns" | "cloudflare" | "dynv6" | "custom"; hostname: string; token?: string; zoneId?: string; url?: string; lastIp: string; lastUpdate: string; lastResult: string };
-type Data = { installed: boolean; config: VPN; serverIp: string; status: Record<string, { handshake: number; endpoint: string; rx: number; tx: number }>; lanGuess: string; ddns: DDNS; ddnsHost: string };
-
-const modes = () => ({
-  nas: tr("The NAS only"),
-  lan: tr("The NAS and the local network"),
-  all: tr("All traffic (as at home)"),
-});
-
-function ConfigModal({ name, config, onClose }: { name: string; config: string; onClose: () => void }) {
-  const [qr, setQr] = useState("");
-  useEffect(() => { QRCode.toDataURL(config, { margin: 1, width: 260 }).then(setQr); }, [config]);
-  const file = `${name.replace(/[^\p{L}\p{N}_-]+/gu, "-")}.conf`;
-  return (
-    <Modal open onClose={onClose} title={tr("{0} configuration", name)} footer={<><a href={URL.createObjectURL(new Blob([config], { type: "text/plain" }))} download={file}><Button icon={<Download size={15} />}>{tr("Download {0}", file)}</Button></a><Button variant="primary" onClick={onClose}>{tr("Close")}</Button></>}>
-      <div className="space-y-4">
-        <div className="text-[13px]">{tr("On a phone: WireGuard app → + → Scan a QR code. On a computer: import the .conf file.")}</div>
-        {qr && <img src={qr} alt="" className="mx-auto rounded-lg bg-white p-2" />}
-        <Notice tone="warn">{tr("This QR code and file grant access to the NAS: do not share them.")}</Notice>
-      </div>
-    </Modal>
-  );
-}
+type Data = WGData & { installed: boolean; config: VPN; serverIp: string; lanGuess: string; ddns: DDNS; ddnsHost: string };
 
 export default function RemoteAccess() {
-  const { confirm } = useUI();
   const { data, isLoading, error } = useQuery({ queryKey: ["vpn"], queryFn: () => api.get<Data>("/api/vpn"), refetchInterval: 5000 });
   const install = useAction(() => api.post("/api/system/components/vpn/install"));
   const [c, setC] = useState<VPN | null>(null);
   const [d, setD] = useState<DDNS | null>(null);
-  const [add, setAdd] = useState({ name: "", mode: "lan" as Peer["mode"] });
-  const [show, setShow] = useState<{ name: string; config: string } | null>(null);
   useEffect(() => {
     if (data && !c) setC({ ...data.config, lan: data.config.lan || data.lanGuess, endpoint: data.config.endpoint || data.ddnsHost });
     if (data && !d) setD(data.ddns);
   }, [data, c, d]);
   const save = useAction(() => api.put("/api/vpn", c), { success: tr("VPN saved") });
-  const addPeer = useAction(() => api.post<{ peer: Peer; config: string }>("/api/vpn/peers", add), { onDone: (r) => { setShow({ name: r.peer.name, config: r.config }); setAdd({ ...add, name: "" }); } });
-  const showPeer = useAction((id: string) => api.get<{ name: string; config: string }>(`/api/vpn/peers/${id}/config`), { onDone: (r) => setShow(r) });
-  const delPeer = useAction((id: string) => api.del(`/api/vpn/peers/${id}`), { success: tr("Device deleted") });
   const saveDDNS = useAction(() => api.put<DDNS>("/api/ddns", d), { success: tr("Dynamic DNS saved"), onDone: (r) => setD(r) });
 
   const header = <PageHeader title={tr("Remote access")} subtitle={tr("WireGuard VPN and dynamic DNS: access the NAS from outside without exposing its services")} icon={<Waypoints size={20} />} />;
@@ -60,7 +32,7 @@ export default function RemoteAccess() {
   return (
     <div>
       {header}
-      <ErrorBox error={save.error || addPeer.error || saveDDNS.error} />
+      <ErrorBox error={save.error || saveDDNS.error} />
       <div className="space-y-5">
         <Card title={<span className="flex items-center gap-2"><Waypoints size={16} className="text-accent" />{tr("WireGuard VPN server")}</span>} actions={data.installed && <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
           {!data.installed ? (
@@ -73,41 +45,14 @@ export default function RemoteAccess() {
                 <Field label={tr("UDP port")}><Input type="number" value={c.port} onChange={(e) => setC({ ...c, port: +e.target.value })} /></Field>
                 <Field label={tr("Local network reachable")} hint={tr("For \"NAS and local network\" devices")}><Input className="mono" value={c.lan} onChange={(e) => setC({ ...c, lan: e.target.value.trim() })} placeholder="192.168.1.0/24" /></Field>
                 <Field label={tr("VPN network")} hint={tr("NAS address in the VPN: {0}", data.serverIp)}><Input className="mono" value={c.subnet} onChange={(e) => setC({ ...c, subnet: e.target.value.trim() })} /></Field>
+                <Field label={tr("Default access of new devices")}><Select value={c.defaultMode ?? "lan"} onChange={(e) => setC({ ...c, defaultMode: e.target.value as Mode })}>{(Object.keys(m) as Mode[]).map((k) => <option key={k} value={k}>{m[k]}</option>)}</Select></Field>
               </div>
+              <Switch checked={!!c.userDevices} onChange={(v) => setC({ ...c, userDevices: v })} label={tr("Users can add their own devices")} hint={tr("From \"My VPN devices\" in their account menu, with the default access")} />
             </div>
           )}
         </Card>
 
-        {data.installed && data.config.publicKey && (
-          <Card title={<span className="flex items-center gap-2"><Smartphone size={16} className="text-accent" />{tr("Devices")}</span>}>
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <Field label={tr("Device name")} className="min-w-48 flex-1"><Input value={add.name} onChange={(e) => setAdd({ ...add, name: e.target.value })} placeholder={tr("Marie's phone")} /></Field>
-                <Field label={tr("Access")}><Select value={add.mode} onChange={(e) => setAdd({ ...add, mode: e.target.value as Peer["mode"] })}>{(Object.keys(m) as Peer["mode"][]).map((k) => <option key={k} value={k}>{m[k]}</option>)}</Select></Field>
-                <Button variant="primary" icon={<Plus size={15} />} disabled={!add.name} loading={addPeer.isPending} onClick={() => addPeer.mutate()}>{tr("Add")}</Button>
-              </div>
-              {data.config.peers.length === 0 ? <Empty icon={<Smartphone />} title={tr("No devices")} text={tr("Add a device, then scan its QR code with the WireGuard app.")} /> : (
-                <div className="divide-y divide-line rounded-xl border border-line">
-                  {data.config.peers.map((p) => {
-                    const st = data.status[p.publicKey];
-                    const online = st && st.handshake > 0 && Date.now() / 1000 - st.handshake < 180;
-                    return (
-                      <div key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]">
-                        <Badge tone={online ? "ok" : "neutral"} dot>{online ? tr("Connected") : tr("Offline")}</Badge>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-muted text-[12px]">{m[p.mode]} · <span className="mono">{p.ip}</span>{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.tx)} ↑${bytes(st.rx)}` : ""}</div>
-                        </div>
-                        <IconButton title={tr("QR code and configuration")} onClick={() => showPeer.mutate(p.id)}><QrCode size={15} /></IconButton>
-                        <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", p.name), text: tr("The device will no longer be able to connect."), danger: true })) delPeer.mutate(p.id); }}><Trash2 size={15} /></IconButton>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
+        {data.installed && data.config.publicKey && <WireGuardTabs data={data} />}
 
         <Card title={<span className="flex items-center gap-2"><Globe size={16} className="text-accent" />{tr("Dynamic DNS")}</span>} actions={<Button size="sm" variant="primary" loading={saveDDNS.isPending} onClick={() => saveDDNS.mutate()}>{tr("Save")}</Button>}>
           <div className="space-y-4">
@@ -138,7 +83,6 @@ export default function RemoteAccess() {
 
         <RemoteExtras />
       </div>
-      {show && <ConfigModal name={show.name} config={show.config} onClose={() => setShow(null)} />}
     </div>
   );
 }

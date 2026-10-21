@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -74,9 +73,18 @@ func Validate(c *store.VPN) error {
 		return fmt.Errorf("invalid public address")
 	}
 	if c.LAN != "" {
-		if _, _, err := net.ParseCIDR(c.LAN); err != nil {
+		_, n, err := net.ParseCIDR(c.LAN)
+		if err != nil || n.IP.To4() == nil {
 			return fmt.Errorf("invalid local network")
 		}
+		c.LAN = n.String()
+	}
+	switch c.DefaultMode {
+	case "":
+		c.DefaultMode = "lan"
+	case "nas", "lan", "all":
+	default:
+		return fmt.Errorf("invalid access")
 	}
 	return nil
 }
@@ -109,19 +117,34 @@ func NextIP(c store.VPN) (string, error) {
 	return "", fmt.Errorf("the VPN network is full")
 }
 
-// NewPeer validates a device name and access mode and creates its keys.
-func NewPeer(c store.VPN, name, mode string) (store.VPNPeer, error) {
-	name = strings.TrimSpace(name)
+// CheckName validates a device name, unique per owner (skip: the ID of the
+// peer being renamed).
+func CheckName(c store.VPN, owner, name, skip string) error {
 	if !nameRe.MatchString(name) {
-		return store.VPNPeer{}, fmt.Errorf("invalid device name")
+		return fmt.Errorf("invalid device name")
 	}
 	for _, p := range c.Peers {
-		if strings.EqualFold(p.Name, name) {
-			return store.VPNPeer{}, fmt.Errorf("a device with this name already exists")
+		if p.ID != skip && p.Owner == owner && strings.EqualFold(p.Name, name) {
+			return fmt.Errorf("a device with this name already exists")
 		}
+	}
+	return nil
+}
+
+// NewPeer validates a device name and access mode and creates its keys.
+// Names are unique per owner; mode "" is the default mode of the server.
+func NewPeer(c store.VPN, owner, name, mode string) (store.VPNPeer, error) {
+	name = strings.TrimSpace(name)
+	if err := CheckName(c, owner, name, ""); err != nil {
+		return store.VPNPeer{}, err
+	}
+	if mode == "" {
+		mode = c.DefaultMode
 	}
 	switch mode {
 	case "nas", "lan", "all":
+	case "":
+		mode = "lan"
 	default:
 		return store.VPNPeer{}, fmt.Errorf("invalid access")
 	}
@@ -135,34 +158,30 @@ func NewPeer(c store.VPN, name, mode string) (store.VPNPeer, error) {
 	}
 	psk := make([]byte, 32)
 	_, _ = rand.Read(psk)
-	return store.VPNPeer{ID: strconv.FormatInt(time.Now().UnixNano(), 36), Name: name, Mode: mode, IP: ip, PrivateKey: priv, PublicKey: pub, PresharedKey: base64.StdEncoding.EncodeToString(psk), CreatedAt: time.Now()}, nil
+	p := store.VPNPeer{ID: strconv.FormatInt(time.Now().UnixNano(), 36), Name: name, Mode: mode, IP: ip, PrivateKey: priv, PublicKey: pub, PresharedKey: base64.StdEncoding.EncodeToString(psk), CreatedAt: time.Now()}
+	p.Owner = owner
+	return p, nil
 }
 
-func needsNAT(c store.VPN) bool {
-	for _, p := range c.Peers {
-		if p.Mode != "nas" {
-			return true
-		}
-	}
-	return false
-}
-
-// RenderServer returns the wg-quick configuration of the NAS.
+// RenderServer returns the wg-quick configuration of the NAS (firewall and
+// NAT: RenderFirewall).
 func RenderServer(c store.VPN) string {
 	var b strings.Builder
 	_, nw, _ := net.ParseCIDR(c.Subnet)
 	ones, _ := nw.Mask.Size()
-	fmt.Fprintf(&b, "# Managed by StrataOS — changes are overwritten.\n[Interface]\nAddress = %s/%d\nListenPort = %d\nPrivateKey = %s\n", ServerIP(c), ones, c.Port, c.PrivateKey)
-	if needsNAT(c) {
-		// Devices allowed beyond the NAS go out with the NAS address.
-		fmt.Fprintf(&b, "PostUp = sysctl -q -w net.ipv4.ip_forward=1; nft add table ip strata_vpn; nft add chain ip strata_vpn post '{ type nat hook postrouting priority 100 ; }'; nft add rule ip strata_vpn post ip saddr %s oifname != \"%s\" masquerade\n", c.Subnet, Iface)
-		b.WriteString("PostDown = nft delete table ip strata_vpn\n")
-	}
+	fmt.Fprintf(&b, "# Managed by StrataOS — changes are overwritten.\n[Interface]\nAddress = %s/%d\nListenPort = %d\nPrivateKey = %s\nFwMark = %#x\n", ServerIP(c), ones, c.Port, c.PrivateKey, FwMark)
 	for _, p := range c.Peers {
 		if p.Disabled {
 			continue
 		}
-		fmt.Fprintf(&b, "\n# %s\n[Peer]\nPublicKey = %s\nPresharedKey = %s\nAllowedIPs = %s/32\n", strings.ReplaceAll(p.Name, "\n", " "), p.PublicKey, p.PresharedKey, p.IP)
+		allowed := append([]string{p.IP + "/32"}, p.Subnets...)
+		fmt.Fprintf(&b, "\n# %s\n[Peer]\nPublicKey = %s\nPresharedKey = %s\nAllowedIPs = %s\n", strings.ReplaceAll(p.Name, "\n", " "), p.PublicKey, p.PresharedKey, strings.Join(allowed, ", "))
+		if p.Kind == "site" && p.Endpoint != "" {
+			fmt.Fprintf(&b, "Endpoint = %s\n", p.Endpoint)
+		}
+		if p.Kind == "site" && p.Keepalive > 0 {
+			fmt.Fprintf(&b, "PersistentKeepalive = %d\n", p.Keepalive)
+		}
 	}
 	return b.String()
 }
@@ -172,10 +191,7 @@ func RenderClient(c store.VPN, p store.VPNPeer) string {
 	allowed := ServerIP(c) + "/32"
 	switch p.Mode {
 	case "lan":
-		allowed = c.Subnet
-		if c.LAN != "" {
-			allowed += ", " + c.LAN
-		}
+		allowed = strings.Join(append([]string{c.Subnet}, lanTargets(c)...), ", ")
 	case "all":
 		allowed = "0.0.0.0/0"
 	}
@@ -187,48 +203,7 @@ func RenderClient(c store.VPN, p store.VPNPeer) string {
 	if endpoint == "" {
 		endpoint = "<adresse-publique>"
 	}
-	return fmt.Sprintf("[Interface]\nPrivateKey = %s\nAddress = %s/32\n%s\n[Peer]\nPublicKey = %s\nPresharedKey = %s\nEndpoint = %s:%d\nAllowedIPs = %s\nPersistentKeepalive = 25\n", p.PrivateKey, p.IP, dns, c.PublicKey, p.PresharedKey, endpoint, c.Port, allowed)
-}
-
-// Apply writes the configuration and starts, reloads or stops the server.
-func Apply(c store.VPN) error {
-	unit := "wg-quick@" + Iface + ".service"
-	if !c.Enabled {
-		if Installed() {
-			_, _ = sys.Run("systemctl", "disable", "--now", unit)
-		}
-		return nil
-	}
-	if !Installed() {
-		return fmt.Errorf("WireGuard is not installed")
-	}
-	if err := os.MkdirAll("/etc/wireguard", 0o700); err != nil {
-		return err
-	}
-	old, _ := os.ReadFile(ConfPath)
-	conf := RenderServer(c)
-	if err := sys.WriteFileAtomic(ConfPath, []byte(conf), 0o600); err != nil {
-		return err
-	}
-	_, _ = sys.Run("systemctl", "enable", unit)
-	active, _ := sys.Run("systemctl", "is-active", unit)
-	switch {
-	case strings.TrimSpace(active) != "active":
-		_, err := sys.Run("systemctl", "start", unit)
-		return err
-	case needsNAT(c) != strings.Contains(string(old), "PostUp"):
-		// NAT rules change only on restart.
-		_, err := sys.Run("systemctl", "restart", unit)
-		return err
-	default:
-		// Peers change without cutting the other devices.
-		stripped, err := sys.Run("wg-quick", "strip", Iface)
-		if err != nil {
-			return err
-		}
-		_, err = sys.RunInput(stripped, "wg", "syncconf", Iface, "/dev/stdin")
-		return err
-	}
+	return fmt.Sprintf("[Interface]\nPrivateKey = %s\nAddress = %s/32\n%s\n[Peer]\nPublicKey = %s\nPresharedKey = %s\nEndpoint = %s\nAllowedIPs = %s\nPersistentKeepalive = 25\n", p.PrivateKey, p.IP, dns, c.PublicKey, p.PresharedKey, net.JoinHostPort(endpoint, strconv.Itoa(c.Port)), allowed)
 }
 
 // PeerStatus is the live state of a device.
@@ -240,9 +215,12 @@ type PeerStatus struct {
 }
 
 // Status reads `wg show strata dump`, keyed by public key.
-func Status() map[string]PeerStatus {
+func Status() map[string]PeerStatus { return StatusOf(Iface) }
+
+// StatusOf reads the peers of a WireGuard interface.
+func StatusOf(iface string) map[string]PeerStatus {
 	out := map[string]PeerStatus{}
-	dump, err := sys.Run("wg", "show", Iface, "dump")
+	dump, err := sys.Run("wg", "show", iface, "dump")
 	if err != nil {
 		return out
 	}

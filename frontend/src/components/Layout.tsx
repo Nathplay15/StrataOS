@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -42,6 +42,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/photos", label: tr("Photos"), icon: <Images size={17} /> },
       { to: "/media", label: tr("Media"), icon: <Clapperboard size={17} /> },
       { to: "/links", label: tr("Shared links"), icon: <Link2 size={17} /> },
+      { to: "/vpn", label: tr("My VPN devices"), icon: <Smartphone size={17} /> },
       { to: "/shares", label: tr("Shared folders"), icon: <Share2 size={17} />, admin: true },
       { to: "/users", label: tr("Users"), icon: <Users size={17} />, admin: true },
       { to: "/system/fileservices", label: tr("File services"), icon: <FolderTree size={17} />, admin: true },
@@ -272,6 +273,7 @@ export function Layout({ me }: { me: Me }) {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/vpn"); }}><Smartphone size={15} /> {" "}{tr("My VPN devices")}</button>
                   <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> {" "}{tr("Desktop mode")}</button>
                   {me.role === "admin" && (
                     <>

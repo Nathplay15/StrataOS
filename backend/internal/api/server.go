@@ -98,6 +98,7 @@ func New(c Config) *Server {
 	go s.ransomFileServicesLoop()
 	go s.trapLoop()
 	go s.ddnsLoop()
+	go s.vpnLoop()
 	go s.photoLoop()
 	go s.shareQuotaLoop()
 	go s.energyLoop()

@@ -47,7 +47,9 @@ type BackupSecrets struct {
 
 type VPNSecrets struct {
 	PrivateKey string               `json:"privateKey,omitempty"`
-	Peers      map[string][2]string `json:"peers,omitempty"` // peer ID → private key, preshared key
+	Peers      map[string][2]string `json:"peers,omitempty"`  // peer ID → private key, preshared key
+	Links      map[string][2]string `json:"links,omitempty"`  // site link ID → private key, preshared key
+	Client     map[string]string    `json:"client,omitempty"` // outgoing tunnel: privateKey, presharedKey
 }
 
 // LinuxUser is what the system knows of an account.
@@ -226,7 +228,20 @@ func Build(src Source) (Config, Secrets) {
 			vs.Peers[p.ID] = [2]string{priv, psk}
 		}
 	}
-	if vs.PrivateKey != "" || len(vs.Peers) > 0 {
+	vs.Links, vs.Client = map[string][2]string{}, map[string]string{}
+	vpn.Links = slices.Clone(st.VPN.Links)
+	for i := range vpn.Links {
+		l := &vpn.Links[i]
+		priv, psk := mask(&l.PrivateKey), mask(&l.PresharedKey)
+		if priv != "" || psk != "" {
+			vs.Links[l.ID] = [2]string{priv, psk}
+		}
+	}
+	vpn.Client.Apps = slices.Clone(st.VPN.Client.Apps)
+	vpn.Client.Detached = nil // runtime: networks taken from containers here
+	put(vs.Client, "privateKey", mask(&vpn.Client.PrivateKey))
+	put(vs.Client, "presharedKey", mask(&vpn.Client.PresharedKey))
+	if vs.PrivateKey != "" || len(vs.Peers) > 0 || len(vs.Links) > 0 || len(vs.Client) > 0 {
 		sec.VPN = &vs
 	}
 	c.VPN = &vpn
@@ -364,6 +379,14 @@ func Merge(c *Config, sec *Secrets) {
 			unmask(&p.PrivateKey, k[0])
 			unmask(&p.PresharedKey, k[1])
 		}
+		for i := range v.Links {
+			l := &v.Links[i]
+			k := sec.VPN.Links[l.ID]
+			unmask(&l.PrivateKey, k[0])
+			unmask(&l.PresharedKey, k[1])
+		}
+		unmask(&v.Client.PrivateKey, sec.VPN.Client["privateKey"])
+		unmask(&v.Client.PresharedKey, sec.VPN.Client["presharedKey"])
 	}
 	if c.DDNS != nil {
 		unmask(&c.DDNS.Token, sec.DDNS)
