@@ -52,10 +52,15 @@ func validateSync(t *store.BackupTask) error {
 func syncConf(id string) string { return filepath.Join(SyncDir, id+".conf") }
 func syncWork(id string) string { return filepath.Join(SyncDir, "bisync-"+id) }
 
-// rcloneConfig is the SFTP remote of a two-way sync (key authentication only).
-func rcloneConfig(t *store.BackupTask) string {
-	return fmt.Sprintf("[strata]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = %s\nknown_hosts_file = %s\nshell_type = none\n",
+// rcloneConfig is the SFTP remote of a two-way sync (key authentication only),
+// limited to the host key algorithms known_hosts can verify.
+func rcloneConfig(t *store.BackupTask, algos string) string {
+	c := fmt.Sprintf("[strata]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = %s\nknown_hosts_file = %s\nshell_type = none\n",
 		t.Host, t.User, portOr(t.Port, 22), keyPath(), knownHostsPath())
+	if algos != "" {
+		c += "host_key_algorithms = " + algos + "\n"
+	}
+	return c
 }
 
 // bisyncArgs builds the rclone command line. resync initialises the sync:
@@ -93,7 +98,8 @@ func writeSyncConf(ctx context.Context, t *store.BackupTask) (string, error) {
 		id = "test"
 	}
 	conf := syncConf(id)
-	return conf, sys.WriteFileAtomic(conf, []byte(rcloneConfig(t)), 0o600)
+	algos := HostKeyAlgorithms(t.Host, portOr(t.Port, 22))
+	return conf, sys.WriteFileAtomic(conf, []byte(rcloneConfig(t, algos)), 0o600)
 }
 
 var (
