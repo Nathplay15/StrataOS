@@ -489,10 +489,12 @@ type State struct {
 	Remote    Remote        `json:"remote,omitzero"`
 	ISCSI     ISCSI         `json:"iscsi"`
 	// Network is the configuration StrataOS applied (links it manages).
-	Network  *network.Config `json:"network,omitempty"`
-	UPS      *ups.Config     `json:"ups,omitempty"`
-	Events   []Event         `json:"events"`
-	Settings Settings        `json:"settings"`
+	Network *network.Config `json:"network,omitempty"`
+	UPS     *ups.Config     `json:"ups,omitempty"`
+	// ConfigBackup: automatic exports of this configuration.
+	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
+	Events       []Event      `json:"events"`
+	Settings     Settings     `json:"settings"`
 }
 
 const maxEvents = 2000

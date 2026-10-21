@@ -14,7 +14,7 @@ type Bond = IP & { name: string; bondMode: string; members: string[] };
 type Bridge = IP & { name: string; members: string[]; stp: boolean };
 type VLAN = IP & { parent: string; id: number };
 type Config = { interfaces: Iface[]; bonds: Bond[]; bridges: Bridge[]; vlans: VLAN[] };
-type Pending = { deadline: string; links: string[]; token?: string };
+export type Pending = { deadline: string; links: string[]; token?: string };
 type Net = { status: Status; manager: string; config: Config; pending: Pending | null };
 
 const bondModes: [string, string][] = [
@@ -52,7 +52,7 @@ function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
 }
 
 /** Watches a trial configuration: confirms it when the NAS answers, offers the new addresses otherwise. */
-function TrialModal({ pending, newURLs, onClose }: { pending: Pending; newURLs: string[]; onClose: () => void }) {
+export function TrialModal({ pending, newURLs, onClose }: { pending: Pending; newURLs: string[]; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useUI();
   const [left, setLeft] = useState(Math.round((new Date(pending.deadline).getTime() - Date.now()) / 1000));

@@ -98,6 +98,7 @@ func New(c Config) *Server {
 	go s.lockedSharesNotice()
 	go s.guardLoop()
 	go s.iscsiLoop()
+	go s.configAutoLoop()
 	return s
 }
 
@@ -228,6 +229,7 @@ func (s *Server) routes() {
 	s.fleetRoutes()
 	s.remoteRoutes()
 	s.iscsiRoutes()
+	s.configRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))
