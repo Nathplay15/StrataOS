@@ -25,23 +25,54 @@ check "DLNA enabled on the Media share" "$(c PUT /api/media/dlna -d '{"enabled":
 check "configuration written" "$(vm "cat /etc/strata-minidlna.conf")" "media_dir=V,$MDIR"
 for _ in $(seq 1 20); do vm "curl -s -m 2 http://127.0.0.1:8200/rootDesc.xml" | grep -q "E2E NAS" && break; sleep 1; done
 check "rootDesc.xml answers" "$(vm "curl -s -m 5 http://127.0.0.1:8200/rootDesc.xml")" "<friendlyName>E2E NAS"
-check "runs as minidlna, not root" "$(vm "ps -o user= -C minidlnad | sort -u")" "minidlna"
+check "service active" "$(c GET /api/media/dlna | py 'print(d["status"]["service"])')" "active"
+# Only one capability, reading any file (bit 2 = CAP_DAC_READ_SEARCH).
+check "keeps only CAP_DAC_READ_SEARCH" "$(vm "grep -E '^Cap(Eff|Bnd)' /proc/\$(pgrep -xo minidlnad)/status | awk '{print \$2}' | sort -u")" "0000000000000004"
 check "rescan" "$(c POST /api/media/dlna/rescan)" '"ok":true'
-BROWSE='<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>2$8</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>0</StartingIndex><RequestedCount>50</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>'
-browse() { echo "$BROWSE" | ./vm/vm.sh ssh "curl -s -m 5 -H 'Content-Type: text/xml; charset=\"utf-8\"' -H 'SOAPACTION: \"urn:schemas-upnp-org:service:ContentDirectory:1#Browse\"' --data-binary @- http://127.0.0.1:8200/ctl/ContentDir" 2>/dev/null; }
+# Walks the ContentDirectory from the root (object IDs differ between
+# ReadyMedia versions) and prints the titles of the items found.
+cat > "$TMP/browse.py" <<'PY'
+import re, urllib.request, html
+URL = "http://127.0.0.1:8200/ctl/ContentDir"
+ENV = ('<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+       's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1">'
+       '<ObjectID>%s</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>0</StartingIndex>'
+       '<RequestedCount>200</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>')
+def browse(oid):
+    req = urllib.request.Request(URL, data=(ENV % html.escape(oid)).encode(), headers={
+        "Content-Type": 'text/xml; charset="utf-8"', "SOAPACTION": '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"'})
+    body = urllib.request.urlopen(req, timeout=5).read().decode(errors="replace")
+    m = re.search(r"<Result>(.*?)</Result>", body, re.S)
+    return html.unescape(m.group(1)) if m else ""
+todo, seen, titles = ["0"], set(), []
+while todo and len(seen) < 100:
+    oid = todo.pop(0)
+    if oid in seen:
+        continue
+    seen.add(oid)
+    didl = browse(oid)
+    todo += [html.unescape(x) for x in re.findall(r'<container[^>]*\bid="([^"]+)"', didl)]
+    titles += re.findall(r"<item\b.*?<dc:title>(.*?)</dc:title>", didl, re.S)
+print("containers=%d items: %s" % (len(seen), " | ".join(sorted(set(titles)))))
+PY
+browse() { ./vm/vm.sh ssh "python3 - " < "$TMP/browse.py" 2>/dev/null; }
 for _ in $(seq 1 30); do browse | grep -q e2e-clip && break; sleep 2; done
 # The share has no permission for anyone: the server reads it anyway (CAP_DAC_READ_SEARCH).
+check "no access error in the server log" "errors=$(vm "sudo journalctl -u strata-minidlna -b --no-pager | grep -ciE 'not accessible|could not access|permission denied'")" "errors=0"
 check "test video listed by ContentDirectory Browse" "$(browse)" "e2e-clip"
 check "indexed files counted" "$(c GET /api/media/dlna | py 'print(d["status"]["service"], d["status"]["video"] >= 1)')" "active True"
 check "DLNA disabled" "$(c PUT /api/media/dlna -d '{"enabled":false,"name":"E2E NAS","folders":[{"share":"Media","type":"video"}]}')" '"ok":true'
 check "port 8200 closed" "$(vm "curl -s -m 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:8200/rootDesc.xml")" "000"
 
 # ---- Music: OwnTone ----
-check "OwnTone app installed" "$(job "$(c POST /api/apps/owntone/install -d '{"name":"owntone","values":{"CONFIG_DIR":"/srv/strata/main/apps/owntone"}}')")" "success"
+check "OwnTone app installed" "$(job "$(c POST /api/apps/owntone/install -d '{"name":"owntone","values":{"CONFIG_DIR":"/srv/strata/main/apps/owntone/config","CACHE_DIR":"/srv/strata/main/apps/owntone/cache"}}')")" "success"
 check "music page sees it" "$(c GET /api/media/music | py 'print(d["installed"], d["allowed"])')" "True True"
 check "unknown music share refused" "$(c PUT /api/media/music -d '{"shares":["Nope"]}')" "unknown shared folder"
 check "music folders applied" "$(job "$(c PUT /api/media/music -d '{"shares":["Media"],"users":false}')")" "success"
-check "OwnTone configuration patched" "$(vm "sudo grep -E '^\s*(directories|trusted_networks)' /srv/strata/main/apps/owntone/owntone.conf | tr '\n' ' '")" "\"$MDIR\""
+OTCONF=/srv/strata/main/apps/owntone/config/owntone.conf
+check "OwnTone configuration patched" "$(vm "sudo grep -E '^\s*(directories|trusted_networks)' $OTCONF | tr '\n' ' '")" "\"$MDIR\""
+check "API trusted for local clients only" "$(vm "sudo grep -E '^\s*trusted_networks' $OTCONF")" '{ "localhost" }'
+check "MPD server off" "$(vm "sudo sed -n '/^mpd {/,/^}/p' $OTCONF | grep -E '^\s*port'")" "port = 0"
 SONGS=0
 for _ in $(seq 1 60); do SONGS=$(c GET /api/media/music/proxy/api/library | py 'print(d.get("songs",0))' 2>/dev/null); [ "${SONGS:-0}" -ge 1 ] 2>/dev/null && break; sleep 3; done
 check "library scan found the test song" "$SONGS" "1"
