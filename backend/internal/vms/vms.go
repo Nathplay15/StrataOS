@@ -68,6 +68,19 @@ type VM struct {
 	NICs      []NIC  `json:"nics"`
 	VNC       int    `json:"vncPort"`
 	Dir       string `json:"dir,omitempty"`
+	// Template VMs cannot start: they are cloned into new VMs.
+	Template bool `json:"template"`
+	// Cloud: created from a cloud image (cloud-init seed attached).
+	Cloud     string      `json:"cloud,omitempty"`
+	USB       []USBDevice `json:"usb"`
+	PCI       []string    `json:"pci"` // host PCI addresses passed through
+	Snapshots int         `json:"snapshots"`
+	// AutostartOrder and AutostartDelay are filled in by the API (StrataOS
+	// starts these VMs itself, in order).
+	AutostartOrder int `json:"autostartOrder,omitempty"`
+	AutostartDelay int `json:"autostartDelay,omitempty"`
+	// LibvirtAutostart: libvirt's own autostart flag.
+	LibvirtAutostart bool `json:"-"`
 }
 
 type domainXML struct {
@@ -117,6 +130,24 @@ type domainXML struct {
 			Type string `xml:"type,attr"`
 			Port int    `xml:"port,attr"`
 		} `xml:"graphics"`
+		Hostdevs []struct {
+			Type   string `xml:"type,attr"`
+			Source struct {
+				Vendor struct {
+					ID string `xml:"id,attr"`
+				} `xml:"vendor"`
+				Product struct {
+					ID string `xml:"id,attr"`
+				} `xml:"product"`
+				Address struct {
+					Domain   string `xml:"domain,attr"`
+					Bus      string `xml:"bus,attr"`
+					Slot     string `xml:"slot,attr"`
+					Function string `xml:"function,attr"`
+					Device   string `xml:"device,attr"`
+				} `xml:"address"`
+			} `xml:"source"`
+		} `xml:"hostdev"`
 	} `xml:"devices"`
 }
 
@@ -146,7 +177,7 @@ func Get(name string) (*VM, error) {
 	if err := xml.Unmarshal([]byte(out), &d); err != nil {
 		return nil, err
 	}
-	vm := &VM{Name: d.Name, UUID: d.UUID, VCPUs: d.VCPU, MemoryMB: memMB(d.Memory.Value, d.Memory.Unit), Disks: []Disk{}, NICs: []NIC{}, Firmware: "bios"}
+	vm := &VM{Name: d.Name, UUID: d.UUID, VCPUs: d.VCPU, MemoryMB: memMB(d.Memory.Value, d.Memory.Unit), Disks: []Disk{}, NICs: []NIC{}, Firmware: "bios", USB: []USBDevice{}, PCI: []string{}}
 	if d.OS.Fw == "efi" || strings.Contains(strings.ToLower(d.OS.Loader), "ovmf") {
 		vm.Firmware = "uefi"
 	}
@@ -184,12 +215,32 @@ func Get(name string) (*VM, error) {
 			vm.VNC = g.Port
 		}
 	}
+	meta := readMeta(name)
+	vm.Template, vm.Cloud = meta.Template == "yes", meta.Cloud
+	for _, h := range d.Devices.Hostdevs {
+		src := h.Source
+		switch h.Type {
+		case "usb":
+			u := USBDevice{Vendor: trimHex(src.Vendor.ID), Product: trimHex(src.Product.ID)}
+			for _, m := range meta.USB {
+				if m.Vendor == u.Vendor && m.Product == u.Product {
+					u.Serial = m.Serial
+				}
+			}
+			vm.USB = append(vm.USB, u)
+		case "pci":
+			a := src.Address
+			vm.PCI = append(vm.PCI, pciAddr(a.Domain, a.Bus, a.Slot, a.Function))
+		}
+	}
+	vm.Snapshots = snapshotCount(name)
 	vm.State, _ = virsh("domstate", name)
 	vm.State = strings.TrimSpace(vm.State)
 	if info, err := virsh("dominfo", name); err == nil {
 		for _, l := range strings.Split(info, "\n") {
 			if k, v, ok := strings.Cut(l, ":"); ok && strings.TrimSpace(k) == "Autostart" {
-				vm.Autostart = strings.TrimSpace(v) == "enable"
+				vm.LibvirtAutostart = strings.TrimSpace(v) == "enable"
+				vm.Autostart = vm.LibvirtAutostart
 			}
 		}
 	}
@@ -291,49 +342,71 @@ func grantQemu(p string, write bool) error {
 
 var bridgeRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-]{0,14}$`)
 
-// Create defines a VM with virt-install and boots it on its ISO.
-func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
+// newVMDir validates the common fields of a creation request and creates the
+// VM folder (storage/<name>), readable by QEMU.
+func newVMDir(r *CreateReq) (string, error) {
 	if !Installed() {
-		return fmt.Errorf("virtualisation is not installed")
+		return "", fmt.Errorf("virtualisation is not installed")
 	}
 	if err := ValidName(r.Name); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := virsh("dominfo", r.Name); err == nil {
-		return fmt.Errorf("a VM named %s already exists", r.Name)
+		return "", fmt.Errorf("a VM named %s already exists", r.Name)
 	}
-	if r.VCPUs < 1 || r.VCPUs > 64 || r.MemoryMB < 256 || r.MemoryMB > 1024*1024 || r.DiskGB < 1 || r.DiskGB > 64*1024 {
-		return fmt.Errorf("invalid CPU, memory or disk size")
+	if r.VCPUs < 1 || r.VCPUs > 64 || r.MemoryMB < 256 || r.MemoryMB > 1024*1024 || r.DiskGB < 0 || r.DiskGB > 64*1024 {
+		return "", fmt.Errorf("invalid CPU, memory or disk size")
 	}
 	storage, err := insideStrata(r.Storage)
 	if err != nil {
-		return err
+		return "", err
+	}
+	if r.Network != "" && r.Network != "nat" && !bridgeRe.MatchString(r.Network) {
+		return "", fmt.Errorf("invalid network")
 	}
 	dir := filepath.Join(storage, r.Name)
 	if _, err := os.Stat(dir); err == nil {
-		return fmt.Errorf("%s already exists", dir)
+		return "", fmt.Errorf("%s already exists", dir)
 	}
-	args := []string{"--connect", "qemu:///system", "--name", r.Name, "--memory", strconv.Itoa(r.MemoryMB), "--vcpus", strconv.Itoa(r.VCPUs),
-		"--graphics", "vnc,listen=127.0.0.1", "--video", "virtio", "--noautoconsole", "--wait", "0", "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0"}
-	bus := "virtio"
-	variant := "generic"
-	switch r.OS {
-	case "linux":
-		variant = "linux2022"
-	case "windows":
-		// Windows has no virtio drivers out of the box: SATA disk and e1000e NIC work everywhere.
-		variant, bus = "win10", "sata"
-	}
-	args = append(args, "--os-variant", variant)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
+		return "", err
 	}
 	if err := grantQemu(dir, true); err != nil {
 		_ = os.RemoveAll(dir)
+		return "", err
+	}
+	return dir, nil
+}
+
+// diskBus is the bus of the VM disks: Windows has no virtio drivers out of
+// the box, SATA works everywhere.
+func diskBus(os string) string {
+	if os == "windows" {
+		return "sata"
+	}
+	return "virtio"
+}
+
+// installSpec is what differs between an ISO install, a cloud image and an import.
+type installSpec struct {
+	disks   []string // virt-install --disk values
+	cdrom   string   // installation ISO
+	import_ bool     // boot from the existing disks
+	extra   []string // more virt-install arguments
+}
+
+// Create defines a VM with virt-install and boots it on its ISO.
+func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
+	if r.DiskGB < 1 {
+		return fmt.Errorf("invalid CPU, memory or disk size")
+	}
+	dir, err := newVMDir(&r)
+	if err != nil {
 		return err
 	}
+	spec := installSpec{import_: true}
 	disk := filepath.Join(dir, "disk0.qcow2")
-	args = append(args, "--disk", fmt.Sprintf("path=%s,size=%d,format=qcow2,bus=%s,cache=none,discard=unmap", disk, r.DiskGB, bus))
+	spec.disks = []string{fmt.Sprintf("path=%s,size=%d,format=qcow2,bus=%s,cache=none,discard=unmap", disk, r.DiskGB, diskBus(r.OS))}
 	if r.ISO != "" {
 		iso, err := validISO(r.ISO)
 		if err == nil {
@@ -343,8 +416,33 @@ func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
 			_ = os.RemoveAll(dir)
 			return err
 		}
-		args = append(args, "--cdrom", iso)
-	} else {
+		spec.cdrom, spec.import_ = iso, false
+	}
+	if err := install(ctx, r, spec, logf); err != nil {
+		_ = os.RemoveAll(dir)
+		return err
+	}
+	return nil
+}
+
+// install runs virt-install. The VM starts right away unless spec says otherwise.
+func install(ctx context.Context, r CreateReq, spec installSpec, logf func(string, ...any)) error {
+	args := []string{"--connect", "qemu:///system", "--name", r.Name, "--memory", strconv.Itoa(r.MemoryMB), "--vcpus", strconv.Itoa(r.VCPUs),
+		"--graphics", "vnc,listen=127.0.0.1", "--video", "virtio", "--noautoconsole", "--wait", "0", "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0"}
+	variant := "generic"
+	switch r.OS {
+	case "linux":
+		variant = "linux2022"
+	case "windows":
+		variant = "win10"
+	}
+	args = append(args, "--os-variant", variant)
+	for _, d := range spec.disks {
+		args = append(args, "--disk", d)
+	}
+	if spec.cdrom != "" {
+		args = append(args, "--cdrom", spec.cdrom)
+	} else if spec.import_ {
 		args = append(args, "--import")
 	}
 	model := "virtio"
@@ -369,15 +467,11 @@ func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
 			args = append(args, "--tpm", "backend.type=emulator,backend.version=2.0,model=tpm-crb")
 		}
 	}
-	if r.Autostart {
-		args = append(args, "--autostart")
-	}
+	args = append(args, spec.extra...)
+	// Autostart is handled by StrataOS itself (ordered start), not by libvirt.
 	logf("virt-install %s", strings.Join(args, " "))
-	if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 10 * time.Minute, Output: &prefixWriter{logf}}, "virt-install", args...); err != nil {
-		_ = os.RemoveAll(dir)
-		return err
-	}
-	return nil
+	_, err := sys.RunOpts(ctx, sys.Opts{Timeout: 10 * time.Minute, Output: &prefixWriter{logf}}, "virt-install", args...)
+	return err
 }
 
 type prefixWriter struct{ logf func(string, ...any) }
@@ -411,6 +505,13 @@ func Action(name, action string) error {
 		ensureDefaultNetwork()
 		// Permissions of the shares may have been reset since the VM was created.
 		if vm, err := Get(name); err == nil {
+			if vm.Template {
+				return fmt.Errorf("%s is a template: create a VM from it instead", name)
+			}
+			refreshUSB(vm)
+			if err := prepareVFIO(vm); err != nil {
+				return err
+			}
 			for _, d := range vm.Disks {
 				if d.Source == "" || !strings.HasPrefix(d.Source, "/srv/strata/") {
 					continue
@@ -424,18 +525,6 @@ func Action(name, action string) error {
 		}
 	}
 	_, err := virsh(action, name)
-	return err
-}
-
-func SetAutostart(name string, on bool) error {
-	if err := ValidName(name); err != nil {
-		return err
-	}
-	args := []string{"autostart", name}
-	if !on {
-		args = append(args, "--disable")
-	}
-	_, err := virsh(args...)
 	return err
 }
 
@@ -520,8 +609,17 @@ func Delete(name string, removeDisks bool) error {
 }
 
 // ISOs lists .iso files found under /srv/strata (depth-limited).
-func ISOs() []string {
-	var out []string
+func ISOs() []string { return findFiles(map[string]bool{".iso": true}) }
+
+// ImportableFiles lists the disk images and appliances that can be imported.
+func ImportableFiles() []string {
+	return findFiles(map[string]bool{".ova": true, ".ovf": true, ".vmdk": true, ".qcow2": true, ".img": true, ".raw": true, ".vhd": true, ".vhdx": true, ".vdi": true})
+}
+
+// findFiles walks the volumes (depth-limited, hidden folders and VM disk
+// folders included only through their own names) for files with these extensions.
+func findFiles(exts map[string]bool) []string {
+	out := []string{}
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
 		if depth > 4 || len(out) > 200 {
@@ -538,7 +636,7 @@ func ISOs() []string {
 			p := filepath.Join(dir, e.Name())
 			if e.IsDir() {
 				walk(p, depth+1)
-			} else if e.Type().IsRegular() && strings.HasSuffix(strings.ToLower(e.Name()), ".iso") {
+			} else if e.Type().IsRegular() && exts[strings.ToLower(filepath.Ext(e.Name()))] {
 				out = append(out, p)
 			}
 		}

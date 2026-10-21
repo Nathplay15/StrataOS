@@ -218,6 +218,11 @@ type BackupTask struct {
 	Enabled     bool          `json:"enabled"`
 	CreatedAt   time.Time     `json:"createdAt"`
 	History     []ScheduleRun `json:"history"`
+
+	// VMs: virtual machines backed up with the folders (definition and disks,
+	// see backup/vm.go); VMMode keeps running ones consistent: snapshot | suspend | shutdown.
+	VMs    []string `json:"vms,omitempty"`
+	VMMode string   `json:"vmMode,omitempty"`
 }
 
 // Directory is the domain the NAS belongs to: Active Directory (Samba/winbind
@@ -490,6 +495,7 @@ type State struct {
 	ISCSI     ISCSI           `json:"iscsi"`
 	BurnIns   []*BurnInReport `json:"burnIns,omitempty"`
 	Hardware  Hardware        `json:"hardware"`
+	VMs       VMSettings      `json:"vmSettings"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`

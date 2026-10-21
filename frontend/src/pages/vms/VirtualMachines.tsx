@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Cpu, Disc3, HardDrive, Monitor, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, Settings2, Square, Trash2 } from "lucide-react";
+import { Camera, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import { bytes } from "../../lib/format";
-import type { Share } from "../../lib/types";
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
+import { bytes, cx } from "../../lib/format";
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
+import type { CloudImage, ImportInfo, VM, VMData } from "./types";
+import { AutostartPanel, BackupsPanel, CloneVM, ConsoleLog, PCIPanel, Snapshots, StorageSelect, USBPanel } from "./panels";
 
-type Disk = { device: string; target: string; bus: string; source: string; size?: number };
-type NIC = { type: string; source: string; mac: string; model: string; ip?: string };
-type VM = { name: string; state: string; vcpus: number; memoryMb: number; autostart: boolean; firmware: string; os?: string; disks: Disk[]; nics: NIC[]; vncPort: number };
-type VMData = { installed: boolean; kvm: boolean; vms: VM[]; bridges?: string[]; stats?: Record<string, [number, number]> };
+type Tab = "vms" | "templates" | "usb" | "autostart" | "backups" | "pci";
+
+function useAdvanced(): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => {
+    try { return localStorage.getItem("strata-vms-advanced") === "1"; } catch { return false; }
+  });
+  return [v, (x: boolean) => { setV(x); try { localStorage.setItem("strata-vms-advanced", x ? "1" : "0"); } catch { /* private mode */ } }];
+}
 
 const stateLabel: Record<string, [string, "ok" | "warn" | "neutral" | "danger"]> = {
   running: [tr("Running"), "ok"],
@@ -27,6 +32,11 @@ export default function VirtualMachines() {
   const [creating, setCreating] = useState(false);
   const [console, setConsole] = useState<string | null>(null);
   const [editing, setEditing] = useState<VM | null>(null);
+  const [snaps, setSnaps] = useState<VM | null>(null);
+  const [cloning, setCloning] = useState<VM | null>(null);
+  const [log, setLog] = useState<VM | null>(null);
+  const [tab, setTab] = useState<Tab>("vms");
+  const [advanced, setAdvanced] = useAdvanced();
 
   const header = (actions?: React.ReactNode) => <PageHeader title={tr("Virtual machines")} subtitle={tr("KVM machines with in-browser console")} icon={<Monitor size={20} />} actions={actions} />;
   if (isLoading || !data) return <div>{header()}<ErrorBox error={error} /><Spinner /></div>;
@@ -38,30 +48,82 @@ export default function VirtualMachines() {
       </div>
     );
   }
+  const machines = data.vms.filter((v) => !v.template);
+  const templates = data.vms.filter((v) => v.template);
+  const tabs: { id: Tab; label: React.ReactNode }[] = [
+    { id: "vms", label: tr("Machines ({0})", machines.length) },
+    { id: "templates", label: tr("Templates ({0})", templates.length) },
+    { id: "usb", label: tr("USB devices") },
+    { id: "autostart", label: tr("Start order") },
+    { id: "backups", label: tr("Backups") },
+    ...(advanced ? [{ id: "pci" as Tab, label: tr("PCI passthrough") }] : []),
+  ];
+  const cardProps = (vm: VM) => ({ vm, mem: data.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm) });
 
   return (
     <div>
-      {header(<Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreating(true)}>{tr("Create a VM")}</Button>)}
+      {header(<div className="flex items-center gap-4"><Switch checked={advanced} onChange={(v) => { setAdvanced(v); if (!v && tab === "pci") setTab("vms"); }} label={tr("Advanced")} /><Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreating(true)}>{tr("Create a VM")}</Button></div>)}
       <ErrorBox error={error} />
       {!data.kvm && <div className="mb-4"><Notice tone="warn">{tr("Hardware acceleration (/dev/kvm) is unavailable: enable virtualization (VT-x / AMD-V) in the BIOS. VMs will run very slowly.")}</Notice></div>}
-      {data.vms.length === 0 ? (
-        <Card><Empty icon={<Monitor />} title={tr("No virtual machines")} text={tr("Drop an ISO image into a shared folder, then create your first VM.")} action={<Button variant="primary" onClick={() => setCreating(true)}>{tr("Create a VM")}</Button>} /></Card>
+      <Tabs tabs={tabs} value={tab} onChange={setTab} />
+      {tab === "vms" && (machines.length === 0 ? (
+        <Card><Empty icon={<Monitor />} title={tr("No virtual machines")} text={tr("Start from a cloud image (ready in a minute), an ISO dropped into a shared folder, or import a disk from another hypervisor.")} action={<Button variant="primary" onClick={() => setCreating(true)}>{tr("Create a VM")}</Button>} /></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {data.vms.map((vm) => <VMCard key={vm.name} vm={vm} mem={data.stats?.[vm.name]?.[1]} onConsole={() => setConsole(vm.name)} onEdit={() => setEditing(vm)} />)}
+          {machines.map((vm) => <VMCard key={vm.name} {...cardProps(vm)} />)}
         </div>
-      )}
+      ))}
+      {tab === "templates" && (templates.length === 0 ? (
+        <Card><Empty icon={<LayoutTemplate />} title={tr("No templates")} text={tr("Prepare a VM (updates, software), shut it down, then convert it to a template to create identical VMs from it.")} /></Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {templates.map((vm) => <TemplateCard key={vm.name} vm={vm} onCreate={() => setCloning(vm)} />)}
+        </div>
+      ))}
+      {tab === "usb" && <USBPanel vms={data.vms} />}
+      {tab === "autostart" && <AutostartPanel vms={data.vms} />}
+      {tab === "backups" && <BackupsPanel />}
+      {tab === "pci" && advanced && <PCIPanel vms={data.vms} />}
       {creating && <CreateVM bridges={data.bridges ?? []} onClose={() => setCreating(false)} />}
       {console && <Console name={console} onClose={() => setConsole(null)} />}
       {editing && <EditVM vm={editing} onClose={() => setEditing(null)} />}
+      {snaps && <Snapshots vm={snaps} onClose={() => setSnaps(null)} />}
+      {cloning && <CloneVM vm={cloning} onClose={() => setCloning(null)} />}
+      {log && <ConsoleLog vm={log} onClose={() => setLog(null)} />}
     </div>
   );
 }
 
-function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsole: () => void; onEdit: () => void }) {
+function TemplateCard({ vm, onCreate }: { vm: VM; onCreate: () => void }) {
+  const { confirm } = useUI();
+  const base = `/api/vms/${encodeURIComponent(vm.name)}`;
+  const back = useAction(() => api.post(`${base}/template`, { template: false }), { success: tr("Converted back to a VM") });
+  const del = useAction(() => api.del(`${base}?disks=1`), { success: tr("Template deleted") });
+  const disk = vm.disks.find((d) => d.device === "disk");
+  return (
+    <Card>
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><LayoutTemplate size={22} /></div>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{vm.name}</div>
+          <div className="text-muted text-[12px]">{tr("{0} vCPU · {1} MiB · disk {2}", vm.vcpus, vm.memoryMb, disk?.size ? bytes(disk.size) : "—")} · {vm.firmware.toUpperCase()}{vm.cloud && ` · ${tr("cloud image")}`}</div>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <Button size="sm" variant="primary" icon={<Plus size={14} />} onClick={onCreate}>{tr("Create a VM")}</Button>
+        <Button size="sm" onClick={() => back.mutate()}>{tr("Convert to VM")}</Button>
+        <div className="flex-1" />
+        <IconButton title={tr("Delete")} onClick={async () => (await confirm({ title: tr("Delete {0}?", vm.name), text: tr("The template and its disks are deleted. VMs created from it are not affected."), confirm: tr("Delete"), danger: true, typeToConfirm: vm.name })) && del.mutate()}><Trash2 size={15} /></IconButton>
+      </div>
+    </Card>
+  );
+}
+
+function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog }: { vm: VM; mem?: number; onConsole: () => void; onEdit: () => void; onSnapshots: () => void; onClone: () => void; onLog: () => void }) {
   const { confirm } = useUI();
   const act = useAction((a: string) => api.post(`/api/vms/${encodeURIComponent(vm.name)}/${a}`), { success: tr("Command sent") });
   const del = useAction((disks: boolean) => api.del(`/api/vms/${encodeURIComponent(vm.name)}${disks ? "?disks=1" : ""}`), { success: tr("VM deleted") });
+  const template = useAction(() => api.post(`/api/vms/${encodeURIComponent(vm.name)}/template`, { template: true }), { success: tr("Converted to a template") });
   const [label, tone] = stateLabel[vm.state] ?? [vm.state, "neutral"];
   const running = vm.state === "running";
   const disk = vm.disks.find((d) => d.device === "disk");
@@ -80,7 +142,7 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><Monitor size={22} /></div>
           <div>
             <div className="font-semibold">{vm.name}</div>
-            <div className="text-muted text-[12px]">{vm.os === "windows" ? tr("Windows") : vm.os === "linux" ? tr("Linux") : tr("Other")} · {vm.firmware.toUpperCase()}{vm.autostart && ` · ${tr("auto-start")}`}</div>
+            <div className="text-muted text-[12px]">{vm.os === "windows" ? tr("Windows") : vm.os === "linux" ? tr("Linux") : tr("Other")} · {vm.firmware.toUpperCase()}{vm.autostart && ` · ${tr("auto-start #{0}", vm.autostartOrder ?? 0)}`}{vm.snapshots > 0 && ` · ${tr("{0} snapshot(s)", vm.snapshots)}`}</div>
           </div>
         </div>
         <Badge tone={tone} dot>{label}</Badge>
@@ -92,6 +154,12 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
         <div><div className="text-muted">{tr("IP address")}</div><b className="mono">{ip ?? (running ? "…" : "—")}</b></div>
       </div>
       {cd && <div className="text-muted mt-3 flex items-center gap-1.5 truncate text-[12px]"><Disc3 size={13} />{cd.source.split("/").pop()}</div>}
+      {(vm.usb.length > 0 || vm.pci.length > 0) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {vm.usb.map((u) => <Badge key={`${u.vendor}:${u.product}`}><Usb size={11} className="mr-1 inline" />{u.vendor}:{u.product}</Badge>)}
+          {vm.pci.map((a) => <Badge key={a} tone="warn"><Cpu size={11} className="mr-1 inline" />{a}</Badge>)}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
         {!running && vm.state !== "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("start")}>{tr("Start")}</Button>}
         {running && <Button size="sm" variant="primary" icon={<MonitorPlay size={14} />} onClick={onConsole}>{tr("Console")}</Button>}
@@ -101,6 +169,10 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
         {vm.state === "paused" && <Button size="sm" variant="primary" icon={<Play size={14} />} onClick={() => act.mutate("resume")}>{tr("Resume")}</Button>}
         {(running || vm.state === "paused" || vm.state === "in shutdown") && <IconButton title={tr("Force stop")} onClick={async () => (await confirm({ title: tr("Force stop?"), text: tr("Equivalent to pulling the plug: unsaved data in the VM is lost."), confirm: tr("Force"), danger: true })) && act.mutate("destroy")}><Square size={15} /></IconButton>}
         <div className="flex-1" />
+        <IconButton title={tr("Snapshots")} onClick={onSnapshots}><Camera size={15} /></IconButton>
+        <IconButton title={tr("Clone")} disabled={vm.state !== "shut off"} onClick={onClone}><Copy size={15} /></IconButton>
+        <IconButton title={tr("Convert to template")} disabled={vm.state !== "shut off"} onClick={async () => (await confirm({ title: tr("Convert {0} to a template?", vm.name), text: tr("A template cannot start: it is used to create identical VMs. You can convert it back later."), confirm: tr("Convert") })) && template.mutate()}><LayoutTemplate size={15} /></IconButton>
+        <IconButton title={tr("Boot log")} onClick={onLog}><ScrollText size={15} /></IconButton>
         <IconButton title={tr("Settings")} onClick={onEdit}><Settings2 size={15} /></IconButton>
         <IconButton title={tr("Delete")} disabled={running} onClick={remove}><Trash2 size={15} /></IconButton>
       </div>
@@ -108,43 +180,99 @@ function VMCard({ vm, mem, onConsole, onEdit }: { vm: VM; mem?: number; onConsol
   );
 }
 
+type Source = "cloud" | "iso" | "import";
+
+const sources: { id: Source; icon: React.ReactNode; label: string; sub: string }[] = [
+  { id: "cloud", icon: <Cloud size={18} />, label: tr("Cloud image"), sub: tr("Debian or Ubuntu, configured by cloud-init: ready over SSH in a minute") },
+  { id: "iso", icon: <Disc3 size={18} />, label: tr("Install from an ISO"), sub: tr("Any operating system, installed from the console") },
+  { id: "import", icon: <FileInput size={18} />, label: tr("Import"), sub: tr("OVA / OVF, VMDK, VHD(X), qcow2 or raw disk from another hypervisor") },
+];
+
 function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void }) {
-  const isos = useQuery({ queryKey: ["vm-isos"], queryFn: () => api.get<string[]>("/api/vms/isos") });
-  const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
-  const [f, setF] = useState({ name: "", os: "linux", vcpus: 2, memoryMb: 2048, diskGb: 32, iso: "", storage: "", network: "nat", firmware: "uefi", autostart: false });
+  const [source, setSource] = useState<Source>("cloud");
+  const [f, setF] = useState({ name: "", os: "linux", vcpus: 2, memoryMb: 2048, diskGb: 20, iso: "", storage: "", network: "nat", firmware: "uefi", autostart: false });
+  const [ci, setCi] = useState({ image: "debian13", user: "debian", password: "", sshKeys: "", packages: "", address: "", gateway: "", dns: "" });
+  const [imp, setImp] = useState({ source: "" });
+  const [info, setInfo] = useState<ImportInfo | null>(null);
   const set = (k: Partial<typeof f>) => setF({ ...f, ...k });
-  const create = useAction(() => api.post("/api/vms", f), { onDone: onClose });
-  useEffect(() => {
-    if (!f.storage && shares.data?.length) set({ storage: shares.data[0].path });
-  }, [shares.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isos = useQuery({ queryKey: ["vm-isos"], queryFn: () => api.get<string[]>("/api/vms/isos"), enabled: source === "iso" });
+  const images = useQuery({ queryKey: ["vm-cloud-images"], queryFn: () => api.get<CloudImage[]>("/api/vms/cloud-images"), enabled: source === "cloud" });
+  const keys = useQuery({ queryKey: ["vm-ssh-keys"], queryFn: () => api.get<string[]>("/api/vms/ssh-keys"), enabled: source === "cloud" });
+  const files = useQuery({ queryKey: ["vm-importable"], queryFn: () => api.get<string[]>("/api/vms/importable"), enabled: source === "import" });
+  const inspect = useAction((p: string) => api.post<ImportInfo>("/api/vms/import/inspect", { source: p }), {
+    onDone: (r) => {
+      setInfo(r);
+      if (r.ovf) set({ name: f.name || r.ovf.name.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 63), vcpus: r.ovf.vcpus, memoryMb: r.ovf.memoryMb, firmware: r.ovf.firmware, os: r.ovf.os });
+    },
+  });
+  const list = (s: string) => s.split(/[\s,]+/).filter(Boolean);
+  const create = useAction(() => {
+    if (source === "iso") return api.post("/api/vms", f);
+    if (source === "import") return api.post("/api/vms/import", { ...f, source: imp.source, diskGb: 0 });
+    return api.post("/api/vms/cloud", {
+      ...f, os: "linux", image: ci.image,
+      cloudInit: { hostname: "", user: ci.user, password: ci.password, sshKeys: ci.sshKeys ? [ci.sshKeys] : [], packages: list(ci.packages), address: ci.address, gateway: ci.gateway, dns: list(ci.dns) },
+    });
+  }, { onDone: onClose });
+  const pick = (s: Source) => {
+    setSource(s);
+    if (s === "cloud") set({ os: "linux", diskGb: Math.max(f.diskGb, 8), memoryMb: f.memoryMb });
+  };
+  const canCreate = !!f.name && !!f.storage && (source !== "import" || !!imp.source) && (source !== "cloud" || (!!ci.user && (!!ci.password || !!ci.sshKeys)));
 
   return (
-    <Modal open onClose={onClose} title={tr("New virtual machine")} wide footer={<><Button onClick={onClose}>{tr("Cancel")}</Button><Button variant="primary" loading={create.isPending} disabled={!f.name || !f.storage} onClick={() => create.mutate()}>{tr("Create and start")}</Button></>}>
-      <ErrorBox error={create.error} />
+    <Modal open onClose={onClose} title={tr("New virtual machine")} wide footer={<><Button onClick={onClose}>{tr("Cancel")}</Button><Button variant="primary" loading={create.isPending} disabled={!canCreate} onClick={() => create.mutate()}>{source === "import" ? tr("Import and start") : tr("Create and start")}</Button></>}>
+      <ErrorBox error={create.error || inspect.error} />
+      <div className="mb-5 grid gap-2 sm:grid-cols-3">
+        {sources.map((s) => (
+          <button key={s.id} type="button" onClick={() => pick(s.id)} className={cx("flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition", source === s.id ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
+            <span className="mt-0.5 text-accent">{s.icon}</span>
+            <span><span className="block text-[13px] font-medium">{s.label}</span><span className="block text-muted text-[11.5px]">{s.sub}</span></span>
+          </button>
+        ))}
+      </div>
+      {source === "import" && (
+        <div className="mb-4 space-y-3 rounded-xl border border-line p-4">
+          <div className="flex items-end gap-2">
+            <Field label={tr("File to import")} hint={tr("Copy it into a shared folder first. It is converted to qcow2 in the folder of the new VM (the original is kept).")} className="flex-1">
+              <Select value={imp.source} onChange={(e) => { setImp({ source: e.target.value }); setInfo(null); if (e.target.value) inspect.mutate(e.target.value); }}>
+                <option value="">{tr("Choose…")}</option>
+                {files.data?.map((p) => <option key={p} value={p}>{p}</option>)}
+              </Select>
+            </Field>
+          </div>
+          {info && <div className="text-muted text-[12.5px]">{tr("Format: {0}", info.format.toUpperCase())} · {bytes(info.size)}{info.ovf && ` · ${tr("{0} disk(s), settings read from the OVF", info.ovf.disks.length)}`}</div>}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={tr("Name")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-serveur" autoFocus /></Field>
-        <Field label={tr("Guest OS")}>
-          <Select value={f.os} onChange={(e) => set({ os: e.target.value, ...(e.target.value === "windows" ? { memoryMb: Math.max(f.memoryMb, 4096), diskGb: Math.max(f.diskGb, 64), firmware: "uefi" } : {}) })}>
-            <option value="linux">{tr("Linux")}</option>
-            <option value="windows">{tr("Windows 10 / 11")}</option>
-            <option value="other">{tr("Other")}</option>
-          </Select>
-        </Field>
+        <Field label={tr("Name")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-server" autoFocus /></Field>
+        {source !== "cloud" ? (
+          <Field label={tr("Guest OS")}>
+            <Select value={f.os} onChange={(e) => set({ os: e.target.value, ...(e.target.value === "windows" ? { memoryMb: Math.max(f.memoryMb, 4096), diskGb: Math.max(f.diskGb, 64), firmware: "uefi" } : {}) })}>
+              <option value="linux">{tr("Linux")}</option>
+              <option value="windows">{tr("Windows 10 / 11")}</option>
+              <option value="other">{tr("Other")}</option>
+            </Select>
+          </Field>
+        ) : (
+          <Field label={tr("Cloud image")} hint={images.data?.find((i) => i.id === ci.image)?.cached ? tr("Already downloaded") : tr("Downloaded once (about 400 MB), checked against the official checksums")}>
+            <Select value={ci.image} onChange={(e) => setCi({ ...ci, image: e.target.value, user: e.target.value.startsWith("ubuntu") ? "ubuntu" : "debian" })}>
+              {(images.data ?? [{ id: "debian13", name: "Debian 13 (trixie)" }]).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label={tr("Virtual CPUs")}><Input type="number" min={1} max={64} value={f.vcpus} onChange={(e) => set({ vcpus: +e.target.value })} /></Field>
         <Field label={tr("Memory (MiB)")}><Input type="number" min={256} step={256} value={f.memoryMb} onChange={(e) => set({ memoryMb: +e.target.value })} /></Field>
-        <Field label={tr("Disk size (GiB)")} hint={tr("Thin-provisioned (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>
-        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}>
-          <Select value={f.storage} onChange={(e) => set({ storage: e.target.value })}>
-            {shares.data?.length === 0 && <option value="">{tr("No shared folders")}</option>}
-            {shares.data?.map((s) => <option key={s.name} value={s.path}>{s.name} ({s.path})</option>)}
-          </Select>
-        </Field>
-        <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
-          <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
-            <option value="">{tr("None")}</option>
-            {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
-          </Select>
-        </Field>
+        {source !== "import" && <Field label={tr("Disk size (GiB)")} hint={tr("Thin-provisioned (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>}
+        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
+        {source === "iso" && (
+          <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
+            <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
+              <option value="">{tr("None")}</option>
+              {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label={tr("Network")}>
           <Select value={f.network} onChange={(e) => set({ network: e.target.value })}>
             <option value="nat">{tr("NAT (private network behind the NAS)")}</option>
@@ -158,8 +286,24 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
           </Select>
         </Field>
       </div>
+      {source === "cloud" && (
+        <div className="mt-4 space-y-4 rounded-xl border border-line p-4">
+          <div className="font-medium text-[13px]">{tr("First boot (cloud-init)")}</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={tr("User")}><Input value={ci.user} onChange={(e) => setCi({ ...ci, user: e.target.value })} /></Field>
+            <Field label={tr("Password")} hint={tr("Stored hashed in the VM. Leave empty to sign in with the SSH key only.")}><Input type="password" autoComplete="new-password" value={ci.password} onChange={(e) => setCi({ ...ci, password: e.target.value })} /></Field>
+            <Field label={tr("SSH public key")} className="sm:col-span-2" hint={keys.data?.length ? <span className="flex flex-wrap gap-2">{tr("Your keys on the NAS:")}{keys.data.map((k) => <button key={k} type="button" className="text-accent underline" onClick={() => setCi({ ...ci, sshKeys: ci.sshKeys ? `${ci.sshKeys}\n${k}` : k })}>{k.split(" ")[2] || k.slice(0, 24)}</button>)}</span> : tr("Paste one or more keys (ssh-ed25519 …), one per line.")}>
+              <textarea className="input mono min-h-[70px] text-[11.5px]" value={ci.sshKeys} onChange={(e) => setCi({ ...ci, sshKeys: e.target.value })} placeholder="ssh-ed25519 AAAA… me@laptop" />
+            </Field>
+            <Field label={tr("Packages to install")} className="sm:col-span-2" hint={tr("Separated by spaces, e.g. nginx docker.io (the guest agent is always installed)")}><Input value={ci.packages} onChange={(e) => setCi({ ...ci, packages: e.target.value })} /></Field>
+            <Field label={tr("Static address (optional)")} hint={tr("e.g. 192.168.1.50/24; empty: DHCP")}><Input value={ci.address} onChange={(e) => setCi({ ...ci, address: e.target.value })} /></Field>
+            <Field label={tr("Gateway")}><Input value={ci.gateway} disabled={!ci.address} onChange={(e) => setCi({ ...ci, gateway: e.target.value })} /></Field>
+            <Field label={tr("DNS servers")} className="sm:col-span-2"><Input value={ci.dns} disabled={!ci.address} onChange={(e) => setCi({ ...ci, dns: e.target.value })} placeholder="1.1.1.1 9.9.9.9" /></Field>
+          </div>
+        </div>
+      )}
       {bridges.length === 0 && <div className="mt-4"><Notice>{tr("For the VM to appear directly on your local network, create a bridge in Control Panel → Network.")}</Notice></div>}
-      {f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
+      {source !== "cloud" && f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
       <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Start the VM with the NAS")} /></div>
     </Modal>
   );

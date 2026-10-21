@@ -27,6 +27,7 @@ func (s *Server) vmRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		s.decorateVMs(list)
 		out["vms"] = list
 		out["stats"] = vms.Stats()
 		var bridges []string
@@ -58,7 +59,13 @@ func (s *Server) vmRoutes() {
 		}
 		s.audit(r, "vms", "Creating virtual machine "+req.Name)
 		return s.jobs.Start("vm", "Creating VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			return vms.Create(ctx, req, j.Logf)
+			if err := vms.Create(ctx, req, j.Logf); err != nil {
+				return err
+			}
+			if req.Autostart {
+				return s.setVMAutostart(req.Name, true, 0, 0)
+			}
+			return nil
 		}), nil
 	})
 
@@ -69,6 +76,8 @@ func (s *Server) vmRoutes() {
 			Autostart bool   `json:"autostart"`
 			VCPUs     int    `json:"vcpus"`
 			MemoryMB  int    `json:"memoryMb"`
+			Order     int    `json:"order"`
+			Delay     int    `json:"delay"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -78,7 +87,7 @@ func (s *Server) vmRoutes() {
 		case "media":
 			err = vms.SetISO(name, req.ISO)
 		case "autostart":
-			err = vms.SetAutostart(name, req.Autostart)
+			err = s.setVMAutostart(name, req.Autostart, req.Order, req.Delay)
 		case "resources":
 			err = vms.Update(name, req.VCPUs, req.MemoryMB)
 		default:
@@ -96,6 +105,7 @@ func (s *Server) vmRoutes() {
 		if err := vms.Delete(name, r.URL.Query().Get("disks") == "1"); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		_ = s.setVMAutostart(name, false, 0, 0)
 		s.audit(r, "vms", "Deleted virtual machine "+name)
 		return nil, nil
 	})
@@ -128,4 +138,6 @@ func (s *Server) vmRoutes() {
 		go func() { _, _ = io.Copy(tcp, ws); done <- struct{}{} }()
 		<-done
 	})
+
+	s.vmMoreRoutes()
 }

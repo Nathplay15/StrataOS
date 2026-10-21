@@ -9,6 +9,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Inpu
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { tr, srv } from "../../lib/i18n";
 import { TimeMachineCard } from "./TimeMachine";
+import { BackupVMPicker } from "./BackupVMs";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -272,6 +273,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
             <p className="text-muted text-[12px]">{tr("The first run merges both folders without deleting anything. A file changed on both sides is kept twice (both versions, renamed). Two-way sync works on files, on any file system.")}</p>
           </div>
         )}
+        {card !== "pull" && card !== "sync" && b.kind !== "zfs" && <BackupVMPicker b={b} set={set} />}
 
         {card !== "pull" && card !== "sync" && (
           <div>

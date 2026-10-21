@@ -100,6 +100,7 @@ func New(c Config) *Server {
 	go s.iscsiLoop()
 	go s.configAutoLoop()
 	go s.hardwareLoop()
+	go s.vmAutostartLoop()
 	return s
 }
 
