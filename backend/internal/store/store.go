@@ -501,6 +501,7 @@ type State struct {
 	VMs       VMSettings      `json:"vmSettings"`
 	Office    Office          `json:"office"`
 	Media     Media           `json:"media,omitzero"`
+	NVR       NVR             `json:"nvr,omitzero"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`

@@ -47,6 +47,7 @@ const HAPage = lazy(() => import("./pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("./pages/system/RemoteAccess"));
 const MediaPage = lazy(() => import("./pages/Media"));
 const PhotosPage = lazy(() => import("./pages/Photos"));
+const SurveillancePage = lazy(() => import("./pages/Surveillance"));
 const LinksPage = lazy(() => import("./pages/Links"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const HardwarePage = lazy(() => import("./pages/system/Hardware"));
@@ -135,6 +136,7 @@ function Root() {
             <Route path="fleet" element={A(<FleetPage />)} />
             <Route path="help" element={<HelpPage />} />
             <Route path="vms" element={A(<VirtualMachines />)} />
+            <Route path="surveillance" element={A(<SurveillancePage />)} />
             <Route path="cloudsync" element={A(<CloudSync />)} />
             <Route path="system/fileservices" element={A(<FileServicesPage />)} />
             <Route path="system/directory" element={A(<DirectoryPage />)} />
