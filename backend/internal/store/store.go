@@ -471,6 +471,7 @@ type State struct {
 	Guard     Guard         `json:"guard"`
 	Vaults    []*Vault      `json:"vaults,omitempty"`
 	Fleet     Fleet         `json:"fleet"`
+	Office    Office        `json:"office"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network  *network.Config `json:"network,omitempty"`
 	UPS      *ups.Config     `json:"ups,omitempty"`

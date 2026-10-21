@@ -46,7 +46,8 @@ To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the ne
 - **Windows**: in File Explorer, type `\\<address>\<share>` and sign in with your StrataOS account.
 - **macOS**: Finder → Go → Connect to Server → `smb://<address>/<share>`. A share can also be a **Time Machine** target.
 - **Linux**: `smb://` in your file manager, or NFS if the share allows it.
-- **Browser**: the **Files** app lets you upload, download (folders as ZIP), rename and preview.
+- **Browser**: the **Files** app lets you upload, download (folders as ZIP) and rename. Files open in tabs: text and code in an editor (syntax highlighting, search and replace, Ctrl+S; up to 5 MB, read-only in read-only shares), Markdown with a live preview, images, PDF, audio and video. If someone else changed a file while you edited it, StrataOS asks whether to reload it or overwrite it.
+- **Office documents**: install **OnlyOffice Docs** from the App Center (about 3 GB), then turn on "Open office documents with OnlyOffice" in Settings. Word, Excel and PowerPoint (and OpenDocument) files then open in OnlyOffice; several people can edit the same document together, and those who can only read the share get a read-only view. The container reaches StrataOS at `http://host.docker.internal:7070` (the HTTP port must stay on); another document server can be set in the same place. If you use StrataOS over HTTPS, give the document server an HTTPS address too (browsers block an HTTP editor in an HTTPS page).
 - **Phones and other devices**: turn on WebDAV, SFTP or FTP in File services.
 
 To **share with someone who has no account**, use "Share a link" on a file or folder (password, expiry date, download limit, or a drop box to receive files). You can find and delete your links in **Shared links**.

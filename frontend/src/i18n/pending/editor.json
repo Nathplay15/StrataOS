@@ -1,0 +1,138 @@
+[
+ [
+  "Accès en lecture seule",
+  "read-only access"
+ ],
+ [
+  "Le dossier partagé {0} est gelé par la protection anti-rançongiciel",
+  "shared folder {0} is frozen by the ransomware protection"
+ ],
+ [
+  "Le dossier partagé {0} a dépassé son quota",
+  "shared folder {0} is over its quota"
+ ],
+ [
+  "Cet emplacement ne peut pas être modifié",
+  "this path cannot be written"
+ ],
+ [
+  "Seuls les fichiers ordinaires peuvent être modifiés",
+  "only regular files can be edited"
+ ],
+ [
+  "Un fichier portant ce nom existe déjà",
+  "a file with this name already exists"
+ ],
+ [
+  "Le fichier a été supprimé depuis son ouverture",
+  "the file was deleted since it was opened"
+ ],
+ [
+  "Le fichier a été modifié depuis son ouverture",
+  "the file was changed since it was opened"
+ ],
+ [
+  "Quota dépassé",
+  "quota exceeded"
+ ],
+ [
+  "Ce n'est pas un fichier ordinaire",
+  "not a regular file"
+ ],
+ [
+  "Lien symbolique",
+  "symbolic link"
+ ],
+ [
+  "Fichier de plus de {0} Mo",
+  "file larger than {0} MB"
+ ],
+ [
+  "Ce n'est pas un fichier texte",
+  "not a text file"
+ ],
+ [
+  "Fichier enregistré : {0}",
+  "Saved file {0}"
+ ],
+ [
+  "Fichier enregistré : {0} (OnlyOffice)",
+  "Saved file {0} (OnlyOffice)"
+ ],
+ [
+  "OnlyOffice a enregistré {0} sous {1} : autre format",
+  "OnlyOffice saved {0} as {1}: another format"
+ ],
+ [
+  "OnlyOffice a enregistré {0} sous {1} : le fichier a changé entre-temps",
+  "OnlyOffice saved {0} as {1}: the file changed meanwhile"
+ ],
+ [
+  "OnlyOffice n'a pas pu enregistrer {0}",
+  "OnlyOffice could not save {0}"
+ ],
+ [
+  "Échec de l'enregistrement OnlyOffice de {0} : {1}",
+  "OnlyOffice save of {0} failed: {1}"
+ ],
+ [
+  "Réglages bureautiques mis à jour",
+  "Office settings updated"
+ ],
+ [
+  "OnlyOffice n'est pas activé",
+  "OnlyOffice is not enabled"
+ ],
+ [
+  "OnlyOffice ne sait pas ouvrir ce type de fichier",
+  "OnlyOffice cannot open this file type"
+ ],
+ [
+  "Lien invalide ou expiré",
+  "invalid or expired link"
+ ],
+ [
+  "Rappel invalide",
+  "invalid callback"
+ ],
+ [
+  "Signature du rappel invalide",
+  "invalid callback signature"
+ ],
+ [
+  "La clé du document ne correspond pas",
+  "document key mismatch"
+ ],
+ [
+  "Serveur de documents non configuré",
+  "document server not configured"
+ ],
+ [
+  "Adresse invalide : {0}",
+  "invalid URL {0}"
+ ],
+ [
+  "Le secret JWT doit comporter au moins 16 caractères",
+  "the JWT secret needs at least 16 characters"
+ ],
+ [
+  "Compte indisponible",
+  "account unavailable"
+ ],
+ [
+  "Plus d'accès en écriture",
+  "no write access any more"
+ ],
+ [
+  "Le serveur de documents a répondu HTTP {0}",
+  "document server answered HTTP {0}"
+ ],
+ [
+  "Document trop volumineux",
+  "document too large"
+ ],
+ [
+  "Adresse de document invalide",
+  "invalid document URL"
+ ]
+]

@@ -6,6 +6,7 @@ import { useAction } from "../../lib/hooks";
 import type { NotifyChannel, NotifyChannelId, NotifyLevel, Settings, SystemInfo } from "../../lib/types";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, locale, languages } from "../../lib/i18n";
+import { OfficeSettingsCard } from "../../components/OfficeSettings";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
 
@@ -191,6 +192,7 @@ export default function SettingsPage() {
           <p className="mt-3 text-[12.5px] text-muted">{tr("NTP synchronization enabled automatically.")}</p>
         </Card>
         <CertificatesCard />
+        <OfficeSettingsCard />
         <Card title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="xl:col-span-2">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
