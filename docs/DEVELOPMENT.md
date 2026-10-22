@@ -46,6 +46,7 @@ The ISO installs in English with a US keyboard and UTC. `ISO_LOCALE`, `ISO_KEYMA
 
 - **Interface texts** are written in English in the code and wrapped in `tr("…")`. `frontend/src/i18n/<lang>.json` maps each English text to its translation; a missing entry shows the English text. `node frontend/scripts/i18n-extract.cjs` lists what's missing, per language (CI fails if anything is).
 - **Texts written by the server** (job titles, events, alerts, reports) are in English. `frontend/src/i18n/server.ts` holds [French, English] pairs with `{0}` placeholders, and `server.<lang>.json` translates the other languages (keyed by the French). The interface translates them for display, and the backend uses the same tables for notifications (`make frontend` exports them to `backend/internal/i18n/texts.json`). When you add a server text, add its pair and its translations.
+- **App Center catalog texts** (categories, descriptions, setting labels in `backend/internal/docker/apps*.go`) are English in Go and translated by the interface like its own texts. `make catalog-texts` regenerates `frontend/src/i18n/catalog.ts`, which lists them as `tr("…")` markers for the extract script; a Go test fails when it is out of date. Custom apps keep their text as typed.
 
 ## Development VM
 

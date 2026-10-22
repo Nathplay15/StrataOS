@@ -3,14 +3,18 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend backend build deb repo iso dev clean test vm-test ha-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend catalog-texts backend build deb repo iso dev clean test vm-test ha-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
-frontend:
+frontend: catalog-texts
 	cd frontend && npm ci --no-audit --no-fund && npm run build
 	cd frontend && node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json
 	touch backend/web/dist/.gitkeep  # vite empties the folder; keep it for go:embed in fresh clones
+
+# App Center catalog texts (Go) listed for the interface translations.
+catalog-texts:
+	cd backend && go run ./cmd/catalog-texts ../frontend/src/i18n/catalog.ts
 
 backend:
 	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) go build -trimpath \
