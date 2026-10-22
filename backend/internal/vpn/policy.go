@@ -120,6 +120,44 @@ func Expire(c *store.VPN, now time.Time) []store.VPNPeer {
 	return out
 }
 
+// WarnDays is how many days before its expiry a device is announced to
+// the administrator (0: never).
+func WarnDays(c store.VPN) int {
+	switch {
+	case c.ExpiryWarnDays < 0:
+		return 0
+	case c.ExpiryWarnDays == 0:
+		return 7
+	}
+	return c.ExpiryWarnDays
+}
+
+// ExpiringSoon marks and returns the peers that expire within WarnDays and
+// were not announced yet: once per device and expiry date.
+func ExpiringSoon(c *store.VPN, now time.Time) []store.VPNPeer {
+	days := WarnDays(*c)
+	if days == 0 {
+		return nil
+	}
+	var out []store.VPNPeer
+	for i := range c.Peers {
+		p := &c.Peers[i]
+		if p.Disabled || p.Expired || p.Expires.IsZero() || !now.Before(p.Expires) || p.ExpiryWarned.Equal(p.Expires) ||
+			p.Expires.Sub(now) > time.Duration(days)*24*time.Hour {
+			continue
+		}
+		p.ExpiryWarned = p.Expires
+		out = append(out, *p)
+	}
+	return out
+}
+
+// LastDay is the last day a peer may connect (its expiry is the start of
+// the next day).
+func LastDay(p store.VPNPeer) string {
+	return p.Expires.Add(-time.Second).In(time.Local).Format("2006-01-02")
+}
+
 // ParseExpiry reads an expiry date: "" (never), a day (2026-12-31, the end
 // of that day) or an RFC 3339 time.
 func ParseExpiry(s string) (time.Time, error) {
@@ -156,9 +194,6 @@ func lanTargets(c store.VPN) []string {
 	return out
 }
 
-// private ranges never count as the Internet for the kill switch.
-const privateNets = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16"
-
 func set(xs []string) string { return "{ " + strings.Join(xs, ", ") + " }" }
 
 func quoted(xs []string) []string {
@@ -193,7 +228,7 @@ func RenderFirewall(c store.VPN) string {
 	if len(wgs) == 0 && !killSwitch {
 		return ""
 	}
-	var b, peers, reach, chains strings.Builder
+	var b, peers, reach, chains, nat strings.Builder
 	local := lanTargets(c)
 	n := 0
 	if c.Enabled {
@@ -241,7 +276,14 @@ func RenderFirewall(c store.VPN) string {
 	if killSwitch {
 		// Before "established": a flow that started in the tunnel must not
 		// carry on through the normal Internet access when the tunnel drops.
-		fmt.Fprintf(&b, "    iifname \"%s\" oifname != { \"%s\", \"%s\" } ip daddr != { %s } counter drop\n", AppsBridge, OutIface, AppsBridge, privateNets)
+		fmt.Fprintf(&b, "    iifname \"%s\" oifname != { \"%s\", \"%s\" } ip daddr != %s counter drop\n", AppsBridge, OutIface, AppsBridge, set(privateNets4))
+		// IPv6 likewise, or nowhere but the private networks when the
+		// tunnel has no IPv6.
+		out6 := set(quoted([]string{AppsBridge}))
+		if TunnelHasIPv6(c.Client) {
+			out6 = set(quoted([]string{OutIface, AppsBridge}))
+		}
+		fmt.Fprintf(&b, "    iifname \"%s\" oifname != %s ip6 daddr != %s counter drop\n", AppsBridge, out6, set(privateNets6))
 	}
 	if len(wgs) > 0 {
 		b.WriteString("    ct state established,related accept\n")
@@ -291,8 +333,15 @@ func RenderFirewall(c store.VPN) string {
 			}
 		}
 		if len(src) > 0 {
-			fmt.Fprintf(&b, "  chain postrouting {\n    type nat hook postrouting priority srcnat; policy accept;\n    ip saddr %s oifname != %s masquerade\n  }\n", set(src), set(quoted(wgs)))
+			fmt.Fprintf(&nat, "    ip saddr %s oifname != %s masquerade\n", set(src), set(quoted(wgs)))
 		}
+	}
+	if killSwitch && TunnelHasIPv6(c.Client) {
+		// Docker does not translate IPv6 (before 27, or ip6tables off).
+		fmt.Fprintf(&nat, "    ip6 saddr %s oifname \"%s\" masquerade\n", AppsSubnet6, OutIface)
+	}
+	if nat.Len() > 0 {
+		fmt.Fprintf(&b, "  chain postrouting {\n    type nat hook postrouting priority srcnat; policy accept;\n%s  }\n", nat.String())
 	}
 	b.WriteString("}\n")
 	return b.String()

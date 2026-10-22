@@ -16,8 +16,8 @@ export type Peer = {
 };
 export type Link = { id: string; name: string; iface: string; address: string; endpoint: string; subnets: string[]; listenPort?: number; disabled?: boolean; createdAt: string };
 export type PeerStatus = { handshake: number; endpoint: string; rx: number; tx: number };
-export type WGConfig = { enabled: boolean; subnet: string; lan: string; endpoint: string; defaultMode?: Mode; userDevices?: boolean; peers: Peer[]; links: Link[] };
-export type WGData = { config: WGConfig; status: Record<string, PeerStatus>; linkStatus: Record<string, PeerStatus>; inactive: Record<string, "expired" | "disabled" | "user">; users: { username: string; disabled: boolean }[]; services: Record<string, string[]> };
+export type WGConfig = { enabled: boolean; subnet: string; lan: string; endpoint: string; defaultMode?: Mode; userDevices?: boolean; expiryWarnDays?: number; peers: Peer[]; links: Link[] };
+export type WGData = { config: WGConfig; status: Record<string, PeerStatus>; linkStatus: Record<string, PeerStatus>; inactive: Record<string, "expired" | "disabled" | "user">; users: { username: string; disabled: boolean }[]; services: Record<string, string[]>; warnDays: number };
 
 export const modes = () => ({
   nas: tr("The NAS only"),
@@ -29,6 +29,20 @@ const serviceNames = () => ({ smb: tr("File sharing (SMB)"), web: tr("Web interf
 
 const online = (st?: PeerStatus) => !!st && st.handshake > 0 && Date.now() / 1000 - st.handshake < 180;
 const expiryDay = (v?: string) => (v && !v.startsWith("0001") ? new Date(new Date(v).getTime() - 1000).toLocaleDateString("sv-SE") : "");
+
+/** Days left before the last day a device may connect (0: today), null without an expiry date. */
+const daysLeft = (v?: string) => {
+  const d = expiryDay(v);
+  if (!d) return null;
+  const today = new Date(new Date().toLocaleDateString("sv-SE"));
+  return Math.round((new Date(d).getTime() - today.getTime()) / 86400000);
+};
+
+function ExpiryBadge({ p, warnDays }: { p: Peer; warnDays: number }) {
+  const n = daysLeft(p.expires);
+  if (n === null || n < 0 || p.disabled || p.expired || n > warnDays) return null;
+  return <Badge tone="warn">{n === 0 ? tr("Last day today") : n === 1 ? tr("Expires tomorrow") : tr("Expires in {0} days", n)}</Badge>;
+}
 
 export function ConfigModal({ name, config, qr = true, onClose }: { name: string; config: string; qr?: boolean; onClose: () => void }) {
   const [img, setImg] = useState("");
@@ -45,14 +59,14 @@ export function ConfigModal({ name, config, qr = true, onClose }: { name: string
   );
 }
 
-function PeerLine({ p, st, why, children }: { p: Peer; st?: PeerStatus; why?: string; children: React.ReactNode }) {
+function PeerLine({ p, st, why, warnDays = 0, children }: { p: Peer; st?: PeerStatus; why?: string; warnDays?: number; children: React.ReactNode }) {
   const m = modes();
   const svc = serviceNames() as Record<string, string>;
   return (
     <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]">
       {why ? <Badge tone={why === "expired" ? "warn" : "neutral"}>{why === "expired" ? tr("Expired") : why === "user" ? tr("User disabled") : tr("Disabled")}</Badge> : <Badge tone={online(st) ? "ok" : "neutral"} dot>{online(st) ? tr("Connected") : tr("Offline")}</Badge>}
       <div className="min-w-0 flex-1">
-        <div className="font-medium">{p.name}{p.owner && <span className="text-muted font-normal"> · {p.owner}</span>}</div>
+        <div className="flex flex-wrap items-center gap-2 font-medium">{p.name}{p.owner && <span className="text-muted font-normal">· {p.owner}</span>}{!why && <ExpiryBadge p={p} warnDays={warnDays} />}</div>
         <div className="text-muted text-[12px]">
           {p.kind === "site" ? (p.subnets ?? []).join(", ") : m[p.mode]} · <span className="mono">{p.ip}</span>
           {p.services?.length ? ` · ${tr("only {0}", p.services.map((s) => svc[s] ?? s).join(", "))}` : ""}
@@ -131,7 +145,7 @@ function Devices({ data, onShow }: { data: WGData; onShow: (s: { name: string; c
       {peers.length === 0 ? <Empty icon={<Smartphone />} title={tr("No devices")} text={tr("Add a device, then scan its QR code with the WireGuard app.")} /> : (
         <div className="divide-y divide-line rounded-xl border border-line">
           {peers.map((p) => (
-            <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]}>
+            <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]} warnDays={data.warnDays}>
               <IconButton title={tr("QR code and configuration")} onClick={() => show.mutate(p.id)}><QrCode size={15} /></IconButton>
               <IconButton title={tr("Edit")} onClick={() => setEdit(toForm(p, data.services))}><Pencil size={15} /></IconButton>
               <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", p.name), text: tr("The device will no longer be able to connect."), danger: true })) del.mutate(p.id); }}><Trash2 size={15} /></IconButton>
@@ -165,7 +179,7 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
       {sites.length + data.config.links.length === 0 ? <Empty icon={<Building2 />} title={tr("No sites")} text={tr("Add a site, then set up its router with the generated configuration, or give its code to another StrataOS.")} /> : (
         <div className="divide-y divide-line rounded-xl border border-line">
           {sites.map((p) => (
-            <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]}>
+            <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]} warnDays={data.warnDays}>
               <Button size="sm" onClick={() => show.mutate({ id: p.id, format: "router" })}>{tr("Router configuration")}</Button>
               <Button size="sm" onClick={() => show.mutate({ id: p.id, format: "strataos" })}>{tr("StrataOS code")}</Button>
               <IconButton title={tr("Edit")} onClick={() => setEdit(toForm(p, data.services))}><Pencil size={15} /></IconButton>
@@ -203,8 +217,9 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
   );
 }
 
-type Client = { enabled: boolean; name?: string; addresses?: string[]; dns?: string[]; endpoint?: string; peerPublicKey?: string; scope: "apps" | "all"; apps?: string[]; appsSubnet: string; checkUrl?: string };
-type ClientData = { installed: boolean; config: Client; status: PeerStatus | null; routing: boolean; containers: string[]; docker: boolean; defaultCheckUrl: string };
+type Client = { enabled: boolean; name?: string; addresses?: string[]; dns?: string[]; endpoint?: string; peerPublicKey?: string; scope: "apps" | "all"; apps?: string[]; appsSubnet: string; checkUrl?: string; allowUpdates?: boolean };
+type ClientData = { installed: boolean; config: Client; status: PeerStatus | null; routing: boolean; containers: string[]; docker: boolean; defaultCheckUrl: string; ipv6: boolean; hostIpv6: boolean };
+type KillSwitch = { tunnelRoute: string; downRoute: string; downRoute6?: string; localRoute?: string; serverRoute?: string; blocked: boolean };
 
 function Outgoing() {
   const { confirm, toast } = useUI();
@@ -212,12 +227,12 @@ function Outgoing() {
   const [c, setC] = useState<Client | null>(null);
   const [conf, setConf] = useState("");
   const [warn, setWarn] = useState<string[]>([]);
-  const [ks, setKs] = useState<{ tunnelRoute: string; downRoute: string; blocked: boolean } | null>(null);
+  const [ks, setKs] = useState<KillSwitch | null>(null);
   useEffect(() => { if (data && !c) setC(data.config); }, [data, c]);
   const save = useAction(() => api.put<{ warnings: string[] }>("/api/vpn/client", { ...c, conf }), { success: tr("Outgoing tunnel saved"), onDone: (r) => { setWarn(r.warnings); setConf(""); } });
   const remove = useAction(() => api.del("/api/vpn/client"), { success: tr("Outgoing tunnel removed"), onDone: () => setC(null) });
   const check = useAction(() => api.post<{ publicIp: string }>("/api/vpn/client/check"), { onDone: (r) => toast(tr("Public address through the tunnel: {0}", r.publicIp)) });
-  const kill = useAction(() => api.post<{ tunnelRoute: string; downRoute: string; blocked: boolean }>("/api/vpn/client/killswitch"), { onDone: setKs });
+  const kill = useAction(() => api.post<KillSwitch>("/api/vpn/client/killswitch"), { onDone: setKs });
   const reconnect = useAction(() => api.post("/api/vpn/client/reconnect"), { success: tr("Tunnel restarted") });
   if (!data || !c) return <><ErrorBox error={error} /><Spinner /></>;
   const st = data.status;
@@ -232,15 +247,22 @@ function Outgoing() {
           <Badge tone={data.config.enabled ? (online(st ?? undefined) ? "ok" : "warn") : "neutral"} dot>{!data.config.enabled ? tr("Off") : online(st ?? undefined) ? tr("Connected") : tr("No handshake")}</Badge>
           <div className="min-w-0 flex-1">
             <div className="font-medium">{data.config.name || data.config.endpoint}</div>
-            <div className="text-muted text-[12px]"><span className="mono">{data.config.endpoint}</span> · <span className="mono">{(data.config.addresses ?? []).join(", ")}</span>{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.rx)} ↑${bytes(st.tx)}` : ""}{data.config.enabled && !data.routing ? ` · ${tr("routes missing")}` : ""}</div>
+            <div className="text-muted text-[12px]"><span className="mono">{data.config.endpoint}</span> · <span className="mono">{(data.config.addresses ?? []).join(", ")}</span>{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.rx)} ↑${bytes(st.tx)}` : ""}{data.config.enabled && !data.routing ? ` · ${tr("routes missing")}` : ""}{data.hostIpv6 ? ` · ${data.ipv6 ? tr("IPv6 through the tunnel") : tr("IPv6 blocked (the tunnel has none)")}` : ""}</div>
           </div>
           {data.config.enabled && <Button size="sm" icon={<Globe2 size={14} />} loading={check.isPending} onClick={() => check.mutate()}>{tr("Check public address")}</Button>}
-          {data.config.enabled && data.config.scope === "apps" && <Button size="sm" icon={<ShieldCheck size={14} />} loading={kill.isPending} onClick={() => kill.mutate()}>{tr("Test kill switch")}</Button>}
+          {data.config.enabled && <Button size="sm" icon={<ShieldCheck size={14} />} loading={kill.isPending} onClick={() => kill.mutate()}>{tr("Test kill switch")}</Button>}
           {data.config.enabled && <IconButton title={tr("Reconnect")} onClick={() => reconnect.mutate()}><RefreshCw size={15} /></IconButton>}
           <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Remove the outgoing tunnel?"), text: tr("The routed apps get their normal Internet access back."), danger: true })) remove.mutate(); }}><Trash2 size={15} /></IconButton>
         </div>
       )}
-      {ks && <Notice tone={ks.blocked ? "info" : "warn"}>{ks.blocked ? tr("Kill switch OK: with the tunnel down the routed apps have no way out.") : tr("Kill switch FAILED: the routed apps could reach the Internet without the tunnel.")} <span className="mono text-[11.5px]">{ks.downRoute}</span></Notice>}
+      {ks && (
+        <Notice tone={ks.blocked ? "info" : "warn"}>
+          {data.config.scope === "all"
+            ? ks.blocked ? tr("Kill switch OK: with the tunnel down the NAS has no way to the Internet, while the local network and the WireGuard server still work.") : tr("Kill switch FAILED: the NAS could reach the Internet without the tunnel, or lost the local network.")
+            : ks.blocked ? tr("Kill switch OK: with the tunnel down the routed apps have no way out.") : tr("Kill switch FAILED: the routed apps could reach the Internet without the tunnel.")}
+          {[ks.downRoute, ks.downRoute6, ks.localRoute && `${tr("Local network")}: ${ks.localRoute}`, ks.serverRoute && `${tr("WireGuard server")}: ${ks.serverRoute}`].filter(Boolean).map((x) => <div key={x} className="mono text-[11.5px]">{x}</div>)}
+        </Notice>
+      )}
       <Field label={has ? tr("Replace the configuration file") : tr("Configuration file of the provider (.conf)")}>
         <div className="space-y-2">
           <input type="file" accept=".conf,text/plain" onChange={(e) => readFile(e.target.files?.[0])} className="text-[13px]" />
@@ -257,7 +279,12 @@ function Outgoing() {
           </Select>
         </Field>
       </div>
-      {c.scope === "all" && <Notice tone="warn">{tr("All the traffic of the NAS will go through the provider. The local network and the WireGuard server stay reachable, but other remote access (port forwarding, Tailscale, Cloudflare Tunnel) may stop working.")}</Notice>}
+      {c.scope === "all" && (
+        <>
+          <Notice tone="warn">{tr("All the traffic of the NAS will go through the provider. The local network and the WireGuard server stay reachable, but other remote access (port forwarding, Tailscale, Cloudflare Tunnel) may stop working.")} {tr("Kill switch: while the tunnel is down the NAS has no Internet access at all, except to the local and private networks and for the WireGuard server.")}</Notice>
+          <Switch checked={!!c.allowUpdates} onChange={(v) => setC({ ...c, allowUpdates: v })} label={tr("Allow updates when the tunnel is down")} hint={tr("System updates (APT) may then reach their repositories directly")} />
+        </>
+      )}
       {c.scope === "apps" && (
         <Field label={tr("Apps routed through the tunnel")} hint={tr("They reach the Internet only through the tunnel (kill switch). On this Docker version they leave their other networks.")}>
           {!data.docker ? <div className="text-muted text-[13px]">{tr("Docker is not installed.")}</div> : (
@@ -298,7 +325,7 @@ export function WireGuardTabs({ data }: { data: WGData }) {
 /** "My VPN devices": the devices of the signed-in user. */
 export function MyVpnDevices() {
   const { confirm } = useUI();
-  const { data, error } = useQuery({ queryKey: ["vpn-my"], queryFn: () => api.get<{ allowed: boolean; devices: Peer[]; status: Record<string, PeerStatus>; inactive: Record<string, string>; max: number }>("/api/vpn/my"), refetchInterval: 5000 });
+  const { data, error } = useQuery({ queryKey: ["vpn-my"], queryFn: () => api.get<{ allowed: boolean; devices: Peer[]; status: Record<string, PeerStatus>; inactive: Record<string, string>; max: number; warnDays: number }>("/api/vpn/my"), refetchInterval: 5000 });
   const [name, setName] = useState("");
   const [show, setShow] = useState<{ name: string; config: string } | null>(null);
   const add = useAction(() => api.post<{ peer: Peer; config: string }>("/api/vpn/my/devices", { name }), { onDone: (r) => { setShow({ name: r.peer.name, config: r.config }); setName(""); } });
@@ -318,7 +345,7 @@ export function MyVpnDevices() {
         {data.devices.length === 0 ? <Empty icon={<Smartphone />} title={tr("No devices")} text={tr("Add a device, then scan its QR code with the WireGuard app.")} /> : (
           <div className="divide-y divide-line rounded-xl border border-line">
             {data.devices.map((p) => (
-              <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]}>
+              <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]} warnDays={Math.max(data.warnDays, 7)}>
                 <IconButton title={tr("QR code and configuration")} onClick={() => get.mutate(p.id)}><QrCode size={15} /></IconButton>
                 <IconButton title={tr("Revoke")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Revoke {0}?", p.name), text: tr("The device will no longer be able to connect."), danger: true })) del.mutate(p.id); }}><Trash2 size={15} /></IconButton>
               </PeerLine>

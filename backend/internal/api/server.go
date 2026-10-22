@@ -99,6 +99,7 @@ func New(c Config) *Server {
 	go s.trapLoop()
 	go s.ddnsLoop()
 	go s.vpnLoop()
+	go s.vpnDockerEvents()
 	go s.photoLoop()
 	go s.shareQuotaLoop()
 	go s.energyLoop()

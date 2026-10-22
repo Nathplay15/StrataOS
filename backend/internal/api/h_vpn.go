@@ -139,7 +139,7 @@ func (s *Server) vpnRoutes() {
 			}
 		}
 		return map[string]any{"installed": vpn.Installed(), "config": maskVPN(c), "serverIp": vpn.ServerIP(c), "status": vpn.Status(), "linkStatus": links,
-			"inactive": s.vpnInactive(c), "users": users, "services": vpn.Services,
+			"inactive": s.vpnInactive(c), "users": users, "warnDays": vpn.WarnDays(c), "services": vpn.Services,
 			"lanGuess": localNetwork(), "ddns": maskDDNS(d), "ddnsHost": vpn.FullHostname(d)}, nil
 	})
 
@@ -167,7 +167,7 @@ func (s *Server) vpnRoutes() {
 				return badRequest("delete the devices before changing the VPN network")
 			}
 			cur.Enabled, cur.Port, cur.Subnet, cur.Endpoint, cur.LAN = req.Enabled, req.Port, req.Subnet, req.Endpoint, req.LAN
-			cur.DefaultMode, cur.UserDevices = req.DefaultMode, req.UserDevices
+			cur.DefaultMode, cur.UserDevices, cur.ExpiryWarnDays = req.DefaultMode, req.UserDevices, req.ExpiryWarnDays
 			st.VPN = cur
 			return nil
 		})
@@ -175,6 +175,7 @@ func (s *Server) vpnRoutes() {
 			return nil, err
 		}
 		s.audit(r, "vpn", "VPN settings saved")
+		s.vpnExpiryWarn()
 		return nil, s.vpnApplyErr()
 	})
 
@@ -225,6 +226,7 @@ func (s *Server) vpnRoutes() {
 		} else {
 			s.audit(r, "vpn", "Added VPN device "+p.Name)
 		}
+		s.vpnExpiryWarn()
 		if err := s.vpnApplyErr(); err != nil {
 			return nil, err
 		}
@@ -278,8 +280,10 @@ func (s *Server) vpnRoutes() {
 			return nil, err
 		}
 		s.audit(r, "vpn", "Updated VPN device "+name)
-		// An expiry date already past disables the device at once.
+		// An expiry date already past disables the device at once, a
+		// close one is announced.
 		s.vpnExpire()
+		s.vpnExpiryWarn()
 		return nil, s.vpnApplyErr()
 	})
 

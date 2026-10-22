@@ -12,6 +12,9 @@ type VPNPeerPolicy struct {
 	Services []string  `json:"services,omitempty"`
 	Expires  time.Time `json:"expires,omitzero"`
 	Expired  bool      `json:"expired,omitempty"` // disabled by its expiry date
+	// ExpiryWarned is the expiry date the administrator was warned about
+	// (a new date warns again).
+	ExpiryWarned time.Time `json:"expiryWarned,omitzero"`
 	// Site: networks behind the other side, its address (host:port, when
 	// this NAS should connect to it) and the keepalive interval.
 	Subnets   []string `json:"subnets,omitempty"`
@@ -57,6 +60,9 @@ type VPNClient struct {
 	Apps       []string `json:"apps,omitempty"`       // container names
 	AppsSubnet string   `json:"appsSubnet,omitempty"` // Docker network of the routed apps
 	CheckURL   string   `json:"checkUrl,omitempty"`   // returns the public address as text
+	// AllowUpdates lets APT reach its repositories directly while the
+	// tunnel is down (whole-NAS mode; the kill switch blocks the rest).
+	AllowUpdates bool `json:"allowUpdates,omitempty"`
 	// Detached remembers the networks taken from a container to put it on
 	// the routed network alone (given back when it leaves the tunnel).
 	Detached map[string][]string `json:"detached,omitempty"`
