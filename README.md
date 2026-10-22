@@ -45,9 +45,11 @@ ZFS likes memory (about 1 GB per TB of storage is a comfortable rule of thumb), 
 
 | Model | Support |
 |---|---|
+| **Raspberry Pi 5 / 500 / Compute Module 5** (4 GB or more recommended) | Supported: file sharing, backups, Docker apps. Boots from a microSD card, a USB SSD or an NVMe SSD (M.2 HAT). |
 | **Raspberry Pi 4 / 400 / Compute Module 4** (4 GB or more recommended) | Supported: file sharing, backups, Docker apps. Use a USB SSD or a powered USB disk enclosure for your data. |
 | **Raspberry Pi 3 B / 3 B+** | Supported for basic file sharing and backups. With 1 GB of RAM and USB 2.0, it isn't suited to Docker apps, ZFS or virtual machines. |
-| Raspberry Pi 5 | Not supported yet (the Debian kernel doesn't support it). |
+
+The Raspberry Pi image is Debian 13 with the Raspberry Pi kernel and boot firmware (from the Raspberry Pi OS archive, which supports every model). Docker is installed in one click from the App Center when you need it, and the iSCSI target isn't available (the Raspberry Pi kernel doesn't include it).
 
 Tested hardware, and how to check yours: [docs/HARDWARE.md](docs/HARDWARE.md).
 
@@ -59,7 +61,7 @@ Get the latest version from the [Releases page](https://github.com/Nathplay15/St
 |---|---|
 | `strataos-<version>-amd64.iso` | PCs and servers (BIOS and UEFI) |
 | `strataos-<version>-arm64.iso` | 64-bit ARM servers and boards that boot in UEFI mode |
-| `strataos-<version>-raspberrypi.img.xz` | Raspberry Pi 3, 4, 400 and CM4 |
+| `strataos-<version>-raspberrypi.img.xz` | Raspberry Pi 5, 500, CM5, 4, 400, CM4 and 3 |
 | `strataos_<version>_<arch>.deb` | An existing Debian 13 system |
 | `SHA256SUMS` | Checking your download |
 

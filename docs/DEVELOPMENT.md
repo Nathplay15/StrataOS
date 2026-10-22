@@ -70,7 +70,7 @@ Details in [vm/README.md](../vm/README.md).
 | `make upgrade-test` | Installs the previous release, fills it, upgrades to the current code |
 | `make arm64-test` | The arm64 package in an emulated ARM VM |
 | `vm/iso-test.sh <iso>` | Installs an ISO in a blank VM |
-| `vm/rpi-image-test.sh [image]` | Boots the Raspberry Pi image (`RPI_MODEL=3`: as an emulated Raspberry Pi 3 B) |
+| `vm/rpi-image-test.sh [image]` | Checks and boots the Raspberry Pi image (`RPI_MODEL=3`: as an emulated Raspberry Pi 3 B; `RPI_MODEL=5`: the Pi 5 kernel up to its initramfs) |
 | `vm/restore-lvm-test.sh` | Restore points on an LVM system |
 
 `vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).

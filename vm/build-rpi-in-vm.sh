@@ -15,7 +15,7 @@ KEY=$VM_STATE/id_ed25519
 SSH=(-i "$KEY" -P "$VM_SSH_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
 ./vm/vm.sh ssh "mkdir -p /var/tmp/sos/packaging/rpi /var/tmp/sos/dist && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq debootstrap parted dosfstools xz-utils debian-archive-keyring >/dev/null"
 scp -q "${SSH[@]}" VERSION debian@127.0.0.1:/var/tmp/sos/
-scp -q "${SSH[@]}" packaging/rpi/build-rpi-image.sh debian@127.0.0.1:/var/tmp/sos/packaging/rpi/
+scp -q "${SSH[@]}" packaging/rpi/build-rpi-image.sh packaging/rpi/raspberrypi-archive-keyring.pgp debian@127.0.0.1:/var/tmp/sos/packaging/rpi/
 scp -q "${SSH[@]}" "$DEB" debian@127.0.0.1:/var/tmp/sos/dist/
 ./vm/vm.sh ssh "cd /var/tmp/sos && sudo ./packaging/rpi/build-rpi-image.sh"
 scp -q "${SSH[@]}" "debian@127.0.0.1:/var/tmp/sos/dist/strataos-${VERSION}-raspberrypi.img.xz" dist/
