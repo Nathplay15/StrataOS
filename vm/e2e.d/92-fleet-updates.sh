@@ -10,7 +10,7 @@ section "Multi-NAS console: grouped updates"
 FC=$(c POST /api/fleet/code | py 'print(d["code"])')
 FM=$(c POST /api/fleet -d "{\"host\":\"127.0.0.1\",\"code\":\"$FC\"}" | py 'print(d["id"])')
 MG=$(c GET /api/fleet/managers | py 'print(d[-1]["id"])')
-check "versions and updates shown" "$(c GET /api/fleet | py 'r=[x for x in d if x["id"]=="'"$FM"'"][0]["summary"]; print(r["version"] == r["updates"]["version"], "system" in r["updates"], r["access"])')" "True True {'updates': False, 'reboot': False}"
+check "versions and updates shown" "$(c GET /api/fleet | py 'r=[x for x in d if x["id"]=="'"$FM"'"][0]["summary"]; print(r["version"] == r["updates"]["version"], "system" in r["updates"], sorted(r["access"].items()))')" "True True [('reboot', False), ('updates', False)]"
 check "update permission off by default" "$(c GET /api/fleet/managers | py 'print([m.get("allowUpdates", False) for m in d if m["id"]=="'"$MG"'"])')" "[False]"
 check "console refuses without the permission" "$(c POST /api/fleet/updates -d "{\"ids\":[\"$FM\"],\"kind\":\"strata\",\"strategy\":\"rolling\",\"dryRun\":true}")" "does not allow the console to install updates"
 
@@ -40,7 +40,7 @@ check "grouped update (simulation) succeeded" "$(c GET /api/fleet/updates | py '
 check "simulation job ran on the watched NAS" "$(c GET /api/jobs | py 'print([(j["title"], j["status"], j["user"]) for j in d if j["title"]=="Update simulation"][:1])')" "('Update simulation', 'success', 'strata-vm (console)')"
 SIMJOB=$(c GET /api/jobs | py 'print([j["id"] for j in d if j["title"]=="Update simulation"][0])')
 check "simulation only (apt-get -s)" "$(c GET /api/jobs/$SIMJOB | py 'print(d["log"][-2000:])')" "strataos"
-check "nothing installed" "$(vm "pgrep -f 'apt-get -y' >/dev/null && echo busy || echo idle")" "idle"
+check "nothing installed" "$(vm "pgrep -f '[a]pt-get -y' >/dev/null && echo busy || echo idle")" "idle"
 check "update audited on the watched NAS" "$(c GET /api/system/events | py 'print(any(e["message"]=="Update simulation started by the console strata-vm" for e in d[:40]))')" "True"
 check "summary on the console" "$(c GET /api/system/events | py 'print([e["message"] for e in d[:40] if e["message"].startswith("Grouped update finished")][:1])')" "Grouped update finished: 1 succeeded, 0 failed, 0 skipped"
 

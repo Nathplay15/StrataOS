@@ -2,6 +2,13 @@
 # switch of the whole NAS, app recreated → back on the routed network at
 # once, expiry warnings. Same test provider as 87-vpn.sh, with IPv6.
 section "WireGuard: IPv6, whole-NAS kill switch, expiry warnings"
+# The test echo server answers the peer address as socat prints it ([expanded
+# IPv6], IPv4-mapped for IPv4 clients): compare the canonical form.
+ipn() { python3 -c 'import ipaddress,sys
+t=sys.stdin.read().strip().strip("[]")
+try:
+    a=ipaddress.ip_address(t); print(a.ipv4_mapped or a)
+except ValueError: print(t)'; }
 
 [ "$(c GET /api/vpn | py 'print(d["installed"])')" = True ] || job "$(c POST /api/system/components/vpn/install)" >/dev/null
 VPNSET='"port":51820,"subnet":"10.8.0.0/24","endpoint":"172.17.0.1","lan":"10.0.2.0/24","defaultMode":"nas"'
@@ -43,22 +50,22 @@ nets() { vm "sudo docker inspect -f '{{range \$k, \$v := .NetworkSettings.Networ
 # ---- IPv6 of the routed apps ----
 check "NAS has IPv6" "$(c GET /api/vpn/client | py 'print(d["hostIpv6"])')" "True"
 R=$(c PUT /api/vpn/client -d "$(client apps "$TMP/provider6.conf")")
-check "IPv6 provider file imported, no IPv6 warning" "$(echo "$R" | grep -q 'IPv6 is blocked' && echo warned || echo "$R")" '"ok":true'
+check "IPv6 provider file imported, no IPv6 warning" "$(echo "$R" | grep -q 'IPv6 is blocked' && echo warned || echo "$R")" '"warnings":[]'
 handshake
 check "tunnel up, IPv6 through it" "$(c GET /api/vpn/client | py 'print(d["routing"], d["ipv6"])')" "True True"
 check "routed network has IPv6" "$(vm "sudo docker network inspect -f '{{.EnableIPv6}} {{range .IPAM.Config}}{{.Subnet}} {{end}}' strata-vpn")" "true 172.31.250.0/24 fd5f:cb20:250::/64"
 check "routed app: IPv6 default route through the routed network" "$(vm "sudo docker exec vpntest6 ip -6 route show default")" "via fd5f:cb20:250::1"
 check "routed app: no other IPv6 default route" "$(vm "sudo docker exec vpntest6 ip -6 route show default" | grep -vc 'fd5f:cb20:250::1')" "0"
-check "routed app reaches IPv6 through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'")" "fd66::2"
-check "and IPv4" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - http://203.0.113.1:8080/")" "10.66.0.2"
+check "routed app reaches IPv6 through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'" | ipn)" "fd66::2"
+check "and IPv4" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - http://203.0.113.1:8080/" | ipn)" "10.66.0.2"
 check "IPv6 kill switch rule" "$(vm "ip -6 rule show pref 5303")" "fd5f:cb20:250::/64 blackhole"
 check "kill switch test (IPv4 and IPv6)" "$(c POST /api/vpn/client/killswitch | py 'print(d["blocked"], bool(d.get("downRoute6")))')" "True True"
-check "IPv6 back after the test" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'")" "fd66::2"
+check "IPv6 back after the test" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'" | ipn)" "fd66::2"
 
 # ---- App recreated (update): back on the routed network at once ----
 vm "sudo docker rm -f vpntest6 >/dev/null; sudo docker run -d --name vpntest6 strata-wgtest sleep 900 >/dev/null"
 check "recreated app back on the routed network within 5 s" "$(vm "for i in \$(seq 1 20); do sudo docker inspect -f '{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}} {{end}}' vpntest6 | grep -q strata-vpn && { echo attached; break; }; sleep 0.25; done")" "attached"
-check "recreated app through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'")" "fd66::2"
+check "recreated app through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - 'http://[2001:db8:66::1]:8080/'" | ipn)" "fd66::2"
 
 # ---- Tunnel without IPv6: IPv6 of the routed apps blocked ----
 check "IPv4-only provider file: IPv6 blocked warning" "$(c PUT /api/vpn/client -d "$(client apps "$TMP/provider4.conf")")" "IPv6 is blocked"
@@ -67,18 +74,18 @@ check "status: no IPv6 in the tunnel" "$(c GET /api/vpn/client | py 'print(d["ro
 check "no IPv6 tunnel route" "$(vm "ip -6 route show table 52000 | wc -l")" "0"
 check "routed app: IPv6 blocked" "$(vm "sudo docker exec vpntest6 wget -q -T 5 -O - 'http://[2001:db8:66::1]:8080/' 2>/dev/null || echo blocked")" "blocked"
 check "host: no IPv6 way out for the routed network" "$(vm "ip -6 route get 2606:4700:4700::1111 from fd5f:cb20:250::1 2>&1 | grep -q ' dev ' && echo LEAK || echo blocked")" "blocked"
-check "routed app: IPv4 still through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - http://203.0.113.1:8080/")" "10.66.0.2"
+check "routed app: IPv4 still through the tunnel" "$(vm "sudo docker exec vpntest6 wget -q -T 8 -O - http://203.0.113.1:8080/" | ipn)" "10.66.0.2"
 
 # ---- Whole NAS: kill switch ----
 c PUT /api/vpn/client -d "$(client all "$TMP/provider6.conf")" >/dev/null
 handshake
-check "whole NAS through the tunnel (IPv4)" "$(vm "curl -s -m 8 http://203.0.113.1:8080/")" "10.66.0.2"
-check "whole NAS through the tunnel (IPv6)" "$(vm "curl -s -g -m 8 'http://[2001:db8:66::1]:8080/'")" "fd66::2"
+check "whole NAS through the tunnel (IPv4)" "$(vm "curl -s -m 8 http://203.0.113.1:8080/" | ipn)" "10.66.0.2"
+check "whole NAS through the tunnel (IPv6)" "$(vm "curl -s -g -m 8 'http://[2001:db8:66::1]:8080/'" | ipn)" "fd66::2"
 check "kill switch rules and boot unit" "$(vm "ip rule show pref 5305; ip -6 rule show pref 5305; ip rule show pref 5298 | grep -c 'lookup main'; systemctl is-enabled strata-vpn-killswitch")" "enabled"
 check "kill switch rules: IPv4 and IPv6 blackholes" "$(vm "ip rule show pref 5305; ip -6 rule show pref 5305" | grep -c blackhole)" "2"
 check "routed apps network gone in whole-NAS mode" "$(vm "sudo docker network ls --format '{{.Name}}' | grep -c '^strata-vpn$'")" "0"
 check "kill switch test, whole NAS" "$(c POST /api/vpn/client/killswitch | py 'print(d["blocked"], bool(d.get("localRoute")), bool(d.get("serverRoute")))')" "True True True"
-check "tunnel back after the test" "$(vm "curl -s -m 8 http://203.0.113.1:8080/")" "10.66.0.2"
+check "tunnel back after the test" "$(vm "curl -s -m 8 http://203.0.113.1:8080/" | ipn)" "10.66.0.2"
 vm "sudo ip link set strata-out down"
 check "tunnel down: no Internet for the NAS" "$(vm "curl -s -m 5 -o /dev/null http://deb.debian.org/ && echo LEAK || echo blocked")" "blocked"
 check "tunnel down: no IPv6 Internet either" "$(vm "ip -6 route get 2606:4700:4700::1111 2>&1 | grep -q ' dev ' && echo LEAK || echo blocked")" "blocked"
@@ -94,7 +101,7 @@ check "updates allowed: APT rule" "$(vm "ip rule show pref 5304")" "uidrange"
 check "updates allowed: APT reaches its repository" "$(vm "sudo -u _apt curl -s -m 8 -o /dev/null http://deb.debian.org/debian/ && echo reached || echo blocked")" "reached"
 check "updates allowed: the rest still blocked" "$(vm "curl -s -m 5 -o /dev/null http://deb.debian.org/ && echo LEAK || echo blocked")" "blocked"
 check "reconnect" "$(c POST /api/vpn/client/reconnect)" '"ok":true'
-check "whole NAS back through the tunnel" "$(vm "curl -s -m 8 http://203.0.113.1:8080/")" "10.66.0.2"
+check "whole NAS back through the tunnel" "$(vm "curl -s -m 8 http://203.0.113.1:8080/" | ipn)" "10.66.0.2"
 check "tunnel removed" "$(c DELETE /api/vpn/client)" '"ok":true'
 check "kill switch removed with the tunnel" "$(vm "ip rule show | grep -cE '^5(298|30[0-5]):'; ip -6 rule show | grep -cE '^5(298|30[0-5]):'; test -e /etc/systemd/system/strata-vpn-killswitch.service && echo unit")" "$(printf '0\n0')"
 check "Internet back without the tunnel" "$(vm "curl -s -m 8 -o /dev/null http://deb.debian.org/ && echo up || echo down")" "up"
