@@ -227,6 +227,10 @@ var errForbidden = &Error{Status: http.StatusForbidden, Msg: "administrator righ
 // authenticate attaches the session to the request or rejects it.
 func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			s.bearerAuth(w, r, next, adminOnly) // mobile app (mobile.go)
+			return
+		}
 		c, err := r.Cookie(cookieName)
 		var ss *session
 		if err == nil {

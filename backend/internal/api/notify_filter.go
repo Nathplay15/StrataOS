@@ -84,7 +84,7 @@ func quietAllows(q store.QuietHours, level string, t time.Time) bool {
 // validNotifyPrefs checks the per-channel levels and the quiet hours.
 func validNotifyPrefs(set store.Settings) error {
 	c := set.NotifyChannels
-	for _, l := range []string{c.Email.MinLevel, c.Telegram.MinLevel, c.Ntfy.MinLevel, c.Webhook.MinLevel} {
+	for _, l := range []string{c.Email.MinLevel, c.Telegram.MinLevel, c.Ntfy.MinLevel, c.Webhook.MinLevel, c.Mobile.MinLevel} {
 		if !validLevel(l) {
 			return badRequest(fmt.Sprintf("invalid notification level %q", l))
 		}

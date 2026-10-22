@@ -244,6 +244,8 @@ function NotifyDelivery({ s, set }: { s: Settings; set: <K extends keyof Setting
     { id: "telegram", name: "Telegram", configured: !!s.telegramToken && !!s.telegramChatId },
     { id: "ntfy", name: "ntfy", configured: !!s.ntfyUrl },
     { id: "webhook", name: tr("Webhook"), configured: !!s.webhookUrl },
+    // Paired phones of administrators (account menu → Mobile devices); always listed.
+    { id: "mobile", name: tr("StrataOS app (phones)"), configured: true },
   ];
   const prefs = s.notifyChannels ?? {};
   const setChannel = (id: NotifyChannelId, v: NotifyChannel) => set("notifyChannels", { ...prefs, [id]: { ...prefs[id], ...v } });

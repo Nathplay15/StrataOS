@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
 import { PasskeysModal } from "./Passkeys";
+import { MobileDevicesModal } from "./MobileDevices";
 import { api } from "../lib/api";
 import { useJobs } from "../lib/jobs";
 import type { Me } from "../lib/types";
@@ -191,6 +192,7 @@ export function Layout({ me }: { me: Me }) {
   const [pwModal, setPwModal] = useState(false);
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [mobile, setMobile] = useState(false);
   const loc = useLocation();
   const nav_ = useNavigate();
   const qc = useQueryClient();
@@ -273,6 +275,7 @@ export function Layout({ me }: { me: Me }) {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Mobile devices")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/vpn"); }}><Smartphone size={15} /> {" "}{tr("My VPN devices")}</button>
                   <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> {" "}{tr("Desktop mode")}</button>
                   {me.role === "admin" && (
@@ -299,6 +302,7 @@ export function Layout({ me }: { me: Me }) {
       <PasswordModal open={pwModal} onClose={() => setPwModal(false)} />
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
+      <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
     </div>
   );
 }

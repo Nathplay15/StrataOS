@@ -6,6 +6,14 @@
     <type>_http._tcp</type>
     <port>7070</port>
   </service>
+  <!-- Found by the StrataOS app: HTTPS API port, plain HTTP port. -->
+  <service>
+    <type>_strataos._tcp</type>
+    <port>7443</port>
+    <txt-record>https=7443</txt-record>
+    <txt-record>http=7070</txt-record>
+    <txt-record>api=1</txt-record>
+  </service>
   <service>
     <type>_smb._tcp</type>
     <port>445</port>

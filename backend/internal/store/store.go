@@ -36,6 +36,8 @@ type User struct {
 	// WebAuthn: random user handle (given at the first passkey) and passkeys.
 	WebAuthnID []byte    `json:"webauthnId,omitempty"`
 	Passkeys   []Passkey `json:"passkeys,omitempty"`
+	// Phones paired with the StrataOS app (store/mobile.go).
+	MobileDevices []MobileDevice `json:"mobileDevices,omitempty"`
 }
 
 type Share struct {
@@ -520,6 +522,7 @@ type State struct {
 	Office    Office          `json:"office"`
 	Media     Media           `json:"media,omitzero"`
 	NVR       NVR             `json:"nvr,omitzero"`
+	Mobile    Mobile          `json:"mobile,omitzero"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`

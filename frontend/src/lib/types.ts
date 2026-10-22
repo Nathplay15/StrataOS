@@ -374,7 +374,7 @@ export interface StrataEvent {
   user?: string;
 }
 
-export type NotifyChannelId = "email" | "telegram" | "ntfy" | "webhook";
+export type NotifyChannelId = "email" | "telegram" | "ntfy" | "webhook" | "mobile";
 export type NotifyLevel = "" | "info" | "warning" | "error";
 
 // Zero values (as saved before 0.6.0) mean enabled, every level.

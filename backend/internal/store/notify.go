@@ -15,6 +15,8 @@ type NotifyChannels struct {
 	Telegram NotifyChannel `json:"telegram"`
 	Ntfy     NotifyChannel `json:"ntfy"`
 	Webhook  NotifyChannel `json:"webhook"`
+	// Mobile: phones paired with the StrataOS app (UnifiedPush).
+	Mobile NotifyChannel `json:"mobile,omitzero"`
 }
 
 // QuietHours is a daily window (local time, may cross midnight) during which
