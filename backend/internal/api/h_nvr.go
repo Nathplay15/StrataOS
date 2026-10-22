@@ -19,6 +19,7 @@ import (
 
 	"strataos/internal/docker"
 	"strataos/internal/jobs"
+	"strataos/internal/mediaplay"
 	"strataos/internal/nvr"
 	"strataos/internal/storage"
 	"strataos/internal/store"
@@ -341,17 +342,6 @@ func (s *Server) segmentFile(r *http.Request) (*os.File, os.FileInfo, *store.Cam
 	return f, info, c, nil
 }
 
-type countingWriter struct {
-	w io.Writer
-	n int64
-}
-
-func (c *countingWriter) Write(b []byte) (int, error) {
-	n, err := c.w.Write(b)
-	c.n += int64(n)
-	return n, err
-}
-
 func videoType(name string) string {
 	if strings.HasSuffix(name, ".mkv") {
 		return "video/x-matroska"
@@ -671,53 +661,66 @@ func (s *Server) nvrRoutes() {
 			slog.Warn("clip export failed", "err", err)
 		}
 	})
-	// Codecs of a segment: the browser plays it directly, or through /play.
+	// How a segment reaches the browser (hevc=1/av1=1: codecs it decodes).
 	s.admin("GET /api/nvr/cameras/{id}/recordings/{name}/info", func(r *http.Request) (any, error) {
 		f, info, _, err := s.segmentFile(r)
 		if err != nil {
 			return nil, err
 		}
-		p := f.Name()
-		f.Close()
-		pr, err := nvr.ProbeFile(r.Context(), p, info)
+		defer f.Close()
+		pr, err := nvr.ProbeSegment(r.Context(), f, info)
 		if err != nil {
-			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()}
+			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: "unreadable recording"}
 		}
-		return map[string]any{"video": pr.Video, "audio": pr.Audio, "duration": pr.Duration, "direct": pr.Direct(info.Name())}, nil
+		plan, err := mediaplay.Decide(pr, info.Name(), mediaplay.CapsFrom(r), -1)
+		if err != nil || plan.Video == nil {
+			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: "the recording has no video"}
+		}
+		audio := ""
+		if plan.Audio != nil {
+			audio = plan.Audio.Codec
+		}
+		return map[string]any{"video": plan.Video.Codec, "audio": audio, "duration": pr.Duration, "mode": plan.Mode, "direct": plan.Mode == mediaplay.Native}, nil
 	})
-	// A segment the browser cannot play as it is (H.265, MJPEG, G.711 sound,
-	// Matroska), as fragmented MP4 from ?start= seconds (see nvr/playback.go).
+	// A segment for the browser: the file itself when it plays as it is,
+	// else fragmented MP4 (remux or H.264 transcode) from ?start= seconds.
 	s.adminRaw("GET /api/nvr/cameras/{id}/recordings/{name}/play", func(w http.ResponseWriter, r *http.Request) {
 		f, info, _, err := s.segmentFile(r)
 		if err != nil {
 			writeErr(w, err)
 			return
 		}
-		p := f.Name()
-		f.Close()
-		start, err := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
-		if r.URL.Query().Get("start") == "" {
-			start, err = 0, nil
-		}
-		if err != nil || start < 0 || start > 24*3600 {
-			writeErr(w, badRequest("invalid start"))
-			return
-		}
-		pr, err := nvr.ProbeFile(r.Context(), p, info)
-		if err != nil {
-			writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()})
-			return
-		}
-		w.Header().Set("Content-Type", "video/mp4")
-		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-		w.Header().Set("Cache-Control", "no-store")
-		cw := &countingWriter{w: w}
-		if err := nvr.Play(r.Context(), cw, p, pr, start); err != nil {
-			slog.Warn("recording playback failed", "file", p, "err", err)
-			if cw.n == 0 {
-				w.Header().Del("Content-Type")
-				writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: "this recording cannot be converted for the browser"})
+		defer f.Close()
+		if v := r.URL.Query().Get("start"); v != "" {
+			if x, err := strconv.ParseFloat(v, 64); err != nil || x < 0 || x > 24*3600 {
+				writeErr(w, badRequest("invalid start"))
+				return
 			}
+		}
+		pr, err := nvr.ProbeSegment(r.Context(), f, info)
+		if err != nil {
+			writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: "unreadable recording"})
+			return
+		}
+		plan, err := mediaplay.Decide(pr, info.Name(), mediaplay.CapsFrom(r), -1)
+		if err != nil {
+			writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: "the recording has no video"})
+			return
+		}
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		if plan.Mode == mediaplay.Native {
+			w.Header().Set("Content-Type", plan.Type)
+			http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+			return
+		}
+		err = mediaplay.Default.Stream(w, r, f, plan, mediaplay.StartFrom(r))
+		switch {
+		case errors.Is(err, mediaplay.ErrBusy):
+			writeErr(w, &Error{Status: http.StatusServiceUnavailable, Msg: err.Error()})
+		case err != nil:
+			slog.Warn("recording playback failed", "file", f.Name(), "err", err)
+			w.Header().Del("Content-Type")
+			writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: "this recording cannot be converted for the browser"})
 		}
 	})
 	s.admin("POST /api/nvr/cleanup", func(r *http.Request) (any, error) {

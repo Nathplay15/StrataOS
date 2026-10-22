@@ -6,6 +6,7 @@ import { useAction } from "../lib/hooks";
 import { bytes, cx, dateTime } from "../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { srv, tr } from "../lib/i18n";
+import { caps } from "../components/files/MediaPlayer";
 
 type Status = { state: string; since?: string; error?: string; restarts: number };
 type Camera = {
@@ -20,7 +21,7 @@ type Vol = { path: string; label: string; free: number };
 type Data = { installed: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
 type Segment = { name: string; start: string; end: string; size: number; open?: boolean };
 type Recs = { days: string[]; day: string; segments: Segment[] };
-type SegInfo = { video: string; audio?: string; duration: number; direct: boolean };
+type SegInfo = { video: string; audio?: string; duration: number; mode: "native" | "remux" | "transcode"; direct: boolean };
 type FrigateEvent = { id: string; label: string; score: number; start: string; end?: string };
 type FrigateEvents = { installed: boolean; day: string; webPort?: string; error?: string; events: FrigateEvent[] };
 
@@ -239,7 +240,7 @@ const hm = (s: string) => new Date(s).toLocaleTimeString([], { hour: "2-digit", 
 // Plays a segment: as it is when the browser can (H.264 in MP4), else
 // converted on the fly by the NAS (H.265, MJPEG…), started at the chosen second.
 function SegmentPlayer({ base, seg }: { base: string; seg: Segment }) {
-  const info = useQuery({ queryKey: ["nvr-seg", base, seg.name], queryFn: () => api.get<SegInfo>(`${base}/${seg.name}/info`), staleTime: Infinity, retry: false });
+  const info = useQuery({ queryKey: ["nvr-seg", base, seg.name], queryFn: () => api.get<SegInfo>(`${base}/${seg.name}/info${q(caps)}`), staleTime: Infinity, retry: false });
   const [start, setStart] = useState(0);
   const [from, setFrom] = useState(0);
   if (info.isLoading) return <Spinner />;
@@ -248,13 +249,13 @@ function SegmentPlayer({ base, seg }: { base: string; seg: Segment }) {
   const dur = Math.max(1, Math.floor(i.duration || 0));
   return (
     <div className="space-y-2">
-      <video key={`${seg.name}-${from}`} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${seg.name}/play${q({ start: from ? String(from) : "" })}`} />
+      <video key={`${seg.name}-${from}`} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${seg.name}/play${q({ ...caps, start: from ? String(from) : "" })}`} />
       <div className="flex flex-wrap items-center gap-3 text-[12.5px]">
         <span className="text-muted">{tr("Start at")}</span>
         <input type="range" min={0} max={dur} value={start} onChange={(e) => setStart(parseInt(e.target.value))} onMouseUp={() => setFrom(start)} onTouchEnd={() => setFrom(start)} onKeyUp={() => setFrom(start)} className="min-w-48 flex-1" />
         <span className="mono w-20">{Math.floor(start / 60)}:{String(start % 60).padStart(2, "0")}</span>
       </div>
-      <div className="text-[11.5px] text-muted">{tr("{0} video converted to H.264 by the NAS for the browser. Seeking restarts the conversion from the chosen second.", i.video.toUpperCase())}</div>
+      <div className="text-[11.5px] text-muted">{i.mode === "remux" ? tr("Repackaged by the NAS for the browser. Seeking restarts from the chosen second.") : tr("{0} video converted to H.264 by the NAS for the browser. Seeking restarts the conversion from the chosen second.", i.video.toUpperCase())}</div>
     </div>
   );
 }

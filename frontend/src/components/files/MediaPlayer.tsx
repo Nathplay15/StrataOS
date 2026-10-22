@@ -24,7 +24,7 @@ interface Probe {
 }
 
 /** Optional codecs this browser decodes (sent to the NAS for its decision). */
-const caps = (() => {
+export const caps = (() => {
   const ms = (globalThis as { MediaSource?: { isTypeSupported(t: string): boolean } }).MediaSource;
   const ok = (t: string) => { try { return !!ms?.isTypeSupported(t); } catch { return false; } };
   return { hevc: ok('video/mp4; codecs="hvc1.1.6.L93.B0"') ? 1 : undefined, av1: ok('video/mp4; codecs="av01.0.05M.08"') ? 1 : undefined };
