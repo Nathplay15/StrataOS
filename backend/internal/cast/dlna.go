@@ -457,6 +457,7 @@ func (r *Receiver) DLNAStatus(ctx context.Context) Status {
 	}
 	if p, err := r.av(ctx, "GetPositionInfo", instance()); err == nil {
 		st.Position, st.Duration = ParseTime(p["RelTime"]), ParseTime(p["TrackDuration"])
+		st.Media = p["TrackURI"]
 	}
 	if r.RenderingControl != "" {
 		if v, err := Call(ctx, r.RenderingControl, renderingCtrlType, "GetVolume", instance(Arg{"Channel", "Master"})); err == nil {

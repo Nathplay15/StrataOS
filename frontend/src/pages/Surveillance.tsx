@@ -20,6 +20,9 @@ type Vol = { path: string; label: string; free: number };
 type Data = { installed: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
 type Segment = { name: string; start: string; end: string; size: number; open?: boolean };
 type Recs = { days: string[]; day: string; segments: Segment[] };
+type SegInfo = { video: string; audio?: string; duration: number; direct: boolean };
+type FrigateEvent = { id: string; label: string; score: number; start: string; end?: string };
+type FrigateEvents = { installed: boolean; day: string; webPort?: string; error?: string; events: FrigateEvent[] };
 
 const MASK = "********";
 
@@ -233,6 +236,87 @@ const pctOfDay = (t: Date, day: string) => {
 };
 const hm = (s: string) => new Date(s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+// Plays a segment: as it is when the browser can (H.264 in MP4), else
+// converted on the fly by the NAS (H.265, MJPEG…), started at the chosen second.
+function SegmentPlayer({ base, seg }: { base: string; seg: Segment }) {
+  const info = useQuery({ queryKey: ["nvr-seg", base, seg.name], queryFn: () => api.get<SegInfo>(`${base}/${seg.name}/info`), staleTime: Infinity, retry: false });
+  const [start, setStart] = useState(0);
+  const [from, setFrom] = useState(0);
+  if (info.isLoading) return <Spinner />;
+  const i = info.data;
+  if (!i || i.direct) return <video key={seg.name} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${seg.name}`} />;
+  const dur = Math.max(1, Math.floor(i.duration || 0));
+  return (
+    <div className="space-y-2">
+      <video key={`${seg.name}-${from}`} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${seg.name}/play${q({ start: from ? String(from) : "" })}`} />
+      <div className="flex flex-wrap items-center gap-3 text-[12.5px]">
+        <span className="text-muted">{tr("Start at")}</span>
+        <input type="range" min={0} max={dur} value={start} onChange={(e) => setStart(parseInt(e.target.value))} onMouseUp={() => setFrom(start)} onTouchEnd={() => setFrom(start)} onKeyUp={() => setFrom(start)} className="min-w-48 flex-1" />
+        <span className="mono w-20">{Math.floor(start / 60)}:{String(start % 60).padStart(2, "0")}</span>
+      </div>
+      <div className="text-[11.5px] text-muted">{tr("{0} video converted to H.264 by the NAS for the browser. Seeking restarts the conversion from the chosen second.", i.video.toUpperCase())}</div>
+    </div>
+  );
+}
+
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// The recordings Frigate made of a camera: its events with a clip.
+function FrigateRecordings({ cam }: { cam: Camera }) {
+  const [day, setDay] = useState(today);
+  const [play, setPlay] = useState<FrigateEvent | null>(null);
+  const evs = useQuery({ queryKey: ["nvr-frigate", cam.id, day], queryFn: () => api.get<FrigateEvents>(`/api/nvr/cameras/${cam.id}/frigate/events${q({ day })}`), refetchInterval: 30000 });
+  const base = `/api/nvr/cameras/${cam.id}/frigate/events`;
+  const d = evs.data;
+  const link = d?.webPort ? `https://${location.hostname}:${d.webPort}/review` : null;
+  return (
+    <Card title={tr("Frigate recordings")} actions={<div className="flex items-center gap-2">
+      <Input type="date" className="w-40" value={day} max={today()} onChange={(e) => { setDay(e.target.value || today()); setPlay(null); }} />
+      {link && <a href={link} target="_blank" rel="noreferrer"><Button size="sm" icon={<ExternalLink size={14} />}>{tr("Open Frigate")}</Button></a>}
+    </div>}>
+      <div className="space-y-4">
+        <ErrorBox error={evs.error} />
+        {d && !d.installed && <Notice tone="warn">{tr("Frigate is not installed: install it in the Settings tab.")}</Notice>}
+        {d?.error && <Notice tone="warn">{srv(d.error)}</Notice>}
+        <div className="text-[12.5px] text-muted">{tr("Events detected by Frigate that have a clip. The continuous recordings and the full timeline are in Frigate's interface.")}</div>
+        {play && (
+          <div className="space-y-2">
+            <video key={play.id} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${play.id}/clip.mp4`} />
+            <div className="flex gap-2">
+              <a href={`${base}/${play.id}/clip.mp4?download=1`}><Button size="sm" icon={<Download size={14} />}>{tr("Download the clip")}</Button></a>
+              <Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button>
+            </div>
+          </div>
+        )}
+        {evs.isLoading ? <Spinner /> : !d?.events.length ? <Empty title={tr("No event with a clip this day")} /> : (
+          <div className="max-h-[28rem] overflow-y-auto">
+            <table className="table">
+              <thead><tr><th /><th>{tr("Object")}</th><th>{tr("Start")}</th><th>{tr("End")}</th><th /></tr></thead>
+              <tbody>
+                {d.events.map((e) => (
+                  <tr key={e.id} className={cx(play?.id === e.id && "bg-panel-2")}>
+                    <td><img src={`${base}/${e.id}/thumbnail.jpg`} alt="" className="h-10 w-16 rounded object-cover" loading="lazy" /></td>
+                    <td>{e.label} <span className="text-muted text-[11.5px]">{Math.round(e.score * 100)}%</span></td>
+                    <td>{hm(e.start)}</td>
+                    <td>{e.end ? hm(e.end) : <Badge tone="ok" dot>{tr("in progress")}</Badge>}</td>
+                    <td className="text-right whitespace-nowrap">
+                      {e.end && <IconButton title={tr("Play")} onClick={() => setPlay(e)}><Play size={14} /></IconButton>}
+                      {e.end && <a href={`${base}/${e.id}/clip.mp4?download=1`}><IconButton title={tr("Download")}><Download size={14} /></IconButton></a>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function Recordings({ data }: { data: Data }) {
   const cams = data.cameras;
   const [camId, setCamId] = useState(cams[0]?.id ?? "");
@@ -262,7 +346,7 @@ function Recordings({ data }: { data: Data }) {
           </Field>
         </div>
         {cam?.engine === "frigate" && (
-          <div className="mt-4"><Notice>{tr("This camera is recorded by Frigate: its recordings, events and clips are in Frigate's interface. Only what the built-in recorder recorded before is listed here.")}</Notice></div>
+          <div className="mt-4"><Notice>{tr("This camera is recorded by Frigate: its clips are listed below. The timeline shows what the built-in recorder recorded before.")}</Notice></div>
         )}
         <div className="mt-5">
           <div className="relative h-9 rounded-lg border border-line bg-panel-2">
@@ -277,16 +361,16 @@ function Recordings({ data }: { data: Data }) {
           </div>
         </div>
       </Card>
+      {cam?.engine === "frigate" && <FrigateRecordings key={cam.id} cam={cam} />}
       {play && (
         <Card title={<span>{cam?.name} · {hm(play.start)} – {hm(play.end)}</span>} actions={<Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button>}>
-          <video key={play.name} controls autoPlay className="w-full rounded-lg bg-black" src={`${base}/${play.name}`} />
+          <SegmentPlayer key={play.name} base={base} seg={play} />
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <a href={`${base}/${play.name}?download=1`}><Button size="sm" icon={<Download size={14} />}>{tr("Download the segment")}</Button></a>
             <Field label={tr("Clip from (s)")}><Input className="w-24" type="number" min={0} value={clip.from} onChange={(e) => setClip({ ...clip, from: e.target.value })} /></Field>
             <Field label={tr("to (s)")}><Input className="w-24" type="number" min={1} value={clip.to} onChange={(e) => setClip({ ...clip, to: e.target.value })} /></Field>
             <a href={`${base}/${play.name}/clip${q({ from: clip.from, to: clip.to })}`}><Button size="sm" icon={<Scissors size={14} />}>{tr("Download the clip")}</Button></a>
           </div>
-          <div className="mt-2 text-[11.5px] text-muted">{tr("H.264 plays in every browser. H.265 (HEVC) cameras may only play in some browsers: download the file and open it with VLC.")}</div>
         </Card>
       )}
       <Card title={tr("Recordings of the day")} pad={false}>

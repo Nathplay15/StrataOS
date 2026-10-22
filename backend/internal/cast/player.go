@@ -44,6 +44,39 @@ func Open(ctx context.Context, r Receiver) (Player, error) {
 	return nil, errors.New("unknown receiver type")
 }
 
+// Resume connects again to a receiver that was given a media before a
+// restart of the daemon, without loading anything: the controls and Status
+// act on what it plays.
+func Resume(ctx context.Context, r Receiver) (Player, error) {
+	if r.Kind != "chromecast" {
+		return Open(ctx, r)
+	}
+	c, err := DialChromecast(ctx, r.Addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Attach(ctx); err != nil {
+		c.Close()
+		return nil, err
+	}
+	return &ccPlayer{c}, nil
+}
+
+// Ended tells whether a receiver given a URL before a restart no longer
+// plays it: it plays a URL without mark (a part unique to ours, receivers
+// sometimes rewrite the rest), or nothing at all. An unknown state (receiver
+// unreachable) is not an end: the session stays until its link expires.
+func Ended(st Status, mark string) bool {
+	switch st.State {
+	case "", "UNKNOWN", "ERROR":
+		return false
+	}
+	if st.Media != "" {
+		return !strings.Contains(st.Media, mark)
+	}
+	return st.State == "IDLE"
+}
+
 type ccPlayer struct{ c *Chromecast }
 
 func (p *ccPlayer) Load(ctx context.Context, m Media) error {

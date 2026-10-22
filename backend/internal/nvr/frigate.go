@@ -2,6 +2,7 @@ package nvr
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -232,6 +233,8 @@ type FrigateEvent struct {
 	Camera    string  `json:"camera"`
 	Label     string  `json:"label"`
 	StartTime float64 `json:"start_time"`
+	EndTime   float64 `json:"end_time"` // 0 while the event goes on
+	HasClip   bool    `json:"has_clip"`
 	TopScore  float64 `json:"top_score"`
 	Data      struct {
 		TopScore float64 `json:"top_score"`
@@ -293,4 +296,38 @@ func (f *EventFilter) ShouldNotify(camera string, now time.Time, every time.Dura
 	}
 	f.notified[camera] = now
 	return true
+}
+
+// ---- Recordings (events with a clip) ----
+
+var frigateIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+// ValidFrigateEventID checks an event id before it goes into an API path.
+func ValidFrigateEventID(id string) bool { return frigateIDRe.MatchString(id) }
+
+// FrigateEventsPath is the API query of the events with a clip of one camera
+// (its Frigate name) between two times (Unix seconds), newest first.
+func FrigateEventsPath(camera string, after, before float64) string {
+	v := url.Values{}
+	v.Set("cameras", camera)
+	v.Set("camera", camera) // older versions
+	v.Set("has_clip", "1")
+	v.Set("include_thumbnails", "0")
+	v.Set("limit", "500")
+	v.Set("after", strconv.FormatFloat(after, 'f', 0, 64))
+	v.Set("before", strconv.FormatFloat(before, 'f', 0, 64))
+	return "/api/events?" + v.Encode()
+}
+
+// FrigateClips keeps the events of a camera that have a clip (Frigate
+// versions differ in how they filter), newest first.
+func FrigateClips(events []FrigateEvent, camera string) []FrigateEvent {
+	out := []FrigateEvent{}
+	for _, e := range events {
+		if e.Camera == camera && e.HasClip && ValidFrigateEventID(e.ID) {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].StartTime > out[j].StartTime })
+	return out
 }

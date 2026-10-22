@@ -104,8 +104,13 @@ func (s *Server) shareRoutes() {
 		req := body.Share
 		req.Locked = false
 		req.Name = strings.TrimSpace(req.Name)
+		// An update may rename the share: from is its current name.
+		from := ""
 		if !create {
-			req.Name = r.PathValue("name")
+			from = r.PathValue("name")
+			if req.Name == "" {
+				req.Name = from
+			}
 		}
 		if !shareNameRe.MatchString(req.Name) || reservedShares[strings.ToLower(req.Name)] {
 			return nil, badRequest("invalid share name")
@@ -137,8 +142,8 @@ func (s *Server) shareRoutes() {
 		var conflict error
 		var existing store.Share
 		s.store.Read(func(st *store.State) {
-			conflict = shareConflict(st, req.Name, create)
-			if e := st.Share(req.Name); e != nil {
+			conflict = shareSaveConflict(st, from, req.Name, create)
+			if e := st.Share(from); e != nil {
 				existing = *e
 			}
 		})
@@ -185,11 +190,12 @@ func (s *Server) shareRoutes() {
 			}
 			return nil, badRequest(err.Error())
 		}
+		var media mediaChange
 		err = s.store.Update(func(st *store.State) error {
-			if err := shareConflict(st, req.Name, create); err != nil {
+			if err := shareSaveConflict(st, from, req.Name, create); err != nil {
 				return err
 			}
-			existing := st.Share(req.Name)
+			existing := st.Share(from)
 			if create {
 				req.CreatedAt = time.Now()
 				c := req
@@ -200,23 +206,37 @@ func (s *Server) shareRoutes() {
 			// Measured by StrataOS, not by the form.
 			req.Used, req.UsedAt, req.Frozen = existing.Used, existing.UsedAt, existing.Frozen
 			req.QuotaFull = existing.QuotaFull && req.QuotaBlock && req.QuotaGB > 0 && float64(existing.Used) >= req.QuotaGB*1e9
+			// The media servers read the share by name and use its path.
+			if from != req.Name {
+				media.dlna, media.music = st.Media.FollowShare(from, req.Name)
+			} else if existing.Path != req.Path {
+				media.dlna, media.music = st.Media.UsesShare(from)
+			}
 			*existing = req
 			return nil
 		})
 		if err != nil {
 			return nil, err
 		}
+		if from != "" && from != req.Name {
+			// Clients connected to the old name lose it with the new configuration.
+			_, _ = sys.Run("smbcontrol", "smbd", "close-share", from)
+		}
 		if err := s.applyShares(); err != nil {
 			return nil, err
 		}
+		s.mediaFollowShares(media, userOf(r))
 		if req.QuotaGB > 0 || req.QuotaFull {
 			go s.checkShareQuotas()
 		}
-		verb := "Updated"
-		if create {
-			verb = "Created"
+		switch {
+		case create:
+			s.audit(r, "shares", "Created share "+req.Name)
+		case from != req.Name:
+			s.audit(r, "shares", "Renamed share "+from+" to "+req.Name)
+		default:
+			s.audit(r, "shares", "Updated share "+req.Name)
 		}
-		s.audit(r, "shares", verb+" share "+req.Name)
 		if recovery != "" {
 			return map[string]any{"share": req, "recoveryKey": recovery}, nil
 		}
@@ -227,6 +247,7 @@ func (s *Server) shareRoutes() {
 
 	s.admin("DELETE /api/shares/{name}", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
+		var media mediaChange
 		err := s.store.Update(func(st *store.State) error {
 			sh := st.Share(name)
 			if sh == nil {
@@ -236,13 +257,17 @@ func (s *Server) shareRoutes() {
 				_ = crypt.Lock(sh.Path) // the encrypted data is kept in its hidden folder
 			}
 			st.Shares = slices.DeleteFunc(st.Shares, func(x *store.Share) bool { return x.Name == name })
+			media.dlna, media.music = st.Media.FollowShare(name, "")
+			media.deleted = name
 			return nil
 		})
 		if err != nil {
 			return nil, err
 		}
 		s.audit(r, "shares", "Deleted share "+name+" (files kept)")
-		return nil, s.applyShares()
+		err = s.applyShares()
+		s.mediaFollowShares(media, userOf(r))
+		return nil, err
 	})
 
 	// Encrypted shares: unlock with the passphrase or the recovery key, lock.
@@ -311,6 +336,23 @@ func shareConflict(st *store.State, name string, create bool) error {
 	}
 	for _, sh := range st.Shares {
 		if strings.EqualFold(sh.Name, name) {
+			return badRequest("a share with this name already exists")
+		}
+	}
+	return nil
+}
+
+// shareSaveConflict checks a save: a new name must be free; an updated share
+// (from) must exist, and a new name for it must be free.
+func shareSaveConflict(st *store.State, from, name string, create bool) error {
+	if create {
+		return shareConflict(st, name, true)
+	}
+	if err := shareConflict(st, from, false); err != nil {
+		return err
+	}
+	for _, sh := range st.Shares {
+		if sh.Name != from && strings.EqualFold(sh.Name, name) {
 			return badRequest("a share with this name already exists")
 		}
 	}

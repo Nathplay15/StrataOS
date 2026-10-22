@@ -1,6 +1,7 @@
 package nvr
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -300,5 +301,35 @@ func TestEventFilter(t *testing.T) {
 	e.Data.TopScore = 0.87
 	if e.Score() != 0.87 {
 		t.Error("score")
+	}
+}
+
+func TestFrigateClips(t *testing.T) {
+	var events []FrigateEvent
+	raw := `[{"id":"1718049375.123456-abc12d","camera":"door","label":"person","start_time":1718049375.1,"end_time":1718049390.5,"has_clip":true,"data":{"top_score":0.81}},
+	{"id":"1718049400.1-x","camera":"door","label":"car","start_time":1718049400.1,"end_time":null,"has_clip":true},
+	{"id":"1718049300.1-y","camera":"door","label":"dog","start_time":1718049300.1,"has_clip":false},
+	{"id":"1718049500.1-z","camera":"garden","label":"cat","start_time":1718049500.1,"has_clip":true},
+	{"id":"../../config","camera":"door","label":"cat","start_time":1718049600.1,"has_clip":true}]`
+	if err := json.Unmarshal([]byte(raw), &events); err != nil {
+		t.Fatal(err)
+	}
+	got := FrigateClips(events, "door")
+	if len(got) != 2 || got[0].ID != "1718049400.1-x" || got[1].ID != "1718049375.123456-abc12d" {
+		t.Fatalf("clips: %+v", got)
+	}
+	if got[0].EndTime != 0 || got[1].EndTime != 1718049390.5 || got[1].Score() != 0.81 {
+		t.Errorf("fields: %+v", got)
+	}
+	p := FrigateEventsPath("front_door", 1718000000, 1718086400)
+	for _, want := range []string{"/api/events?", "cameras=front_door", "has_clip=1", "after=1718000000", "before=1718086400"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("%s missing in %s", want, p)
+		}
+	}
+	for id, ok := range map[string]bool{"1718049375.123456-abc12d": true, "a/b": false, "..": false, "": false, "x?y": false} {
+		if ValidFrigateEventID(id) != ok {
+			t.Errorf("ValidFrigateEventID(%q) != %v", id, ok)
+		}
 	}
 }

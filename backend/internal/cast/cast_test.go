@@ -235,7 +235,7 @@ func TestDLNARenderer(t *testing.T) {
 		case "GetTransportInfo":
 			body = "<CurrentTransportState>PLAYING</CurrentTransportState>"
 		case "GetPositionInfo":
-			body = "<RelTime>0:00:07</RelTime><TrackDuration>0:10:00</TrackDuration>"
+			body = "<RelTime>0:00:07</RelTime><TrackDuration>0:10:00</TrackDuration><TrackURI>http://nas/x.mp4?a=1&amp;b=2</TrackURI>"
 		case "GetVolume":
 			body = "<CurrentVolume>35</CurrentVolume>"
 		}
@@ -252,7 +252,7 @@ func TestDLNARenderer(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := p.Status(ctx)
-	if st.State != "PLAYING" || st.Position != 7 || st.Duration != 600 || st.Volume != 35 {
+	if st.State != "PLAYING" || st.Position != 7 || st.Duration != 600 || st.Volume != 35 || st.Media != "http://nas/x.mp4?a=1&b=2" {
 		t.Errorf("status %+v", st)
 	}
 	mu.Lock()
