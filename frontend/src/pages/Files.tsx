@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Download, Eye, EyeOff, File, FileImage, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Presentation, Trash2, Upload } from "lucide-react";
+import { ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { FileEntry, UserQuota } from "../lib/types";
@@ -10,6 +10,7 @@ import { VersionsModal } from "../components/VersionsModal";
 import { CastButton } from "../components/Cast";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Progress, Spinner, useUI } from "../components/ui";
 import { Workspace, tabFor, type OpenTab } from "../components/files/Workspace";
+import { OpenWith } from "../components/files/common";
 import { fileKind, officeType, type OfficeStatus } from "../lib/filetypes";
 import { InWindow } from "../desktop/context";
 import { tr } from "../lib/i18n";
@@ -18,10 +19,15 @@ const ROOT = "/srv/strata";
 
 function icon(e: FileEntry) {
   if (e.dir) return <Folder size={18} className="text-accent" fill="currentColor" fillOpacity={0.15} />;
-  const ext = e.name.split(".").pop()?.toLowerCase() ?? "";
-  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "heic", "bmp"].includes(ext)) return <FileImage size={18} className="text-ok" />;
-  if (["mp4", "mkv", "avi", "mov", "webm"].includes(ext)) return <FileVideo size={18} className="text-warn" />;
-  if (["txt", "md", "log", "json", "yml", "yaml", "conf", "csv", "xml", "ini", "sh"].includes(ext)) return <FileText size={18} className="text-muted" />;
+  switch (fileKind(e.name)) {
+    case "image": return <FileImage size={18} className="text-ok" />;
+    case "video": return <FileVideo size={18} className="text-warn" />;
+    case "audio": return <FileAudio size={18} className="text-warn" />;
+    case "sheet": return <FileSpreadsheet size={18} className="text-ok" />;
+    case "archive": return <FileArchive size={18} className="text-muted" />;
+    case "pdf": case "docx": case "document": return <FileText size={18} className="text-accent" />;
+    case "text": case "markdown": return <FileText size={18} className="text-muted" />;
+  }
   return <File size={18} className="text-muted" />;
 }
 
@@ -61,7 +67,10 @@ export default function Files() {
   const open = (e: FileEntry) => {
     if (e.dir) return go(e.path);
     const kind = fileKind(e.name);
-    openTab(tabFor(e, kind === "other" && officeType(office.data, e.name) ? "office" : kind));
+    // OnlyOffice, when set up, stays the default for the documents it edits;
+    // "Open with" offers the built-in previews.
+    const oo = officeType(office.data, e.name) && (kind === "other" || kind === "docx" || kind === "document" || (kind === "sheet" && !/\.(csv|tsv)$/i.test(e.name)));
+    openTab(tabFor(e, oo ? "office" : kind));
   };
   const closeTab = async (id: string) => {
     if (dirty[id] && !(await confirm({ title: tr("Close without saving?"), text: tr("Your changes to this file will be lost."), confirm: tr("Close"), danger: true }))) return;
@@ -232,7 +241,7 @@ export default function Files() {
                     <td className="text-muted text-[12.5px]">{dateTime(e.modTime)}</td>
                     <td className="mono hidden text-muted md:table-cell">{e.mode}</td>
                     <td className="text-right whitespace-nowrap">
-                      {!e.dir && officeType(office.data, e.name) && fileKind(e.name) !== "other" && <Button size="sm" variant="ghost" icon={<Presentation size={14} />} onClick={() => openTab(tabFor(e, "office"))} title={tr("Open in OnlyOffice")} />}
+                      {!e.dir && <OpenWith entry={e} office={office.data} onOpen={openTab} />}
                       <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(e.path)} title={tr("Download")} />
                       {!e.dir && <CastButton path={e.path} name={e.name} />}
                       {!e.dir && path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => setVersions({ path: e.path, name: e.name })} title={tr("Previous versions")} />}

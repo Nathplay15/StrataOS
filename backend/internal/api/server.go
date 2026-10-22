@@ -213,6 +213,7 @@ func (s *Server) routes() {
 	s.customAppRoutes()
 	s.fileRoutes()
 	s.editorRoutes()
+	s.viewerRoutes()
 	s.officeRoutes()
 	s.scheduleRoutes()
 	s.backupRoutes()

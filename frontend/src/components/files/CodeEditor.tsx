@@ -52,9 +52,11 @@ export interface CodeEditorProps {
   readOnly: boolean;
   onChange: (doc: string) => void;
   onSave: () => void;
+  /** Opens at the end (tail of a log). */
+  scrollToEnd?: boolean;
 }
 
-export default function CodeEditor({ value, lang, readOnly, onChange, onSave }: CodeEditorProps) {
+export default function CodeEditor({ value, lang, readOnly, onChange, onSave, scrollToEnd }: CodeEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const cb = useRef({ onChange, onSave });
   cb.current = { onChange, onSave };
@@ -81,6 +83,7 @@ export default function CodeEditor({ value, lang, readOnly, onChange, onSave }: 
       }),
     });
     view.current = v;
+    if (scrollToEnd) v.dispatch({ selection: { anchor: v.state.doc.length }, scrollIntoView: true });
     return () => { v.destroy(); view.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

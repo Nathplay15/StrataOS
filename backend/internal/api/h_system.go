@@ -17,6 +17,7 @@ import (
 	"strataos/internal/media"
 	"strataos/internal/nvr"
 	"strataos/internal/photos"
+	"strataos/internal/preview"
 	"strataos/internal/vpn"
 	"strings"
 	"time"
@@ -389,37 +390,38 @@ func (s *Server) systemRoutes() {
 	// Optional components installed through bundled scripts.
 	s.admin("GET /api/system/components", func(r *http.Request) (any, error) {
 		return map[string]bool{
-			"zfs":       storage.ZFSAvailable(),
-			"docker":    sys.Has("docker"),
-			"compose":   composeAvailable(),
-			"samba":     sys.Has("smbd"),
-			"nfs":       sys.Has("exportfs"),
-			"btrfs":     sys.Has("mkfs.btrfs"),
-			"lvm":       sys.Has("lvcreate"),
-			"mdadm":     sys.Has("mdadm"),
-			"smart":     sys.Has("smartctl"),
-			"restic":    sys.Has("restic"),
-			"nut":       sys.Has("upsmon"),
-			"vms":       sys.Has("virsh"),
-			"rclone":    sys.Has("rclone"),
-			"ftp":       fileservices.FTPInstalled(),
-			"directory": directory.ADInstalled() && directory.LDAPInstalled(),
-			"antivirus": antivirus.Installed(),
-			"ha":        ha.Installed(),
-			"vpn":       vpn.Installed(),
-			"photos":    photos.Installed(),
-			"iscsi":     iscsi.Installed(),
-			"nvr":       nvr.Installed(),
-			"rsync":     sys.Has("rsync"),
-			"xfs":       sys.Has("mkfs.xfs"),
-			"tailscale": remote.TailscaleInstalled(),
-			"tunnel":    remote.CloudflaredInstalled(),
-			"dlna":      media.DLNAInstalled(),
+			"zfs":        storage.ZFSAvailable(),
+			"docker":     sys.Has("docker"),
+			"compose":    composeAvailable(),
+			"samba":      sys.Has("smbd"),
+			"nfs":        sys.Has("exportfs"),
+			"btrfs":      sys.Has("mkfs.btrfs"),
+			"lvm":        sys.Has("lvcreate"),
+			"mdadm":      sys.Has("mdadm"),
+			"smart":      sys.Has("smartctl"),
+			"restic":     sys.Has("restic"),
+			"nut":        sys.Has("upsmon"),
+			"vms":        sys.Has("virsh"),
+			"rclone":     sys.Has("rclone"),
+			"ftp":        fileservices.FTPInstalled(),
+			"directory":  directory.ADInstalled() && directory.LDAPInstalled(),
+			"antivirus":  antivirus.Installed(),
+			"ha":         ha.Installed(),
+			"vpn":        vpn.Installed(),
+			"photos":     photos.Installed(),
+			"iscsi":      iscsi.Installed(),
+			"nvr":        nvr.Installed(),
+			"rsync":      sys.Has("rsync"),
+			"xfs":        sys.Has("mkfs.xfs"),
+			"tailscale":  remote.TailscaleInstalled(),
+			"tunnel":     remote.CloudflaredInstalled(),
+			"dlna":       media.DLNAInstalled(),
+			"docpreview": preview.OfficeInstalled(),
 		}, nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}
