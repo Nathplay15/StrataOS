@@ -8,7 +8,7 @@ This guide walks you through installing StrataOS and using it day to day. Each p
 
 **On a 64-bit ARM board (arm64)**: same steps with `strataos-<version>-arm64.iso`, on a machine that boots in UEFI mode.
 
-**On a Raspberry Pi 4, 400, CM4 or 3 B / 3 B+**: write `strataos-<version>-raspberrypi.img.xz` to a microSD card or a USB SSD (Raspberry Pi Imager → "Use custom", or balenaEtcher), connect the Pi to your network with a cable and power it on. On first boot, the system partition grows to fill the card by itself; wait two to three minutes. The image is 64-bit. With 1 GB of RAM, a Pi 3 is fine for basic file sharing, but not for Docker apps, ZFS or virtual machines. The Raspberry Pi 5 is not supported yet.
+**On a Raspberry Pi 5, 500, CM5, 4, 400, CM4 or 3 B / 3 B+**: write `strataos-<version>-raspberrypi.img.xz` to a microSD card or a USB SSD (Raspberry Pi Imager → "Use custom", or balenaEtcher), connect the Pi to your network with a cable and power it on. On first boot, the system partition grows to fill the card by itself; wait two to three minutes. The image is 64-bit. With 1 GB of RAM, a Pi 3 is fine for basic file sharing, but not for Docker apps, ZFS or virtual machines. On a Pi 5, the system can also live on an NVMe SSD (M.2 HAT): write the image to it like to a card. Docker isn't preinstalled on the Pi image, to keep it small: App Center → **Install Docker** adds it in one click.
 
 **On an existing Debian 13 system**: `sudo apt install ./strataos_<version>_<arch>.deb`.
 

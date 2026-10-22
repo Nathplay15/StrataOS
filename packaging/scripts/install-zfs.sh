@@ -15,8 +15,13 @@ echo ">> Updating package lists"
 apt-get update
 
 echo ">> Installing kernel headers and ZFS (the module build can take several minutes)"
-# linux-headers-<arch> follows kernel upgrades, so DKMS rebuilds ZFS for every new kernel.
-pkgs="linux-headers-$(dpkg --print-architecture) dpkg-dev"
+# linux-headers-<arch> follows kernel upgrades, so DKMS rebuilds ZFS for every
+# new kernel; linux-headers-rpi-<flavour> with the Raspberry Pi kernels.
+pkgs="dpkg-dev"
+for meta in "$(dpkg --print-architecture)" rpi-v8 rpi-2712; do
+  dpkg-query -W -f '${Status}' "linux-image-$meta" 2>/dev/null | grep -q " installed$" && pkgs="$pkgs linux-headers-$meta"
+done
+[ "$pkgs" = dpkg-dev ] && pkgs="$pkgs linux-headers-$(dpkg --print-architecture)"
 for k in /lib/modules/*; do
   v=$(basename "$k")
   apt-cache show "linux-headers-$v" >/dev/null 2>&1 && pkgs="$pkgs linux-headers-$v"
