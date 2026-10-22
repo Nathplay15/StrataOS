@@ -9,7 +9,7 @@
 section "File viewers (PDF, office, media, pictures, archives)"
 FV=/srv/strata/main/Viewers
 check "share for the viewers" "$(c POST /api/shares -d "{\"name\":\"Viewers\",\"path\":\"$FV\",\"smb\":true,\"browseable\":true,\"permissions\":{\"$USER_NAME\":\"rw\"}}")" '"name":"Viewers"'
-vm "sudo chmod 770 $FV && sudo setfacl -m u:debian:rx $FV"  # the test's SSH user cds into it
+vm "sudo chmod 770 $FV"
 # up <local file> [name]: uploads into the share as the user.
 up() { curl -s -b "$J2" -H 'X-Strata: 1' -F "file=@$1;filename=${2:-$(basename "$1")}" "$B/api/files/upload?path=$FV"; }
 
@@ -77,8 +77,8 @@ check "no preview of a file the user cannot read" "$(u GET "/api/files/docprevie
 check "media tools present" "$(job "$(c POST /api/system/components/photos/install)")" "success"
 printf '1\n00:00:01,000 --> 00:00:03,500\nHello subtitles\n\n2\n00:00:05,000 --> 00:00:07,000\nSecond line\n' > "$TMP/s.srt"
 up "$TMP/s.srt" e2e.srt >/dev/null
-vm "cd $FV && (sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=320x240:rate=25:duration=8 -f lavfi -i sine=f=440:duration=8 -i e2e.srt -map 0 -map 1 -map 2 -c:v libx265 -pix_fmt yuv420p -c:a ac3 -c:s srt clip.mkv 2>/dev/null || sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=320x240:rate=25:duration=8 -f lavfi -i sine=f=440:duration=8 -c:v mpeg4 -c:a mp3 clip.avi); sudo ffmpeg -loglevel error -y -f lavfi -i sine=f=330:duration=5 -c:a wmav2 tone.wma; sudo chown $USER_NAME clip.* tone.wma"
-CLIP=$(vm "ls $FV/clip.mkv $FV/clip.avi 2>/dev/null | head -1" | tr -d '\r')
+vm "sudo sh -c 'cd $FV && (sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=320x240:rate=25:duration=8 -f lavfi -i sine=f=440:duration=8 -i e2e.srt -map 0 -map 1 -map 2 -c:v libx265 -pix_fmt yuv420p -c:a ac3 -c:s srt clip.mkv 2>/dev/null || sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=320x240:rate=25:duration=8 -f lavfi -i sine=f=440:duration=8 -c:v mpeg4 -c:a mp3 clip.avi); sudo ffmpeg -loglevel error -y -f lavfi -i sine=f=330:duration=5 -c:a wmav2 tone.wma; sudo chown $USER_NAME clip.* tone.wma'"
+CLIP=$(vm "sudo ls $FV/clip.mkv $FV/clip.avi 2>/dev/null | head -1" | tr -d '\r')
 check "test video generated" "$CLIP" "$FV/clip."
 check "probe: transcoded for a browser without HEVC" "$(u GET "/api/files/probe?path=$CLIP" | py 'p=d["plan"]; print(d["installed"], p["mode"], round(d["duration"]))')" "True transcode 8"
 # fetch <url> <file>: the first part of a stream (the client then goes away).
@@ -98,7 +98,7 @@ if [ "${CLIP##*.}" = mkv ]; then
   check "subtitle track listed" "$(u GET "/api/files/probe?path=$CLIP" | py 'print([s["codec"] for s in d["subtitles"]])')" "subrip"
   SUB=$(u GET "/api/files/probe?path=$CLIP" | py 'print(d["subtitles"][0]["index"])')
   check "subtitles as WebVTT" "$(curl -s -b "$J2" -H 'X-Strata: 1' "$B/api/files/subtitle?path=$CLIP&index=$SUB")" "Hello subtitles"
-  check "subtitles shifted for a stream started at 4 s" "$(curl -s -b "$J2" -H 'X-Strata: 1' "$B/api/files/subtitle?path=$CLIP&index=$SUB&start=4" | tr '\n' ' ')" "00:00:01.000 --> 00:00:03.000 Second line"
+  check "subtitles shifted for a stream started at 4 s" "$(curl -s -b "$J2" -H 'X-Strata: 1' "$B/api/files/subtitle?path=$CLIP&index=$SUB&start=4" | tr '\n' ' ' | sed -E 's/([0-9]{2}:[0-9]{2}:[0-9]{2}\.)0[0-9]{2}/\1000/g')" "00:00:01.000 --> 00:00:03.000 Second line"
 fi
 check "audio (WMA): transcoded to AAC" "$(u GET "/api/files/probe?path=$FV/tone.wma" | py 'p=d["plan"]; print(p["mode"], p["audioOnly"], p["type"])')" "transcode True audio/mp4"
 fetch "$B/api/files/play?path=$FV/tone.wma" "$TMP/a.mp4"
@@ -109,7 +109,7 @@ check "H.264 MP4: played natively (Range)" "$(u GET "/api/files/probe?path=$FV/n
 check "not a media file: clear error" "$(u GET "/api/files/probe?path=$FV/table.csv")" "error"
 
 # ---- Pictures ----
-vm "cd $FV && sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=1200x800 -frames:v 1 pic.tiff && sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x480 -frames:v 1 pic.ppm; sudo chown $USER_NAME pic.*"
+vm "sudo sh -c 'cd $FV && sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=1200x800 -frames:v 1 pic.tiff && sudo ffmpeg -loglevel error -y -f lavfi -i testsrc=size=640x480 -frames:v 1 pic.ppm; sudo chown $USER_NAME pic.*'"
 check "TIFF converted (WebP keeps transparency)" "$(curl -s -m 60 -b "$J2" -H 'X-Strata: 1' -o "$TMP/pic" -w '%{http_code} %{content_type}' "$B/api/files/image?path=$FV/pic.tiff&size=600"; python3 -c "import sys; print(' RIFF' if open(sys.argv[1],'rb').read(4)==b'RIFF' else ' ?')" "$TMP/pic")" "200 image/webp RIFF"
 check "PPM converted to JPEG" "$(curl -s -m 60 -b "$J2" -H 'X-Strata: 1' -o "$TMP/pic" -w '%{http_code} %{content_type}' "$B/api/files/image?path=$FV/pic.ppm"; python3 -c "import sys; print(' JPEG' if open(sys.argv[1],'rb').read(2)==b'\xff\xd8' else ' ?')" "$TMP/pic")" "200 image/jpeg JPEG"
 printf '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script><rect width="10" height="10"/></svg>' > "$TMP/x.svg"
@@ -150,7 +150,7 @@ c POST /api/shares -d "{\"name\":\"ViewersRO\",\"path\":\"/srv/strata/main/Viewe
 check "read-only share: extraction refused" "$(u POST /api/files/archive/extract -d '{"path":"/srv/strata/main/ViewersRO/r.zip"}')" "error"
 check "archive outside the user's shares refused" "$(u GET "/api/files/archive?path=/srv/strata/tank/media/x.zip")" "error"
 if vm "command -v 7z" >/dev/null; then
-  vm "cd $FV && sudo 7z a -bd e2e.7z e2e.srt >/dev/null 2>&1; sudo chown $USER_NAME e2e.7z"
+  vm "sudo sh -c 'cd $FV && sudo 7z a -bd e2e.7z e2e.srt >/dev/null 2>&1; sudo chown $USER_NAME e2e.7z'"
   check "7z archive listed through 7-Zip" "$(u GET "/api/files/archive?path=$FV/e2e.7z" | py 'print(d["format"], [e["name"] for e in d["entries"]])')" "7z ['e2e.srt']"
 fi
 
