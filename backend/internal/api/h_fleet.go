@@ -1,13 +1,15 @@
 package api
 
 // Multi-NAS console: this NAS shows the health of other StrataOS NAS. Each
-// one allows it with a single-use code and gets back a read-only token;
-// calls go over HTTPS with the certificate pinned at pairing.
+// one allows it with a single-use code and gets back a token, read-only
+// unless that NAS also lets the console install its updates
+// (h_fleet_updates.go); calls go over HTTPS with the certificate pinned at
+// pairing.
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,36 +54,17 @@ func (s *Server) fleetSummary() map[string]any {
 	})
 	ov["hostname"], ov["version"], ov["uptimeDays"], ov["sample"] = host, s.version, uptimeDays(), last
 	ov["backups"] = map[string]any{"ok": ok, "failed": failed, "lastFailure": lastFail}
+	ov["updates"] = s.updateInfo(false)
+	if ha := s.fleetHA(); ha != nil {
+		ov["ha"] = ha
+	}
 	return ov
 }
 
 func (s *Server) fleetRoutes() {
 	// ---- On a watched NAS ----
-	s.mux.HandleFunc("GET /api/fleet/peer/summary", func(w http.ResponseWriter, r *http.Request) {
-		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		id := ""
-		s.store.Read(func(st *store.State) {
-			for _, m := range st.Fleet.Managers {
-				if subtle.ConstantTimeCompare([]byte(m.TokenHash), []byte(hashToken(tok))) == 1 {
-					id = m.ID
-				}
-			}
-		})
-		if id == "" || tok == "" {
-			s.guardFail(clientIP(r), "console multi-NAS", "")
-			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "authentication required"})
-			return
-		}
-		_ = s.store.Update(func(st *store.State) error {
-			for i := range st.Fleet.Managers {
-				if st.Fleet.Managers[i].ID == id && time.Since(st.Fleet.Managers[i].LastSeen) > time.Minute {
-					st.Fleet.Managers[i].LastSeen = time.Now()
-				}
-			}
-			return nil
-		})
-		writeJSON(w, http.StatusOK, s.fleetSummary())
-	})
+	s.fleetPeerRoutes()
+	s.fleetUpdateRoutes()
 	s.admin("POST /api/fleet/code", func(r *http.Request) (any, error) {
 		code := pairingCode()
 		fleetCodes.Lock()
@@ -161,6 +144,7 @@ func (s *Server) fleetRoutes() {
 			Online  bool           `json:"online"`
 			Error   string         `json:"error,omitempty"`
 			Summary map[string]any `json:"summary,omitempty"`
+			HAWith  []string       `json:"haWith,omitempty"` // rows of its HA pair
 		}
 		out := make([]row, len(members)+1)
 		out[0] = row{ID: "local", Name: "", Host: "", Online: true, Summary: s.fleetSummary()}
@@ -173,23 +157,45 @@ func (s *Server) fleetRoutes() {
 				rw := row{ID: m.ID, Name: m.Name, Host: m.Host}
 				ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 				defer cancel()
-				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+bracketHost(m.Host)+":7443/api/fleet/peer/summary", nil)
-				req.Header.Set("Authorization", "Bearer "+m.Token)
-				resp, err := (&http.Client{Transport: backup.PinnedTransport(m.Cert)}).Do(req)
-				if err != nil {
+				var pe *peerError
+				switch err := fleetCall(ctx, m, http.MethodGet, "/api/fleet/peer/summary", nil, &rw.Summary); {
+				case errors.As(err, &pe):
+					rw.Error = fmt.Sprintf("HTTP %d: %s", pe.Status, pe.Msg)
+				case err != nil:
 					rw.Error = err.Error()
-				} else {
-					if resp.StatusCode != http.StatusOK {
-						rw.Error = "HTTP " + resp.Status
-					} else if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rw.Summary); err == nil {
-						rw.Online = true
-					}
-					resp.Body.Close()
+				default:
+					rw.Online = true
 				}
 				out[i+1] = rw
 			}()
 		}
 		wg.Wait()
+		// HA pairs, as the NAS report them.
+		nodes := make([]fleetNode, len(out))
+		for i, rw := range out {
+			nodes[i].Host = rw.Host
+			if rw.Summary == nil {
+				continue
+			}
+			nodes[i].Hostname, _ = rw.Summary["hostname"].(string)
+			if ha, ok := rw.Summary["ha"].(map[string]any); ok {
+				nodes[i].HARole, _ = ha["role"].(string)
+				peers, _ := ha["peers"].([]any)
+				for _, p := range peers {
+					if p, ok := p.(string); ok {
+						nodes[i].HAPeers = append(nodes[i].HAPeers, p)
+					}
+				}
+			}
+		}
+		groups := fleetGroups(nodes)
+		for i := range out {
+			for j := range out {
+				if i != j && groups[i] >= 0 && groups[i] == groups[j] {
+					out[i].HAWith = append(out[i].HAWith, out[j].ID)
+				}
+			}
+		}
 		return out, nil
 	})
 	s.admin("POST /api/fleet", func(r *http.Request) (any, error) {

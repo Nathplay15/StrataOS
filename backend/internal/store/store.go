@@ -297,6 +297,8 @@ type HASecondary struct {
 type Fleet struct {
 	Members  []FleetMember  `json:"members,omitempty"`
 	Managers []FleetManager `json:"managers,omitempty"`
+	// Updates: the grouped updates this console ran (newest last).
+	Updates []FleetUpdateRun `json:"updates,omitempty"`
 }
 
 type FleetMember struct {
@@ -314,6 +316,10 @@ type FleetManager struct {
 	TokenHash string    `json:"tokenHash,omitempty"`
 	Created   time.Time `json:"created"`
 	LastSeen  time.Time `json:"lastSeen,omitzero"`
+	// Opt-in remote management: the console may install updates, and
+	// restart this NAS when an update needs it (both off by default).
+	AllowUpdates bool `json:"allowUpdates,omitempty"`
+	AllowReboot  bool `json:"allowReboot,omitempty"`
 }
 
 // Vault receives the backups of other StrataOS NAS (restic REST protocol);
