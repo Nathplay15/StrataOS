@@ -9,7 +9,7 @@
 section "File viewers (PDF, office, media, pictures, archives)"
 FV=/srv/strata/main/Viewers
 check "share for the viewers" "$(c POST /api/shares -d "{\"name\":\"Viewers\",\"path\":\"$FV\",\"smb\":true,\"browseable\":true,\"permissions\":{\"$USER_NAME\":\"rw\"}}")" '"name":"Viewers"'
-vm "sudo chmod 770 $FV"
+vm "sudo chmod 770 $FV && sudo setfacl -m u:debian:rx $FV"  # the test's SSH user cds into it
 # up <local file> [name]: uploads into the share as the user.
 up() { curl -s -b "$J2" -H 'X-Strata: 1' -F "file=@$1;filename=${2:-$(basename "$1")}" "$B/api/files/upload?path=$FV"; }
 

@@ -123,6 +123,14 @@ func (c *Cache) WorkDir(uid, gid int) (string, error) {
 		return "", err
 	}
 	_ = os.Chmod(c.Dir, 0o711) // the sandbox user enters its own folder only
+	// Its parents must be traversable too: /var/cache/strata may have been
+	// created 0700 by another feature (the restic cache). Add search
+	// permission only, never read.
+	for p := filepath.Dir(c.Dir); p != "/" && p != "/var/cache" && p != "/var" && p != "."; p = filepath.Dir(p) {
+		if st, err := os.Stat(p); err == nil && st.Mode().Perm()&0o011 != 0o011 {
+			_ = os.Chmod(p, st.Mode().Perm()|0o011)
+		}
+	}
 	d, err := os.MkdirTemp(c.Dir, ".work-")
 	if err != nil {
 		return "", err
