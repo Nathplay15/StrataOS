@@ -38,6 +38,7 @@ type Chromecast struct {
 	posAt     time.Time
 	duration  float64
 	state     string // PLAYING, PAUSED, BUFFERING, IDLE
+	content   string // contentId (URL) of the loaded media
 	volume    float64
 }
 
@@ -242,8 +243,31 @@ func (c *Chromecast) mediaStatus(p map[string]any) {
 			if d, ok := md["duration"].(float64); ok {
 				c.duration = d
 			}
+			if u, ok := md["contentId"].(string); ok {
+				c.content = u
+			}
 		}
 	}
+}
+
+// Attach joins the media already playing on the device (after a restart of
+// the daemon): it finds the running media app and its media session. Nothing
+// playing is not an error: Status then says IDLE.
+func (c *Chromecast) Attach(ctx context.Context) error {
+	if _, err := c.request(ctx, receiverID, nsReceiver, map[string]any{"type": "GET_STATUS"}); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	t := c.transport
+	c.mu.Unlock()
+	if t == "" {
+		return nil
+	}
+	if err := c.send(t, nsConnection, map[string]any{"type": "CONNECT"}); err != nil {
+		return err
+	}
+	_, err := c.request(ctx, t, nsMedia, map[string]any{"type": "GET_STATUS"})
+	return err
 }
 
 // Load starts the Default Media Receiver if needed and plays a URL.
@@ -323,7 +347,7 @@ func (c *Chromecast) Status(ctx context.Context) Status {
 	_, _ = c.request(ctx, receiverID, nsReceiver, map[string]any{"type": "GET_STATUS"})
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	st := Status{State: c.state, Position: c.position, Duration: c.duration, Volume: -1}
+	st := Status{State: c.state, Position: c.position, Duration: c.duration, Volume: -1, Media: c.content}
 	if c.volume >= 0 {
 		st.Volume = int(c.volume*100 + 0.5)
 	}
@@ -339,4 +363,6 @@ type Status struct {
 	Position float64 `json:"position"`
 	Duration float64 `json:"duration"`
 	Volume   int     `json:"volume"` // 0-100, -1 when unknown
+	// Media is the URL the receiver plays, when it tells it.
+	Media string `json:"-"`
 }

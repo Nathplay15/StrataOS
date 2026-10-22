@@ -341,6 +341,17 @@ func (s *Server) segmentFile(r *http.Request) (*os.File, os.FileInfo, *store.Cam
 	return f, info, c, nil
 }
 
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(b []byte) (int, error) {
+	n, err := c.w.Write(b)
+	c.n += int64(n)
+	return n, err
+}
+
 func videoType(name string) string {
 	if strings.HasSuffix(name, ".mkv") {
 		return "video/x-matroska"
@@ -349,6 +360,7 @@ func videoType(name string) string {
 }
 
 func (s *Server) nvrRoutes() {
+	s.frigateRoutes()
 	s.admin("GET /api/nvr", func(r *http.Request) (any, error) {
 		n := s.nvrState()
 		names := frigateNames(n)
@@ -659,6 +671,55 @@ func (s *Server) nvrRoutes() {
 			slog.Warn("clip export failed", "err", err)
 		}
 	})
+	// Codecs of a segment: the browser plays it directly, or through /play.
+	s.admin("GET /api/nvr/cameras/{id}/recordings/{name}/info", func(r *http.Request) (any, error) {
+		f, info, _, err := s.segmentFile(r)
+		if err != nil {
+			return nil, err
+		}
+		p := f.Name()
+		f.Close()
+		pr, err := nvr.ProbeFile(r.Context(), p, info)
+		if err != nil {
+			return nil, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()}
+		}
+		return map[string]any{"video": pr.Video, "audio": pr.Audio, "duration": pr.Duration, "direct": pr.Direct(info.Name())}, nil
+	})
+	// A segment the browser cannot play as it is (H.265, MJPEG, G.711 sound,
+	// Matroska), as fragmented MP4 from ?start= seconds (see nvr/playback.go).
+	s.adminRaw("GET /api/nvr/cameras/{id}/recordings/{name}/play", func(w http.ResponseWriter, r *http.Request) {
+		f, info, _, err := s.segmentFile(r)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		p := f.Name()
+		f.Close()
+		start, err := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
+		if r.URL.Query().Get("start") == "" {
+			start, err = 0, nil
+		}
+		if err != nil || start < 0 || start > 24*3600 {
+			writeErr(w, badRequest("invalid start"))
+			return
+		}
+		pr, err := nvr.ProbeFile(r.Context(), p, info)
+		if err != nil {
+			writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		w.Header().Set("Cache-Control", "no-store")
+		cw := &countingWriter{w: w}
+		if err := nvr.Play(r.Context(), cw, p, pr, start); err != nil {
+			slog.Warn("recording playback failed", "file", p, "err", err)
+			if cw.n == 0 {
+				w.Header().Del("Content-Type")
+				writeErr(w, &Error{Status: http.StatusUnprocessableEntity, Msg: "this recording cannot be converted for the browser"})
+			}
+		}
+	})
 	s.admin("POST /api/nvr/cleanup", func(r *http.Request) (any, error) {
 		return map[string]int{"deleted": s.nvrRetention()}, nil
 	})
@@ -858,6 +919,157 @@ func (s *Server) frigateApply(user string) {
 	})
 }
 
+// frigateAPI is the address of Frigate's API on the loopback (its internal
+// port, without sign-in: StrataOS checks the administrator itself).
+func frigateAPI() (string, bool) {
+	if !frigateInstalled() {
+		return "", false
+	}
+	port, err := strconv.Atoi(docker.EnvValue(docker.FrigateStack, "API_PORT"))
+	if err != nil || port < 1 || port > 65535 {
+		return "", false
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", port), true
+}
+
+// frigateCamera returns a camera recorded by Frigate and its name there.
+func (s *Server) frigateCamera(id string) (*store.Camera, string, error) {
+	c, n, err := s.nvrCamera(id)
+	if err != nil {
+		return nil, "", err
+	}
+	if c.Engine != "frigate" {
+		return nil, "", badRequest("this camera is not recorded by Frigate")
+	}
+	return c, frigateNames(n)[c.ID], nil
+}
+
+// frigateRoutes: the recordings of Frigate (events with a clip), listed in
+// the Recordings tab and played through StrataOS.
+func (s *Server) frigateRoutes() {
+	s.admin("GET /api/nvr/cameras/{id}/frigate/events", func(r *http.Request) (any, error) {
+		_, name, err := s.frigateCamera(r.PathValue("id"))
+		if err != nil {
+			return nil, err
+		}
+		day := r.URL.Query().Get("day")
+		if day == "" {
+			day = time.Now().Format("2006-01-02")
+		}
+		from, err := time.ParseInLocation("2006-01-02", day, time.Local)
+		if err != nil {
+			return nil, badRequest("invalid day")
+		}
+		out := map[string]any{"installed": frigateInstalled(), "day": day, "events": []any{}}
+		if p := docker.EnvValue(docker.FrigateStack, "WEB_PORT"); frigateInstalled() && p != "" {
+			out["webPort"] = p
+		}
+		base, ok := frigateAPI()
+		if !ok {
+			return out, nil
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+nvr.FrigateEventsPath(name, float64(from.Unix()), float64(from.AddDate(0, 0, 1).Unix())), nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			out["error"] = "Frigate does not answer: is it running?"
+			return out, nil
+		}
+		defer resp.Body.Close()
+		var events []nvr.FrigateEvent
+		if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&events) != nil {
+			out["error"] = fmt.Sprintf("unexpected answer from Frigate (HTTP %d)", resp.StatusCode)
+			return out, nil
+		}
+		type ev struct {
+			ID    string     `json:"id"`
+			Label string     `json:"label"`
+			Score float64    `json:"score"`
+			Start time.Time  `json:"start"`
+			End   *time.Time `json:"end,omitempty"`
+		}
+		list := []ev{}
+		for _, e := range nvr.FrigateClips(events, name) {
+			v := ev{ID: e.ID, Label: e.Label, Score: e.Score(), Start: time.UnixMilli(int64(e.StartTime * 1000))}
+			if e.EndTime > 0 {
+				t := time.UnixMilli(int64(e.EndTime * 1000))
+				v.End = &t
+			}
+			list = append(list, v)
+		}
+		out["events"] = list
+		return out, nil
+	})
+	// The clip (MP4) or thumbnail of an event, read from Frigate's API.
+	s.adminRaw("GET /api/nvr/cameras/{id}/frigate/events/{eid}/{file}", func(w http.ResponseWriter, r *http.Request) {
+		c, name, err := s.frigateCamera(r.PathValue("id"))
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		eid, file := r.PathValue("eid"), r.PathValue("file")
+		if !nvr.ValidFrigateEventID(eid) || (file != "clip.mp4" && file != "thumbnail.jpg") {
+			writeErr(w, notFound("event not found"))
+			return
+		}
+		base, ok := frigateAPI()
+		if !ok {
+			writeErr(w, notFound("Frigate is not installed"))
+			return
+		}
+		// The event must belong to this camera.
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/events/"+eid, nil)
+		resp, err := http.DefaultClient.Do(req)
+		var e nvr.FrigateEvent
+		if err == nil {
+			if resp.StatusCode == http.StatusOK {
+				_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&e)
+			}
+			resp.Body.Close()
+		}
+		cancel()
+		if e.ID != eid || e.Camera != name {
+			writeErr(w, notFound("event not found"))
+			return
+		}
+		req, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, base+"/api/events/"+eid+"/"+file, nil)
+		if rg := r.Header.Get("Range"); rg != "" {
+			req.Header.Set("Range", rg)
+		}
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			writeErr(w, &Error{Status: http.StatusBadGateway, Msg: "Frigate does not answer: is it running?"})
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+			writeErr(w, &Error{Status: http.StatusBadGateway, Msg: fmt.Sprintf("unexpected answer from Frigate (HTTP %d)", resp.StatusCode)})
+			return
+		}
+		h := w.Header()
+		for _, k := range []string{"Content-Length", "Content-Range", "Accept-Ranges"} {
+			if v := resp.Header.Get(k); v != "" {
+				h.Set(k, v)
+			}
+		}
+		if file == "clip.mp4" {
+			h.Set("Content-Type", "video/mp4")
+		} else {
+			h.Set("Content-Type", "image/jpeg")
+		}
+		h.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		h.Set("X-Content-Type-Options", "nosniff")
+		if r.URL.Query().Get("download") == "1" {
+			at := time.UnixMilli(int64(e.StartTime * 1000)).Format("20060102-150405")
+			h.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": c.Name + " " + at + " " + e.Label + filepath.Ext(file)}))
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+}
+
 // frigatePoll reads Frigate's new events and notifies them.
 func (s *Server) frigatePoll() {
 	n := s.nvrState()
@@ -865,15 +1077,15 @@ func (s *Server) frigatePoll() {
 		cams.filter = nil
 		return
 	}
-	port, err := strconv.Atoi(docker.EnvValue(docker.FrigateStack, "API_PORT"))
-	if err != nil || port < 1 || port > 65535 {
+	base, ok := frigateAPI()
+	if !ok {
 		return
 	}
 	if cams.filter == nil {
 		cams.filter = nvr.NewEventFilter(time.Now())
 	}
 	f := cams.filter
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/events?limit=100&include_thumbnails=0&after=%.3f", port, f.After())
+	url := fmt.Sprintf("%s/api/events?limit=100&include_thumbnails=0&after=%.3f", base, f.After())
 	cl := &http.Client{Timeout: 5 * time.Second}
 	resp, err := cl.Get(url)
 	if err != nil {

@@ -111,6 +111,38 @@ func (s *Server) dlnaConfig(c store.DLNAServer) media.DLNAConfig {
 	return mc
 }
 
+// mediaChange tells which media settings a change of shared folder touched.
+type mediaChange struct {
+	dlna, music bool
+	deleted     string // name of the deleted share
+}
+
+// mediaFollowShares applies the media settings again after a shared folder
+// was renamed, moved or deleted (the store already follows the new name).
+func (s *Server) mediaFollowShares(c mediaChange, user string) {
+	if c.deleted != "" && c.dlna {
+		s.store.Log("warning", "media", user, fmt.Sprintf("Shared folder %s was deleted: the DLNA server no longer publishes it", c.deleted))
+	}
+	if c.deleted != "" && c.music {
+		s.store.Log("warning", "media", user, fmt.Sprintf("Shared folder %s was deleted: it is no longer in the music library", c.deleted))
+	}
+	var m store.Media
+	s.store.Read(func(st *store.State) {
+		m = st.Media
+		m.Music.Shares = slices.Clone(st.Media.Music.Shares)
+	})
+	if c.dlna && m.DLNA.Enabled {
+		if err := media.ApplyDLNA(true, s.dlnaConfig(m.DLNA)); err != nil {
+			s.store.Log("error", "media", user, "Applying the DLNA server settings failed: "+err.Error())
+		}
+	}
+	if stack := owntoneStack(); c.music && stack != "" {
+		s.jobs.Start("media", "Apply the music folders", user, func(ctx context.Context, j *jobs.Job) error {
+			return s.applyMusic(ctx, j, stack, m.Music.Shares)
+		})
+	}
+}
+
 // ---- Music (OwnTone) ----
 
 // owntoneStack is the stack running the OwnTone app ("" when not installed).
@@ -208,8 +240,39 @@ var owntoneProxy = &httputil.ReverseProxy{
 
 type castReceiver struct {
 	cast.Receiver
+	url string // the stream URL it was given (holds the signed token)
+
+	mu     sync.Mutex
 	player cast.Player
-	Error  string `json:"error,omitempty"`
+	// resume: restored after a restart of the daemon, the player connects
+	// again on first use.
+	resume bool
+	pos    float64 // last position read (seconds)
+	Error  string
+}
+
+// use returns the player of the receiver, connecting again to a receiver
+// restored after a restart; nil when it cannot be driven.
+func (rc *castReceiver) use(ctx context.Context) cast.Player {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if rc.player == nil && rc.resume {
+		c, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		p, err := cast.Resume(c, rc.Receiver)
+		if err != nil {
+			rc.Error = "receiver unreachable: " + err.Error()
+			return nil
+		}
+		rc.player, rc.resume, rc.Error = p, false, ""
+	}
+	return rc.player
+}
+
+func (rc *castReceiver) errorText() string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return rc.Error
 }
 
 type castSession struct {
@@ -218,9 +281,12 @@ type castSession struct {
 	Path      string    `json:"path"`
 	Name      string    `json:"name"`
 	Kind      string    `json:"kind"`
+	Type      string    `json:"type"`
+	Size      int64     `json:"size"`
 	Started   time.Time `json:"started"`
 	receivers []*castReceiver
 	ready     bool // receivers loaded (guarded by castState)
+	restoring bool // saved before a restart, being checked (guarded by castState)
 }
 
 var castState = struct {
@@ -269,24 +335,25 @@ func (s *Server) stopCast(cs *castSession) {
 	defer cancel()
 	var wg sync.WaitGroup
 	for _, r := range cs.receivers {
-		if r.player == nil {
-			continue
-		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = r.player.Stop(ctx)
-			_ = r.player.Close()
+			if p := r.use(ctx); p != nil {
+				_ = p.Stop(ctx)
+				_ = p.Close()
+			}
 		}()
 	}
 	wg.Wait()
 }
 
 // castJanitor ends the sessions past the life of their URLs.
+// It also saves the sessions (with the positions last read) for a restart.
 func (s *Server) castJanitor() {
 	for range time.Tick(time.Minute) {
 		var old []*castSession
 		castState.Lock()
+		n := len(castState.sessions)
 		for id, cs := range castState.sessions {
 			if time.Since(cs.Started) > streamTTL {
 				old = append(old, cs)
@@ -294,6 +361,9 @@ func (s *Server) castJanitor() {
 			}
 		}
 		castState.Unlock()
+		if n > 0 {
+			s.saveCasts()
+		}
 		for _, cs := range old {
 			s.stopCast(cs)
 		}
@@ -306,23 +376,24 @@ func alignCast(cs *castSession) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	type pos struct {
-		r *castReceiver
+		r cast.Player
 		p float64
 	}
 	var mu sync.Mutex
 	var ps []pos
 	var wg sync.WaitGroup
 	for _, r := range cs.receivers {
-		if r.player == nil {
-			continue
-		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			st := r.player.Status(ctx)
+			p := r.use(ctx)
+			if p == nil {
+				return
+			}
+			st := p.Status(ctx)
 			if st.State == "PLAYING" {
 				mu.Lock()
-				ps = append(ps, pos{r, st.Position})
+				ps = append(ps, pos{p, st.Position})
 				mu.Unlock()
 			}
 		}()
@@ -335,7 +406,7 @@ func alignCast(cs *castSession) {
 	lead := ps[0].p
 	for _, x := range ps[1:] {
 		if lead-x.p > 0.5 {
-			_ = x.r.player.Seek(ctx, lead+0.5) // a seek takes a moment to apply
+			_ = x.r.Seek(ctx, lead+0.5) // a seek takes a moment to apply
 		}
 	}
 }
@@ -351,16 +422,19 @@ func (s *Server) castView(ctx context.Context, cs *castSession) map[string]any {
 	out := make([]rv, len(cs.receivers))
 	var wg sync.WaitGroup
 	for i, r := range cs.receivers {
-		out[i] = rv{ID: r.ID, Name: r.Name, Kind: r.Kind, Error: r.Error, Status: cast.Status{State: "ERROR", Volume: -1}}
-		if r.player == nil {
-			continue
-		}
+		out[i] = rv{ID: r.ID, Name: r.Name, Kind: r.Kind, Status: cast.Status{State: "ERROR", Volume: -1}}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			c, cancel := context.WithTimeout(ctx, 4*time.Second)
 			defer cancel()
-			out[i].Status = r.player.Status(c)
+			if p := r.use(c); p != nil {
+				out[i].Status = p.Status(c)
+				r.mu.Lock()
+				r.pos = out[i].Status.Position
+				r.mu.Unlock()
+			}
+			out[i].Error = r.errorText()
 		}()
 	}
 	wg.Wait()
@@ -446,6 +520,7 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) mediaRoutes() {
+	s.restoreCasts()
 	go s.castJanitor()
 
 	// ---- DLNA server ----
@@ -628,7 +703,7 @@ func (s *Server) mediaRoutes() {
 		}
 		b := make([]byte, 8)
 		_, _ = rand.Read(b)
-		cs := &castSession{ID: hex.EncodeToString(b), User: userOf(r), Path: t.abs, Name: filepath.Base(t.abs), Kind: kind, Started: time.Now()}
+		cs := &castSession{ID: hex.EncodeToString(b), User: userOf(r), Path: t.abs, Name: filepath.Base(t.abs), Kind: kind, Type: ctype, Size: st.Size(), Started: time.Now()}
 		tok := media.SignStream(s.mediaSecret(), cs.ID, cs.User, t.abs, cs.Started.Add(streamTTL))
 		for _, id := range slices.Compact(slices.Sorted(slices.Values(req.Receivers))) {
 			rc, ok := known[id]
@@ -660,6 +735,7 @@ func (s *Server) mediaRoutes() {
 					return
 				}
 				u := "http://" + net.JoinHostPort(local, s.httpPort) + "/api/media/stream/" + tok + "/" + url.PathEscape(cs.Name)
+				rc.url = u
 				p, err := cast.Open(ctx, rc.Receiver)
 				if err != nil {
 					rc.Error = err.Error()
@@ -689,6 +765,7 @@ func (s *Server) mediaRoutes() {
 		castState.Lock()
 		cs.ready = true
 		castState.Unlock()
+		s.saveCasts()
 		s.audit(r, "media", fmt.Sprintf("Cast %s to %d receivers", cs.Name, ok))
 		if ok > 1 && kind != "image" {
 			go func() {
@@ -731,17 +808,30 @@ func (s *Server) mediaRoutes() {
 			alignCast(cs)
 			return nil, nil
 		}
-		var targets []*castReceiver
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+		type target struct {
+			Name   string
+			player cast.Player
+		}
+		var targets []target
+		var unreachable string
 		for _, rc := range cs.receivers {
-			if rc.player != nil && (req.Receiver == "" || rc.ID == req.Receiver) {
-				targets = append(targets, rc)
+			if req.Receiver != "" && rc.ID != req.Receiver {
+				continue
+			}
+			if p := rc.use(ctx); p != nil {
+				targets = append(targets, target{rc.Name, p})
+			} else if rc.resume {
+				unreachable = rc.Name + ": " + rc.errorText()
 			}
 		}
 		if len(targets) == 0 {
+			if unreachable != "" {
+				return nil, &Error{Status: http.StatusBadGateway, Msg: unreachable}
+			}
 			return nil, notFound("receiver not found")
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
 		errs := make([]error, len(targets))
 		var wg sync.WaitGroup
 		for i, rc := range targets {
@@ -780,6 +870,7 @@ func (s *Server) mediaRoutes() {
 		castState.Lock()
 		delete(castState.sessions, cs.ID)
 		castState.Unlock()
+		s.saveCasts()
 		s.stopCast(cs)
 		return nil, nil
 	})

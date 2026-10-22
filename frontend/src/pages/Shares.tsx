@@ -81,7 +81,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
   const [base, setBase] = useState(() => (initial?.path ? "" : ""));
   const [pass, setPass] = useState({ a: "", b: "" });
   const [recovery, setRecovery] = useState("");
-  const save = useAction(() => (editing ? api.put(`/api/shares/${encodeURIComponent(s.name)}`, s) : api.post<{ recoveryKey?: string }>("/api/shares", { ...s, passphrase: s.encrypted ? pass.a : undefined })), {
+  const save = useAction(() => (editing ? api.put(`/api/shares/${encodeURIComponent(initial!.name)}`, s) : api.post<{ recoveryKey?: string }>("/api/shares", { ...s, passphrase: s.encrypted ? pass.a : undefined })), {
     success: editing ? tr("Share updated") : tr("Share created"),
     onDone: (r) => { const k = (r as { recoveryKey?: string } | null)?.recoveryKey; if (k) setRecovery(k); else onClose(); },
   });
@@ -106,13 +106,13 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
   };
 
   return (
-    <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", s.name) : tr("New shared folder")} wide footer={<>
+    <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", initial!.name) : tr("New shared folder")} wide footer={<>
       <Button onClick={onClose}>{tr("Cancel")}</Button>
       <Button variant="primary" loading={save.isPending} disabled={!s.name || !s.path || !passOK} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={tr("Share name")}><Input value={s.name} disabled={editing} onChange={(e) => { const n = e.target.value; setS((p) => ({ ...p, name: n, path: base ? `${base}/${n}` : p.path })); }} /></Field>
+          <Field label={tr("Share name")} hint={editing && s.name !== initial?.name ? tr("Renaming changes the network name; the folder stays where it is. The DLNA and music settings follow the new name.") : undefined}><Input value={s.name} onChange={(e) => { const n = e.target.value; setS((p) => ({ ...p, name: n, path: base ? `${base}/${n}` : p.path })); }} /></Field>
           <Field label={tr("Description")}><Input value={s.description} onChange={(e) => set("description", e.target.value)} /></Field>
         </div>
         {!editing && (
