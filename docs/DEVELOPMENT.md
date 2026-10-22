@@ -19,7 +19,7 @@ StrataOS/
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
 ├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode)
-├── docs/               User guide (English and French), this file
+├── docs/               User guide and FAQ (English and French), hardware, this file
 ├── packaging/          .deb package, installer ISO, Raspberry Pi image, APT repository, website
 └── vm/                 QEMU/KVM test machines and end-to-end tests
 ```
@@ -82,7 +82,7 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the website (see below). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
 
 ### One-time setup of the update repository
 
@@ -98,3 +98,19 @@ The repository is signed with the StrataOS archive key. Its public part, `packag
 3. Run the **Pages** workflow once by hand (**Actions → Pages → Run workflow**), or push a release tag.
 
 `make repo` builds the same repository locally in `dist/apt`.
+
+## Website and documentation
+
+`https://nathplay15.github.io/StrataOS/` is a static site built from the repository, so the Markdown stays the one source of truth:
+
+- `/`: the download page, `packaging/pages/index.html` (`@VERSION@`, `@REPO@` and `@HEADER@` are filled in);
+- `/docs/` (and `/docs/fr/`): the user guide, one page per `##` section of `docs/GUIDE.md` / `docs/GUIDE.fr.md`, then `docs/FAQ.md`, `docs/HARDWARE.md`, the release notes (`packaging/release-notes/*.md`, newest first), this file and `CONTRIBUTING.md` + `SECURITY.md`. A page uses its `.fr.md` when there is one, and otherwise shows the English text with a note;
+- `/404.html`, and the screenshots of `docs/screenshots/`.
+
+`frontend/scripts/docs-site.mjs` builds it with the frontend's `marked` (no other dependency): plain HTML, `packaging/pages/site.css` (light and dark themes follow the system) and `site.js` (menu, copy buttons and a search over a generated index). Links between Markdown files become links between pages, other repository files link to GitHub, and "section N" in the guide links to that section. When you add a guide section, keep the same numbering in both languages: the page names come from the English titles.
+
+```bash
+make docs     # dist/site; open dist/site/docs/index.html
+```
+
+`.github/workflows/pages.yml` runs it after each release and whenever the documentation changes on `main`; CI checks that it builds.

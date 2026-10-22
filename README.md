@@ -51,7 +51,7 @@ ZFS likes memory (about 1 GB per TB of storage is a comfortable rule of thumb), 
 
 The Raspberry Pi image is Debian 13 with the Raspberry Pi kernel and boot firmware (from the Raspberry Pi OS archive, which supports every model). Docker is installed in one click from the App Center when you need it, and the iSCSI target isn't available (the Raspberry Pi kernel doesn't include it).
 
-Tested hardware, and how to check yours: [docs/HARDWARE.md](docs/HARDWARE.md).
+Tested hardware, and how to check yours: [docs/HARDWARE.md](docs/HARDWARE.md) (also on the [website](https://nathplay15.github.io/StrataOS/docs/hardware.html)).
 
 ## Download
 
@@ -85,7 +85,7 @@ sudo apt install ./strataos_<version>_amd64.deb
 
 Then open `http://<address-of-the-NAS>:7070` (HTTPS on port 7443). The setup wizard creates the administrator account and helps you prepare your disks, a first shared folder and the alerts.
 
-The **[user guide](docs/GUIDE.md)** ([French version](docs/GUIDE.fr.md)) walks you through everything, step by step. It's also built into the interface (**Help** menu).
+The **[documentation](https://nathplay15.github.io/StrataOS/docs/)** (in English and French) walks you through everything, step by step: the user guide, a FAQ, tested hardware and the release notes. The user guide is also built into the interface (**Help** menu), and its source is here: [docs/GUIDE.md](docs/GUIDE.md) ([French](docs/GUIDE.fr.md)), with the [FAQ](docs/FAQ.md) next to it.
 
 ## Updates
 

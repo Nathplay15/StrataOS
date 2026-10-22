@@ -55,6 +55,7 @@ jobs:
           node scripts/i18n-extract.cjs --check
           node scripts/i18n-lint.cjs --check
           node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json --check
+          node scripts/docs-site.mjs ../build/site
 
       - name: Shell scripts
         run: for f in vm/*.sh packaging/*.sh packaging/*/*.sh; do bash -n "$f" || exit 1; done

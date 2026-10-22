@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend catalog-texts backend build deb repo iso dev clean test vm-test ha-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend catalog-texts backend build deb repo iso docs dev clean test vm-test ha-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -34,6 +34,11 @@ repo:
 	./packaging/make-repo.sh key
 	$(MAKE) deb REPO_URL=$(REPO_URL)
 	./packaging/make-repo.sh
+
+# Website (download page + documentation from the Markdown) in dist/site;
+# open dist/site/docs/index.html.
+docs:
+	cd frontend && { test -d node_modules/marked || npm ci --no-audit --no-fund; } && node scripts/docs-site.mjs ../dist/site
 
 # Frontend dev server proxying the API to the test VM (http://localhost:7070).
 dev:
