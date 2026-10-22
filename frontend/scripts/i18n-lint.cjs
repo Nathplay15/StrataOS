@@ -25,5 +25,23 @@ for (const f of fs.readdirSync(dir).sort()) {
   if (out.length) console.log(`${f}: ${out.length}\n  ` + out.join("\n  "));
   problems += out.length;
 }
+// A long sentence identical in two languages was almost certainly copied
+// into the wrong dictionary.
+const dicts = {};
+for (const f of fs.readdirSync(dir)) {
+  const m = f.match(/^([a-z]{2})\.json$/);
+  if (m && (!only.length || only.includes(m[1]))) dicts[m[1]] = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+}
+const langs = Object.keys(dicts).sort();
+for (let i = 0; i < langs.length; i++) {
+  for (let j = i + 1; j < langs.length; j++) {
+    const [a, b] = [dicts[langs[i]], dicts[langs[j]]];
+    const same = Object.keys(a).filter((k) => a[k] === b[k] && a[k] !== k && a[k].length > 24 && /\s\S+\s/.test(a[k]));
+    if (same.length > 10) { // a few coincidences between close languages are normal
+      console.log(`${langs[i]}.json and ${langs[j]}.json: ${same.length} identical sentence(s)\n  ` + same.slice(0, 5).map((k) => JSON.stringify(a[k])).join("\n  "));
+      problems += same.length;
+    }
+  }
+}
 console.error(`${problems} possible problem(s)`);
 if (args.includes("--check") && problems) process.exit(1);
