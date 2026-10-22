@@ -2,6 +2,7 @@ package vpn
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -248,14 +249,21 @@ func TestClientConf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cl.PrivateKey != k1 || cl.PeerPublicKey != k2 || cl.PresharedKey != k3 || !slices.Equal(cl.Addresses, []string{"10.66.0.2/32"}) || !slices.Equal(cl.AllowedIPs, []string{"0.0.0.0/0"}) || cl.Endpoint != "vpn.example.com:51820" || cl.MTU != 1380 || cl.Keepalive != 15 || len(cl.DNS) != 2 {
+	if cl.PrivateKey != k1 || cl.PeerPublicKey != k2 || cl.PresharedKey != k3 || !slices.Equal(cl.Addresses, []string{"10.66.0.2/32", "fd00:66::2/128"}) || !slices.Equal(cl.AllowedIPs, []string{"0.0.0.0/0", "::/0"}) || cl.Endpoint != "vpn.example.com:51820" || cl.MTU != 1380 || cl.Keepalive != 15 || len(cl.DNS) != 2 {
 		t.Errorf("parsed %+v", cl)
 	}
-	if !slices.ContainsFunc(warn, func(w string) bool { return strings.Contains(w, "postup") }) || !slices.ContainsFunc(warn, func(w string) bool { return strings.Contains(w, "IPv6") }) {
+	if !slices.ContainsFunc(warn, func(w string) bool { return strings.Contains(w, "postup") }) || slices.ContainsFunc(warn, func(w string) bool { return strings.Contains(w, "IPv6") }) {
 		t.Errorf("warnings %v", warn)
 	}
+	if !TunnelHasIPv6(cl) || TunnelIP6(cl) != "fd00:66::2" || TunnelIP(cl) != "10.66.0.2" {
+		t.Errorf("IPv6 of the tunnel %+v", cl)
+	}
+	if _, warn, _ := ParseClientConf(strings.Replace(conf, ", ::/0", "", 1)); !slices.ContainsFunc(warn, func(w string) bool { return strings.Contains(w, "IPv6 is blocked") }) {
+		t.Errorf("no IPv6 allowed IPs: warnings %v", warn)
+	}
 	out := RenderClientTunnel(cl)
-	if strings.Contains(out, "PostUp") || !strings.Contains(out, "Table = off") || !strings.Contains(out, "FwMark = 0xcb20") || !strings.Contains(out, "AllowedIPs = 0.0.0.0/0") || !strings.Contains(out, "Endpoint = vpn.example.com:51820") {
+	if strings.Contains(out, "PostUp") || !strings.Contains(out, "Table = off") || !strings.Contains(out, "FwMark = 0xcb20") || !strings.Contains(out, "AllowedIPs = 0.0.0.0/0, ::/0") ||
+		!strings.Contains(out, "Address = 10.66.0.2/32, fd00:66::2/128") || !strings.Contains(out, "Endpoint = vpn.example.com:51820") {
 		t.Errorf("tunnel\n%s", out)
 	}
 	bad := map[string]string{
@@ -292,37 +300,50 @@ func TestClientConf(t *testing.T) {
 	}
 }
 
-func TestClientRouting(t *testing.T) {
-	cl := store.VPNClient{Enabled: true, PrivateKey: "k", Addresses: []string{"10.66.0.2/32"}, Scope: "apps", AppsSubnet: "172.31.250.0/24"}
-	var got []string
-	for _, c := range ClientRules(cl) {
-		got = append(got, strings.Join(c, " "))
+func rules(cmds [][]string) []string {
+	var out []string
+	for _, c := range cmds {
+		out = append(out, strings.Join(c, " "))
 	}
+	return out
+}
+
+func TestClientRouting(t *testing.T) {
+	cl := store.VPNClient{Enabled: true, PrivateKey: "k", Addresses: []string{"10.66.0.2/32"}, AllowedIPs: []string{"0.0.0.0/0"}, Scope: "apps", AppsSubnet: "172.31.250.0/24"}
 	want := []string{
 		"-4 route replace default dev strata-out table 52000",
 		"-4 rule add pref 5301 from 10.66.0.2 lookup 52000",
 		"-4 rule add pref 5300 from 172.31.250.0/24 lookup main suppress_prefixlength 0",
 		"-4 rule add pref 5302 from 172.31.250.0/24 lookup 52000",
 	}
-	if !slices.Equal(got, want) {
-		t.Errorf("apps rules\n%s", strings.Join(got, "\n"))
+	// No IPv6 in the tunnel: none of its rules, whether the NAS has IPv6 or not.
+	for _, v6 := range []bool{false, true} {
+		if got := rules(ClientRules(cl, v6)); !slices.Equal(got, want) {
+			t.Errorf("apps rules (v6 %v)\n%s", v6, strings.Join(got, "\n"))
+		}
 	}
-	if k := strings.Join(KillRule(cl.AppsSubnet), " "); k != "-4 rule add pref 5303 from 172.31.250.0/24 blackhole" {
-		t.Error(k)
+	// ...but the routed apps' IPv6 goes into the blackhole.
+	if got := rules(KillRules(cl, true, 42)); !slices.Equal(got, []string{
+		"-4 rule add pref 5303 from 172.31.250.0/24 blackhole",
+		"-6 rule add pref 5303 from fd5f:cb20:250::/64 blackhole",
+	}) {
+		t.Errorf("apps kill rules %v", got)
 	}
-	if d := DockerDropIn(cl.AppsSubnet); !strings.Contains(d, "ExecStartPre=/usr/sbin/ip -4 rule add pref 5303 from 172.31.250.0/24 blackhole") {
+	if got := rules(KillRules(cl, false, 42)); !slices.Equal(got, []string{"-4 rule add pref 5303 from 172.31.250.0/24 blackhole"}) {
+		t.Errorf("apps kill rules without IPv6 %v", got)
+	}
+	d := DockerDropIn(cl, true)
+	if !strings.Contains(d, "ExecStartPre=/usr/sbin/ip -4 rule add pref 5303 from 172.31.250.0/24 blackhole") ||
+		!strings.Contains(d, "ExecStartPre=-/usr/sbin/ip -6 rule add pref 5303 from fd5f:cb20:250::/64 blackhole") {
 		t.Error(d)
 	}
 	fw := RenderFirewall(store.VPN{Client: cl})
-	if !strings.Contains(fw, `iifname "br-strata-vpn" oifname != { "strata-out", "br-strata-vpn" } ip daddr != { 10.0.0.0/8`) || strings.Contains(fw, "masquerade") {
+	if !strings.Contains(fw, `iifname "br-strata-vpn" oifname != { "strata-out", "br-strata-vpn" } ip daddr != { 10.0.0.0/8`) ||
+		!strings.Contains(fw, `iifname "br-strata-vpn" oifname != { "br-strata-vpn" } ip6 daddr != { fc00::/7, fe80::/10 } counter drop`) || strings.Contains(fw, "masquerade") {
 		t.Errorf("kill switch\n%s", fw)
 	}
 	cl.Scope = "all"
-	got = nil
-	for _, c := range ClientRules(cl) {
-		got = append(got, strings.Join(c, " "))
-	}
-	if !slices.Contains(got, "-4 rule add pref 5302 not fwmark 52000 lookup 52000") || !slices.Contains(got, "-4 rule add pref 5300 lookup main suppress_prefixlength 0") {
+	if got := rules(ClientRules(cl, true)); !slices.Contains(got, "-4 rule add pref 5302 not fwmark 0xcb20 lookup 52000") || slices.ContainsFunc(got, func(r string) bool { return strings.HasPrefix(r, "-6") }) {
 		t.Errorf("all rules %v", got)
 	}
 	if RenderFirewall(store.VPN{Client: cl}) != "" {
@@ -330,5 +351,182 @@ func TestClientRouting(t *testing.T) {
 	}
 	if !NeedsForward(store.VPN{Client: cl}) || NeedsForward(store.VPN{}) {
 		t.Error("forwarding")
+	}
+}
+
+func TestClientIPv6(t *testing.T) {
+	cl := store.VPNClient{Enabled: true, PrivateKey: "k", Addresses: []string{"10.66.0.2/32", "fd66::2/128"}, AllowedIPs: []string{"0.0.0.0/0", "::/0"}, Scope: "apps", AppsSubnet: "172.31.250.0/24"}
+	got := rules(ClientRules(cl, true))
+	for _, w := range []string{
+		"-6 route replace default dev strata-out table 52000",
+		"-6 rule add pref 5301 from fd66::2 lookup 52000",
+		"-6 rule add pref 5300 from fd5f:cb20:250::/64 lookup main suppress_prefixlength 0",
+		"-6 rule add pref 5302 from fd5f:cb20:250::/64 lookup 52000",
+	} {
+		if !slices.Contains(got, w) {
+			t.Errorf("IPv6 rules lack %q\n%s", w, strings.Join(got, "\n"))
+		}
+	}
+	// A NAS without IPv6: the tunnel loses it.
+	if got := rules(ClientRules(cl, false)); slices.ContainsFunc(got, func(r string) bool { return strings.HasPrefix(r, "-6") }) {
+		t.Errorf("IPv6 rules without IPv6 %v", got)
+	}
+	if x := WithoutIPv6(cl); TunnelHasIPv6(x) || !slices.Equal(x.Addresses, []string{"10.66.0.2/32"}) || !slices.Equal(x.AllowedIPs, []string{"0.0.0.0/0"}) || len(cl.Addresses) != 2 {
+		t.Errorf("without IPv6 %+v / %+v", x, cl)
+	}
+	fw := RenderFirewall(store.VPN{Client: cl})
+	for _, w := range []string{
+		`iifname "br-strata-vpn" oifname != { "strata-out", "br-strata-vpn" } ip6 daddr != { fc00::/7, fe80::/10 } counter drop`,
+		`ip6 saddr fd5f:cb20:250::/64 oifname "strata-out" masquerade`,
+	} {
+		if !strings.Contains(fw, w) {
+			t.Errorf("firewall lacks %q\n%s", w, fw)
+		}
+	}
+	// An IPv6 address without IPv6 allowed IPs carries nothing.
+	cl.AllowedIPs = []string{"0.0.0.0/0"}
+	if TunnelHasIPv6(cl) || strings.Contains(RenderFirewall(store.VPN{Client: cl}), "ip6 saddr") {
+		t.Error("IPv6 without allowed IPs")
+	}
+	if Gateway6() != "fd5f:cb20:250::1" {
+		t.Error(Gateway6())
+	}
+	cl.Scope = "all"
+	cl.AllowedIPs = []string{"0.0.0.0/0", "::/0"}
+	if got := rules(ClientRules(cl, true)); !slices.Contains(got, "-6 rule add pref 5302 not fwmark 0xcb20 lookup 52000") {
+		t.Errorf("whole NAS IPv6 %v", got)
+	}
+}
+
+func TestWholeNASKillSwitch(t *testing.T) {
+	cl := store.VPNClient{Enabled: true, PrivateKey: "k", Addresses: []string{"10.66.0.2/32"}, AllowedIPs: []string{"0.0.0.0/0"}, Scope: "all"}
+	got := rules(KillRules(cl, true, 42))
+	want := []string{
+		"-4 rule add pref 5298 lookup main suppress_prefixlength 0",
+		"-4 rule add pref 5298 to 10.0.0.0/8 lookup main",
+		"-4 rule add pref 5298 to 172.16.0.0/12 lookup main",
+		"-4 rule add pref 5298 to 192.168.0.0/16 lookup main",
+		"-4 rule add pref 5298 to 100.64.0.0/10 lookup main",
+		"-4 rule add pref 5298 to 169.254.0.0/16 lookup main",
+		"-4 rule add pref 5305 not fwmark 0xcb20 blackhole",
+		"-6 rule add pref 5298 lookup main suppress_prefixlength 0",
+		"-6 rule add pref 5298 to fc00::/7 lookup main",
+		"-6 rule add pref 5298 to fe80::/10 lookup main",
+		"-6 rule add pref 5305 not fwmark 0xcb20 blackhole",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("kill rules\n%s", strings.Join(got, "\n"))
+	}
+	// Updates allowed: APT's account goes around the kill switch, after
+	// the tunnel (it still goes through it when it is up).
+	cl.AllowUpdates = true
+	got = rules(KillRules(cl, false, 42))
+	if i := slices.Index(got, "-4 rule add pref 5304 uidrange 42-42 lookup main"); i < 0 || got[i+1] != "-4 rule add pref 5305 not fwmark 0xcb20 blackhole" || len(got) != 8 {
+		t.Errorf("updates allowed\n%s", strings.Join(got, "\n"))
+	}
+	if got := rules(KillRules(cl, false, -1)); slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "uidrange") }) {
+		t.Error("uidrange without APT account")
+	}
+	// At boot: the exemptions before the blackhole, no ignored failure.
+	u := KillSwitchUnit(cl, true, 42)
+	local := strings.Index(u, "ExecStart=/usr/sbin/ip -4 rule add pref 5298 lookup main suppress_prefixlength 0")
+	kill := strings.Index(u, "ExecStart=/usr/sbin/ip -4 rule add pref 5305 not fwmark 0xcb20 blackhole")
+	if local < 0 || kill < local || strings.Contains(u, "ExecStart=-") || !strings.Contains(u, "Before=network-pre.target") || !strings.Contains(u, "WantedBy=multi-user.target") {
+		t.Errorf("unit\n%s", u)
+	}
+}
+
+func TestRulesMatch(t *testing.T) {
+	cl := store.VPNClient{Scope: "all", AllowUpdates: true}
+	group := func(fam string, pref int) [][]string {
+		var out [][]string
+		for _, c := range KillRules(cl, true, 42) {
+			if c[0] == fam && c[4] == strconv.Itoa(pref) {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	shown := "5298:\tfrom all lookup main suppress_prefixlength 0\n5298:\tfrom all to 10.0.0.0/8 lookup main\n5298:\tfrom all to 172.16.0.0/12 lookup main\n" +
+		"5298:\tfrom all to 192.168.0.0/16 lookup main\n5298:\tfrom all to 100.64.0.0/10 lookup main\n5298:\tfrom all to 169.254.0.0/16 lookup main\n"
+	if !rulesMatch(shown, group("-4", prioLocal)) {
+		t.Error("local rules")
+	}
+	if rulesMatch(strings.SplitAfterN(shown, "\n", 2)[1], group("-4", prioLocal)) {
+		t.Error("missing rule not seen")
+	}
+	if !rulesMatch("5305:\tnot from all fwmark 0xcb20 blackhole\n", group("-4", prioKillAll)) || !rulesMatch("5304:\tfrom all uidrange 42-42 lookup main\n", group("-6", prioUpdates)) {
+		t.Error("kill and updates rules")
+	}
+	cl.Scope = "apps"
+	cl.AppsSubnet = "172.31.250.0/24"
+	if !rulesMatch("5303:\tfrom fd5f:cb20:250::/64 blackhole\n", group("-6", prioKill)) || rulesMatch("5303:\tfrom 172.31.0.0/16 blackhole\n", group("-4", prioKill)) || rulesMatch("", group("-4", prioKill)) {
+		t.Error("apps rules")
+	}
+}
+
+func TestSysctlConf(t *testing.T) {
+	if c := SysctlConf(false, nil); c != "# Managed by StrataOS: the VPN routes packets.\nnet.ipv4.ip_forward = 1\n" {
+		t.Error(c)
+	}
+	c := SysctlConf(true, []string{"default", "enp1s0"})
+	ra, fwd := strings.Index(c, "net.ipv6.conf.enp1s0.accept_ra = 2"), strings.Index(c, "net.ipv6.conf.all.forwarding = 1")
+	if ra < 0 || fwd < ra || !strings.Contains(c, "net.ipv6.conf.default.accept_ra = 2") {
+		t.Error(c)
+	}
+}
+
+func TestExpiryWarnings(t *testing.T) {
+	now := time.Date(2026, 10, 22, 10, 0, 0, 0, time.Local)
+	day := func(d int) time.Time { return time.Date(2026, 10, 22+d, 0, 0, 0, 0, time.Local) }
+	c := store.VPN{Peers: []store.VPNPeer{
+		{ID: "soon", Name: "Soon", VPNPeerPolicy: store.VPNPeerPolicy{Expires: day(3)}},
+		{ID: "edge", Name: "Edge", VPNPeerPolicy: store.VPNPeerPolicy{Expires: now.Add(7 * 24 * time.Hour)}},
+		{ID: "later", Name: "Later", VPNPeerPolicy: store.VPNPeerPolicy{Expires: day(8)}},
+		{ID: "never", Name: "Never"},
+		{ID: "past", Name: "Past", VPNPeerPolicy: store.VPNPeerPolicy{Expires: day(-1)}},
+		{ID: "off", Name: "Off", Disabled: true, VPNPeerPolicy: store.VPNPeerPolicy{Expires: day(1)}},
+	}}
+	ids := func(ps []store.VPNPeer) []string {
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.ID)
+		}
+		return out
+	}
+	if got := ids(ExpiringSoon(&c, now)); !slices.Equal(got, []string{"soon", "edge"}) {
+		t.Errorf("first pass %v", got)
+	}
+	if got := ExpiringSoon(&c, now.Add(time.Hour)); len(got) != 0 {
+		t.Errorf("warned twice %v", ids(got))
+	}
+	if got := ids(ExpiringSoon(&c, day(2))); !slices.Equal(got, []string{"later"}) {
+		t.Errorf("two days later %v", got)
+	}
+	// A new date warns again.
+	c.Peers[0].Expires = day(5)
+	if got := ids(ExpiringSoon(&c, day(2))); !slices.Equal(got, []string{"soon"}) {
+		t.Errorf("new date %v", got)
+	}
+	c.Peers[0].Expires = day(6)
+	c.ExpiryWarnDays = -1
+	if got := ExpiringSoon(&c, day(2)); len(got) != 0 || WarnDays(c) != 0 {
+		t.Error("warnings off")
+	}
+	c.ExpiryWarnDays = 1
+	if got := ExpiringSoon(&c, day(2)); len(got) != 0 {
+		t.Error("1 day: too early")
+	}
+	if got := ids(ExpiringSoon(&c, day(5).Add(time.Hour))); !slices.Equal(got, []string{"soon"}) {
+		t.Errorf("1 day %v", got)
+	}
+	if LastDay(c.Peers[0]) != "2026-10-27" {
+		t.Error(LastDay(c.Peers[0]))
+	}
+	for _, bad := range []int{-2, 366} {
+		x := store.VPN{ExpiryWarnDays: bad}
+		if Validate(&x) == nil {
+			t.Errorf("%d days accepted", bad)
+		}
 	}
 }

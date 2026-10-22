@@ -45,6 +45,12 @@ export default function RemoteAccess() {
                 <Field label={tr("UDP port")}><Input type="number" value={c.port} onChange={(e) => setC({ ...c, port: +e.target.value })} /></Field>
                 <Field label={tr("Local network reachable")} hint={tr("For \"NAS and local network\" devices")}><Input className="mono" value={c.lan} onChange={(e) => setC({ ...c, lan: e.target.value.trim() })} placeholder="192.168.1.0/24" /></Field>
                 <Field label={tr("VPN network")} hint={tr("NAS address in the VPN: {0}", data.serverIp)}><Input className="mono" value={c.subnet} onChange={(e) => setC({ ...c, subnet: e.target.value.trim() })} /></Field>
+                <Field label={tr("Warn before a device expires")} hint={tr("A notification to the administrators, once per device")}>
+                  <Select value={c.expiryWarnDays ?? 0} onChange={(e) => setC({ ...c, expiryWarnDays: +e.target.value })}>
+                    <option value={-1}>{tr("Never")}</option>
+                    {[1, 3, 0, 14, 30].map((n) => <option key={n} value={n}>{n === 1 ? tr("1 day before") : tr("{0} days before", n || 7)}</option>)}
+                  </Select>
+                </Field>
                 <Field label={tr("Default access of new devices")}><Select value={c.defaultMode ?? "lan"} onChange={(e) => setC({ ...c, defaultMode: e.target.value as Mode })}>{(Object.keys(m) as Mode[]).map((k) => <option key={k} value={k}>{m[k]}</option>)}</Select></Field>
               </div>
               <Switch checked={!!c.userDevices} onChange={(v) => setC({ ...c, userDevices: v })} label={tr("Users can add their own devices")} hint={tr("From \"My VPN devices\" in their account menu, with the default access")} />

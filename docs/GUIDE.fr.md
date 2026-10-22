@@ -117,7 +117,7 @@ Le plus sûr est le **VPN WireGuard** (Accès à distance) : ajoutez un appareil
 
 - **Appareils** : chaque appareil appartient à un utilisateur et a son propre accès (le NAS seulement, le NAS et le réseau local, ou tout le trafic), une date d'expiration facultative et une restriction facultative à certains services. Si vous autorisez les utilisateurs à ajouter leurs propres appareils, chacun ajoute et révoque les siens dans **Mes appareils VPN** (dans le menu ou le menu du compte).
 - **Sites** : reliez tout un réseau distant (un autre bureau, une résidence secondaire) au réseau local du NAS, via son routeur ou un autre StrataOS (avec un code de site).
-- **Tunnel sortant** : le NAS se connecte à un fournisseur VPN avec le fichier de configuration qu'il vous donne. Faites passer seulement les apps Docker choisies (recommandé) ou tout le NAS ; un coupe-circuit (kill switch) prive les apps concernées d'Internet si le tunnel tombe.
+- **Tunnel sortant** : le NAS se connecte à un fournisseur VPN avec le fichier de configuration qu'il vous donne. Faites passer seulement les apps Docker choisies (recommandé) ou tout le NAS ; un coupe-circuit (kill switch) prive les apps concernées (ou tout le NAS, sauf le réseau local et le serveur WireGuard) d'Internet si le tunnel tombe. L'IPv6 passe par le tunnel quand le fournisseur le donne, et est bloqué sinon. Les appareils ayant une date de fin sont signalés aux administrateurs quelques jours avant (7 par défaut).
 
 **Autres moyens d'accès** (même page) :
 

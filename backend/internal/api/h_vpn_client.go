@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -47,7 +49,8 @@ func (s *Server) dockerAPIAtLeast(ctx context.Context, v string) bool {
 }
 
 type dockerNet struct {
-	IPAM struct {
+	EnableIPv6 bool `json:"EnableIPv6"`
+	IPAM       struct {
 		Config []struct {
 			Subnet string `json:"Subnet"`
 		} `json:"Config"`
@@ -57,28 +60,71 @@ type dockerNet struct {
 	} `json:"Containers"`
 }
 
-// ensureAppsNetwork creates the Docker network of the routed apps.
-func (s *Server) ensureAppsNetwork(subnet string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	var n dockerNet
-	if err := s.docker.Call(ctx, "GET", "/networks/"+vpn.AppsNetwork, nil, nil, &n); err == nil {
-		if len(n.IPAM.Config) > 0 && n.IPAM.Config[0].Subnet == subnet {
-			return nil
-		}
-		if len(n.Containers) > 0 {
-			return fmt.Errorf("take the apps out of the tunnel before changing its network")
-		}
-		if err := s.docker.Call(ctx, "DELETE", "/networks/"+vpn.AppsNetwork, nil, nil, nil); err != nil {
-			return err
+func (n dockerNet) hasSubnet(subnet string) bool {
+	for _, c := range n.IPAM.Config {
+		if c.Subnet == subnet {
+			return true
 		}
 	}
-	return s.docker.Call(ctx, "POST", "/networks/create", nil, map[string]any{
-		"Name": vpn.AppsNetwork, "Driver": "bridge",
-		"IPAM":    map[string]any{"Config": []map[string]string{{"Subnet": subnet, "Gateway": vpn.Gateway(subnet)}}},
+	return false
+}
+
+// ensureAppsNetwork creates the Docker network of the routed apps, with
+// IPv6 when the NAS has it: their IPv6 then goes into the tunnel or
+// nowhere, never through another network. It returns the containers it
+// paused to recreate the network (see unpause).
+func (s *Server) ensureAppsNetwork(subnet string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	v6 := vpn.HostIPv6()
+	var n dockerNet
+	var paused []string
+	if err := s.docker.Call(ctx, "GET", "/networks/"+vpn.AppsNetwork, nil, nil, &n); err == nil {
+		has4, has6 := n.hasSubnet(subnet), n.EnableIPv6 && n.hasSubnet(vpn.AppsSubnet6)
+		if has4 && has6 == v6 {
+			return nil, nil
+		}
+		if len(n.Containers) > 0 && !has4 {
+			return nil, fmt.Errorf("take the apps out of the tunnel before changing its network")
+		}
+		// IPv6 added (networks of StrataOS 0.6.0): the apps are frozen
+		// while their network is recreated, so they never reach the
+		// Internet another way meanwhile.
+		for _, c := range n.Containers {
+			if s.docker.Call(ctx, "POST", "/containers/"+url.PathEscape(c.Name)+"/pause", nil, nil, nil) == nil {
+				paused = append(paused, c.Name)
+			}
+			if err := s.docker.Call(ctx, "POST", "/networks/"+vpn.AppsNetwork+"/disconnect", nil, map[string]any{"Container": c.Name, "Force": true}, nil); err != nil {
+				return paused, err
+			}
+		}
+		if err := s.docker.Call(ctx, "DELETE", "/networks/"+vpn.AppsNetwork, nil, nil, nil); err != nil {
+			return paused, err
+		}
+	}
+	ipam := []map[string]string{{"Subnet": subnet, "Gateway": vpn.Gateway(subnet)}}
+	if v6 {
+		vpn.PrepareIPv6()
+		ipam = append(ipam, map[string]string{"Subnet": vpn.AppsSubnet6, "Gateway": vpn.Gateway6()})
+	}
+	return paused, s.docker.Call(ctx, "POST", "/networks/create", nil, map[string]any{
+		"Name": vpn.AppsNetwork, "Driver": "bridge", "EnableIPv6": v6,
+		"IPAM":    map[string]any{"Config": ipam},
 		"Options": map[string]string{"com.docker.network.bridge.name": vpn.AppsBridge},
 		"Labels":  map[string]string{"org.strataos.vpn": "1"},
 	}, nil)
+}
+
+// unpause lets the containers paused by ensureAppsNetwork run again, once
+// they are back on the routed network.
+func (s *Server) unpause(names []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	for _, n := range names {
+		if err := s.docker.Call(ctx, "POST", "/containers/"+url.PathEscape(n)+"/unpause", nil, nil, nil); err != nil {
+			slog.Warn("vpn apps", "container", n, "err", err)
+		}
+	}
 }
 
 // routeApps puts the selected containers on the tunnel network and gives
@@ -241,6 +287,7 @@ func (s *Server) vpnClientRoutes() {
 			slices.Sort(containers)
 		}
 		return map[string]any{"installed": vpn.Installed(), "config": maskClient(cl), "status": st, "routing": vpn.ClientActive(cl) && vpn.RoutingOK(cl),
+			"ipv6": vpn.HostIPv6() && vpn.TunnelHasIPv6(cl), "hostIpv6": vpn.HostIPv6(),
 			"containers": containers, "docker": docker.Available(), "defaultCheckUrl": vpn.IPLookupURL}, nil
 	})
 
@@ -265,6 +312,7 @@ func (s *Server) vpnClientRoutes() {
 				cl.PeerPublicKey, cl.PresharedKey, cl.Endpoint, cl.AllowedIPs, cl.Keepalive = parsed.PeerPublicKey, parsed.PresharedKey, parsed.Endpoint, parsed.AllowedIPs, parsed.Keepalive
 			}
 			cl.Enabled, cl.Name, cl.Scope, cl.Apps, cl.AppsSubnet, cl.CheckURL = req.Enabled, req.Name, req.Scope, req.Apps, req.AppsSubnet, req.CheckURL
+			cl.AllowUpdates = req.AllowUpdates
 			if err := vpn.ValidateClient(st.VPN, &cl); err != nil {
 				return badRequest(err.Error())
 			}
@@ -330,4 +378,55 @@ func (s *Server) vpnClientRoutes() {
 		}
 		return nil, s.vpnApplyErr()
 	})
+}
+
+// vpnDockerEvents puts a routed app back on the tunnel network as soon as
+// Docker creates, renames or starts its container (an app update recreates
+// it), before it can reach the Internet another way; vpnLoop checks again
+// every 30 seconds.
+func (s *Server) vpnDockerEvents() {
+	for {
+		time.Sleep(5 * time.Second)
+		c, _ := s.vpnState()
+		if docker.Available() && vpn.ClientActive(c.Client) && c.Client.Scope == "apps" && len(c.Client.Apps) > 0 {
+			s.watchDockerEvents()
+		}
+	}
+}
+
+// watchDockerEvents follows the container events until the stream ends or
+// no app is routed any more.
+func (s *Server) watchDockerEvents() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	body, err := s.docker.Stream(ctx, "GET", "/events", url.Values{"filters": {`{"type":["container"],"event":["create","rename","start"]}`}}, nil)
+	if err != nil {
+		return
+	}
+	defer body.Close()
+	dec := json.NewDecoder(body)
+	for {
+		var ev struct {
+			Action string `json:"Action"`
+			Actor  struct {
+				Attributes map[string]string `json:"Attributes"`
+			} `json:"Actor"`
+		}
+		if err := dec.Decode(&ev); err != nil {
+			return
+		}
+		c, _ := s.vpnState()
+		if !vpn.ClientActive(c.Client) || c.Client.Scope != "apps" || len(c.Client.Apps) == 0 {
+			return
+		}
+		if !slices.Contains(c.Client.Apps, strings.TrimPrefix(ev.Actor.Attributes["name"], "/")) {
+			continue
+		}
+		vpnMu.Lock()
+		err := s.routeApps(c.Client)
+		vpnMu.Unlock()
+		if err != nil {
+			slog.Warn("vpn apps", "event", ev.Action, "err", err)
+		}
+	}
 }

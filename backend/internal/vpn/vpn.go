@@ -79,6 +79,9 @@ func Validate(c *store.VPN) error {
 		}
 		c.LAN = n.String()
 	}
+	if c.ExpiryWarnDays < -1 || c.ExpiryWarnDays > 365 {
+		return fmt.Errorf("invalid expiry warning delay")
+	}
 	switch c.DefaultMode {
 	case "":
 		c.DefaultMode = "lan"

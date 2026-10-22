@@ -412,6 +412,9 @@ type VPN struct {
 	DefaultMode string `json:"defaultMode,omitempty"`
 	// UserDevices lets users add and revoke their own devices.
 	UserDevices bool `json:"userDevices,omitempty"`
+	// ExpiryWarnDays: how many days before a device expires the
+	// administrator is warned (0 = 7, -1 = never).
+	ExpiryWarnDays int `json:"expiryWarnDays,omitempty"`
 	// Links are site-to-site tunnels imported from another StrataOS (this
 	// NAS connects out), Client the outgoing tunnel (store/vpn.go).
 	Links  []VPNLink `json:"links,omitempty"`

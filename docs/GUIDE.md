@@ -117,7 +117,7 @@ The safest option is the **WireGuard VPN** (Remote access): add a device, scan t
 
 - **Devices**: each device belongs to a user and has its own access (the NAS only, the NAS and the local network, or all traffic), an optional expiry date and an optional restriction to certain services. If you turn on "Users can add their own devices", each person can add and revoke their devices in **My VPN devices** (in the menu or the account menu).
 - **Sites**: connect a whole remote network (another office, a second home) to the local network of the NAS, through its router or another StrataOS (with a site code).
-- **Outgoing tunnel**: the NAS connects to a VPN provider with the configuration file it gives you. Route only the Docker apps you choose (recommended) or the whole NAS; a kill switch keeps the routed apps offline if the tunnel drops.
+- **Outgoing tunnel**: the NAS connects to a VPN provider with the configuration file it gives you. Route only the Docker apps you choose (recommended) or the whole NAS; a kill switch keeps the routed apps (or the whole NAS, except the local network and the WireGuard server) offline if the tunnel drops. IPv6 goes through the tunnel when the provider gives it, and is blocked otherwise. Devices with an end date are announced to the administrators a few days before (7 by default).
 
 **Other ways in** (same page):
 

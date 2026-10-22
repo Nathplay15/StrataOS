@@ -28,14 +28,26 @@ const (
 	AppsNetwork       = "strata-vpn"
 	AppsBridge        = "br-strata-vpn"
 	DefaultAppsSubnet = "172.31.250.0/24"
+	// AppsSubnet6 is the IPv6 network of the routed apps: it gives them
+	// their IPv6 default route, so it goes into the tunnel or nowhere.
+	AppsSubnet6 = "fd5f:cb20:250::/64"
 )
 
 // Rule priorities, before the main table (32766).
 const (
-	prioMain      = 5300 // local networks keep their routes
+	prioLocal     = 5298 // whole NAS: local and private networks keep their routes
+	prioMain      = 5300 // routed apps: local networks keep their routes
 	prioTunnelSrc = 5301 // traffic from the tunnel address
 	prioTunnel    = 5302 // what goes through the tunnel
 	prioKill      = 5303 // kill switch: the routed apps, tunnel down
+	prioUpdates   = 5304 // whole NAS, tunnel down: APT when allowed
+	prioKillAll   = 5305 // kill switch of the whole NAS
+)
+
+// private ranges never count as the Internet for the kill switch.
+var (
+	privateNets4 = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"}
+	privateNets6 = []string{"fc00::/7", "fe80::/10"}
 )
 
 var (
@@ -106,11 +118,11 @@ func ParseClientConf(text string) (store.VPNClient, []string, error) {
 					}
 					n = &net.IPNet{IP: ip, Mask: net.CIDRMask(len(ip)*8, len(ip)*8)}
 				}
+				ones, _ := n.Mask.Size()
 				if ip.To4() == nil {
-					warn = append(warn, "IPv6 is not routed through the tunnel: "+a+" ignored")
+					cl.Addresses = append(cl.Addresses, fmt.Sprintf("%s/%d", ip, ones))
 					continue
 				}
-				ones, _ := n.Mask.Size()
 				cl.Addresses = append(cl.Addresses, fmt.Sprintf("%s/%d", ip.To4(), ones))
 			}
 		case "interface.dns":
@@ -143,12 +155,9 @@ func ParseClientConf(text string) (store.VPNClient, []string, error) {
 			cl.Endpoint = v
 		case "peer.allowedips":
 			for _, a := range list() {
-				ip, n, err := net.ParseCIDR(a)
+				_, n, err := net.ParseCIDR(a)
 				if err != nil {
 					return cl, nil, fmt.Errorf("invalid allowed IPs %q", a)
-				}
-				if ip.To4() == nil {
-					continue
 				}
 				cl.AllowedIPs = append(cl.AllowedIPs, n.String())
 			}
@@ -173,16 +182,48 @@ func ParseClientConf(text string) (store.VPNClient, []string, error) {
 		return cl, nil, fmt.Errorf("the file must have exactly one [Peer] section")
 	case cl.PrivateKey == "":
 		return cl, nil, fmt.Errorf("the file has no private key")
-	case len(cl.Addresses) == 0:
+	case TunnelIP(cl) == "":
 		return cl, nil, fmt.Errorf("the file has no IPv4 address")
 	case cl.PeerPublicKey == "":
 		return cl, nil, fmt.Errorf("the file has no server public key")
 	case cl.Endpoint == "":
 		return cl, nil, fmt.Errorf("the file has no server address (Endpoint)")
-	case len(cl.AllowedIPs) == 0:
+	case !slices.ContainsFunc(cl.AllowedIPs, is4):
 		return cl, nil, fmt.Errorf("the file has no IPv4 allowed IPs")
 	}
+	if !TunnelHasIPv6(cl) {
+		warn = append(warn, "the tunnel has no IPv6: IPv6 is blocked for what goes through it")
+	}
 	return cl, warn, nil
+}
+
+func is4(cidr string) bool {
+	ip, _, err := net.ParseCIDR(cidr)
+	return err == nil && ip.To4() != nil
+}
+
+// TunnelIP6 is the IPv6 address of the NAS in the outgoing tunnel.
+func TunnelIP6(cl store.VPNClient) string {
+	for _, a := range cl.Addresses {
+		if ip, _, err := net.ParseCIDR(a); err == nil && ip.To4() == nil {
+			return ip.String()
+		}
+	}
+	return ""
+}
+
+// TunnelHasIPv6 reports whether IPv6 can go through the tunnel: an IPv6
+// address and IPv6 allowed IPs. Otherwise IPv6 is blocked, never sent
+// around the tunnel.
+func TunnelHasIPv6(cl store.VPNClient) bool {
+	return TunnelIP6(cl) != "" && slices.ContainsFunc(cl.AllowedIPs, func(a string) bool { return !is4(a) })
+}
+
+// WithoutIPv6 is the tunnel of a NAS without IPv6.
+func WithoutIPv6(cl store.VPNClient) store.VPNClient {
+	cl.Addresses = slices.DeleteFunc(slices.Clone(cl.Addresses), func(a string) bool { return !is4(a) })
+	cl.AllowedIPs = slices.DeleteFunc(slices.Clone(cl.AllowedIPs), func(a string) bool { return !is4(a) })
+	return cl
 }
 
 // TunnelIP is the IPv4 address of the NAS in the outgoing tunnel.
@@ -269,44 +310,120 @@ func RenderClientTunnel(cl store.VPNClient) string {
 	return b.String()
 }
 
-// ClientRules returns the `ip` commands of the policy routing, in order.
-// Apps: the Docker network of the routed apps uses the tunnel table, and a
-// blackhole rule after it drops its traffic when the tunnel is down (the
-// tunnel route then disappears). All: everything but the marked WireGuard
-// packets, local networks kept (main table without its default route).
-func ClientRules(cl store.VPNClient) [][]string {
+// ClientRules returns the `ip` commands of the policy routing, in order
+// (v6: the NAS has IPv6). Apps: the Docker network of the routed apps uses
+// the tunnel table. All: everything but the marked WireGuard packets. When
+// the tunnel is down its route disappears and the kill switch rules
+// (KillRules) take the traffic; IPv6 goes into the tunnel only when it has
+// IPv6, else straight to the kill switch.
+func ClientRules(cl store.VPNClient, v6 bool) [][]string {
 	t, p := strconv.Itoa(RouteTable), func(n int) string { return strconv.Itoa(n) }
-	cmds := [][]string{
-		{"-4", "route", "replace", "default", "dev", OutIface, "table", t},
+	fams := []string{"-4"}
+	if v6 && TunnelHasIPv6(cl) {
+		fams = append(fams, "-6")
 	}
-	if ip := TunnelIP(cl); ip != "" {
-		cmds = append(cmds, []string{"-4", "rule", "add", "pref", p(prioTunnelSrc), "from", ip, "lookup", t})
-	}
-	if cl.Scope == "all" {
-		cmds = append(cmds,
-			[]string{"-4", "rule", "add", "pref", p(prioMain), "lookup", "main", "suppress_prefixlength", "0"},
-			[]string{"-4", "rule", "add", "pref", p(prioTunnel), "not", "fwmark", strconv.Itoa(FwMark), "lookup", t})
-	} else {
-		cmds = append(cmds,
-			[]string{"-4", "rule", "add", "pref", p(prioMain), "from", cl.AppsSubnet, "lookup", "main", "suppress_prefixlength", "0"},
-			[]string{"-4", "rule", "add", "pref", p(prioTunnel), "from", cl.AppsSubnet, "lookup", t})
+	var cmds [][]string
+	for _, f := range fams {
+		src, apps := TunnelIP(cl), cl.AppsSubnet
+		if f == "-6" {
+			src, apps = TunnelIP6(cl), AppsSubnet6
+		}
+		cmds = append(cmds, []string{f, "route", "replace", "default", "dev", OutIface, "table", t})
+		if src != "" {
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioTunnelSrc), "from", src, "lookup", t})
+		}
+		if cl.Scope == "all" {
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioTunnel), "not", "fwmark", mark(FwMark), "lookup", t})
+		} else {
+			cmds = append(cmds,
+				[]string{f, "rule", "add", "pref", p(prioMain), "from", apps, "lookup", "main", "suppress_prefixlength", "0"},
+				[]string{f, "rule", "add", "pref", p(prioTunnel), "from", apps, "lookup", t})
+		}
 	}
 	return cmds
 }
 
-// KillRule is the blackhole rule of the routed apps.
-func KillRule(subnet string) []string {
-	return []string{"-4", "rule", "add", "pref", strconv.Itoa(prioKill), "from", subnet, "blackhole"}
+func mark(m int) string { return fmt.Sprintf("%#x", m) }
+
+// KillRules are the kill switch rules, kept while the tunnel is on (down
+// or not), in the order they must be added. Apps: a blackhole for the
+// network of the routed apps, IPv4 and IPv6. All: everything goes into a
+// blackhole but the local and private networks (the administrator never
+// loses the NAS on the LAN), the packets of the WireGuard interfaces
+// (server, sites and the tunnel itself, marked) and, when allowed, APT
+// (aptUID, -1: none).
+func KillRules(cl store.VPNClient, v6 bool, aptUID int) [][]string {
+	p := strconv.Itoa
+	fams := []string{"-4"}
+	if v6 {
+		fams = append(fams, "-6")
+	}
+	var cmds [][]string
+	for _, f := range fams {
+		if cl.Scope != "all" {
+			apps := cl.AppsSubnet
+			if f == "-6" {
+				apps = AppsSubnet6
+			}
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioKill), "from", apps, "blackhole"})
+			continue
+		}
+		private := privateNets4
+		if f == "-6" {
+			private = privateNets6
+		}
+		cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioLocal), "lookup", "main", "suppress_prefixlength", "0"})
+		for _, n := range private {
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioLocal), "to", n, "lookup", "main"})
+		}
+		if cl.AllowUpdates && aptUID >= 0 {
+			u := p(aptUID)
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioUpdates), "uidrange", u + "-" + u, "lookup", "main"})
+		}
+		cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioKillAll), "not", "fwmark", mark(FwMark), "blackhole"})
+	}
+	return cmds
 }
 
-// DockerDropIn puts the kill switch rule in place before Docker starts its
-// containers at boot, before StrataOS has set up the tunnel.
-func DockerDropIn(subnet string) string {
-	return fmt.Sprintf("# Managed by StrataOS: the apps routed through the outgoing VPN never\n# reach the Internet another way, even before StrataOS has started.\n[Service]\nExecStartPre=-/usr/sbin/ip -4 rule del pref %d\nExecStartPre=/usr/sbin/ip %s\n", prioKill, strings.Join(KillRule(subnet), " "))
+// DockerDropIn puts the kill switch rules of the routed apps in place
+// before Docker starts its containers at boot, before StrataOS has set up
+// the tunnel.
+func DockerDropIn(cl store.VPNClient, v6 bool) string {
+	var b strings.Builder
+	b.WriteString("# Managed by StrataOS: the apps routed through the outgoing VPN never\n# reach the Internet another way, even before StrataOS has started.\n[Service]\n")
+	for _, r := range KillRules(cl, v6, -1) {
+		fmt.Fprintf(&b, "ExecStartPre=-/usr/sbin/ip %s rule del pref %d\n", r[0], prioKill)
+		ign := ""
+		if r[0] == "-6" {
+			ign = "-" // IPv6 may be off at boot: IPv4 still protected
+		}
+		fmt.Fprintf(&b, "ExecStartPre=%s/usr/sbin/ip %s\n", ign, strings.Join(r, " "))
+	}
+	return b.String()
+}
+
+// KillSwitchUnit blocks the Internet of the whole NAS from boot, until
+// StrataOS has brought the tunnel up. The rules come in order and systemd
+// stops at the first failure: the blackhole never comes without the local
+// networks exempted.
+func KillSwitchUnit(cl store.VPNClient, v6 bool, aptUID int) string {
+	var b strings.Builder
+	b.WriteString("# Managed by StrataOS: whole NAS routed through the outgoing VPN.\n[Unit]\nDescription=StrataOS outgoing VPN kill switch\nDefaultDependencies=no\nBefore=network-pre.target\nWants=network-pre.target\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n")
+	for _, r := range KillRules(cl, v6, aptUID) {
+		fmt.Fprintf(&b, "ExecStart=/usr/sbin/ip %s\n", strings.Join(r, " "))
+	}
+	b.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	return b.String()
 }
 
 // Gateway is the first address of a network (the Docker bridge).
 func Gateway(subnet string) string { return addr(subnet, 1) }
+
+// Gateway6 is the address of the Docker bridge in AppsSubnet6.
+func Gateway6() string {
+	p := netip.MustParsePrefix(AppsSubnet6)
+	return p.Addr().Next().String()
+}
 
 // TunnelPublicIP asks the address check URL, through the tunnel, for the
 // address the Internet sees.

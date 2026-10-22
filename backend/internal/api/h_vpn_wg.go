@@ -54,11 +54,15 @@ func (s *Server) applyVPN() error {
 	c, owners := s.vpnState()
 	eff := vpn.Effective(c, time.Now(), func(u string) bool { return owners[u] })
 	var errs []error
+	var paused []string
 	if vpn.ClientActive(c.Client) && c.Client.Scope == "apps" && docker.Available() {
-		errs = append(errs, s.ensureAppsNetwork(c.Client.AppsSubnet))
+		p, err := s.ensureAppsNetwork(c.Client.AppsSubnet)
+		paused = p
+		errs = append(errs, err)
 	}
 	errs = append(errs, vpn.Apply(eff))
 	errs = append(errs, s.routeApps(c.Client))
+	s.unpause(paused)
 	return errors.Join(errs...)
 }
 
@@ -117,6 +121,34 @@ func (s *Server) vpnExpire() bool {
 	return len(gone) > 0
 }
 
+// vpnExpiryWarn warns the administrator about the devices that expire
+// soon, once per device and expiry date.
+func (s *Server) vpnExpiryWarn() {
+	now := time.Now()
+	c, _ := s.vpnState()
+	if len(vpn.ExpiringSoon(&c, now)) == 0 {
+		return
+	}
+	var soon []store.VPNPeer
+	_ = s.store.Update(func(st *store.State) error {
+		soon = vpn.ExpiringSoon(&st.VPN, now)
+		for _, p := range soon {
+			s.store.LogLocked(st, "warning", "vpn", "", expiryMessage(p))
+		}
+		return nil
+	})
+	for _, p := range soon {
+		s.notify("warning", "VPN device expiring soon", expiryMessage(p))
+	}
+}
+
+func expiryMessage(p store.VPNPeer) string {
+	if p.Owner != "" {
+		return fmt.Sprintf("VPN device %s of %s expires on %s", p.Name, p.Owner, vpn.LastDay(p))
+	}
+	return fmt.Sprintf("VPN device %s expires on %s", p.Name, vpn.LastDay(p))
+}
+
 // vpnLoop puts the VPN back in place after a start (firewall and routing
 // are not persistent), then expires devices and watches the outgoing
 // tunnel.
@@ -130,6 +162,7 @@ func (s *Server) vpnLoop() {
 	}
 	for {
 		time.Sleep(30 * time.Second)
+		s.vpnExpiryWarn()
 		c, _ := s.vpnState()
 		switch {
 		case s.vpnExpire():
@@ -296,7 +329,8 @@ func (s *Server) vpnUserRoutes() {
 			}
 		}
 		inactive := s.vpnInactive(store.VPN{Peers: devices})
-		return map[string]any{"allowed": allowed(c) == nil, "devices": devices, "status": status, "inactive": inactive, "max": maxUserDevices, "mode": c.DefaultMode}, nil
+		return map[string]any{"allowed": allowed(c) == nil, "devices": devices, "status": status, "inactive": inactive, "max": maxUserDevices, "mode": c.DefaultMode,
+			"warnDays": vpn.WarnDays(c)}, nil
 	})
 
 	s.user("POST /api/vpn/my/devices", func(r *http.Request) (any, error) {
