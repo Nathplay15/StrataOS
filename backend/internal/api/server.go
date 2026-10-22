@@ -110,6 +110,7 @@ func New(c Config) *Server {
 	go s.hardwareLoop()
 	go s.vmAutostartLoop()
 	go s.nvrLoop()
+	go s.fleetResume()
 	return s
 }
 

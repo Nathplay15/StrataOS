@@ -117,40 +117,21 @@ func (s *Server) systemRoutes() {
 		return system.ListUpgradable()
 	})
 	s.admin("POST /api/system/updates/refresh", func(r *http.Request) (any, error) {
-		return s.jobs.Start("apt", "Checking for updates", userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			return aptRun(ctx, j, "apt-get", "update")
-		}), nil
+		return s.jobs.Start("apt", "Checking for updates", userOf(r), s.updateJob("check", false)), nil
 	})
 	s.admin("POST /api/system/updates/upgrade", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "System upgrade started")
-		return s.jobs.Start("apt", "System update", userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			s.restorePointBeforeUpdate(j)
-			return aptRun(ctx, j, "apt-get", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "full-upgrade")
-		}), nil
+		return s.jobs.Start("apt", "System update", userOf(r), s.updateJob("system", false)), nil
 	})
 	// Updates StrataOS alone. The service restarts at the end: the browser reconnects.
 	s.admin("POST /api/system/updates/strata", func(r *http.Request) (any, error) {
 		s.audit(r, "system", "StrataOS update started from "+s.version)
-		return s.jobs.Start("apt", "StrataOS update", userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			s.restorePointBeforeUpdate(j)
-			if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
-				return err
-			}
-			return aptRun(ctx, j, "apt-get", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "install", "--only-upgrade", "strataos")
-		}), nil
+		return s.jobs.Start("apt", "StrataOS update", userOf(r), s.updateJob("strata", false)), nil
 	})
 	s.admin("GET /api/system/updates/strata", func(r *http.Request) (any, error) {
-		out, _ := sys.Run("apt-cache", "policy", "strataos")
-		installed, candidate := s.version, ""
-		for _, l := range strings.Split(out, "\n") {
-			if k, v, ok := strings.Cut(strings.TrimSpace(l), ":"); ok {
-				switch k {
-				case "Installed":
-					installed = strings.TrimSpace(v)
-				case "Candidate":
-					candidate = strings.TrimSpace(v)
-				}
-			}
+		installed, candidate := strataPolicy()
+		if installed == "" {
+			installed = s.version
 		}
 		_, err := os.Stat("/etc/apt/sources.list.d/strataos.sources")
 		return map[string]any{"running": s.version, "installed": installed, "candidate": candidate, "repository": err == nil}, nil

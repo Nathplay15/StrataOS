@@ -1,0 +1,206 @@
+[
+ [
+  "Simulation de mise à jour",
+  "Update simulation"
+ ],
+ [
+  "Recherche de mises à jour sur les NAS de la console",
+  "Checking for updates on the NAS of the console"
+ ],
+ [
+  "Recherche de mises à jour lancée par la console {0}",
+  "Update check started by the console {0}"
+ ],
+ [
+  "Simulation de mise à jour lancée par la console {0}",
+  "Update simulation started by the console {0}"
+ ],
+ [
+  "Mise à jour de StrataOS lancée par la console {0}",
+  "StrataOS update started by the console {0}"
+ ],
+ [
+  "Mise à jour du système lancée par la console {0}",
+  "System update started by the console {0}"
+ ],
+ [
+  "Redémarrage demandé par la console {0} après une mise à jour",
+  "Restart requested by the console {0} after an update"
+ ],
+ [
+  "La console {0} peut maintenant installer les mises à jour",
+  "The console {0} may now install updates"
+ ],
+ [
+  "La console {0} ne peut plus installer les mises à jour",
+  "The console {0} may no longer install updates"
+ ],
+ [
+  "La console {0} peut maintenant redémarrer ce NAS après une mise à jour",
+  "The console {0} may now restart this NAS after an update"
+ ],
+ [
+  "La console {0} ne peut plus redémarrer ce NAS",
+  "The console {0} may no longer restart this NAS"
+ ],
+ [
+  "Mise à jour groupée lancée sur {0} NAS",
+  "Grouped update started on {0} NAS"
+ ],
+ [
+  "Simulation de mise à jour groupée lancée sur {0} NAS",
+  "Grouped update simulation started on {0} NAS"
+ ],
+ [
+  "Mise à jour groupée annulée",
+  "Grouped update cancelled"
+ ],
+ [
+  "Mise à jour groupée terminée : {0} réussie(s), {1} en échec, {2} ignorée(s)",
+  "Grouped update finished: {0} succeeded, {1} failed, {2} skipped"
+ ],
+ [
+  "Mise à jour groupée terminée",
+  "Grouped update finished"
+ ],
+ [
+  "Échec de la mise à jour groupée",
+  "Grouped update failed"
+ ],
+ [
+  "{0} : ignoré",
+  "{0}: skipped"
+ ],
+ [
+  "{0} : simulation réussie",
+  "{0}: simulation succeeded"
+ ],
+ [
+  "{0} : mis à jour vers StrataOS {1}",
+  "{0}: updated to StrataOS {1}"
+ ],
+ [
+  "{0} : mis à jour",
+  "{0}: updated"
+ ],
+ [
+  "{0} : listes de paquets actualisées",
+  "{0}: package lists refreshed"
+ ],
+ [
+  "{0} NAS n'ont pas pu rechercher les mises à jour",
+  "{0} NAS could not check for updates"
+ ],
+ [
+  "Déjà à jour",
+  "Already up to date"
+ ],
+ [
+  "Redémarrage nécessaire",
+  "Restart required"
+ ],
+ [
+  "Un redémarrage serait nécessaire",
+  "A restart would be required"
+ ],
+ [
+  "Redémarrage nécessaire : ce NAS n'autorise pas la console à le redémarrer",
+  "Restart required: this NAS does not allow the console to restart it"
+ ],
+ [
+  "Annulé",
+  "Cancelled"
+ ],
+ [
+  "Non lancé : une mise à jour précédente de ce groupe a échoué",
+  "Not started: an earlier update of this group failed"
+ ],
+ [
+  "Le NAS a été retiré de la console",
+  "The NAS was removed from the console"
+ ],
+ [
+  "ce NAS n'autorise pas la console à installer les mises à jour",
+  "this NAS does not allow the console to install updates"
+ ],
+ [
+  "ce NAS n'autorise pas la console à le redémarrer",
+  "this NAS does not allow the console to restart it"
+ ],
+ [
+  "action non autorisée",
+  "action not allowed"
+ ],
+ [
+  "une autre opération sur les paquets est déjà en cours",
+  "another package operation is already running"
+ ],
+ [
+  "une opération sur les paquets est toujours en cours",
+  "another package operation is still running"
+ ],
+ [
+  "la mise à jour prend trop de temps",
+  "the update takes too long"
+ ],
+ [
+  "la mise à jour a échoué",
+  "the update failed"
+ ],
+ [
+  "le NAS n'est pas revenu après la mise à jour",
+  "the NAS did not come back after the update"
+ ],
+ [
+  "le NAS n'est pas revenu après le redémarrage",
+  "the NAS did not come back after the restart"
+ ],
+ [
+  "StrataOS {0} tourne toujours après la mise à jour ({1} attendu)",
+  "Still running StrataOS {0} after the update (expected {1})"
+ ],
+ [
+  "Nouvelle erreur après la mise à jour : {0}",
+  "New error after the update: {0}"
+ ],
+ [
+  "aucun redémarrage n'est nécessaire",
+  "no restart is required"
+ ],
+ [
+  "trop de requêtes, réessayez plus tard",
+  "too many requests, try again later"
+ ],
+ [
+  "une mise à jour groupée est déjà en cours",
+  "a grouped update is already running"
+ ],
+ [
+  "type de mise à jour invalide",
+  "invalid update kind"
+ ],
+ [
+  "stratégie invalide",
+  "invalid strategy"
+ ],
+ [
+  "sélectionnez au moins un NAS",
+  "select at least one NAS"
+ ],
+ [
+  "NAS inconnu",
+  "unknown NAS"
+ ],
+ [
+  "aucune mise à jour groupée en cours avec cet identifiant",
+  "no running grouped update with this ID"
+ ],
+ [
+  "accès introuvable",
+  "access not found"
+ ],
+ [
+  "réponse inattendue",
+  "unexpected answer"
+ ]
+]
