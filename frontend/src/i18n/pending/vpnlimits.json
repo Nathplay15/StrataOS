@@ -1,7 +1,0 @@
-[
-  ["Appareil VPN bientôt expiré", "VPN device expiring soon"],
-  ["L'appareil VPN {0} expire le {1}", "VPN device {0} expires on {1}"],
-  ["L'appareil VPN {0} de {1} expire le {2}", "VPN device {0} of {1} expires on {2}"],
-  ["le tunnel n'a pas d'IPv6 : l'IPv6 est bloqué pour ce qui passe par lui", "the tunnel has no IPv6: IPv6 is blocked for what goes through it"],
-  ["délai d'avertissement d'expiration invalide", "invalid expiry warning delay"]
-]
