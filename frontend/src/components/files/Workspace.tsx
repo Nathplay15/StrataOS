@@ -1,33 +1,29 @@
-// Files opened in tabs: text/code editor, Markdown with preview, image, PDF,
-// audio and video viewers, file details, OnlyOffice. Every panel stays mounted
-// while its tab is open, so switching keeps the edits and the undo history.
+// Files opened in tabs: text/code editor, Markdown with preview, pictures,
+// PDF (pdf.js), Word and spreadsheet previews, documents converted to PDF,
+// audio and video (any codec, through the NAS), archives, file details,
+// OnlyOffice. Every panel stays mounted while its tab is open, so switching keeps the edits and the undo history.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Columns2, Download, Eye, FileText, Folder, Maximize, Minus, Plus, RefreshCw, Save, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Columns2, Eye, Folder, Maximize, Minus, Plus, RefreshCw, Save, X } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
-import type { FileEntry } from "../../lib/types";
-import { bytes, cx, dateTime } from "../../lib/format";
+import { cx } from "../../lib/format";
 import { tr, srv, lang as uiLang } from "../../lib/i18n";
-import { editorLang, fileExt, fileKind, type FileKind, type OfficeStatus } from "../../lib/filetypes";
+import { editorLang, imageNeedsConversion, type OfficeStatus } from "../../lib/filetypes";
 import { Badge, Button, ErrorBox, Modal, Notice, Spinner, useUI } from "../ui";
+import { Panel as PanelCtx, Toolbar, ViewerCard, fromField, inlineURL, useSiblings, type OpenTab } from "./common";
+import { ArchivePanel, Details, DocumentPanel, OtherPanel, TailPanel, TooLarge } from "./Viewers";
+
+export { tabFor, type OpenTab, type TabView } from "./common";
 
 const CodeEditor = lazy(() => import("./CodeEditor"));
 const MarkdownPreview = lazy(() => import("./MarkdownPreview"));
+const PdfViewer = lazy(() => import("./PdfViewer"));
+const MediaPlayer = lazy(() => import("./MediaPlayer"));
+const DocxViewer = lazy(() => import("./OfficeViewers").then((m) => ({ default: m.DocxViewer })));
+const SheetViewer = lazy(() => import("./OfficeViewers").then((m) => ({ default: m.SheetViewer })));
 
-export type TabView = FileKind | "office";
-
-export interface OpenTab {
-  id: string;
-  entry: FileEntry;
-  view: TabView;
-  /** New file, not written yet. */
-  create?: boolean;
-}
-
-export const tabFor = (entry: FileEntry, view?: TabView, create?: boolean): OpenTab => ({ id: `${view ?? fileKind(entry.name)}:${entry.path}`, entry, view: view ?? fileKind(entry.name), create });
-
-const inlineURL = (p: string) => `/api/files/download${q({ path: p, inline: 1 })}`;
-const download = (p: string) => { window.location.href = `/api/files/download${q({ path: p })}`; };
+/** Files read whole by the browser (Word, spreadsheets) stop at this size. */
+const clientMaxBytes = 50 << 20;
 
 export function Workspace({ tabs, active, dirty, setDirty, onActivate, onClose, onReplace, onOpen, office }: {
   tabs: OpenTab[];
@@ -64,67 +60,52 @@ export function Workspace({ tabs, active, dirty, setDirty, onActivate, onClose, 
 }
 
 function Panel({ tab, office, setDirty, onReplace, onOpen }: { tab: OpenTab; office?: OfficeStatus; setDirty: (v: boolean) => void; onReplace: (t: OpenTab) => void; onOpen: (t: OpenTab) => void }) {
+  const root = useRef<HTMLDivElement>(null);
+  const e = tab.entry;
+  const text = () => <TextPanel tab={tab} setDirty={setDirty} onReplace={onReplace} />;
+  let body: ReactNode;
   switch (tab.view) {
     case "text":
     case "markdown":
-      return <TextPanel tab={tab} setDirty={setDirty} onReplace={onReplace} />;
+      body = text();
+      break;
     case "image":
-      return <ImagePanel tab={tab} onReplace={onReplace} />;
+      body = <ImagePanel tab={tab} />;
+      break;
     case "pdf":
-      return <Frame entry={tab.entry}><iframe src={inlineURL(tab.entry.path)} title={tab.entry.name} className="h-full w-full rounded-lg border border-line" /></Frame>;
+      body = <PdfViewer key={e.path} source={{ url: inlineURL(e.path) }} entry={e} posKey={`pdf:${e.path}`} />;
+      break;
     case "video":
-      return <Frame entry={tab.entry}><video src={inlineURL(tab.entry.path)} controls preload="metadata" className="mx-auto max-h-full max-w-full rounded-lg bg-black" /></Frame>;
     case "audio":
-      return <Frame entry={tab.entry}><audio src={inlineURL(tab.entry.path)} controls preload="metadata" className="mx-auto mt-10 w-full max-w-xl" /></Frame>;
+      body = <MediaPlayer key={e.path} entry={e} audioOnly={tab.view === "audio"} />;
+      break;
+    case "docx":
+      body = e.size > clientMaxBytes ? <TooLarge entry={e} limit={clientMaxBytes} /> : <DocxViewer entry={e} />;
+      break;
+    case "sheet":
+      body = e.size > clientMaxBytes ? <TooLarge entry={e} limit={clientMaxBytes} /> : <SheetViewer entry={e} />;
+      break;
+    case "document":
+      body = <DocumentPanel entry={e} />;
+      break;
+    case "archive":
+      body = <ArchivePanel entry={e} />;
+      break;
     case "office":
-      return <OfficePanel tab={tab} />;
+      body = <OfficePanel tab={tab} />;
+      break;
+    case "details":
+      body = <Details entry={e} />;
+      break;
     default:
-      return <Details entry={tab.entry} office={office} onOpen={onOpen} />;
+      body = <OtherPanel entry={e} renderText={text} />;
   }
-}
-
-function Toolbar({ entry, children }: { entry: FileEntry; children?: ReactNode }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
-      <span className="mono min-w-0 flex-1 truncate text-[12px] text-muted" title={entry.path}>{entry.path}</span>
-      {children}
-      <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(entry.path)} title={tr("Download")} />
-    </div>
-  );
-}
-
-function Frame({ entry, children }: { entry: FileEntry; children: ReactNode }) {
-  return (
-    <>
-      <Toolbar entry={entry} />
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-panel-2 p-3">{children}</div>
-    </>
-  );
-}
-
-function Details({ entry, office, onOpen }: { entry: FileEntry; office?: OfficeStatus; onOpen: (t: OpenTab) => void }) {
-  const ext = fileExt(entry.name);
-  const canOffice = office?.enabled && office.types[ext];
-  return (
-    <>
-      <Toolbar entry={entry} />
-      <div className="flex-1 overflow-auto p-6">
-        <div className="card mx-auto max-w-lg space-y-3 p-5 text-[13px]">
-          <div className="flex items-center gap-2 text-[15px] font-semibold"><FileText size={18} className="text-muted" /> <span className="break-all">{entry.name}</span></div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-            <dt className="text-muted">{tr("Size")}</dt><dd>{bytes(entry.size)}</dd>
-            <dt className="text-muted">{tr("Modified")}</dt><dd>{dateTime(entry.modTime)}</dd>
-            <dt className="text-muted">{tr("Permissions")}</dt><dd className="mono">{entry.mode}</dd>
-            <dt className="text-muted">{tr("Location")}</dt><dd className="mono break-all">{entry.path}</dd>
-          </dl>
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="primary" icon={<Download size={15} />} onClick={() => download(entry.path)}>{tr("Download")}</Button>
-            {canOffice && <Button onClick={() => onOpen(tabFor(entry, "office"))}>{tr("Open in OnlyOffice")}</Button>}
-            {entry.size <= 20 << 20 && <Button variant="ghost" onClick={() => onOpen(tabFor(entry, "text"))}>{tr("Open as text")}</Button>}
-          </div>
-        </div>
+    <PanelCtx.Provider value={{ tab, office, onReplace, onOpen, root }}>
+      <div ref={root} className="flex min-h-0 flex-1 flex-col bg-bg">
+        <Suspense fallback={<Spinner />}>{body}</Suspense>
       </div>
-    </>
+    </PanelCtx.Provider>
   );
 }
 
@@ -206,9 +187,8 @@ function TextPanel({ tab, setDirty, onReplace }: { tab: OpenTab; setDirty: (v: b
 
   if (error) return <div className="p-4"><ErrorBox error={error} /></div>;
   if (!loaded) return <Spinner />;
-  if (loaded.binary || loaded.tooLarge) {
-    return <Details entry={{ ...tab.entry, size: loaded.size }} onOpen={() => {}} />;
-  }
+  if (loaded.tooLarge) return <TailPanel entry={tab.entry} />;
+  if (loaded.binary) return <Details entry={{ ...tab.entry, size: loaded.size }} note={tr("This file is not text.")} />;
   const md = tab.view === "markdown";
   return (
     <>
@@ -240,42 +220,50 @@ function TextPanel({ tab, setDirty, onReplace }: { tab: OpenTab; setDirty: (v: b
 
 /* ---------- Images ---------- */
 
-function ImagePanel({ tab, onReplace }: { tab: OpenTab; onReplace: (t: OpenTab) => void }) {
-  const dir = tab.entry.path.slice(0, tab.entry.path.lastIndexOf("/"));
-  const list = useQuery({ queryKey: ["files", dir, false], queryFn: () => api.get<{ entries: FileEntry[] }>(`/api/files${q({ path: dir })}`) });
-  const images = useMemo(() => (list.data?.entries ?? []).filter((e) => !e.dir && fileKind(e.name) === "image"), [list.data]);
-  const i = images.findIndex((e) => e.path === tab.entry.path);
+function ImagePanel({ tab }: { tab: OpenTab }) {
+  const { go } = useSiblings();
   const [zoom, setZoom] = useState(0); // 0 = fit
-  const go = (d: number) => {
-    if (images.length < 2) return;
-    const n = images[(i + d + images.length) % images.length];
-    setZoom(0);
-    onReplace({ ...tab, entry: n });
-  };
+  const [error, setError] = useState<unknown>(null);
+  const converted = imageNeedsConversion(tab.entry.name);
+  const src = converted ? `/api/files/image${q({ path: tab.entry.path, size: 2560, v: tab.entry.modTime })}` : inlineURL(tab.entry.path);
+  useEffect(() => { setZoom(0); setError(null); }, [src]);
   const box = useRef<HTMLDivElement>(null);
+  const goRef = useRef(go);
+  goRef.current = go;
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (!box.current?.offsetParent) return; // hidden tab
-      if (e.key === "ArrowRight") go(1);
-      if (e.key === "ArrowLeft") go(-1);
+      if (!box.current?.offsetParent || e.altKey || fromField(e)) return; // hidden tab; Alt: see useSiblings
+      if (e.key === "ArrowRight") goRef.current(1);
+      if (e.key === "ArrowLeft") goRef.current(-1);
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
-  });
+  }, []);
+  // A failed conversion answers JSON: show its message.
+  const onError = async () => {
+    try {
+      const res = await fetch(src, { headers: { "X-Strata": "1" }, credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      setError(new ApiError(res.status, data.error ?? tr("This picture cannot be displayed")));
+    } catch (e) {
+      setError(e);
+    }
+  };
   return (
     <>
       <Toolbar entry={tab.entry}>
-        {images.length > 1 && <span className="text-[12px] text-muted">{i + 1} / {images.length}</span>}
-        <Button size="sm" variant="ghost" icon={<ChevronLeft size={14} />} title={tr("Previous")} disabled={images.length < 2} onClick={() => go(-1)} />
-        <Button size="sm" variant="ghost" icon={<ChevronRight size={14} />} title={tr("Next")} disabled={images.length < 2} onClick={() => go(1)} />
+        {converted && <Badge>{tr("Converted")}</Badge>}
         <Button size="sm" variant="ghost" icon={<Minus size={14} />} title={tr("Zoom out")} onClick={() => setZoom(Math.max(0.1, (zoom || 1) / 1.25))} />
         <span className="w-12 text-center text-[12px] text-muted">{zoom ? `${Math.round(zoom * 100)} %` : tr("Fit")}</span>
         <Button size="sm" variant="ghost" icon={<Plus size={14} />} title={tr("Zoom in")} onClick={() => setZoom(Math.min(8, (zoom || 1) * 1.25))} />
         <Button size="sm" variant="ghost" icon={<Maximize size={14} />} title={tr("Fit")} onClick={() => setZoom(0)} />
       </Toolbar>
-      <div ref={box} className={cx("min-h-0 flex-1 overflow-auto bg-panel-2 p-3", !zoom && "flex items-center justify-center")} onDoubleClick={() => setZoom(zoom ? 0 : 1)}>
-        <img src={inlineURL(tab.entry.path)} alt={tab.entry.name} className={cx("rounded", !zoom && "max-h-full max-w-full object-contain")} style={zoom ? { width: "auto", maxWidth: "none", transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined} />
-      </div>
+      {error ? <ViewerCard><ErrorBox error={error} /></ViewerCard> : (
+        <div ref={box} className={cx("min-h-0 flex-1 overflow-auto bg-panel-2 p-3", !zoom && "flex items-center justify-center")} onDoubleClick={() => setZoom(zoom ? 0 : 1)}>
+          {/* SVG too goes through <img>: its scripts never run. */}
+          <img src={src} alt={tab.entry.name} onError={() => void onError()} className={cx("rounded", !zoom && "max-h-full max-w-full object-contain")} style={zoom ? { width: "auto", maxWidth: "none", transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined} />
+        </div>
+      )}
     </>
   );
 }

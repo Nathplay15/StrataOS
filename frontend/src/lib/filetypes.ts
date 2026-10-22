@@ -1,6 +1,6 @@
 // What the file manager does with a file, from its name.
 
-export type FileKind = "text" | "markdown" | "image" | "pdf" | "video" | "audio" | "other";
+export type FileKind = "text" | "markdown" | "image" | "pdf" | "video" | "audio" | "docx" | "sheet" | "document" | "archive" | "other";
 
 const ext = (name: string) => (name.includes(".") ? name.split(".").pop()!.toLowerCase() : "");
 
@@ -25,16 +25,31 @@ const langs: Record<string, string> = {
 const plain = new Set(["txt", "log", "csv", "tsv", "text", "nfo", "srt", "vtt", "diff", "patch", "gitignore", "lock", "rst", "tex", "c", "h", "cpp", "hpp", "rs", "java", "kt", "rb", "php", "pl", "lua", "r", "swift", "cs", "dart", "ex", "exs", "erl", "hs", "ml", "nix", "tf", "hcl", "gradle", "cmake", "mk", "nginx", "dockerfile", "rules", "list", "sources", "crt", "pem", "pub", "asc", "m3u", "cue"]);
 const plainNames = new Set(["dockerfile", "makefile", "readme", "license", "changelog", "authors", "hosts", "fstab", "crontab", "vagrantfile", "jenkinsfile", "procfile"]);
 
+/** Pictures the browser shows as they are (SVG through <img> only). */
+const nativeImages = /^(jpe?g|jfif|png|gif|webp|bmp|avif|ico|svg)$/;
+/** Pictures converted by the NAS (libvips, ffmpeg, exiftool). */
+const convertedImages = /^(heic|heif|hif|tiff?|psd|psb|jxl|tga|ppm|pgm|pbm|pnm|exr|jp2|j2k|dds|pcx|sgi|xcf|cr2|cr3|crw|nef|nrw|arw|srf|sr2|dng|orf|rw2|raf|pef|srw|x3f|3fr|kdc|dcr|mrw|erf|mos|iiq|rwl)$/;
+const videos = /^(mp4|m4v|webm|ogv|mkv|avi|mov|qt|wmv|asf|flv|f4v|mpg|mpeg|m2v|mpe|m2ts|mts|vob|3gp|3g2|ogm|divx|xvid|rm|rmvb|dv|mxf|y4m)$/;
+const audios = /^(mp3|ogg|oga|opus|wav|m4a|m4b|flac|aac|wma|ape|alac|mka|ac3|eac3|dts|aiff?|aifc|amr|wv|tta|au|caf|mpc|spx|dsf|dff)$/;
+const archives = /\.(zip|jar|cbz|epub|tar|tgz|tbz2?|txz|tzst|7z|rar|cbr|gz|bz2|xz|zst)$/;
+
 export function fileKind(name: string): FileKind {
   const e = ext(name);
   if (e === "md" || e === "markdown") return "markdown";
-  if (/^(jpe?g|png|gif|webp|bmp|avif)$/.test(e)) return "image";
+  if (nativeImages.test(e) || convertedImages.test(e)) return "image";
   if (e === "pdf") return "pdf";
-  if (/^(mp4|m4v|webm|ogv)$/.test(e)) return "video";
-  if (/^(mp3|ogg|oga|opus|wav|m4a|flac)$/.test(e)) return "audio";
+  if (videos.test(e)) return "video";
+  if (audios.test(e)) return "audio";
+  if (/^(docx|docm|dotx)$/.test(e)) return "docx";
+  if (/^(xlsx|xlsm|xls|ods|csv|tsv|fods)$/.test(e)) return "sheet";
+  if (/^(doc|dot|odt|ott|fodt|rtf|wpd|wps|pages|ppt|pptx|pptm|pps|ppsx|odp|otp|fodp|key|odg|vsd|vsdx|xlsb|numbers)$/.test(e)) return "document";
+  if (archives.test(name.toLowerCase()) && !/^\.[^.]+$/.test(name)) return "archive";
   if (langs[e] || plain.has(e) || plainNames.has(name.toLowerCase()) || name.startsWith(".")) return "text";
   return "other";
 }
+
+/** Pictures the browser cannot show itself: the NAS converts them. */
+export const imageNeedsConversion = (name: string) => convertedImages.test(ext(name));
 
 export function editorLang(name: string): string {
   const n = name.toLowerCase();

@@ -106,6 +106,9 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
   );
 }
 
+// Components whose key is not self-explanatory.
+const componentLabel: Record<string, string> = { docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)") };
+
 export default function SettingsPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/api/settings") });
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info") });
@@ -199,8 +202,8 @@ export default function SettingsPage() {
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">
-                <span className="font-medium capitalize">{k}</span>
-                {v ? <Badge tone="ok" dot>{tr("Installed")}</Badge> : (k === "zfs" || k === "docker") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
+                <span className="font-medium capitalize">{componentLabel[k] ?? k}</span>
+                {v ? <Badge tone="ok" dot>{tr("Installed")}</Badge> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
               </div>
             ))}
           </div>
