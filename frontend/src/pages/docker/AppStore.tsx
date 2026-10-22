@@ -45,11 +45,11 @@ function InstallModal({ app, linked, onClose }: { app: App; linked: Record<strin
       <Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button>
     </>}>
       <div className="space-y-4">
-        <p className="text-muted">{app.description}</p>
+        <p className="text-muted">{tr(app.description)}</p>
         <Field label={tr("Installation name (stack)")}><Input value={name} onChange={(e) => setName(e.target.value.toLowerCase())} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           {app.vars.map((v) => (
-            <Field key={v.key} label={v.label} className={v.type === "path" || v.type === "device" ? "sm:col-span-2" : ""} hint={hint(v)}>
+            <Field key={v.key} label={tr(v.label)} className={v.type === "path" || v.type === "device" ? "sm:col-span-2" : ""} hint={hint(v)}>
               <Input className={v.type !== "port" && v.type !== "text" ? "mono" : ""} value={values[v.key] ?? ""} placeholder={v.key in linked && v.type === "password" ? tr("(from the installed app)") : undefined} onChange={(e) => setValues({ ...values, [v.key]: e.target.value })} />
             </Field>
           ))}
@@ -136,11 +136,12 @@ export default function AppStore() {
   const [install, setInstall] = useState<App | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<CustomAppEntry | null>(null);
-  const cats = useMemo(() => [...new Set((data?.apps ?? []).map((a) => a.category))].sort((a, b) => a.localeCompare(b)), [data]);
+  // Catalog texts are English in Go and translated here (custom apps keep their own text).
+  const cats = useMemo(() => [...new Set((data?.apps ?? []).map((a) => a.category))].sort((a, b) => tr(a).localeCompare(tr(b))), [data]);
   const q = search.toLowerCase();
   const match = (s: string) => !q || s.toLowerCase().includes(q);
   const custom = (data?.custom ?? []).filter((c) => (cat === "" || cat === MY_APPS) && match(c.name + (c.description ?? "")));
-  const apps = (data?.apps ?? []).filter((a) => (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match(a.name + a.description + a.category));
+  const apps = (data?.apps ?? []).filter((a) => (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match([a.name, a.description, a.category, tr(a.description), tr(a.category)].join(" ")));
   const act = useAction((p: { name: string; action: string }) => api.post(`/api/docker/stacks/${p.name}/${p.action}`));
   const del = useAction((name: string) => api.del(`/api/docker/stacks/${name}?volumes=1`), { success: tr("App removed") });
   const host = location.hostname;
@@ -170,7 +171,7 @@ export default function AppStore() {
         <div className="mb-5 flex flex-wrap gap-1.5">
           {chip("", tr("All"))}
           {chip(MY_APPS, tr("My apps"))}
-          {cats.map((c) => chip(c, c))}
+          {cats.map((c) => chip(c, tr(c)))}
         </div>
         {isLoading ? <Spinner /> : nothing ? (
           <p className="text-muted">{cat === MY_APPS && !q ? tr("No app installed yet.") : tr("No app matches your search.")}</p>
@@ -200,8 +201,8 @@ export default function AppStore() {
                     <AppIcon app={a} />
                     <div className="min-w-0">
                       <div className="font-semibold">{a.name}</div>
-                      <Badge>{a.category}</Badge>
-                      <p className="mt-2 text-[12.5px] text-muted">{a.description}</p>
+                      <Badge>{tr(a.category)}</Badge>
+                      <p className="mt-2 text-[12.5px] text-muted">{tr(a.description)}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">

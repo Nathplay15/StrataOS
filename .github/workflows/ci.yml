@@ -51,6 +51,7 @@ jobs:
           cd frontend
           npm ci --no-audit --no-fund
           npx tsc -b
+          (cd ../backend && go run ./cmd/catalog-texts --check ../frontend/src/i18n/catalog.ts)
           node scripts/i18n-extract.cjs --check
           node scripts/i18n-lint.cjs --check
           node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json --check
