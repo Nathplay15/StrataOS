@@ -38,10 +38,19 @@ func fakeRenderer(t *testing.T, uri *string, mu *sync.Mutex, actions *[]string) 
 
 func TestCastSessionsSurviveRestart(t *testing.T) {
 	s := newTestServer(t)
+	// The key is cached for the process: start from this server's data folder
+	// (another test may have cached a key from its own folder).
+	resetMediaKey := func() {
+		mediaKeyMu.Lock()
+		mediaKey = nil
+		mediaKeyMu.Unlock()
+	}
+	resetMediaKey()
 	t.Cleanup(func() {
 		castState.Lock()
 		castState.sessions = map[string]*castSession{}
 		castState.Unlock()
+		resetMediaKey()
 	})
 	var mu sync.Mutex
 	var actions []string
