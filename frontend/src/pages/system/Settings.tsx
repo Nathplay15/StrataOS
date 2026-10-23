@@ -8,6 +8,7 @@ import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader,
 import { tr, locale, languages } from "../../lib/i18n";
 import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
+import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
 
@@ -122,6 +123,7 @@ export default function SettingsPage() {
   const test = useAction(() => api.post<{ sent: string[] }>("/api/settings/test-notification"), { success: (r) => tr("Notification sent ({0})", r.sent.join(", ")) });
   const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Time zone updated") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
+  const [uninstall, setUninstall] = useState("");
   const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Report sent") });
   if (isLoading || !s) return <Spinner />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS({ ...s, [k]: v });
@@ -203,10 +205,11 @@ export default function SettingsPage() {
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">
                 <span className="font-medium capitalize">{componentLabel[k] ?? k}</span>
-                {v ? <Badge tone="ok" dot>{tr("Installed")}</Badge> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
+                {v ? <span className="flex items-center gap-1.5"><Badge tone="ok" dot>{tr("Installed")}</Badge>{uninstallable.includes(k) && <Button size="sm" variant="ghost" className="text-danger" onClick={() => setUninstall(k)}>{tr("Uninstall")}</Button>}</span> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
               </div>
             ))}
           </div>
+          {uninstall && <ComponentUninstallModal id={uninstall} label={componentLabel[uninstall] ?? uninstall} onClose={() => setUninstall("")} />}
         </Card>
       </div>
     </div>

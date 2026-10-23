@@ -370,35 +370,7 @@ func (s *Server) systemRoutes() {
 
 	// Optional components installed through bundled scripts.
 	s.admin("GET /api/system/components", func(r *http.Request) (any, error) {
-		return map[string]bool{
-			"zfs":        storage.ZFSAvailable(),
-			"docker":     sys.Has("docker"),
-			"compose":    composeAvailable(),
-			"samba":      sys.Has("smbd"),
-			"nfs":        sys.Has("exportfs"),
-			"btrfs":      sys.Has("mkfs.btrfs"),
-			"lvm":        sys.Has("lvcreate"),
-			"mdadm":      sys.Has("mdadm"),
-			"smart":      sys.Has("smartctl"),
-			"restic":     sys.Has("restic"),
-			"nut":        sys.Has("upsmon"),
-			"vms":        sys.Has("virsh"),
-			"rclone":     sys.Has("rclone"),
-			"ftp":        fileservices.FTPInstalled(),
-			"directory":  directory.ADInstalled() && directory.LDAPInstalled(),
-			"antivirus":  antivirus.Installed(),
-			"ha":         ha.Installed(),
-			"vpn":        vpn.Installed(),
-			"photos":     photos.Installed(),
-			"iscsi":      iscsi.Installed(),
-			"nvr":        nvr.Installed(),
-			"rsync":      sys.Has("rsync"),
-			"xfs":        sys.Has("mkfs.xfs"),
-			"tailscale":  remote.TailscaleInstalled(),
-			"tunnel":     remote.CloudflaredInstalled(),
-			"dlna":       media.DLNAInstalled(),
-			"docpreview": preview.OfficeInstalled(),
-		}, nil
+		return componentsInstalled(), nil
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
@@ -408,12 +380,47 @@ func (s *Server) systemRoutes() {
 		}
 		s.audit(r, "system", "Installing component "+name)
 		return s.jobs.Start("install", "Install "+name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			componentMu.Lock()
+			defer componentMu.Unlock()
 			_, err := sys.RunOpts(ctx, sys.Opts{Output: j, Timeout: time.Hour, Env: []string{"DEBIAN_FRONTEND=noninteractive"}}, "/bin/bash", scriptsDir+"/"+script)
 			return err
 		}), nil
 	})
 
 	s.adminRaw("GET /api/system/terminal", s.hostTerminal)
+}
+
+// componentsInstalled tells which components are present.
+func componentsInstalled() map[string]bool {
+	return map[string]bool{
+		"zfs":        storage.ZFSAvailable(),
+		"docker":     sys.Has("docker"),
+		"compose":    composeAvailable(),
+		"samba":      sys.Has("smbd"),
+		"nfs":        sys.Has("exportfs"),
+		"btrfs":      sys.Has("mkfs.btrfs"),
+		"lvm":        sys.Has("lvcreate"),
+		"mdadm":      sys.Has("mdadm"),
+		"smart":      sys.Has("smartctl"),
+		"restic":     sys.Has("restic"),
+		"nut":        sys.Has("upsmon"),
+		"vms":        sys.Has("virsh"),
+		"rclone":     sys.Has("rclone"),
+		"ftp":        fileservices.FTPInstalled(),
+		"directory":  directory.ADInstalled() && directory.LDAPInstalled(),
+		"antivirus":  antivirus.Installed(),
+		"ha":         ha.Installed(),
+		"vpn":        vpn.Installed(),
+		"photos":     photos.Installed(),
+		"iscsi":      iscsi.Installed(),
+		"nvr":        nvr.Installed(),
+		"rsync":      sys.Has("rsync"),
+		"xfs":        sys.Has("mkfs.xfs"),
+		"tailscale":  remote.TailscaleInstalled(),
+		"tunnel":     remote.CloudflaredInstalled(),
+		"dlna":       media.DLNAInstalled(),
+		"docpreview": preview.OfficeInstalled(),
+	}
 }
 
 func composeAvailable() bool {
