@@ -73,7 +73,7 @@ fun nasHttpClient(pin: String?, caOnly: Boolean): OkHttpClient {
 /** Calls the StrataOS API with a device token. */
 class Api(baseUrl: String, val http: OkHttpClient, private val token: String?) {
     val base: HttpUrl = baseUrl.trimEnd('/').toHttpUrl()
-    private val jsonType = "application/json".toMediaType()
+    val jsonType = "application/json".toMediaType()
 
     fun url(path: String, vararg query: Pair<String, String>): HttpUrl {
         val b = base.newBuilder().encodedPath(path)
@@ -86,17 +86,19 @@ class Api(baseUrl: String, val http: OkHttpClient, private val token: String?) {
         header("X-Strata", "android")
     }
 
-    private fun <T> call(req: Request, ser: KSerializer<T>): T = http.newCall(req).execute().use { r -> parse(r, ser) }
+    // call, parse, body and get are public for the API functions of each area
+    // (extension functions in net/Api<Area>.kt).
+    fun <T> call(req: Request, ser: KSerializer<T>): T = http.newCall(req).execute().use { r -> parse(r, ser) }
 
-    private fun <T> parse(r: Response, ser: KSerializer<T>): T {
+    fun <T> parse(r: Response, ser: KSerializer<T>): T {
         val body = r.body.string()
         if (!r.isSuccessful) throw apiError(r.code, body)
         return json.decodeFromString(ser, body.ifEmpty { "{}" })
     }
 
-    private inline fun <reified B> body(v: B): RequestBody = json.encodeToString(kotlinx.serialization.serializer<B>(), v).toRequestBody(jsonType)
+    inline fun <reified B> body(v: B): RequestBody = json.encodeToString(kotlinx.serialization.serializer<B>(), v).toRequestBody(jsonType)
 
-    private fun get(path: String, vararg q: Pair<String, String>) = request(url(path, *q)).get().build()
+    fun get(path: String, vararg q: Pair<String, String>) = request(url(path, *q)).get().build()
 
     fun pairWithPassword(username: String, password: String, code: String, deviceName: String, model: String, app: String): PairResponse =
         call(request(url("/api/mobile/pair")).post(body(PairPassword(username, password, code, deviceName, model, app))).build(), PairResponse.serializer())
