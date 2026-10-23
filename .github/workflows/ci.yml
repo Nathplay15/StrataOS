@@ -44,7 +44,18 @@ jobs:
           test -z "$out" || { echo "not formatted: $out"; exit 1; }
 
       - name: Go vet and unit tests
-        run: cd backend && go vet ./... && go test ./...
+        # Failures are also reported as an annotation, readable without signing in.
+        run: |
+          cd backend
+          go vet ./...
+          set +e
+          go test ./... 2>&1 | tee "$RUNNER_TEMP/gotest.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            msg=$(grep -E -e '--- FAIL|^FAIL|^panic|_test\.go:[0-9]+|\.go:[0-9]+: ' "$RUNNER_TEMP/gotest.log" | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Go tests failed::$msg"
+          fi
+          exit "$status"
 
       - name: Frontend types and translations
         run: |
