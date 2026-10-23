@@ -6,6 +6,7 @@ import { useAction } from "../../lib/hooks";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { dateTime } from "../../lib/format";
 import { locale, tr } from "../../lib/i18n";
+import { RPiKernelCard } from "./RPiKernel";
 
 type Up = { package: string; current: string; new: string; source: string };
 
@@ -64,6 +65,7 @@ export default function Updates() {
         <Button variant="primary" disabled={!data?.length} loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Install updates?"), text: tr("{0} package(s) will be updated. Some services may restart.", data?.length) })) upgrade.mutate(); }}>{tr("Update all")}</Button>
       </>} />
       <StrataCard />
+      <RPiKernelCard />
       <div className="mb-5 grid gap-5 lg:grid-cols-2">
         <ChannelCard />
         <AutoUpdatesCard />
@@ -93,7 +95,7 @@ function RestorePoints() {
   const del = useAction((n: string) => api.del(`/api/system/restore-points/${n}`), { success: tr("Restore point deleted") });
   const rollback = useAction((n: string) => api.post(`/api/system/restore-points/${n}/rollback`), { success: tr("Rolled back to restore point: the NAS is restarting") });
   if (!data) return null;
-  const label = (l: string) => (l === "before-update" || l === "avant-mise-a-jour" ? tr("Before an update") : l === "manual" || l === "manuel" ? tr("Manual") : l);
+  const label = (l: string) => (l === "before-update" || l === "avant-mise-a-jour" ? tr("Before an update") : l === "manual" || l === "manuel" ? tr("Manual") : l === "before-rpi-kernel" ? tr("Before the switch to the Raspberry Pi kernel") : l);
   return (
     <Card title={<span className="flex items-center gap-2"><History size={16} className="text-accent" />{tr("System restore points")}</span>} actions={data.supported && <Button size="sm" icon={<Plus size={14} />} loading={create.isPending} onClick={() => create.mutate()}>{tr("Create now")}</Button>}>
       {!data.supported ? (

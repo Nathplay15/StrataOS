@@ -179,6 +179,8 @@ With two or more NAS on the same network, one of them (the primary) serves the s
 
 Updates → "Update StrataOS". Before each update, a **restore point** is created; if something goes wrong, "Restore" brings the system and its programs back to that state (with a restart), without touching your data or your StrataOS settings.
 
+**Raspberry Pi installed from an image older than 0.6.1** (0.4.0 to 0.6.0): these run Debian's kernel, which has no driver for the Ethernet and USB ports of the Raspberry Pi 5. Updates → **Switch to the Raspberry Pi kernel** installs the Raspberry Pi kernels and boot firmware of the current image (only those packages come from the Raspberry Pi archive), keeps what you added to `config.txt` and `cmdline.txt`, and restarts. Before that, a restore point is made and a copy of the firmware partition is kept in `/var/lib/strata-restore/rpi-kernel/`. Once the NAS has started on the new kernel, StrataOS removes the Debian kernel. If it does not start again within 15 minutes, put the card (or SSD) in any computer, rename `config.txt` to `config-rpi.txt` and `config-debian.txt` to `config.txt` (see `README-StrataOS.txt` on the card): the Pi starts the Debian kernel again, and **Undo** on the Updates page puts everything back. There is no automatic return: the Raspberry Pi firmware's one-time trial boot ("tryboot") can only be requested from a Raspberry Pi kernel.
+
 ## 21. Troubleshooting
 
 - **The interface doesn't respond**: check that the NAS is powered on and connected to the network; the machine's screen shows its address. From a console, `systemctl status strata` shows the state of the service.

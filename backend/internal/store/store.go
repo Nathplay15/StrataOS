@@ -534,6 +534,8 @@ type State struct {
 
 	// Updates: update channel and automatic updates.
 	Updates AutoUpdates `json:"updates,omitzero"`
+	// RPiKernel: switch of a Raspberry Pi to the Raspberry Pi kernels.
+	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
 }
 
 const maxEvents = 2000

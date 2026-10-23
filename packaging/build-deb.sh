@@ -16,6 +16,13 @@ install -Dm644 packaging/systemd/strata-console.service "$ROOT/usr/lib/systemd/s
 install -Dm644 packaging/avahi/strata.service "$ROOT/etc/avahi/services/strata.service"
 # Every helper script (component installers, HA and UPS hooks).
 for f in packaging/scripts/*; do install -Dm755 "$f" "$ROOT/usr/lib/strata/scripts/$(basename "$f")"; done
+# Raspberry Pi boot and APT files of the image, for the switch of older
+# Raspberry Pi installations to the Raspberry Pi kernels (Updates page).
+if [ "$ARCH" = arm64 ]; then
+  for f in config.txt cmdline.txt raspberrypi.sources raspberrypi.pref raspberrypi-archive-keyring.pgp; do
+    install -Dm644 "packaging/rpi/$f" "$ROOT/usr/lib/strata/rpi/$f"
+  done
+fi
 # APT repository for StrataOS updates (see packaging/make-repo.sh).
 if [ -f packaging/keys/strataos-archive.gpg ]; then
   install -Dm644 packaging/keys/strataos-archive.gpg "$ROOT/usr/share/keyrings/strataos-archive.gpg"

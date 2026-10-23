@@ -67,7 +67,7 @@ func CreateRestorePoint(label string) (string, error) {
 	case "lvm":
 		return lvmCreate(label)
 	case "packages":
-		return pkgCreate(label)
+		return pkgCreate(label, nil)
 	default:
 		return "", fmt.Errorf("%s", why)
 	}
@@ -274,9 +274,31 @@ func pkgList() ([]RestorePoint, error) {
 	return list, nil
 }
 
+// CreateRestorePointFor is CreateRestorePoint for a change of the given
+// packages (not an update): on a system without snapshots, the installed
+// versions of these packages are the ones kept.
+func CreateRestorePointFor(label string, pkgs []string) (string, error) {
+	if m, _ := Mode(); m != "packages" {
+		return CreateRestorePoint(label)
+	}
+	if !regexp.MustCompile(`^[a-z0-9-]{1,40}$`).MatchString(label) {
+		return "", fmt.Errorf("invalid label")
+	}
+	return pkgCreate(label, pkgs)
+}
+
+// PkgPointDebs lists the packages kept by a restore point of the packages mode.
+func PkgPointDebs(name string) []string {
+	if !pointRe.MatchString(name) {
+		return nil
+	}
+	debs, _ := filepath.Glob(filepath.Join(PkgPointsDir, name, "debs", "*.deb"))
+	return debs
+}
+
 // pkgCreate keeps the installed versions of the packages an update would
-// change, and of StrataOS.
-func pkgCreate(label string) (string, error) {
+// change (or of only), and of StrataOS.
+func pkgCreate(label string, only []string) (string, error) {
 	name := time.Now().Format("2006-01-02_15-04-05") + "_" + label
 	dir := filepath.Join(PkgPointsDir, name)
 	if err := os.MkdirAll(filepath.Join(dir, "debs"), 0o700); err != nil {
@@ -287,7 +309,10 @@ func pkgCreate(label string) (string, error) {
 		_ = os.WriteFile(filepath.Join(dir, "packages.list"), []byte(out), 0o600)
 	}
 	pkgs := map[string]bool{"strataos": true}
-	if out, err := sys.Run("apt-get", "-s", "-o", "Debug::NoLocking=1", "dist-upgrade"); err == nil {
+	for _, p := range only {
+		pkgs[p] = true
+	}
+	if out, err := sys.Run("apt-get", "-s", "-o", "Debug::NoLocking=1", "dist-upgrade"); err == nil && only == nil {
 		for _, m := range upgradeRe.FindAllStringSubmatch(out, -1) {
 			pkgs[m[1]] = true
 		}

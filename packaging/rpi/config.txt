@@ -1,0 +1,24 @@
+# StrataOS — Raspberry Pi boot configuration
+# https://www.raspberrypi.com/documentation/computers/config_txt.html
+arm_64bit=1
+auto_initramfs=1
+arm_boost=1
+disable_overscan=1
+camera_auto_detect=0
+display_auto_detect=0
+dtparam=audio=off
+# Text console on the HDMI screen, with little memory reserved for graphics.
+dtoverlay=vc4-kms-v3d,cma-64,noaudio
+max_framebuffers=2
+disable_fw_kms_setup=1
+
+[pi5]
+# Raspberry Pi 5, 500, CM5. For software that needs 4K memory pages,
+# use kernel8.img instead.
+kernel=kernel_2712.img
+
+[cm4]
+# USB ports of the Compute Module 4 IO board.
+otg_mode=1
+
+[all]
