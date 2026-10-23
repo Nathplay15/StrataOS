@@ -76,7 +76,7 @@ type rpiKernelStatus struct {
 	CanUndo       bool     `json:"canUndo"`
 }
 
-func installedPackages() map[string]string {
+func rpiInstalledPackages() map[string]string {
 	out, _ := sys.Run("dpkg-query", "-W", "-f", "${Package}\t${Version}\t${db:Status-Abbrev}\n")
 	return system.ParseInstalled(out)
 }
@@ -93,7 +93,7 @@ func (s *Server) rpiKernelStatus() rpiKernelStatus {
 		return st
 	}
 	st.Pi5 = system.IsRPi5(st.Model)
-	inst := installedPackages()
+	inst := rpiInstalledPackages()
 	st.DebianKernels, st.RPiKernels = system.KernelPackages(inst)
 	st.Applicable = system.RPiKernelNeeded(st.Model, inst) && st.Phase != "running"
 	if st.Applicable {
@@ -453,7 +453,7 @@ func (s *Server) rpiUndoJob(user string) func(ctx context.Context, j *jobs.Job) 
 		}
 		j.Logf("Raspberry Pi archive removed")
 		_ = aptRun(ctx, j, "apt-get", "update")
-		inst := installedPackages()
+		inst := rpiInstalledPackages()
 		var purge []string
 		for p := range inst {
 			if strings.HasPrefix(p, "linux-") && strings.Contains(p, "rpi") {
@@ -471,7 +471,7 @@ func (s *Server) rpiUndoJob(user string) func(ctx context.Context, j *jobs.Job) 
 		// (no download), from the Debian archive otherwise.
 		var debs, wanted []string
 		for p, v := range k.Previous {
-			if installedPackages()[p] == v {
+			if rpiInstalledPackages()[p] == v {
 				continue
 			}
 			wanted = append(wanted, p+"="+v)
@@ -561,7 +561,7 @@ func (s *Server) rpiFinishJob() func(ctx context.Context, j *jobs.Job) error {
 		if !system.IsRPiKernel(runningKernel()) {
 			return fmt.Errorf("the system does not run a Raspberry Pi kernel")
 		}
-		debian, _ := system.KernelPackages(installedPackages())
+		debian, _ := system.KernelPackages(rpiInstalledPackages())
 		if len(debian) > 0 {
 			j.Logf("Removing the Debian kernel: %s", strings.Join(debian, " "))
 			if err := aptRun(ctx, j, append([]string{"apt-get", "-y", "purge"}, debian...)...); err != nil {
