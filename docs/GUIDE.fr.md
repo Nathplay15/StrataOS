@@ -179,6 +179,8 @@ Avec deux NAS ou plus sur le même réseau, l'un (le principal) sert les partage
 
 Mises à jour → « Mettre à jour ». Avant chaque mise à jour, un **point de restauration** est créé ; si quelque chose ne va plus, « Restaurer » ramène le système et ses programmes à cet état (redémarrage), sans toucher à vos données ni aux réglages de StrataOS.
 
+**Raspberry Pi installé depuis une image antérieure à 0.6.1** (0.4.0 à 0.6.0) : il utilise le noyau de Debian, qui n'a pas de pilote pour les ports Ethernet et USB du Raspberry Pi 5. Mises à jour → **Passer au noyau Raspberry Pi** installe les noyaux et le firmware de démarrage Raspberry Pi de l'image actuelle (seuls ces paquets viennent du dépôt Raspberry Pi), garde ce que vous aviez ajouté à `config.txt` et `cmdline.txt`, et redémarre. Avant cela, un point de restauration est créé et une copie de la partition du firmware est gardée dans `/var/lib/strata-restore/rpi-kernel/`. Une fois le NAS démarré sur le nouveau noyau, StrataOS supprime le noyau Debian. S'il ne redémarre pas dans les 15 minutes, mettez la carte (ou le SSD) dans n'importe quel ordinateur, renommez `config.txt` en `config-rpi.txt` et `config-debian.txt` en `config.txt` (voir `README-StrataOS.txt` sur la carte) : le Pi redémarre sur le noyau Debian, et **Annuler** sur la page Mises à jour remet tout en place. Il n'y a pas de retour automatique : l'essai de démarrage unique du firmware Raspberry Pi (« tryboot ») ne peut être demandé que depuis un noyau Raspberry Pi.
+
 ## 21. En cas de problème
 
 - **L'interface ne répond plus** : vérifiez que le NAS est allumé et sur le réseau ; l'écran de la machine affiche son adresse. Depuis une console, `systemctl status strata` montre l'état du service.

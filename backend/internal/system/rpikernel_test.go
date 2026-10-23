@@ -54,7 +54,7 @@ func TestRPiKernelNeeded(t *testing.T) {
 		{"Raspberry Pi 5 Model B Rev 1.0", versioned, true},
 		{"Raspberry Pi 3 Model B Plus Rev 1.3", both, false}, // switch already made
 		{"Raspberry Pi 4 Model B Rev 1.4", rpi, false},       // 0.6.1 image
-		{"", debian, false},                                  // not a Raspberry Pi
+		{"", debian, false}, // not a Raspberry Pi
 		{"QEMU KVM Virtual Machine", debian, false},
 		{"Raspberry Pi 4 Model B Rev 1.4", map[string]string{"linux-headers-arm64": "x"}, true},
 		{"Raspberry Pi 4 Model B Rev 1.4", map[string]string{"linux-image-amd64": "x"}, false},

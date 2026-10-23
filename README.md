@@ -51,6 +51,8 @@ ZFS likes memory (about 1 GB per TB of storage is a comfortable rule of thumb), 
 
 The Raspberry Pi image is Debian 13 with the Raspberry Pi kernel and boot firmware (from the Raspberry Pi OS archive, which supports every model). Docker is installed in one click from the App Center when you need it, and the iSCSI target isn't available (the Raspberry Pi kernel doesn't include it).
 
+A Raspberry Pi installed from an image older than 0.6.1 runs Debian's kernel: Updates → **Switch to the Raspberry Pi kernel** moves it to the current image's kernels without reinstalling (needed for a Raspberry Pi 5, recommended for a Pi 3 or 4; see the [guide](docs/GUIDE.md#20-updates-and-rolling-back)).
+
 Tested hardware, and how to check yours: [docs/HARDWARE.md](docs/HARDWARE.md).
 
 ## Download
