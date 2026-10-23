@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -118,7 +119,7 @@ func (s *Server) updateInfo(fresh bool) fleetUpdateInfo {
 		fleetInfo.info, fleetInfo.at = i, time.Now()
 	}
 	i := fleetInfo.info
-	i.Version, i.AptBusy, i.RebootRequired, i.BootID = s.version, aptBusy(), system.RebootRequired(), system.BootID()
+	i.Version, i.AptBusy, i.RebootRequired, i.BootID = s.version, s.updateRunning(), system.RebootRequired(), system.BootID()
 	return i
 }
 
@@ -129,29 +130,83 @@ func fleetInfoReset() {
 }
 
 // updateJob is the work of an update job: check (refresh the package lists),
-// strata (StrataOS alone) or system (full upgrade). A dry run only simulates
-// (apt-get -s): nothing is installed and no restore point is taken.
+// strata (StrataOS alone), system (full upgrade), security (Debian security
+// updates only) or others (everything but StrataOS). A dry run only
+// simulates (apt-get -s): nothing is installed and no restore point is
+// taken. Manual, grouped (Multi-NAS console) and automatic updates all run
+// through it.
 func (s *Server) updateJob(kind string, dryRun bool) func(ctx context.Context, j *jobs.Job) error {
 	return func(ctx context.Context, j *jobs.Job) error {
 		defer fleetInfoReset()
-		keep := []string{"-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold"}
-		switch {
-		case kind == "check":
-			return aptRun(ctx, j, "apt-get", "update")
-		case dryRun && kind == "strata":
-			return aptRun(ctx, j, "apt-get", "-s", "install", "--only-upgrade", "strataos")
-		case dryRun:
-			return aptRun(ctx, j, "apt-get", "-s", "full-upgrade")
-		case kind == "strata":
+		if kind != "check" && !dryRun {
 			s.restorePointBeforeUpdate(j)
+		}
+		return s.runUpdate(ctx, j, kind, dryRun)
+	}
+}
+
+// runUpdate runs the apt commands of an update, without a restore point.
+func (s *Server) runUpdate(ctx context.Context, j *jobs.Job, kind string, dryRun bool) error {
+	keep := []string{"-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold"}
+	do := []string{"apt-get", "-y"}
+	if dryRun {
+		do = []string{"apt-get", "-s"}
+	}
+	do = append(do, keep...)
+	switch kind {
+	case "check":
+		return aptRun(ctx, j, "apt-get", "update")
+	case "strata":
+		if !dryRun {
 			if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
 				return err
 			}
-			return aptRun(ctx, j, append(append([]string{"apt-get", "-y"}, keep...), "install", "--only-upgrade", "strataos")...)
 		}
-		s.restorePointBeforeUpdate(j)
-		return aptRun(ctx, j, append(append([]string{"apt-get", "-y"}, keep...), "full-upgrade")...)
+		return aptRun(ctx, j, append(do, "install", "--only-upgrade", "strataos")...)
+	case "system":
+		return aptRun(ctx, j, append(do, "full-upgrade")...)
+	case "security":
+		// apt sees the security archives alone, with their own package lists.
+		opts, sources, err := system.SecurityAptOptions()
+		if err != nil {
+			return err
+		}
+		j.Logf("Security sources:\n%s", sources)
+		if err := aptRun(ctx, j, append(append([]string{"apt-get"}, opts...), "update")...); err != nil {
+			return err
+		}
+		return aptRun(ctx, j, append(append(do, opts...), "upgrade", "--with-new-pkgs")...)
+	case "others":
+		up, err := system.ListUpgradable()
+		if err != nil {
+			return err
+		}
+		var pkgs []string
+		for _, u := range up {
+			if u.Package != "strataos" && pkgNameRe.MatchString(u.Package) {
+				pkgs = append(pkgs, u.Package)
+			}
+		}
+		if len(pkgs) == 0 {
+			j.Logf("No system update to install")
+			return nil
+		}
+		return aptRun(ctx, j, append(append(do, "install", "--only-upgrade"), pkgs...)...)
 	}
+	return fmt.Errorf("invalid update kind")
+}
+
+var pkgNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+(:[a-z0-9-]+)?$`)
+
+// updateRunning tells whether an update job runs or apt is busy: a grouped,
+// manual or automatic update then waits (they would fight over dpkg).
+func (s *Server) updateRunning() bool {
+	for _, j := range s.jobs.List() {
+		if j.Type == "apt" && j.Status == jobs.Running {
+			return true
+		}
+	}
+	return aptBusy()
 }
 
 // fleetManagerOf finds the console whose token the request carries.
@@ -255,7 +310,7 @@ func (s *Server) fleetPeerRoutes() {
 		return st, nil
 	})
 	start := func(m store.FleetManager, kind string, dryRun bool) (any, error) {
-		if aptBusy() {
+		if s.updateRunning() {
 			return nil, &Error{Status: http.StatusConflict, Msg: "another package operation is already running"}
 		}
 		title, msg := map[string]string{"check": "Checking for updates", "strata": "StrataOS update", "system": "System update"}[kind], ""
@@ -307,7 +362,7 @@ func (s *Server) fleetPeerRoutes() {
 		return j, nil
 	})
 	s.fleetPeer("POST /api/fleet/peer/reboot", "reboot", true, func(r *http.Request, m store.FleetManager) (any, error) {
-		if aptBusy() {
+		if s.updateRunning() {
 			return nil, &Error{Status: http.StatusConflict, Msg: "another package operation is already running"}
 		}
 		if !system.RebootRequired() {

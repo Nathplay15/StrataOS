@@ -82,14 +82,27 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them), and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`) and the public key (`/strataos-archive.gpg`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+
+### Pre-releases (beta channel)
+
+| | Final release | Pre-release |
+|---|---|---|
+| `VERSION` (Debian version) | `0.8.0` | `0.8.0~beta.1`, `0.8.0~rc.1` (also `~alpha.N`) |
+| Tag | `v0.8.0` | `v0.8.0-beta.1` (git tags can't hold `~`) |
+| Release notes | `packaging/release-notes/0.8.0.md` | `packaging/release-notes/0.8.0-beta.1.md` |
+| Release files | `strataos-0.8.0-amd64.iso`… | `strataos-0.8.0-beta.1-amd64.iso`… (packages keep their Debian version inside) |
+| GitHub | release, shown as latest | pre-release |
+| APT suites | `stable` and `testing` | `testing` only |
+
+`~` sorts before everything for apt, so `0.8.0~beta.1` < `0.8.0~rc.1` < `0.8.0`: a beta NAS moves on to the final release by itself. `backend/cmd/release-info` checks the tag against `VERSION` in the release workflow (rules in `backend/internal/release`). The APT repository keeps final releases in `pool/main` (listed by `stable`) and pre-releases in `pool/testing` (`testing` lists the whole pool, so the newest version wins). NAS on the beta channel have `/etc/apt/sources.list.d/strataos-beta.sources` (suite `testing`), written by StrataOS next to the package's own `strataos.sources` (a conffile it never edits).
 
 ### One-time setup of the update repository
 
 The repository is signed with the StrataOS archive key. Its public part, `packaging/keys/strataos-archive.gpg`, ships in every package. The private key stays on the maintainer's machine (`packaging/keys/gnupg/`, never committed) and is given to GitHub Actions as a secret:
 
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-2. Export the private key and save it as the repository secret `APT_SIGNING_KEY` (**Settings → Secrets and variables → Actions**):
+2. Export the private key and save it as the **repository** secret `APT_SIGNING_KEY` (**Settings → Secrets and variables → Actions → Repository secrets**; not an environment secret: `release.yml` signs `SHA256SUMS` with it and `pages.yml` signs the repository, and a repository secret is available to every workflow of the repository):
 
    ```bash
    gpg --homedir packaging/keys/gnupg --armor --export-secret-keys "$(cat packaging/keys/keyid)"

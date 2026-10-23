@@ -1,6 +1,10 @@
-# Publishes the StrataOS website on GitHub Pages: a download page and the
-# signed APT repository (/apt) that installed systems update from. It runs
-# after each release (started by release.yml) and can be started by hand.
+# Publishes the StrataOS website on GitHub Pages: a download page, the
+# signed APT repository (/apt) that installed systems update from, and the
+# public archive key (/strataos-archive.gpg) that verifies it and the
+# releases' SHA256SUMS. The repository has two suites built from every
+# release's packages: "stable" (final releases) and "testing" (pre-releases
+# too: the beta channel). It runs after each release (started by
+# release.yml) and can be started by hand.
 # Needs: Settings → Pages → Source "GitHub Actions", and the repository
 # secret APT_SIGNING_KEY (the armored private archive key, see
 # docs/DEVELOPMENT.md).
@@ -32,7 +36,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          for t in $(gh release list --limit 100 --exclude-drafts --exclude-pre-releases --json tagName -q '.[].tagName'); do
+          # Pre-releases too: make-repo.sh puts them in "testing" only.
+          for t in $(gh release list --limit 100 --exclude-drafts --json tagName -q '.[].tagName'); do
             gh release download "$t" --pattern '*.deb' --dir dist --skip-existing
           done
           ls dist
@@ -49,9 +54,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The latest final release (gh never shows a pre-release as latest).
           V=$(gh release view --json tagName -q .tagName | sed 's/^v//')
           mkdir -p site
           cp -r dist/apt site/apt
+          cp dist/apt/strataos-archive.gpg site/strataos-archive.gpg
           cp -r docs/screenshots site/screenshots
           sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" packaging/pages/index.html > site/index.html
           touch site/.nojekyll

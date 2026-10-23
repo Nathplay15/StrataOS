@@ -527,6 +527,9 @@ type State struct {
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`
 	Settings     Settings     `json:"settings"`
+
+	// Updates: update channel and automatic updates.
+	Updates AutoUpdates `json:"updates,omitzero"`
 }
 
 const maxEvents = 2000
