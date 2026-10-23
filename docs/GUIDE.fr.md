@@ -12,13 +12,25 @@ Ce guide explique, étape par étape, comment installer StrataOS et s'en servir 
 
 **Sur un Debian 13 existant** : `sudo apt install ./strataos_<version>_<arch>.deb`.
 
-À la fin, l'écran de la machine affiche l'adresse de l'interface : `http://<adresse>:7070` (HTTPS : port 7443).
+**Vérifiez votre téléchargement** (recommandé) : chaque version est accompagnée de `SHA256SUMS` et de sa signature `SHA256SUMS.asc`, faite avec la clé de l'archive StrataOS (celle qui signe les mises à jour). Le [site web](https://nathplay15.github.io/StrataOS/#verify) donne les deux commandes à lancer et l'empreinte de clé attendue.
+
+À la fin, l'écran de la machine affiche l'adresse de l'interface et un QR code : `http://<adresse>:7070` (HTTPS : port 7443). La section 2 présente cet écran.
 
 ## 2. Premier démarrage
 
 Ouvrez l'adresse dans un navigateur : l'assistant demande la langue, le nom du NAS et le compte administrateur (ce compte peut aussi utiliser `sudo` en SSH). Il propose ensuite de préparer le stockage, un premier partage, des alertes et des tâches recommandées (vérification des disques, snapshots).
 
 Conseil : activez tout de suite les **notifications** (Paramètres → Notifications : e-mail, Telegram, ntfy ou webhook) pour être prévenu d'une panne de disque. Sur une nouvelle installation, les notifications sont en anglais par défaut ; changez leur langue au même endroit (Langue des notifications). La section 19 explique comment choisir ce que reçoit chaque canal.
+
+**L'écran du NAS** : un écran ou un téléviseur branché sur le NAS affiche ses adresses web, un QR code pour ouvrir l'interface depuis un téléphone, son état de santé (alertes) et le remplissage de ses volumes. Avec un clavier, son menu (en anglais ; flèches ou 1 à 5, puis Entrée) propose :
+
+- **Network details** : les interfaces réseau et leurs adresses.
+- **Reset the network to DHCP** : toutes les interfaces repassent en adressage automatique (les adresses fixes, agrégations, ponts et VLAN sont supprimés). Vous avez ensuite 3 minutes pour garder la nouvelle configuration ; sinon, l'ancienne revient d'elle-même.
+- **Administrator recovery code** : un code à usage unique, valable 15 minutes, pour réinitialiser un mot de passe administrateur oublié (voir la section 21).
+- **Restart or shut down** : redémarrer ou éteindre.
+- **Login prompt (administrators)** : une connexion normale sur la deuxième console (Alt+F2) ; Alt+F1 ramène l'écran StrataOS.
+
+Paramètres → **Écran console** désactive cet écran (« Écran StrataOS sur l'affichage du NAS »), ou seulement les codes de récupération (« Codes de récupération administrateur depuis l'écran »).
 
 ## 3. Le stockage
 
@@ -58,7 +70,8 @@ Pour remplacer un disque en panne : Stockage → RAID (ou ZFS), « Remplacer »,
 - **Navigateur** : l'application **Fichiers** permet d'envoyer (des fichiers ou tout un dossier), télécharger (dossiers en ZIP), renommer et créer un « Nouveau fichier ». Les fichiers s'ouvrent dans des onglets, pour en garder plusieurs ouverts côte à côte : texte et code dans un éditeur (coloration syntaxique, rechercher-remplacer, Ctrl+S ; jusqu'à 5 Mo, en lecture seule dans les partages en lecture seule), Markdown avec aperçu en direct, images, PDF, audio et vidéo. Si quelqu'un a modifié le fichier pendant que vous l'éditiez, StrataOS demande s'il faut le recharger ou l'écraser.
 - **Afficher les fichiers** : double-cliquez sur un fichier pour l'ouvrir dans un onglet. Les PDF s'ouvrent dans la visionneuse intégrée (recherche, zoom, impression) ; les fichiers Word et Excel (et CSV) s'affichent directement ; toutes les vidéos et tous les sons se lisent, même dans des formats que le navigateur ne connaît pas (le NAS les convertit à la volée) ; les photos HEIC, TIFF et RAW s'affichent ; les archives zip, tar, 7z et RAR se parcourent et s'extraient. PowerPoint et les autres documents demandent le composant facultatif **Aperçus de documents** (Paramètres → Composants, environ 400 Mo). « Ouvrir avec » permet de choisir entre la visionneuse, l'éditeur de texte, OnlyOffice et le téléchargement ; le panneau de détails indique le type, le propriétaire et un SHA-256 à la demande.
 - **Documents bureautiques** : installez **OnlyOffice Docs** depuis l'App Center (environ 3 Go), puis activez « Ouvrir les documents bureautiques avec OnlyOffice » dans Paramètres (carte Documents bureautiques). Les fichiers Word, Excel et PowerPoint (et OpenDocument) s'ouvrent alors dans OnlyOffice ; plusieurs personnes peuvent éditer le même document ensemble, et celles qui n'ont que la lecture sur le partage l'ouvrent en lecture seule. Le conteneur joint StrataOS à l'adresse `http://host.docker.internal:7070` (le port HTTP doit rester actif) ; un autre serveur de documents peut être indiqué au même endroit. Si vous utilisez StrataOS en HTTPS, donnez aussi une adresse HTTPS au serveur de documents (les navigateurs bloquent un éditeur HTTP dans une page HTTPS).
-- **Téléphone, autres appareils** : activez WebDAV, SFTP ou FTP dans Services de fichiers.
+- **Téléphones Android** : l'application StrataOS parcourt vos fichiers et sauvegarde vos photos (voir la section 22).
+- **Autres appareils** : activez WebDAV, SFTP ou FTP dans Services de fichiers.
 
 Pour **partager avec quelqu'un sans compte**, utilisez « Partager un lien » sur un fichier ou un dossier (mot de passe, expiration, nombre de téléchargements, ou boîte de dépôt pour recevoir des fichiers). Retrouvez et supprimez vos liens dans **Liens partagés**.
 
@@ -110,7 +123,7 @@ Pour récupérer un fichier : dans **Fichiers**, bouton « Versions précédente
 - **Blocage d'adresses** : bloque les adresses qui ratent trop de connexions, et peut limiter l'accès depuis Internet à certains pays.
 - **Dossiers chiffrés** : protègent les données si le NAS ou ses disques sont volés. Après chaque démarrage, un administrateur doit les déverrouiller (Dossiers partagés → Déverrouiller). Gardez la clé de secours en lieu sûr.
 - **Clés d'accès** : connectez-vous avec votre empreinte, votre visage, le code PIN de votre appareil (Windows Hello, Touch ID, Android) ou une clé de sécurité, à la place du mot de passe et du code à deux facteurs. Ajoutez-en une depuis le menu de votre compte → Clés d'accès → « Ajouter une clé d'accès », puis utilisez « Se connecter avec une clé d'accès » sur la page de connexion. Les clés d'accès ne fonctionnent que si vous ouvrez le NAS **par son nom, en HTTPS** avec un certificat valide (par exemple `https://strataos.local:7443` ou votre propre domaine), pas par son adresse IP ; une clé ne fonctionne que sur le nom où elle a été créée.
-- Gardez le système à jour (Mises à jour) : un point de restauration est créé avant chaque mise à jour.
+- Gardez le système à jour (Mises à jour), automatiquement si vous le souhaitez (voir la section 20) : un point de restauration est créé avant chaque mise à jour.
 
 ## 13. Accès à distance
 
@@ -133,6 +146,10 @@ Tout ce qui est publié sur Internet est accessible à tous : gardez la connexio
 L'**App Center** installe en un clic des applications prêtes dans Docker : médias (Jellyfin, Audiobookshelf, Kavita…), photos (Immich), domotique (Home Assistant, Node-RED, Mosquitto, Zigbee2MQTT), productivité (Nextcloud, OnlyOffice Docs, Actual Budget, Memos, Linkwarden, Vikunja), IA locale (Ollama, Open WebUI), supervision (Netdata, Dozzle, Speedtest Tracker) et bien d'autres. Leurs mises à jour peuvent être programmées.
 
 **Mes apps** liste ce que vous avez installé. Vous pouvez aussi « Ajouter une app personnalisée » à partir de votre propre fichier compose, ou ajouter une stack Compose existante à Mes apps pour lui donner une icône et un bouton Ouvrir. N'utilisez que des fichiers compose de confiance : les conteneurs s'exécutent avec les droits que vous leur donnez.
+
+Pour **désinstaller** une app, utilisez le bouton corbeille de sa carte (« Désinstaller »). Ses conteneurs et réseaux sont supprimés, et « Supprimer ses images (sauf si un autre conteneur les utilise) » libère leur espace disque. Ses données (dossiers de l'app et volumes Docker) sont conservées pour une réinstallation ultérieure, sauf si vous cochez « Supprimer aussi ses données » ; les dossiers situés dans un dossier partagé ou utilisés par une autre app sont toujours conservés.
+
+Les **composants facultatifs** (ZFS, Docker, machines virtuelles, antivirus, VPN, aperçus de documents…) se retirent dans Paramètres → **Composants** → « Désinstaller ». StrataOS indique d'abord ce qui gêne : certaines choses doivent partir avant (un pool ZFS à exporter, des apps ou des VM à supprimer…), d'autres peuvent être désactivées pour vous (« Les désactiver et désinstaller quand même »). Il montre ensuite les paquets supprimés (ceux dont StrataOS ou un autre composant a encore besoin sont conservés), les services arrêtés et les réglages modifiés. Les données du composant sont conservées, et retrouvées par une réinstallation ultérieure, sauf si vous cochez « Supprimer aussi ses données ».
 
 ## 15. Machines virtuelles
 
@@ -179,14 +196,34 @@ Avec deux NAS ou plus sur le même réseau, l'un (le principal) sert les partage
 
 Mises à jour → « Mettre à jour ». Avant chaque mise à jour, un **point de restauration** est créé ; si quelque chose ne va plus, « Restaurer » ramène le système et ses programmes à cet état (redémarrage), sans toucher à vos données ni aux réglages de StrataOS.
 
-**Raspberry Pi installé depuis une image antérieure à 0.6.1** (0.4.0 à 0.6.0) : il utilise le noyau de Debian, qui n'a pas de pilote pour les ports Ethernet et USB du Raspberry Pi 5. Mises à jour → **Passer au noyau Raspberry Pi** installe les noyaux et le firmware de démarrage Raspberry Pi de l'image actuelle (seuls ces paquets viennent du dépôt Raspberry Pi), garde ce que vous aviez ajouté à `config.txt` et `cmdline.txt`, et redémarre. Avant cela, un point de restauration est créé et une copie de la partition du firmware est gardée dans `/var/lib/strata-restore/rpi-kernel/`. Une fois le NAS démarré sur le nouveau noyau, StrataOS supprime le noyau Debian. S'il ne redémarre pas dans les 15 minutes, mettez la carte (ou le SSD) dans n'importe quel ordinateur, renommez `config.txt` en `config-rpi.txt` et `config-debian.txt` en `config.txt` (voir `README-StrataOS.txt` sur la carte) : le Pi redémarre sur le noyau Debian, et **Annuler** sur la page Mises à jour remet tout en place. Il n'y a pas de retour automatique : l'essai de démarrage unique du firmware Raspberry Pi (« tryboot ») ne peut être demandé que depuis un noyau Raspberry Pi.
+**Canal de mise à jour** : **Stable** (versions finales uniquement, recommandé) ou **Bêta**, qui installe aussi les versions bêta et les versions candidates dès leur publication. Les bêtas peuvent avoir des bugs : gardez des sauvegardes, et ne les utilisez pas sur un NAS dont vous ne pouvez pas vous passer un moment. De retour sur Stable, la bêta installée reste en place jusqu'à la publication d'une version stable plus récente, ou « Revenir à la dernière version stable » y retourne tout de suite (après un point de restauration).
+
+**Mises à jour automatiques** : choisissez séparément pour **StrataOS**, les **Mises à jour de sécurité Debian** et les **Autres mises à jour du système** : « Désactivé », « Notifier seulement » ou « Installer automatiquement ». Elles s'exécutent dans la **Fenêtre de maintenance** de votre choix (jours et plage de 3 heures), après un point de restauration ; une sauvegarde, un scrub ou une autre tâche en cours les repousse. Activez « Redémarrer le NAS quand une mise à jour l'exige », sinon vous êtes simplement averti qu'un redémarrage est nécessaire.
+
+**Raspberry Pi installé depuis une image antérieure à 0.6.1** (0.4.0 à 0.6.0) : il utilise le noyau de Debian, qui n'a pas de pilote pour les ports Ethernet et USB du Raspberry Pi 5. Mises à jour → **Passer au noyau Raspberry Pi** installe les noyaux et le firmware de démarrage Raspberry Pi de l'image actuelle (seuls ces paquets viennent du dépôt Raspberry Pi), garde ce que vous aviez ajouté à `config.txt` et `cmdline.txt`, et redémarre. Avant cela, un point de restauration est créé et une copie de la partition du firmware est gardée dans `/var/lib/strata-restore/rpi-kernel/`. Une fois le NAS démarré sur le nouveau noyau, StrataOS supprime le noyau Debian. S'il ne redémarre pas dans les 15 minutes, mettez la carte (ou le SSD) dans n'importe quel ordinateur et, sur sa première partition (la petite, lisible par tout ordinateur), renommez `config.txt` en `config-rpi.txt` et `config-debian.txt` en `config.txt` (voir `README-StrataOS.txt` sur la carte) : le Pi redémarre sur le noyau Debian, et **Annuler** sur la page Mises à jour remet tout en place. Il n'y a pas de retour automatique : l'essai de démarrage unique du firmware Raspberry Pi (« tryboot ») ne peut être demandé que depuis un noyau Raspberry Pi.
 
 ## 21. En cas de problème
 
-- **L'interface ne répond plus** : vérifiez que le NAS est allumé et sur le réseau ; l'écran de la machine affiche son adresse. Depuis une console, `systemctl status strata` montre l'état du service.
+- **L'interface ne répond plus** : vérifiez que le NAS est allumé et sur le réseau ; l'écran de la machine affiche son adresse. Après un mauvais réglage réseau, « Reset the network to DHCP » sur cet écran rétablit l'accès (section 2). Depuis une console, `systemctl status strata` montre l'état du service.
 - **Un disque manque au démarrage** : la grappe RAID démarre en mode dégradé et une alerte est envoyée ; remplacez le disque.
 - **Un partage n'apparaît plus** : il est peut-être chiffré et verrouillé, gelé par un fichier piège (Antivirus), ou plein (quota).
 - **Compte bloqué** : un administrateur le débloque dans Antivirus (rançongiciel) ; une adresse bloquée se débloque dans Blocage d'adresses.
 - **Pas de bouton de clé d'accès à la connexion** : ouvrez le NAS par son nom en HTTPS, pas par son adresse IP (voir 12).
 - **Aucune notification reçue** : vérifiez que le canal est activé et que son niveau n'est pas trop élevé (Paramètres → Notifications), et que vous n'êtes pas dans les heures calmes ; utilisez le bouton Tester.
-- **Mot de passe administrateur perdu** : connectez-vous en console ou en SSH avec un autre administrateur ; sinon, démarrez sur une clé Debian et réinitialisez le mot de passe du compte Linux, puis changez-le dans l'interface.
+- **Mot de passe administrateur perdu** : sur la page de connexion, cliquez sur « Mot de passe oublié ? Utilisez un code de récupération affiché sur l'écran du NAS » et saisissez le code affiché par « Administrator recovery code » sur l'écran du NAS (section 2). Vous choisissez alors un nouveau mot de passe pour un administrateur, et pouvez « Supprimer aussi la double authentification (téléphone perdu) » ; les administrateurs sont prévenus. Sans écran, connectez-vous en console ou en SSH avec un autre administrateur ; sinon, démarrez sur une clé Debian et réinitialisez le mot de passe du compte Linux, puis changez-le dans l'interface.
+
+## 22. L'application Android
+
+L'**application StrataOS pour Android** (Android 8 et plus) parcourt vos fichiers, sauvegarde les photos et vidéos de votre téléphone et affiche les alertes du NAS. Elle n'a besoin d'aucun service Google.
+
+1. **Installer** : sur le téléphone, téléchargez `strataos-<version>.apk` dans les Releases (aussi accessible par menu du compte → Appareils mobiles → « Télécharger l'application (APK) »), ouvrez-le et autorisez l'installation depuis cette source quand Android le demande.
+2. **Se connecter** : dans l'interface web, menu du compte → **Appareils mobiles** → « Associer un téléphone », puis « Scanner un QR code » dans l'application : aucun mot de passe à taper (le code sert une fois, pendant 10 minutes). Vous pouvez aussi saisir l'adresse du NAS, ou le choisir sous « Trouvés sur ce réseau », et vous connecter avec votre mot de passe et votre code à deux facteurs. Hors de chez vous, passez par le VPN, Tailscale ou un nom de domaine (section 13).
+3. **Vérifier le certificat** : si le NAS utilise son propre certificat, l'application affiche son « Empreinte du certificat (SHA-256) ». Comparez-la avec celle affichée dans Associer un téléphone, puis touchez « Faire confiance à ce NAS » : l'application n'accepte ensuite que ce certificat, et vous prévient s'il change.
+
+- **Fichiers** : parcourir, ouvrir, « Enregistrer sur le téléphone », partager, envoyer et créer des dossiers. Depuis n'importe quelle autre application, **Partager → StrataOS** envoie des fichiers dans le dossier du NAS de votre choix.
+- **Sauvegarde** : activez « Sauvegarde automatique », choisissez la « Destination sur le NAS » et les albums, avec en option « Wi-Fi uniquement », « Seulement pendant la recharge » et « Inclure les vidéos ». Les envois reprennent après une coupure, les fichiers déjà sur le NAS sont ignorés, et rien n'est jamais supprimé du téléphone.
+- **État** : santé, stockage et dernières notifications.
+- **Notifications** (administrateurs) : installez l'application **ntfy** sur le téléphone comme distributeur UnifiedPush, puis « Activer les notifications instantanées » dans les Réglages de l'application ; sans elle, l'application vérifie le NAS toutes les 15 minutes. Choisissez le niveau du canal « Application StrataOS (téléphones) » dans Paramètres → Notifications, comme pour les autres canaux.
+- **Verrouillage** : « Déverrouiller par empreinte ou verrouillage d'écran » protège l'application sur un téléphone partagé.
+
+Téléphone perdu ou remplacé ? Menu du compte → Appareils mobiles → « Révoquer » : l'application de ce téléphone est déconnectée immédiatement et cesse de sauvegarder.
