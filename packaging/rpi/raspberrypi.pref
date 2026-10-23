@@ -1,0 +1,9 @@
+# Only the kernels, boot firmware and initramfs tools come from the
+# Raspberry Pi archive; everything else stays Debian (the first match wins).
+Package: /^(linux-(image|headers|base)-.*rpi.*|linux-kbuild-[0-9.]+\+rpt|raspi-firmware|initramfs-tools(-core|-bin)?|firmware-brcm80211)$/
+Pin: origin archive.raspberrypi.com
+Pin-Priority: 990
+
+Package: *
+Pin: origin archive.raspberrypi.com
+Pin-Priority: -1

@@ -29,8 +29,12 @@ SIZE=${SIZE:-3G}
 # apt rejects since February 2026).
 RPI_KEY=packaging/rpi/raspberrypi-archive-keyring.pgp
 RPI_KEY_SHA256=3a29901549ae65a910de13a32551e6eea7f45ba1fd70f0cb67e5c70d98488071
-# The only packages taken from the Raspberry Pi archive (apt and awk regex).
-RPI_PACKAGES='/^(linux-(image|headers|base)-.*rpi.*|linux-kbuild-[0-9.]+\+rpt|raspi-firmware|initramfs-tools(-core|-bin)?|firmware-brcm80211)$/'
+# The APT source and pin, config.txt and cmdline.txt of packaging/rpi/ are
+# shared with the switch of older installations to these kernels (StrataOS
+# ships them in /usr/lib/strata/rpi). The pin's first Package line lists the
+# only packages taken from the Raspberry Pi archive (apt and awk regex).
+RPI_PACKAGES=$(sed -n 's|^Package: \(/.*/\)$|\1|p' packaging/rpi/raspberrypi.pref | head -1)
+[ -n "$RPI_PACKAGES" ] || { echo "no package list in packaging/rpi/raspberrypi.pref"; exit 1; }
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 [ -f "$DEB" ] || { echo "missing $DEB (make deb ARCH=arm64)"; exit 1; }
 echo "$RPI_KEY_SHA256  $RPI_KEY" | sha256sum -c --quiet - || { echo "unexpected $RPI_KEY"; exit 1; }
@@ -106,25 +110,9 @@ EOF
 # Wi-Fi firmware on Debian. Kernel updates arrive with the system updates.
 install -d "$ROOT/etc/apt/keyrings"
 install -m 644 "$RPI_KEY" "$ROOT/etc/apt/keyrings/raspberrypi-archive-keyring.pgp"
-cat > "$ROOT/etc/apt/sources.list.d/raspberrypi.sources" <<EOF
-# Raspberry Pi kernels and boot firmware (see /etc/apt/preferences.d/raspberrypi).
-Types: deb
-URIs: $RPI_MIRROR
-Suites: $SUITE
-Components: main
-Signed-By: /etc/apt/keyrings/raspberrypi-archive-keyring.pgp
-EOF
-cat > "$ROOT/etc/apt/preferences.d/raspberrypi" <<EOF
-# Only the kernels, boot firmware and initramfs tools come from the
-# Raspberry Pi archive; everything else stays Debian (the first match wins).
-Package: $RPI_PACKAGES
-Pin: origin archive.raspberrypi.com
-Pin-Priority: 990
-
-Package: *
-Pin: origin archive.raspberrypi.com
-Pin-Priority: -1
-EOF
+sed -e "s|^URIs: .*|URIs: $RPI_MIRROR|" -e "s|^Suites: .*|Suites: $SUITE|" packaging/rpi/raspberrypi.sources \
+  > "$ROOT/etc/apt/sources.list.d/raspberrypi.sources"
+install -m 644 packaging/rpi/raspberrypi.pref "$ROOT/etc/apt/preferences.d/raspberrypi"
 cat > "$ROOT/etc/fstab" <<'EOF'
 LABEL=RASPIROOT /             ext4 rw,noatime,errors=remount-ro 0 1
 LABEL=RASPIFIRM /boot/firmware vfat rw,noatime                 0 2
@@ -149,34 +137,7 @@ in_root "${APT[@]}" --no-install-recommends \
 # Boot configuration, read by the firmware of every model: the Pi 5 starts
 # kernel_2712.img (its own flavour, 16K pages), the others kernel8.img, each
 # with the initramfs of the same name (auto_initramfs).
-cat > "$ROOT/boot/firmware/config.txt" <<'EOF'
-# StrataOS — Raspberry Pi boot configuration
-# https://www.raspberrypi.com/documentation/computers/config_txt.html
-arm_64bit=1
-auto_initramfs=1
-arm_boost=1
-disable_overscan=1
-camera_auto_detect=0
-display_auto_detect=0
-dtparam=audio=off
-# Text console on the HDMI screen, with little memory reserved for graphics.
-dtoverlay=vc4-kms-v3d,cma-64,noaudio
-max_framebuffers=2
-disable_fw_kms_setup=1
-
-[pi5]
-# Raspberry Pi 5, 500, CM5. For software that needs 4K memory pages,
-# use kernel8.img instead.
-kernel=kernel_2712.img
-
-[cm4]
-# USB ports of the Compute Module 4 IO board.
-otg_mode=1
-
-[all]
-EOF
-echo "console=serial0,115200 console=tty1 root=LABEL=RASPIROOT rootfstype=ext4 fsck.repair=yes rootwait net.ifnames=0" \
-  > "$ROOT/boot/firmware/cmdline.txt"
+install -m 644 packaging/rpi/config.txt packaging/rpi/cmdline.txt "$ROOT/boot/firmware/"
 # Kernels, device trees and initramfs on the firmware partition (the hooks of
 # raspi-firmware keep them up to date on kernel updates).
 for k in "$ROOT"/boot/vmlinuz-*; do

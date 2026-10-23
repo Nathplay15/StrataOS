@@ -527,6 +527,9 @@ type State struct {
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`
 	Settings     Settings     `json:"settings"`
+
+	// RPiKernel: switch of a Raspberry Pi to the Raspberry Pi kernels.
+	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
 }
 
 const maxEvents = 2000
