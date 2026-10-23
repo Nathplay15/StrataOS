@@ -12,6 +12,7 @@ trap 'rm -rf "$ROOT"' EXIT
 chmod 755 "$ROOT"
 install -Dm755 "$BIN" "$ROOT/usr/bin/strata"
 install -Dm644 packaging/systemd/strata.service "$ROOT/usr/lib/systemd/system/strata.service"
+install -Dm644 packaging/systemd/strata-console.service "$ROOT/usr/lib/systemd/system/strata-console.service"
 install -Dm644 packaging/avahi/strata.service "$ROOT/etc/avahi/services/strata.service"
 # Every helper script (component installers, HA and UPS hooks).
 for f in packaging/scripts/*; do install -Dm755 "$f" "$ROOT/usr/lib/strata/scripts/$(basename "$f")"; done

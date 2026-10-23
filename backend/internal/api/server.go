@@ -113,6 +113,7 @@ func New(c Config) *Server {
 	go s.nvrLoop()
 	go s.fleetResume()
 	go s.autoUpdateLoop()
+	go s.consoleLoop()
 	return s
 }
 
@@ -255,6 +256,7 @@ func (s *Server) routes() {
 	s.hardwareRoutes()
 	s.mediaRoutes()
 	s.nvrRoutes()
+	s.consoleRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

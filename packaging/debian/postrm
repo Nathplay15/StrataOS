@@ -15,5 +15,17 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
   rm -f /etc/apt/sources.list.d/strataos-beta.sources
   rm -rf /var/cache/strata-apt-security
 fi
+# The console screen is gone (removal, or a version without it): tty1 gets
+# its login prompt back (the daemon masks getty@tty1 while the screen runs).
+if [ ! -f /usr/lib/systemd/system/strata-console.service ]; then
+  rm -f /etc/systemd/system/getty.target.wants/strata-console.service
+  if [ "$(readlink /etc/systemd/system/getty@tty1.service 2>/dev/null)" = /dev/null ]; then
+    rm -f /etc/systemd/system/getty@tty1.service
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload || true
+      systemctl start getty@tty1.service >/dev/null 2>&1 || true
+    fi
+  fi
+fi
 if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
 exit 0

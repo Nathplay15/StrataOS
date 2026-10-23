@@ -9,6 +9,7 @@ import { tr, locale, languages } from "../../lib/i18n";
 import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
 import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
+import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
 
@@ -197,6 +198,7 @@ export default function SettingsPage() {
           </div>
           <p className="mt-3 text-[12.5px] text-muted">{tr("NTP synchronization enabled automatically.")}</p>
         </Card>
+        <ApplianceConsoleCard />
         <CertificatesCard />
         <ConfigBackupCard />
         <OfficeSettingsCard />

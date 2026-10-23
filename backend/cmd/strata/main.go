@@ -16,6 +16,7 @@ import (
 	"strataos/internal/accounts"
 	"strataos/internal/api"
 	"strataos/internal/certs"
+	"strataos/internal/console"
 	"strataos/internal/docker"
 	"strataos/internal/store"
 	"strataos/web"
@@ -31,6 +32,18 @@ func env(key, def string) string {
 }
 
 func main() {
+	// strata console: the appliance screen on tty1 (strata-console.service).
+	if len(os.Args) > 1 && os.Args[1] == "console" {
+		fs := flag.NewFlagSet("console", flag.ExitOnError)
+		once := fs.Bool("render-once", false, "print one frame as text and exit (tests)")
+		socket := fs.String("socket", console.Socket, "daemon console socket")
+		_ = fs.Parse(os.Args[2:])
+		if err := console.Run(console.Options{Socket: *socket, RenderOnce: *once}); err != nil {
+			fmt.Fprintln(os.Stderr, "console:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	httpAddr := flag.String("http", env("STRATA_HTTP", ":7070"), "HTTP listen address (empty to disable)")
 	httpsAddr := flag.String("https", env("STRATA_HTTPS", ":7443"), "HTTPS listen address (empty to disable)")
 	dataDir := flag.String("data", env("STRATA_DATA", "/var/lib/strata"), "state directory")
