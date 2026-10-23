@@ -10,6 +10,10 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     systemctl disable strata-vms.service >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/strata-vms.service
   fi
+  # Beta channel and security-only update sources, written by the daemon
+  # (the keyring of the beta sources goes with the package).
+  rm -f /etc/apt/sources.list.d/strataos-beta.sources
+  rm -rf /var/cache/strata-apt-security
 fi
 if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
 exit 0

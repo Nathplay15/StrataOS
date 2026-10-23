@@ -63,7 +63,21 @@ Get the latest version from the [Releases page](https://github.com/Nathplay15/St
 | `strataos-<version>-arm64.iso` | 64-bit ARM servers and boards that boot in UEFI mode |
 | `strataos-<version>-raspberrypi.img.xz` | Raspberry Pi 5, 500, CM5, 4, 400, CM4 and 3 |
 | `strataos_<version>_<arch>.deb` | An existing Debian 13 system |
-| `SHA256SUMS` | Checking your download |
+| `SHA256SUMS`, `SHA256SUMS.asc` | Checking your download (checksums, and their signature) |
+
+### Checking your download
+
+`SHA256SUMS` is signed with the StrataOS archive key, the one that signs the update repository. With the downloaded files, `SHA256SUMS` and `SHA256SUMS.asc` in the same folder:
+
+```bash
+curl -fsSLO https://nathplay15.github.io/StrataOS/strataos-archive.gpg   # or packaging/keys/strataos-archive.gpg from this repository
+gpg --no-default-keyring --keyring ./strataos-archive.gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+gpg must report a **good signature from "StrataOS Archive"** with the fingerprint `6527 D6E8 6108 D178 3569 2EB2 0682 83FB D5C8 3F95` (the warning that the key isn't certified by a trusted signature is expected), then `sha256sum` must print **OK** for each file you downloaded.
+
+Pre-releases (`0.8.0-beta.1`, `0.8.0-rc.1`…) are marked as such on the Releases page. Their files are named with the same version, e.g. `strataos-0.8.0-beta.1-amd64.iso`.
 
 ## Install
 
@@ -90,6 +104,10 @@ The **[documentation](https://nathplay15.github.io/StrataOS/docs/)** (in English
 ## Updates
 
 StrataOS updates itself from its signed package repository, hosted on [GitHub Pages](https://nathplay15.github.io/StrataOS/). Go to **Updates → Update StrataOS** in the web interface. A restore point is taken before each update, so you can roll back with one restart if something goes wrong. Your settings and data are never touched by a rollback.
+
+Updates can also install themselves: **Updates → Automatic updates** chooses, separately, what happens to StrataOS, to the Debian security updates and to the other system updates (nothing, a notification, or installation in a maintenance window), with a restore point before and an optional restart after. Tasks in progress (backups, scrubs…) postpone it.
+
+**Update channel**: *Stable* by default. *Beta* also offers the pre-releases (from the `testing` suite of the repository) as soon as they are published. Going back to *Stable* keeps the beta installed until a newer stable version comes out; the interface can also go back to the latest stable version right away (with a restore point).
 
 Systems installed with version 0.4 or earlier don't know this repository yet: install the 0.5 package once by hand (`sudo apt install ./strataos_0.5.0_<arch>.deb`), and later updates will arrive by themselves.
 

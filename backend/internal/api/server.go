@@ -112,6 +112,7 @@ func New(c Config) *Server {
 	go s.vmAutostartLoop()
 	go s.nvrLoop()
 	go s.fleetResume()
+	go s.autoUpdateLoop()
 	return s
 }
 
@@ -236,6 +237,7 @@ func (s *Server) routes() {
 	s.vpnRoutes()
 	s.photoRoutes()
 	s.restoreRoutes()
+	s.updateRoutes()
 	s.reportRoutes()
 	s.linkRoutes()
 	s.albumRoutes()

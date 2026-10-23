@@ -501,6 +501,7 @@ func aptRun(ctx context.Context, j *jobs.Job, args ...string) error {
 	}
 	full := append([]string{"--unit=strata-apt", "--collect", "--wait", "--pipe", "--quiet",
 		"--setenv=DEBIAN_FRONTEND=noninteractive", "--setenv=NEEDRESTART_MODE=a", "--property=TimeoutStopSec=1h"}, args...)
+	j.Logf("$ %s", strings.Join(args, " "))
 	_, err := sys.RunOpts(ctx, sys.Opts{Output: j, Timeout: 2 * time.Hour}, "systemd-run", full...)
 	return err
 }
