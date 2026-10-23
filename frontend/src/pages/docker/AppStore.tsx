@@ -6,9 +6,10 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { App, AppStoreData, CustomApp, CustomAppEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
-import { Badge, Button, Card, ErrorBox, Field, Health, Input, Modal, Notice, PageHeader, Spinner, useUI } from "../../components/ui";
+import { Badge, Button, Card, ErrorBox, Field, Health, Input, Modal, Notice, PageHeader, Spinner } from "../../components/ui";
 import { DockerGuard } from "./Containers";
 import { tr } from "../../lib/i18n";
+import { AppUninstallModal } from "../../components/Uninstall";
 
 function randomSecret(length = 18) {
   const a = new Uint8Array(length);
@@ -129,7 +130,6 @@ export function CustomMetaModal({ stack, initial, onClose }: { stack: string; in
 const MY_APPS = "__mine";
 
 export default function AppStore() {
-  const { confirm } = useUI();
   const { data, isLoading } = useQuery({ queryKey: ["apps"], queryFn: () => api.get<AppStoreData>("/api/apps") });
   const [cat, setCat] = useState("");
   const [search, setSearch] = useState("");
@@ -143,18 +143,15 @@ export default function AppStore() {
   const custom = (data?.custom ?? []).filter((c) => (cat === "" || cat === MY_APPS) && match(c.name + (c.description ?? "")));
   const apps = (data?.apps ?? []).filter((a) => (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match([a.name, a.description, a.category, tr(a.description), tr(a.category)].join(" ")));
   const act = useAction((p: { name: string; action: string }) => api.post(`/api/docker/stacks/${p.name}/${p.action}`));
-  const del = useAction((name: string) => api.del(`/api/docker/stacks/${name}?volumes=1`), { success: tr("App removed") });
+  const [removing, setRemoving] = useState<{ stack: string; name: string } | null>(null);
   const host = location.hostname;
-  const remove = async (stack: string, name: string) => {
-    if (await confirm({ title: tr("Remove {0}?", name), text: tr("Its containers, networks and named Docker volumes are deleted; folders mounted from /srv/strata are kept."), danger: true, typeToConfirm: stack })) del.mutate(stack);
-  };
   const actions = (stack: string, name: string, port: string | number | undefined, extra?: ReactNode) => (
     <>
       <span className="mr-auto flex items-center gap-1 text-ok text-[12.5px]"><Check size={14} /> {" "}{tr("Installed")}</span>
       {port ? <a href={`http://${host}:${port}`} target="_blank" rel="noreferrer"><Button size="sm" icon={<ExternalLink size={13} />}>{tr("Open")}</Button></a> : null}
       <Button size="sm" variant="ghost" icon={<ArrowDownToLine size={14} />} title={tr("Update")} onClick={() => act.mutate({ name: stack, action: "update" })} />
       {extra}
-      <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} title={tr("Remove")} onClick={() => remove(stack, name)} />
+      <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} title={tr("Uninstall")} onClick={() => setRemoving({ stack, name })} />
     </>
   );
   const chip = (id: string, label: string) => (
@@ -217,6 +214,7 @@ export default function AppStore() {
       </DockerGuard>
       {install && <InstallModal app={install} linked={data?.linked?.[install.id] ?? {}} onClose={() => setInstall(null)} />}
       {adding && <CustomAppModal onClose={() => setAdding(false)} />}
+      {removing && <AppUninstallModal stack={removing.stack} name={removing.name} onClose={() => setRemoving(null)} />}
       {editing && <CustomMetaModal stack={editing.stack} initial={editing} onClose={() => setEditing(null)} />}
     </div>
   );

@@ -249,6 +249,7 @@ func (s *Server) routes() {
 	s.iscsiRoutes()
 	s.configRoutes()
 	s.storageToolsRoutes()
+	s.uninstallRoutes()
 	s.hardwareRoutes()
 	s.mediaRoutes()
 	s.nvrRoutes()
