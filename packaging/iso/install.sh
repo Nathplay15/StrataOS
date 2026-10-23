@@ -10,7 +10,8 @@ apt-get update
 apt-get install -y /root/strataos/strataos_*.deb
 # Nobody knows root's install-time password: lock it for good.
 passwd -l root
-# The login screen of the machine shows where to open the web interface
+# The login prompts of the machine (tty2-6, serial; tty1 shows the StrataOS
+# screen, see strata-console.service) show where to open the web interface
 # (\4 is replaced by agetty with the IPv4 address).
 cat > /etc/issue <<'ISSUE'
 
@@ -18,6 +19,7 @@ cat > /etc/issue <<'ISSUE'
 
   Web interface: http://\4:7070   (HTTPS: https://\4:7443)
   Create the administrator account from your browser.
+  The StrataOS screen (address, QR code, local actions) is on Alt+F1.
 
 ISSUE
 cp /etc/issue /etc/issue.net

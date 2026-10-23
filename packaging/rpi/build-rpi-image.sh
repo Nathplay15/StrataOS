@@ -253,6 +253,7 @@ cat > "$ROOT/etc/issue" <<'EOF'
 
   Web interface: http://\4:7070   (HTTPS: https://\4:7443)
   Create the administrator account from your browser.
+  The StrataOS screen (address, QR code, local actions) is on Alt+F1.
 
 EOF
 cp "$ROOT/etc/issue" "$ROOT/etc/issue.net"

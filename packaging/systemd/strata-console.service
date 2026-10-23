@@ -1,0 +1,28 @@
+# The StrataOS screen on the machine's own display (tty1): web address, QR
+# code, health, a few local actions. Enabled and disabled by the daemon
+# (Settings -> Console screen), which also masks getty@tty1 meanwhile; tty2-6
+# and serial consoles keep their login prompt.
+[Unit]
+Description=StrataOS console screen on tty1
+After=systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target
+Before=getty.target
+Conflicts=getty@tty1.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/strata console
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=TERM=linux
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=getty.target

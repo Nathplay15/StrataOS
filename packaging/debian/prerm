@@ -3,5 +3,9 @@ set -e
 if [ "$1" = "remove" ] && [ -d /run/systemd/system ]; then
   systemctl stop strata.service || true
   systemctl disable strata.service >/dev/null 2>&1 || true
+  # Give tty1 back to its login prompt.
+  systemctl disable --now strata-console.service >/dev/null 2>&1 || true
+  systemctl unmask getty@tty1.service >/dev/null 2>&1 || true
+  systemctl start getty@tty1.service >/dev/null 2>&1 || true
 fi
 exit 0

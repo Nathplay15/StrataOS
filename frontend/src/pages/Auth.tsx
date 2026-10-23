@@ -8,6 +8,7 @@ import { useTheme } from "../components/Layout";
 import { srv, tr } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
 import { cancelled, getPasskey, passkeysSupported } from "../lib/webauthn";
+import { RecoveryForm } from "./AuthRecovery";
 
 function Shell({ children, subtitle }: { children: ReactNode; subtitle: string }) {
   useTheme();
@@ -35,6 +36,7 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
   const [needCode, setNeedCode] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [recover, setRecover] = useState(false);
   // Passkeys: only offered when the browser has WebAuthn and the page is open on a name.
   const [pk, setPk] = useState<{ available: boolean; reason?: string } | null>(null);
   const [pkBusy, setPkBusy] = useState(false);
@@ -71,6 +73,7 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
       setBusy(false);
     }
   };
+  if (recover) return <Shell subtitle={tr("Connecting to {0}", hostname)}><RecoveryForm onBack={() => { setRecover(false); setErr(null); }} /></Shell>;
   return (
     <Shell subtitle={tr("Connecting to {0}", hostname)}>
       <form onSubmit={submit} className="space-y-4">
@@ -101,6 +104,7 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
           <Button type="button" className="w-full" loading={pkBusy} icon={<FingerprintPattern size={15} />} onClick={passkey}>{tr("Sign in with a passkey")}</Button>
         )}
         {!needCode && pk && !pk.available && <p className="text-center text-muted text-[12px]">{tr("Passkeys unavailable here:")}{" "}{srv(pk.reason)}</p>}
+        {!needCode && <button type="button" className="block w-full text-center text-muted text-[12.5px] hover:text-fg" onClick={() => setRecover(true)}>{tr("Forgot password? Use a recovery code from the NAS screen")}</button>}
       </form>
     </Shell>
   );

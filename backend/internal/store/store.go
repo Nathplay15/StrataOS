@@ -520,6 +520,7 @@ type State struct {
 	Office    Office          `json:"office"`
 	Media     Media           `json:"media,omitzero"`
 	NVR       NVR             `json:"nvr,omitzero"`
+	Console   Console         `json:"console,omitzero"` // appliance screen on the local display
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`

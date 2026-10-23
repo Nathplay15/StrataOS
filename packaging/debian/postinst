@@ -33,6 +33,8 @@ case "$1" in
       systemctl daemon-reload
       systemctl stop samba-ad-dc.service >/dev/null 2>&1 || true
       systemctl restart strata.service || true
+      # The console screen runs the binary too (the daemon enables it).
+      systemctl try-restart strata-console.service >/dev/null 2>&1 || true
       systemctl start smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
       systemctl start wsdd2.service >/dev/null 2>&1 || true
       systemctl start docker.service >/dev/null 2>&1 || true
