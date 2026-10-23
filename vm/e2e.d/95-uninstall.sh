@@ -50,7 +50,7 @@ check "DLNA uninstalled (forced)" "$(job "$(c POST /api/system/components/dlna/u
 check "minidlna gone" "$(pkg minidlna)" "absent"
 check "StrataOS unit and files gone" "$(vm "ls /etc/systemd/system/strata-minidlna.service /etc/strata-minidlna.conf /var/cache/strata-minidlna 2>&1 | grep -c 'No such'")" "3"
 check "DLNA service gone" "$(vm "systemctl is-active strata-minidlna.service 2>&1")" "inactive"
-check "DLNA setting off" "$(c GET /api/media/dlna | py 'print(d["config"]["enabled"])')" "False"
+check "DLNA setting off" "$(c GET /api/media/dlna | py 'print(d["config"].get("enabled", False))')" "False"
 check "DLNA installed again" "$(job "$(c POST /api/system/components/dlna/install)")" "success"
 c PUT /api/media/dlna -d "$DL" >/dev/null
 
@@ -83,7 +83,7 @@ check "custom app 1 installed" "$(job "$(c POST /api/apps/custom -d "$(un_app e2
 check "custom app 2 installed" "$(job "$(c POST /api/apps/custom -d "$(un_app e2e-un2 8094)")")" "success"
 check "app plan: own folder deleted, share kept" "$(c GET /api/apps/e2e-un1/uninstall | py 'print(d["folders"], [(k["path"], k["reason"]) for k in d["kept"]], d["images"])')" "['/srv/strata/apps/e2e-un1/data'] [('/srv/strata/tank/media', 'In shared folder Media')] ['traefik/whoami:latest']"
 check "app 1 uninstalled, data kept" "$(job "$(c POST /api/apps/e2e-un1/uninstall -d '{"deleteData":false,"removeImages":true}')")" "success"
-check "app 1 stack and containers gone" "$(c GET /api/docker/stacks | py 'print([s["name"] for s in d if s["name"]=="e2e-un1"])'; vm "sudo docker ps -aq --filter label=com.docker.compose.project=e2e-un1 | wc -l")" "[] 0"
+check "app 1 stack and containers gone" "$(echo $(c GET /api/docker/stacks | py 'print([s["name"] for s in d if s["name"]=="e2e-un1"])'; vm "sudo docker ps -aq --filter label=com.docker.compose.project=e2e-un1 | wc -l"))" "[] 0"
 check "app 1 network gone" "$(vm "sudo docker network ls --format '{{.Name}}' | grep -c e2e-un1")" "0"
 check "app 1 data kept" "$(vm "cat /srv/strata/apps/e2e-un1/data/file")" "keep"
 check "image kept while app 2 uses it" "$(vm "sudo docker image inspect -f ok traefik/whoami:latest")" "ok"

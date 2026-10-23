@@ -62,6 +62,8 @@ check "cached volume mounted" "$(c GET /api/storage/volumes | py 'print([(v["mou
 check "cache active under the volume" "$(vm "sudo lvs --noheadings -o segtype,cache_mode vol_cached/data")" "cache"
 CV=$(c GET /api/storage/volumes | py 'print([v["id"] for v in d if v["name"]=="cached"][0])')
 check "cached volume deleted" "$(c DELETE "/api/storage/volumes/$CV?wipe=1")" '"ok":true'
+# udev may take a moment to see the freed SSD.
+for _ in $(seq 1 10); do [ "$(c GET /api/storage/disks | py "print(sorted(x['usage'] for x in d if x['serial'] in ('STRATA-SSD-1','STRATA-HDD-6')))")" = "['free', 'free']" ] && break; sleep 2; done
 check "disk and SSD freed" "$(c GET /api/storage/disks | py "print(sorted(x['usage'] for x in d if x['serial'] in ('STRATA-SSD-1','STRATA-HDD-6')))")" "['free', 'free']"
 check "refuses system disk" "$(c POST /api/storage/disks/wipe -d '{"device":"/dev/vda"}')" "system disk"
 
