@@ -20,6 +20,7 @@ StrataOS/
 │   └── web/            go:embed of the built frontend
 ├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode)
 ├── docs/               User guide and FAQ (English and French), hardware, this file
+├── android/            Android app (Kotlin, Jetpack Compose), see below
 ├── packaging/          .deb package, installer ISO, Raspberry Pi image, APT repository, website
 └── vm/                 QEMU/KVM test machines and end-to-end tests
 ```
@@ -77,12 +78,75 @@ Details in [vm/README.md](../vm/README.md).
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
 
+## Android app
+
+`android/` is a Gradle project (Kotlin, Jetpack Compose with Material 3, minSdk 26, compile/target SDK 37, no Google Play services). Application ID `io.github.nathplay15.strataos`: it can never change once published (Android treats another ID as another app, and the release key signs that ID), so it is a name the project controls (its GitHub Pages domain) rather than a domain it does not own. The version follows `VERSION` (`versionCode` = major × 1 000 000 + minor × 1 000 + patch).
+
+| Folder | What |
+|---|---|
+| `net/` | API client (OkHttp, device token), certificate pinning, LAN discovery (`_strataos._tcp`, announced by `packaging/avahi/strata.service`) |
+| `upload/` | Resumable chunked uploads and the background upload worker (Share to StrataOS, Upload) |
+| `backup/` | Photo and video backup: MediaStore scan, dedupe, WorkManager scheduling |
+| `notify/` | UnifiedPush receiver, the 15-minute fallback check, notifications |
+| `ui/` | Compose screens |
+
+The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens, uploads, events, push) and `backend/internal/webpush` (RFC 8291 encryption, VAPID); its end-to-end test is `vm/e2e.d/96-mobile-api.sh`.
+
+### Toolchain (no root needed)
+
+```bash
+# JDK 17 (Temurin) and the Android command-line tools (check the SHA-256 shown on developer.android.com/studio)
+mkdir -p ~/.local/opt/jdk ~/.local/opt/android-sdk/cmdline-tools
+curl -L https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse | tar xz -C ~/.local/opt/jdk --strip-components=1
+curl -LO https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip && sha256sum commandlinetools-linux-15859902_latest.zip
+unzip -q commandlinetools-linux-*_latest.zip -d /tmp/clt && mv /tmp/clt/cmdline-tools ~/.local/opt/android-sdk/cmdline-tools/latest
+export JAVA_HOME=~/.local/opt/jdk ANDROID_HOME=~/.local/opt/android-sdk
+yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"
+# for the emulator: "emulator" "system-images;android-35;default;x86_64"
+```
+
+### Building and testing
+
+```bash
+cd android
+./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses
+./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease     # signed when the release key is available (below), unsigned otherwise
+```
+
+Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`. The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
+
+In the emulator, the development VM is at `https://10.0.2.2:7443`. `adb shell am start -d "strataos://pair?url=…&fp=…&code=…"` opens a pairing link like the QR code does.
+
+### Release key
+
+APKs are signed with one key for the life of the app: Android refuses an update signed with another key, so **keep a backup of the keystore and its password outside the repository** (password manager, offline copy). A key was generated in `android/keystore/` (ignored by git): `strataos-release.jks` and `keystore.properties` (its passwords, read by local release builds). To create one from scratch:
+
+```bash
+mkdir -p android/keystore && cd android/keystore
+keytool -genkeypair -keystore strataos-release.jks -storetype PKCS12 -alias strataos -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=StrataOS, O=StrataOS"
+printf 'storeFile=%s\nstorePassword=…\nkeyAlias=strataos\nkeyPassword=…\n' "$PWD/strataos-release.jks" > keystore.properties
+```
+
+Give it to GitHub Actions as four repository secrets (**Settings → Secrets and variables → Actions**), here with the GitHub CLI from the repository root:
+
+```bash
+. <(sed 's/^/K_/' android/keystore/keystore.properties)   # K_storePassword, K_keyAlias, K_keyPassword
+base64 -w0 android/keystore/strataos-release.jks | gh secret set ANDROID_KEYSTORE
+printf %s "$K_storePassword" | gh secret set ANDROID_KEYSTORE_PASSWORD
+printf %s "$K_keyAlias" | gh secret set ANDROID_KEY_ALIAS
+printf %s "$K_keyPassword" | gh secret set ANDROID_KEY_PASSWORD
+```
+
+Without these secrets the release still publishes everything else, and the workflow shows a warning instead of `strataos-<version>.apk`.
+
 ## Releases
 
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them), and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`) and the public key (`/strataos-archive.gpg`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs, the Raspberry Pi image and the signed Android app, publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them), and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`) and the public key (`/strataos-archive.gpg`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
 
 ### Pre-releases (beta channel)
 

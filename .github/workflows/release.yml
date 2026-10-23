@@ -1,6 +1,8 @@
 # Publishes a GitHub release when a version tag (v1.2.3, matching VERSION) is
 # pushed: Debian packages for amd64 and arm64, installer ISOs for both, the
-# Raspberry Pi image, and their SHA-256 checksums signed with the archive key
+# Raspberry Pi image, the Android app (strataos-<version>.apk, signed with the
+# release key from the ANDROID_* secrets; left out with a warning when they are
+# missing), and their SHA-256 checksums signed with the archive key
 # (SHA256SUMS.asc). Release notes: packaging/release-notes/<version>.md,
 # followed by packaging/release-notes/footer.md (checking the download).
 # Pre-releases: VERSION 0.8.0~beta.1 (or ~alpha.N, ~rc.N), tag v0.8.0-beta.1,
@@ -90,16 +92,45 @@ jobs:
           sudo ./packaging/rpi/build-rpi-image.sh "dist/strataos_${V}_arm64.deb"
           sudo chown -R "$(id -u):$(id -g)" dist
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: android/gradle/libs.versions.toml
+
+      # The runner's Android SDK, completed with the platform the app compiles against.
+      - name: Android app
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          STRATA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          STRATA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          STRATA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE" ] || [ -z "$STRATA_KEYSTORE_PASSWORD" ] || [ -z "$STRATA_KEY_ALIAS" ] || [ -z "$STRATA_KEY_PASSWORD" ]; then
+            echo "::warning title=Android app not published::the ANDROID_KEYSTORE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD secrets are not set (docs/DEVELOPMENT.md)"
+            exit 0
+          fi
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
+          export STRATA_KEYSTORE="$RUNNER_TEMP/strataos-release.jks"
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$STRATA_KEYSTORE"
+          (cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease)
+          rm -f "$STRATA_KEYSTORE"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify android/app/build/outputs/apk/release/app-release.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/strataos-${V}.apk"
+
       - name: Checksums
         run: |
           cd dist
           # Release files are named after the tag form (no "~" in asset names).
           if [ "$V" != "$FV" ]; then
-            for f in strataos_${V}_amd64.deb strataos_${V}_arm64.deb strataos-${V}-amd64.iso strataos-${V}-arm64.iso strataos-${V}-raspberrypi.img.xz; do
-              mv "$f" "${f//"$V"/"$FV"}"
+            for f in strataos_${V}_amd64.deb strataos_${V}_arm64.deb strataos-${V}-amd64.iso strataos-${V}-arm64.iso strataos-${V}-raspberrypi.img.xz strataos-${V}.apk; do
+              [ -f "$f" ] && mv "$f" "${f//"$V"/"$FV"}"
             done
           fi
-          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" > SHA256SUMS
+          APK=$(ls "strataos-${FV}.apk" 2>/dev/null || true)
+          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" $APK > SHA256SUMS
           cat SHA256SUMS
 
       # Detached armored signature with the archive key, the one the
@@ -120,7 +151,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS $FV" --notes-file release-notes.md \
             "dist/strataos_${FV}_amd64.deb" "dist/strataos_${FV}_arm64.deb" \
             "dist/strataos-${FV}-amd64.iso" "dist/strataos-${FV}-arm64.iso" "dist/strataos-${FV}-raspberrypi.img.xz" \
-            dist/SHA256SUMS dist/SHA256SUMS.asc
+            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
 
       - name: Update the website and APT repository
         env:

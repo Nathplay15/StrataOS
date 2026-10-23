@@ -318,6 +318,12 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 			errs = append(errs, "ntfy: "+err.Error())
 		}
 	}
+	if ok, err := s.mobileNotify(level, subject, msg, use, ch.Mobile); ok { // mobile_push.go
+		sent = append(sent, "mobile")
+		if err != nil {
+			errs = append(errs, "mobile: "+err.Error())
+		}
+	}
 	if set.SMTPHost != "" && set.NotifyEmail != "" && use(ch.Email) {
 		sent = append(sent, "email")
 		from := set.SMTPFrom
