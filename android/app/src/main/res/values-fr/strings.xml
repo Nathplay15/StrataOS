@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_label">StrataOS</string>
+
+    <string name="welcome_title">Connectez-vous à votre NAS</string>
+    <string name="welcome_text">Parcourez vos fichiers, sauvegardez les photos et vidéos de ce téléphone et recevez les alertes de votre NAS StrataOS.</string>
+    <string name="scan_qr">Scanner un QR code</string>
+    <string name="scan_prompt">Scannez le QR code affiché par le NAS</string>
+    <string name="scan_hint">Dans l\'interface web du NAS : menu du compte → Appareils mobiles → Associer un téléphone. Aucun mot de passe à saisir.</string>
+    <string name="found_on_network">Trouvés sur ce réseau</string>
+    <string name="searching">Recherche de StrataOS sur ce réseau…</string>
+    <string name="address">Adresse du NAS</string>
+    <string name="address_hint">IP locale, nom, domaine, nom Tailscale ou adresse WireGuard</string>
+    <string name="connect">Se connecter</string>
+    <string name="trust_title">Vérifiez le certificat</string>
+    <string name="trust_self_signed">Ce NAS utilise son propre certificat (auto-signé). Vérifiez qu\'il s\'agit bien de votre NAS avant de continuer : l\'application n\'acceptera ensuite que ce certificat.</string>
+    <string name="trust_unknown_ca">Ce certificat ne vient pas d\'une autorité publique. Vérifiez qu\'il s\'agit bien de votre NAS avant de continuer : l\'application n\'acceptera ensuite que ce certificat.</string>
+    <string name="trust_fingerprint">Empreinte du certificat (SHA-256)</string>
+    <string name="trust_details">%1$s, valide jusqu\'au %2$s</string>
+    <string name="trust_compare">Comparez-la à celle affichée dans l\'interface web (menu du compte → Appareils mobiles → Associer un téléphone).</string>
+    <string name="trust_accept">Faire confiance à ce NAS</string>
+    <string name="sign_in">Se connecter</string>
+    <string name="username">Nom d\'utilisateur</string>
+    <string name="password">Mot de passe</string>
+    <string name="two_factor_code">Code de double authentification</string>
+    <string name="two_factor_needed">Saisissez le code de votre application d\'authentification (ou un code de secours).</string>
+    <string name="device_name">Nom de ce téléphone</string>
+    <string name="sign_in_note">Le mot de passe ne sert qu\'une fois : le NAS donne à ce téléphone sa propre clé, révocable depuis l\'interface web.</string>
+    <string name="warn_http">Connexion non chiffrée : à n\'utiliser que dans un VPN ou un réseau de confiance.</string>
+
+    <string name="err_address">Adresse invalide</string>
+    <string name="err_cert_changed">Le certificat du NAS a changé (maintenant %1$s). Si vous ne l\'avez pas changé, quelqu\'un intercepte peut-être la connexion. Sinon, déconnectez-vous et reconnectez-vous.</string>
+    <string name="err_cert_untrusted">Le certificat du NAS n\'est pas reconnu.</string>
+    <string name="err_tls">Échec de la connexion sécurisée : %1$s</string>
+    <string name="err_unauthorized">Ce téléphone n\'est plus autorisé sur le NAS (révoqué ?). Déconnectez-vous et associez-le à nouveau.</string>
+    <string name="err_unknown_host">Adresse inconnue</string>
+    <string name="err_unreachable">Le NAS est injoignable. Hors de chez vous, utilisez le VPN ou un nom de domaine.</string>
+    <string name="err_qr_invalid">Ce n\'est pas un code d\'association StrataOS.</string>
+    <string name="err_qr_fingerprint">Le certificat ne correspond pas au QR code (reçu %1$s). Association interrompue.</string>
+    <string name="retry">Réessayer</string>
+
+    <string name="locked">StrataOS est verrouillé</string>
+    <string name="unlock">Déverrouiller</string>
+    <string name="unlock_title">Déverrouiller StrataOS</string>
+
+    <string name="tab_files">Fichiers</string>
+    <string name="tab_backup">Sauvegarde</string>
+    <string name="tab_status">État</string>
+    <string name="tab_settings">Réglages</string>
+
+    <string name="back">Retour</string>
+    <string name="refresh">Actualiser</string>
+    <string name="upload">Envoyer</string>
+    <string name="new_folder">Nouveau dossier</string>
+    <string name="name">Nom</string>
+    <string name="create">Créer</string>
+    <string name="cancel">Annuler</string>
+    <string name="empty_folder">Ce dossier est vide.</string>
+    <string name="open">Ouvrir</string>
+    <string name="open_with">Ouvrir avec…</string>
+    <string name="save_to_phone">Enregistrer sur le téléphone</string>
+    <string name="share">Partager</string>
+    <string name="saved">Enregistré</string>
+    <string name="no_app">Aucune application ne peut ouvrir ce fichier.</string>
+    <string name="cannot_preview">Aperçu impossible pour ce fichier.</string>
+    <string name="preparing">Préparation…</string>
+    <string name="upload_started">Envoi de %1$d fichier(s) en arrière-plan</string>
+    <string name="uploading">Envoi vers StrataOS</string>
+    <string name="choose_folder">Choisir ce dossier</string>
+    <string name="folder_read_only">Vous ne pouvez pas écrire dans ce dossier.</string>
+
+    <string name="share_to">Envoyer %1$d fichier(s) vers…</string>
+    <string name="share_nothing">Rien à envoyer.</string>
+    <string name="share_sign_in_first">Ouvrez StrataOS et connectez-vous d\'abord à votre NAS.</string>
+
+    <string name="backup_title">Sauvegarde des photos et vidéos</string>
+    <string name="backup_intro">Les nouvelles photos et vidéos des albums choisis sont copiées automatiquement sur le NAS, avec leur date d\'origine. Les fichiers déjà présents sur le NAS sont ignorés.</string>
+    <string name="backup_permission">L\'application a besoin d\'accéder à vos photos et vidéos pour les sauvegarder.</string>
+    <string name="allow">Autoriser</string>
+    <string name="backup_enable">Sauvegarde automatique</string>
+    <string name="backup_destination">Destination sur le NAS</string>
+    <string name="backup_choose_destination">Choisir un dossier</string>
+    <string name="change">Modifier</string>
+    <string name="backup_wifi_only">Wi-Fi uniquement</string>
+    <string name="backup_charging_only">Seulement pendant la recharge</string>
+    <string name="backup_videos">Inclure les vidéos</string>
+    <string name="backup_albums">Albums</string>
+    <string name="backup_now">Sauvegarder maintenant</string>
+    <string name="backup_running">Sauvegarde des photos</string>
+    <string name="backup_progress">%1$d sur %2$d</string>
+    <string name="backup_up_to_date">Tout est sauvegardé</string>
+    <string name="backup_result">%1$d envoyé(s), %2$d déjà sur le NAS</string>
+    <string name="backup_failed">Sauvegarde interrompue : %1$s</string>
+    <string name="backup_no_permission">Pas d\'accès aux photos et vidéos</string>
+    <string name="backup_count">%1$d fichiers sauvegardés depuis ce téléphone</string>
+    <string name="backup_never_deletes">La sauvegarde ne supprime jamais rien sur le téléphone.</string>
+
+    <string name="status_version">StrataOS %1$s · démarré depuis %2$s</string>
+    <string name="status_load">Charge : %1$s</string>
+    <string name="status_alerts">Alertes</string>
+    <string name="status_all_good">Tout va bien</string>
+    <string name="status_storage">Stockage</string>
+    <string name="status_usage">%1$s utilisés sur %2$s · %3$s libres</string>
+    <string name="status_notifications">Dernières notifications</string>
+    <string name="status_no_notifications">Aucune notification pour l\'instant.</string>
+    <string name="status_admin_only">Les notifications du NAS sont réservées aux administrateurs.</string>
+
+    <string name="signed_in_as">%1$s · %2$s</string>
+    <string name="security">Sécurité</string>
+    <string name="biometric_lock">Déverrouiller par empreinte ou verrouillage d\'écran</string>
+    <string name="biometric_unavailable">Configurez d\'abord une empreinte ou un verrouillage d\'écran sur ce téléphone.</string>
+    <string name="ca_only">N\'accepter que les certificats d\'autorités publiques</string>
+    <string name="ca_only_hint">Pour un NAS avec un certificat Let\'s Encrypt ou public : le certificat épinglé est alors ignoré.</string>
+    <string name="notifications">Notifications</string>
+    <string name="allow_notifications">Autoriser les notifications</string>
+    <string name="push_active">Les notifications instantanées via UnifiedPush sont actives.</string>
+    <string name="push_none">Aucun distributeur UnifiedPush sur ce téléphone : l\'application interroge le NAS toutes les 15 minutes. Installez-en un (ntfy par exemple) pour des alertes instantanées.</string>
+    <string name="push_available">Un distributeur UnifiedPush est installé : configurez-le pour des alertes instantanées.</string>
+    <string name="push_admin_only">Les alertes du NAS sont envoyées aux téléphones des administrateurs.</string>
+    <string name="push_setup">Activer les notifications instantanées</string>
+    <string name="push_failed">Aucun distributeur UnifiedPush n\'a pu être utilisé.</string>
+    <string name="sign_out">Se déconnecter</string>
+    <string name="sign_out_text">Ce téléphone est retiré du NAS et la sauvegarde s\'arrête. Rien n\'est supprimé, ni sur le téléphone ni sur le NAS.</string>
+    <string name="about">StrataOS pour Android %1$s · Apache-2.0</string>
+
+    <string name="channel_alerts">Alertes du NAS</string>
+    <string name="channel_info">Informations du NAS</string>
+    <string name="channel_backup">Sauvegarde des photos</string>
+    <string name="channel_uploads">Envois</string>
+    <string name="signed_out_title">StrataOS : reconnectez-vous</string>
+    <string name="signed_out_text">Le NAS n\'accepte plus ce téléphone. Ouvrez l\'application pour l\'associer à nouveau.</string>
+</resources>

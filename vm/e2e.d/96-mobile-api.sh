@@ -71,7 +71,10 @@ DONE=$(tail -c +$((OFF + 1)) "$TMP/up.bin" | mb "$TA" PATCH "/api/mobile/uploads
 check "resumed and finished" "$DONE" '"done":true'
 F="$MP/Pixel/2021/IMG_0001.jpg"
 check "file intact" "$(vm "sudo sha256sum '$F'" | cut -d' ' -f1)" "$SUM"
-check "owned by the user, original date" "$(vm "sudo stat -c '%U %a %Y' '$F'")" "$USER_NAME 664 1626258600"
+echo web > "$TMP/web.txt"
+curl -s -b "$J2" -H 'X-Strata: 1' -F "file=@$TMP/web.txt" "$B/api/files/upload?path=$MP" >/dev/null
+WM=$(vm "sudo stat -c '%a' '$MP/web.txt'")
+check "owned by the user, original date, same mode as a web upload" "$(vm "sudo stat -c '%U %a %Y' '$F'")" "$USER_NAME $WM 1626258600"
 check "folders created for the user" "$(vm "sudo stat -c '%U' $MP/Pixel/2021")" "$USER_NAME"
 check "no temporary file left" "$(vm "sudo ls -A $MP/Pixel/2021 | grep -c strata-upload")" "0"
 check "finished upload forgotten" "$(code -H "Authorization: Bearer $TA" "$B/api/mobile/uploads/$UID_")" "410"

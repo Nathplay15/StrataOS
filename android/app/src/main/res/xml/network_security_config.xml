@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS is the default and certificates are checked by the app itself
+     (pinning, PinningTrustManager). Plain HTTP stays possible for an address
+     the user typed with http:// (inside a VPN tunnel, for example): the sign-in
+     screen warns about it. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

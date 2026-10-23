@@ -29,6 +29,12 @@ On a phone, the interface switches to a mobile layout:
 
 <img src="docs/screenshots/mobile.png" alt="StrataOS on a phone" width="260">
 
+### Android app
+
+The StrataOS app (APK on the [Releases page](https://github.com/Nathplay15/StrataOS/releases), no Google services needed) browses and opens your files, shares files from any app to the NAS, backs up the photos and videos of the phone automatically (resumable uploads, original dates, nothing deleted on the phone) and shows the NAS health and alerts, with instant notifications through [UnifiedPush](https://unifiedpush.org) (ntfy…). Pair it by scanning the QR code in the web interface (account menu → **Mobile devices**).
+
+<img src="docs/screenshots/android-files.png" alt="Files" width="200"> <img src="docs/screenshots/android-backup.png" alt="Photo backup" width="200"> <img src="docs/screenshots/android-status.png" alt="NAS status" width="200"> <img src="docs/screenshots/android-certificate.png" alt="Certificate check at the first connection" width="200">
+
 ## Requirements
 
 |  | Minimum | Recommended |
@@ -63,6 +69,7 @@ Get the latest version from the [Releases page](https://github.com/Nathplay15/St
 | `strataos-<version>-arm64.iso` | 64-bit ARM servers and boards that boot in UEFI mode |
 | `strataos-<version>-raspberrypi.img.xz` | Raspberry Pi 5, 500, CM5, 4, 400, CM4 and 3 |
 | `strataos_<version>_<arch>.deb` | An existing Debian 13 system |
+| `strataos-<version>.apk` | The Android app (Android 8 and later) |
 | `SHA256SUMS` | Checking your download |
 
 ## Install

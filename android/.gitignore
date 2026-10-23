@@ -1,0 +1,9 @@
+.gradle/
+build/
+app/build/
+local.properties
+.kotlin/
+*.iml
+.idea/
+# Release keystore and its passwords: never committed.
+keystore/

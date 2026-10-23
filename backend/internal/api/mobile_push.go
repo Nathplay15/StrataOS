@@ -215,22 +215,24 @@ type pushTarget struct {
 	dev  store.MobileDevice
 }
 
-// mobilePushTargets: the devices of administrators with a push endpoint.
-func (s *Server) mobilePushTargets() []pushTarget {
-	var out []pushTarget
+// mobilePushTargets: the devices of administrators with a push endpoint,
+// and how many administrator devices there are (those without push read
+// the feed every 15 minutes).
+func (s *Server) mobilePushTargets() (out []pushTarget, devices int) {
 	s.store.Read(func(st *store.State) {
 		for _, u := range st.Users {
 			if u.Role != "admin" || u.Disabled {
 				continue
 			}
 			for _, d := range u.MobileDevices {
+				devices++
 				if d.PushURL != "" {
 					out = append(out, pushTarget{u.Username, d})
 				}
 			}
 		}
 	})
-	return out
+	return out, devices
 }
 
 // pushMobile delivers an event to every target, in parallel.
@@ -258,10 +260,11 @@ func (s *Server) pushMobile(targets []pushTarget, e mobileEvent) error {
 
 // mobileNotify is called by sendNotification: the event always goes to the
 // feed; use reports whether the mobile channel sends it (level, quiet hours).
+// Paired administrator phones make the channel configured, push or not.
 func (s *Server) mobileNotify(level, subject, msg string, use func(store.NotifyChannel) bool, ch store.NotifyChannel) (sent bool, err error) {
 	e := s.mobileFeedAdd(level, subject, msg)
-	targets := s.mobilePushTargets()
-	if len(targets) == 0 || !use(ch) {
+	targets, devices := s.mobilePushTargets()
+	if devices == 0 || !use(ch) {
 		return false, nil
 	}
 	return true, s.pushMobile(targets, e)
