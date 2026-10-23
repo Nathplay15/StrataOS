@@ -5,7 +5,7 @@
 //	V=0.8.0~beta.1        Debian version (package)
 //	FV=0.8.0-beta.1       version in tags and file names
 //	PRERELEASE=true       a GitHub pre-release, published to "testing" only
-//	SUITES=testing        APT suites of the release
+//	SUITES=testing        APT suites of the release, comma-separated (the output is sourced by the shell)
 package main
 
 import (
@@ -32,7 +32,7 @@ func main() {
 	if v != version {
 		fail(fmt.Sprintf("tag %s does not match VERSION %s (expected tag %s)", tag, version, release.Tag(version)))
 	}
-	fmt.Printf("V=%s\nFV=%s\nPRERELEASE=%t\nSUITES=%s\n", v, release.FileVersion(v), release.Prerelease(v), strings.Join(release.Suites(v), " "))
+	fmt.Printf("V=%s\nFV=%s\nPRERELEASE=%t\nSUITES=%s\n", v, release.FileVersion(v), release.Prerelease(v), strings.Join(release.Suites(v), ","))
 }
 
 func fail(msg string) {
