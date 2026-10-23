@@ -192,7 +192,9 @@ check "playback endpoint answers MP4" "$(curl -s -b "$J" -o "$TMP/play265.mp4" -
 check "fragmented MP4 (moof boxes)" "$(grep -a -c moof "$TMP/play265.mp4" | awk '{print ($1>0)?"fragmented":"not fragmented"}')" "fragmented"
 ./vm/vm.sh ssh "cat > /tmp/e2e-play265.mp4" < "$TMP/play265.mp4" 2>/dev/null
 check "converted to H.264" "$(vm "ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 /tmp/e2e-play265.mp4")" "h264"
-check "playback from ?start= seconds" "$(curl -s -b "$J" -o "$TMP/play265b.mp4" -w '%{http_code}' "$B/api/nvr/cameras/$CID/recordings/$SEG/play?start=4"; grep -a -c moof "$TMP/play265b.mp4" | awk '{print ($1>0)?" fragmented":" empty"}')" "200 fragmented"
+# Segments are cut on the clock: the first one may last only a few seconds.
+MID=$(c GET "/api/nvr/cameras/$CID/recordings/$SEG/info" | py 'print(max(1, int(d.get("duration", 2) / 2)))')
+check "playback from ?start= seconds" "$(curl -s -b "$J" -o "$TMP/play265b.mp4" -w '%{http_code}' "$B/api/nvr/cameras/$CID/recordings/$SEG/play?start=$MID"; grep -a -c moof "$TMP/play265b.mp4" | awk '{print ($1>0)?" fragmented":" empty"}')" "200 fragmented"
 check "invalid start refused" "$(c GET "/api/nvr/cameras/$CID/recordings/$SEG/play?start=-1")" "invalid start"
 check "user cannot play recordings" "$(u GET "/api/nvr/cameras/$CID/recordings/$SEG/info")" "administrator rights required"
 check "Frigate list refused for a built-in camera" "$(c GET "/api/nvr/cameras/$CID/frigate/events")" "not recorded by Frigate"
