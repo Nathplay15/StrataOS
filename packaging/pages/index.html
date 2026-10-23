@@ -38,15 +38,14 @@
   </div>
   <p>Checksums and previous versions: <a href="https://github.com/@REPO@/releases">all releases</a>. Step by step: <a href="docs/guide/install-strataos.html">installing StrataOS</a> in the user guide (<a href="docs/fr/guide/install-strataos.html" hreflang="fr" lang="fr">en français</a>).</p>
 
-  <h2 id="debian">Install on an existing Debian 13</h2>
-  <h2>Check your download</h2>
+  <h2 id="verify">Check your download</h2>
   <p>Each release has a <code>SHA256SUMS</code> file, signed with the StrataOS archive key (<code>SHA256SUMS.asc</code>), the same key that signs the update repository. Put both next to the downloaded files, then:</p>
   <pre><code>curl -fsSLO https://nathplay15.github.io/StrataOS/strataos-archive.gpg
 gpg --no-default-keyring --keyring ./strataos-archive.gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS</code></pre>
   <p>gpg must say <b>Good signature from "StrataOS Archive"</b> (a warning that the key is not certified is normal), with the key fingerprint <code>6527 D6E8 6108 D178 3569 2EB2 0682 83FB D5C8 3F95</code>; then each file must be <b>OK</b>. The key is also in the source code, <code>packaging/keys/strataos-archive.gpg</code>.</p>
 
-  <h2>Install on an existing Debian 13</h2>
+  <h2 id="debian">Install on an existing Debian 13</h2>
   <pre><code>sudo curl -fsSLo /usr/share/keyrings/strataos-archive.gpg https://nathplay15.github.io/StrataOS/apt/strataos-archive.gpg
 echo "deb [signed-by=/usr/share/keyrings/strataos-archive.gpg] https://nathplay15.github.io/StrataOS/apt stable main" | sudo tee /etc/apt/sources.list.d/strataos.list
 sudo apt update &amp;&amp; sudo apt install strataos</code></pre>
@@ -61,8 +60,6 @@ sudo apt update &amp;&amp; sudo apt install strataos</code></pre>
   </ul>
 
   <h2 id="updates">Updates</h2>
-  <p>This site hosts the signed package repository at <code>/apt</code>. Installed systems check it and update from <b>Updates → Update StrataOS</b> in the web interface, with a restore point taken before each update.</p>
-  <h2>Updates</h2>
   <p>This site hosts the signed package repository at <code>/apt</code>. Installed systems check it and update from <b>Updates → Update StrataOS</b> in the web interface, with a restore point taken before each update. Updates can also install themselves in a maintenance window you choose.</p>
   <p>The repository has two suites: <code>stable</code> (final releases) and <code>testing</code> (also the beta and release-candidate versions, published as <a href="https://github.com/@REPO@/releases">pre-releases</a>). Choose <b>Updates → Update channel → Beta</b> to try them; they may have bugs, so keep backups.</p>
 

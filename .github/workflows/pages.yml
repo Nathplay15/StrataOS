@@ -72,8 +72,6 @@ jobs:
           VERSION=$V REPO=$GITHUB_REPOSITORY node frontend/scripts/docs-site.mjs site
           cp -r dist/apt site/apt
           cp dist/apt/strataos-archive.gpg site/strataos-archive.gpg
-          cp -r docs/screenshots site/screenshots
-          sed -e "s/@VERSION@/$V/g" -e "s|@REPO@|$GITHUB_REPOSITORY|g" packaging/pages/index.html > site/index.html
           touch site/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3

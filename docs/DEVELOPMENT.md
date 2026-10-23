@@ -82,7 +82,6 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums, and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the website (see below). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
 `.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs and the Raspberry Pi image, publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them), and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`) and the public key (`/strataos-archive.gpg`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
 
 ### Pre-releases (beta channel)
@@ -127,4 +126,4 @@ The repository is signed with the StrataOS archive key. Its public part, `packag
 make docs     # dist/site; open dist/site/docs/index.html
 ```
 
-`.github/workflows/pages.yml` runs it after each release and whenever the documentation changes on `main`; CI checks that it builds.
+`.github/workflows/pages.yml` runs it after each release (or by hand: **Actions → Pages → Run workflow**), so the published documentation matches the released version; CI checks that it builds.
