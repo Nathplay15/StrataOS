@@ -52,6 +52,21 @@ func deviceDenied(p string) bool {
 	return strings.HasPrefix(p, "/api/me/") && p != "/api/me/quotas" || p == "/api/logout"
 }
 
+var (
+	errDeviceDenied    = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: use the web interface"}
+	errDeviceWebDenied = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: open the web interface in a browser"}
+)
+
+// fromDevice tells whether a request comes from the mobile app: its token,
+// or a web session it opened.
+func fromDevice(r *http.Request) bool {
+	if deviceFrom(r.Context()) != nil {
+		return true
+	}
+	ss := sessionFrom(r.Context())
+	return ss != nil && ss.Device != ""
+}
+
 // bearerAuth authenticates a request carrying a device token (see authenticate).
 func (s *Server) bearerAuth(w http.ResponseWriter, r *http.Request, next http.Handler, adminOnly bool) {
 	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -67,7 +82,7 @@ func (s *Server) bearerAuth(w http.ResponseWriter, r *http.Request, next http.Ha
 		return
 	}
 	if deviceDenied(r.URL.Path) {
-		writeErr(w, &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: use the web interface"})
+		writeErr(w, errDeviceDenied)
 		return
 	}
 	ctx := context.WithValue(context.WithValue(r.Context(), ctxKey{}, ss), deviceCtxKey{}, dev)
@@ -237,6 +252,7 @@ func (s *Server) certFingerprint(host string) string {
 
 func (s *Server) mobileRoutes() {
 	s.mobileEventRoutes()
+	s.mobileWebSessionRoutes()
 	// Pairing: with the password (and the two-factor code when the account
 	// has one), or with a one-time code from the web interface. Failures
 	// count like failed sign-ins (limiter and address blocking).
@@ -301,7 +317,7 @@ func (s *Server) mobileRoutes() {
 	s.user("GET /api/mobile/info", func(r *http.Request) (any, error) {
 		host, _ := hostname()
 		out := map[string]any{"hostname": host, "version": s.version, "vapidKey": s.vapidPublicKey(),
-			"features": []string{"uploads", "exists", "events", "push"}}
+			"features": []string{"uploads", "exists", "events", "push", "websession", "livevideo"}}
 		s.store.Read(func(st *store.State) {
 			if u := st.User(userOf(r)); u != nil {
 				out["user"] = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""}
@@ -456,6 +472,7 @@ func (s *Server) removeDevice(user, id, msg string) error {
 		name := u.MobileDevice(id).Name
 		u.MobileDevices = slices.DeleteFunc(u.MobileDevices, func(d store.MobileDevice) bool { return d.ID == id })
 		s.store.LogLocked(st, "info", "auth", user, msg+name)
+		s.sessions.dropDevice(user, id)
 		return nil
 	})
 }

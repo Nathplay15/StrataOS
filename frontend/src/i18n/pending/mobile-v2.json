@@ -1,0 +1,11 @@
+[
+  ["interdit depuis l'application mobile : ouvrez l'interface web dans un navigateur", "not allowed from the mobile app: open the web interface in a browser"],
+  ["Code de connexion web de l'application mobile invalide depuis {0}", "Invalid web sign-in code of the mobile app from {0}"],
+  ["code de connexion invalide ou expiré : rouvrez l'interface web depuis l'application", "invalid or expired sign-in code: open the web interface from the app again"],
+  ["Interface web ouverte depuis l'application mobile ({0}) depuis {1}", "Web interface opened from the mobile app ({0}) from {1}"],
+  ["la vidéo en direct nécessite une caméra RTSP : utilisez les images en direct", "live video needs an RTSP camera: use the live pictures"],
+  ["le flux doit être main ou sub", "the stream must be main or sub"],
+  ["pas encore de vidéo de la caméra", "no video from the camera yet"],
+  ["trop de spectateurs pour cette caméra", "too many viewers of this camera"],
+  ["le flux de la caméra s'est arrêté", "the camera stream ended"]
+]

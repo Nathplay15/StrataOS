@@ -30,6 +30,9 @@ type session struct {
 	Expires time.Time `json:"expires"`
 	Created time.Time `json:"created"`
 	IP      string    `json:"ip"`
+	// Device: a web session opened from the mobile app (mobile_websession.go),
+	// which ends with the device and keeps its restrictions.
+	Device string `json:"device,omitempty"`
 }
 
 // sessions are keyed by the SHA-256 of the cookie token and persisted to disk
@@ -85,10 +88,14 @@ func (s *sessions) saveLocked() {
 }
 
 func (s *sessions) create(user, role, ip string, ttl time.Duration) string {
+	return s.add(&session{User: user, Role: role, Expires: time.Now().Add(ttl), Created: time.Now(), IP: ip})
+}
+
+func (s *sessions) add(ss *session) string {
 	t := token()
 	s.mu.Lock()
 	s.pruneLocked()
-	s.m[key(t)] = &session{User: user, Role: role, Expires: time.Now().Add(ttl), Created: time.Now(), IP: ip}
+	s.m[key(t)] = ss
 	s.saveLocked()
 	s.mu.Unlock()
 	return t
@@ -121,6 +128,18 @@ func (s *sessions) dropUser(user string) {
 	s.mu.Lock()
 	for k, v := range s.m {
 		if v.User == user {
+			delete(s.m, k)
+		}
+	}
+	s.saveLocked()
+	s.mu.Unlock()
+}
+
+// dropDevice ends the web sessions opened from a mobile device.
+func (s *sessions) dropDevice(user, device string) {
+	s.mu.Lock()
+	for k, v := range s.m {
+		if v.User == user && v.Device == device {
 			delete(s.m, k)
 		}
 	}
@@ -240,11 +259,12 @@ func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 			writeErr(w, errUnauthorized)
 			return
 		}
-		// Reject sessions of users disabled or deleted since login.
+		// Reject sessions of users disabled or deleted since login, and the
+		// web sessions of a mobile device revoked since.
 		var ok bool
 		s.store.Read(func(st *store.State) {
 			u := st.User(ss.User)
-			ok = u != nil && !u.Disabled
+			ok = u != nil && !u.Disabled && (ss.Device == "" || u.MobileDevice(ss.Device) != nil)
 		})
 		if !ok {
 			s.sessions.delete(c.Value)
@@ -253,6 +273,10 @@ func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 		}
 		if adminOnly && ss.Role != "admin" {
 			writeErr(w, errForbidden)
+			return
+		}
+		if ss.Device != "" && deviceDenied(r.URL.Path) && r.URL.Path != "/api/logout" {
+			writeErr(w, errDeviceWebDenied)
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead && !sameOrigin(r) {

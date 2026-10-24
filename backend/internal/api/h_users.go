@@ -131,6 +131,10 @@ func (s *Server) userRoutes() {
 		if req.Role != "admin" {
 			req.Role = "user"
 		}
+		if req.Password != "" && name == userOf(r) && fromDevice(r) {
+			// Like /api/me/password: a phone cannot change its own account's password.
+			return nil, errDeviceDenied
+		}
 		var prev store.User
 		err := s.store.Update(func(st *store.State) error {
 			u := st.User(name)
