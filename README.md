@@ -7,7 +7,7 @@
 ![The StrataOS desktop with the Storage Manager open](docs/screenshots/desktop.png)
 
 - **Storage**: RAID (mdadm), Btrfs, ZFS and LVM, SSD cache, iSCSI targets, SMART monitoring, guided disk replacement, burn-in tests for new disks, a space analyzer and a duplicate finder.
-- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP, share links, a web file manager with a tabbed editor (and optional OnlyOffice for office documents), and a photo timeline.
+- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP, share links, a web file manager with a tabbed editor (and optional OnlyOffice for office documents), a photo timeline, and a desktop sync app for Windows, macOS and Linux (two-way folder synchronization).
 - **Protection**: scheduled and locked snapshots, encrypted backups (restic, rsync, ZFS replication, backup vaults between NAS), backups pulled from other NAS (rsync, SSH, SMB), two-way sync, cloud sync, ransomware detection, antivirus, address blocking, and a configuration backup you can export and import.
 - **Media and home**: DLNA server, multi-room music on AirPlay and Chromecast speakers, casting videos and photos to TVs, and video surveillance (built-in recorder, or Frigate with AI detection).
 - **Apps and VMs**: Docker with an App Center of 50 ready-to-run apps (Jellyfin, Nextcloud, Immich, Home Assistant, Node-RED, Ollama…) plus your own; KVM virtual machines with cloud images, snapshots, clones and templates, imports from VMware and VirtualBox, USB and PCI passthrough.
@@ -31,9 +31,13 @@ On a phone, the interface switches to a mobile layout:
 
 ### Android app
 
-The StrataOS app (APK on the [Releases page](https://github.com/Nathplay15/StrataOS/releases), no Google services needed) browses and opens your files, shares files from any app to the NAS, backs up the photos and videos of the phone automatically (resumable uploads, original dates, nothing deleted on the phone) and shows the NAS health and alerts, with instant notifications through [UnifiedPush](https://unifiedpush.org) (ntfy…). Pair it by scanning the QR code in the web interface (account menu → **Mobile devices**).
+The StrataOS app (APK on the [Releases page](https://github.com/Nathplay15/StrataOS/releases), no Google services needed) browses and opens your files, shares files from any app to the NAS, backs up the photos and videos of the phone automatically (resumable uploads, original dates, nothing deleted on the phone) and shows the NAS health and alerts, with instant notifications through [UnifiedPush](https://unifiedpush.org) (ntfy…). Pair it by scanning the QR code in the web interface (account menu → **Phones and computers**).
 
 <img src="docs/screenshots/android-files.png" alt="Files" width="200"> <img src="docs/screenshots/android-backup.png" alt="Photo backup" width="200"> <img src="docs/screenshots/android-status.png" alt="NAS status" width="200"> <img src="docs/screenshots/android-certificate.png" alt="Certificate check at the first connection" width="200">
+
+### Desktop sync app
+
+**StrataOS Sync** (Windows, macOS, Linux) keeps folders of your computer and of the NAS identical, in both directions, in the background: real local copies, changes from SMB or the web interface picked up within seconds, conflict copies instead of overwrites, deletions to the trash and the NAS recycle bin, and a safety brake before mass deletions. Pair it with a code or a link from the web interface (account menu → **Phones and computers**); it also runs headless (`strataos-sync daemon`). See the [guide](docs/GUIDE.md#23-the-desktop-sync-app).
 
 ## Requirements
 
@@ -72,6 +76,9 @@ Get the latest version from the [Releases page](https://github.com/Nathplay15/St
 | `strataos-<version>-raspberrypi.img.xz` | Raspberry Pi 5, 500, CM5, 4, 400, CM4 and 3 |
 | `strataos_<version>_<arch>.deb` | An existing Debian 13 system |
 | `strataos-<version>.apk` | The Android app (Android 8 and later) |
+| `strataos-sync-<version>-windows-x64.msi` (or `.zip`) | The desktop sync app for Windows 10 and 11 |
+| `strataos-sync-<version>-macos.dmg` | The desktop sync app for macOS 11 and later (Intel and Apple silicon) |
+| `strataos-sync-<version>-linux-amd64.deb`, `-linux-arm64.deb`, `-linux-amd64.tar.gz` | The desktop sync app for Linux |
 | `SHA256SUMS`, `SHA256SUMS.asc` | Checking your download (checksums, and their signature) |
 
 ### Checking your download
