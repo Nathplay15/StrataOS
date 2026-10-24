@@ -55,6 +55,13 @@ var All = []Component{
 		Units:    []string{"strata-vms.service"},
 		Caches:   []string{"/srv/strata/*/.strata-cloud-images"},
 		Data:     []string{"/var/lib/libvirt", "/etc/libvirt"}},
+	{ID: "lxc", Name: "Containers (LXC)",
+		Packages: []string{"lxc", "lxcfs", "uidmap", "dnsmasq-base"},
+		Services: []string{"lxc.service", "lxc-net.service", "lxc-monitord.service", "lxcfs.service"},
+		Units:    []string{"strata-lxc@.service"},
+		Files:    []string{"/etc/default/lxc-net"},
+		Caches:   []string{"/var/lib/strata/lxc-cache", "/var/cache/lxc"},
+		Data:     []string{"/var/lib/strata/lxc", "/srv/strata/*/.strata-lxc", "/srv/strata/*/*/.strata-lxc"}},
 	{ID: "rclone", Name: "Cloud sync (rclone)",
 		Packages: []string{"rclone", "fuse3", "openssh-client"},
 		Caches:   []string{"/var/lib/strata/backup-sync"}},
@@ -241,6 +248,7 @@ type Facts struct {
 	Stacks      []string // apps and compose stacks
 	Containers  []string // containers outside the stacks
 	VMs         []string
+	LXC         []string // containers
 	Targets     []string // iSCSI targets
 	HARole      string
 	Directory   string // joined directory type
@@ -284,6 +292,10 @@ func Blockers(id string, f Facts) []Blocker {
 	case "vms":
 		if len(f.VMs) > 0 {
 			hard("Virtual machines: %s (delete them first)", list(f.VMs))
+		}
+	case "lxc":
+		if len(f.LXC) > 0 {
+			hard("Containers (LXC): %s (delete them first)", list(f.LXC))
 		}
 	case "iscsi":
 		if len(f.Targets) > 0 {

@@ -57,6 +57,9 @@ func stagingRoot(t *store.BackupTask) (string, error) {
 			return filepath.Join(vms.VolumeRoot(vm.Dir), ".strata-vmbackup", t.ID, "vms"), nil
 		}
 	}
+	if vol := containerVolume(t); vol != "" {
+		return filepath.Join(vol, ".strata-vmbackup", t.ID, "vms"), nil
+	}
 	return "", fmt.Errorf("none of the VMs of this backup has its disks in a volume")
 }
 
@@ -96,7 +99,7 @@ func runWithVMs(ctx context.Context, t *store.BackupTask, p Progress) (string, e
 			_ = os.RemoveAll(old)
 			p.Log("VM %s: %s copied (%s)", n, humanBytes(man.Size), man.Consistency)
 		}
-		return nil
+		return exportContainers(ctx, t, filepath.Dir(root), p)
 	}
 	sub := func() Progress {
 		return Progress{Log: p.Log, Set: func(v float64) { p.Set(share + (100-share)*v/100) }}
@@ -123,7 +126,7 @@ func runWithVMs(ctx context.Context, t *store.BackupTask, p Progress) (string, e
 			return "", err
 		}
 		c := *t
-		c.Sources = append(append([]string(nil), t.Sources...), root)
+		c.Sources = append(append([]string(nil), t.Sources...), stagedFolders(t, root)...)
 		share = 100 - (100-share)/2
 		if c.Kind == "rsync" {
 			msg, err = runRsync(ctx, &c, sub())
@@ -137,6 +140,9 @@ func runWithVMs(ctx context.Context, t *store.BackupTask, p Progress) (string, e
 		return "", fmt.Errorf("virtual machines cannot be backed up with this backup type")
 	}
 	out := fmt.Sprintf("%d VM(s) backed up in %s", len(t.VMs), time.Since(start).Round(time.Second))
+	if len(t.Containers) > 0 {
+		out = fmt.Sprintf("%d VM(s) and %d container(s) backed up in %s", len(t.VMs), len(t.Containers), time.Since(start).Round(time.Second))
+	}
 	if msg != "" {
 		out += "; " + msg
 	}

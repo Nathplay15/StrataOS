@@ -28,7 +28,7 @@ func TestTable(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []string{"zfs", "docker", "nut", "vms", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview"} {
+	for _, id := range []string{"zfs", "docker", "nut", "vms", "lxc", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview"} {
 		if Find(id) == nil {
 			t.Errorf("component %s missing", id)
 		}
@@ -108,7 +108,7 @@ Inst foo (1.0 Debian:13)
 }
 
 func TestBlockers(t *testing.T) {
-	f := Facts{Pools: []string{"tank"}, Stacks: []string{"uptimekuma", "dozzle"}, Containers: []string{"atk"}, VMs: []string{"web"},
+	f := Facts{Pools: []string{"tank"}, Stacks: []string{"uptimekuma", "dozzle"}, Containers: []string{"atk"}, VMs: []string{"web"}, LXC: []string{"dns", "app"},
 		Targets: []string{"lun0"}, HARole: "primary", Directory: "ad", VPNServer: true, VPNDevices: 2, VPNClient: true,
 		UPSMode: "usb", DLNA: true, FTP: true, Cameras: []string{"door"}, Syncs: []string{"s3"}, AVSchedules: []string{"nightly"}, Tailscale: true, Tunnel: true}
 	cases := []struct {
@@ -120,6 +120,7 @@ func TestBlockers(t *testing.T) {
 		{"zfs", 1, false, "tank"},
 		{"docker", 2, false, "dozzle, uptimekuma"},
 		{"vms", 1, false, "web"},
+		{"lxc", 1, false, "app, dns"},
 		{"iscsi", 1, false, "lun0"},
 		{"ha", 1, false, "paired"},
 		{"directory", 1, false, "joined"},
