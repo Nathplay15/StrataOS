@@ -261,6 +261,7 @@ func (s *Server) routes() {
 	s.consoleRoutes()
 	s.mobileRoutes()
 	s.mobileUploadRoutes()
+	s.syncRoutes()
 	s.rpiKernelRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))

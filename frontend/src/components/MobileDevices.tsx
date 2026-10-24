@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
-import { Bell, Check, Edit3, QrCode, Smartphone, Trash2, X } from "lucide-react";
+import { Bell, Check, Edit3, Laptop, QrCode, Smartphone, Trash2, X } from "lucide-react";
 import { api } from "../lib/api";
 import { dateTime } from "../lib/format";
 import { tr } from "../lib/i18n";
 import { Badge, Button, ErrorBox, Input, Modal, Notice, Spinner, useUI } from "./ui";
+import { DesktopApp } from "./DesktopApp";
 
 interface Device {
   id: string;
   name: string;
   model: string;
   app?: string;
+  kind: "android" | "desktop";
+  os?: string;
   createdAt: string;
   lastSeen?: string;
   lastIp?: string;
@@ -19,7 +22,7 @@ interface Device {
   pushError?: string;
 }
 
-interface Pairing {
+export interface Pairing {
   code: string;
   expires: string;
   fingerprint: string;
@@ -70,7 +73,10 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
     toast(tr("Test notification sent"));
   });
   const revoke = async (d: Device) => {
-    if (!(await confirm({ title: tr("Revoke {0}?", d.name), text: tr("The app on this phone is signed out at once and stops backing up. Pair it again to use it."), danger: true, confirm: tr("Revoke") }))) return;
+    const text = d.kind === "desktop"
+      ? tr("The sync app on this computer is signed out at once and stops synchronizing (its files stay on the computer). Pair it again to use it.")
+      : tr("The app on this phone is signed out at once and stops backing up. Pair it again to use it.");
+    if (!(await confirm({ title: tr("Revoke {0}?", d.name), text, danger: true, confirm: tr("Revoke") }))) return;
     run(async () => {
       await api.del(`/api/me/devices/${d.id}`);
       toast(tr("Device revoked"));
@@ -79,16 +85,16 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
 
   const devices = list.data;
   return (
-    <Modal open={open} onClose={onClose} title={tr("Mobile devices")} wide>
+    <Modal open={open} onClose={onClose} title={tr("Phones and computers")} wide>
       <div className="space-y-4">
         <p className="text-[13.5px]">{tr("The StrataOS app for Android browses your files, backs up the photos and videos of your phone and shows the NAS alerts.")}{" "}
           <a className="text-accent hover:underline" href={releases} target="_blank" rel="noreferrer">{tr("Download the app (APK)")}</a>
         </p>
-        {list.isLoading || !devices ? <Spinner /> : devices.length === 0 ? <p className="text-muted text-[13px]">{tr("No phone paired yet.")}</p> : (
+        {list.isLoading || !devices ? <Spinner /> : devices.length === 0 ? <p className="text-muted text-[13px]">{tr("No phone or computer paired yet.")}</p> : (
           <div className="divide-y divide-border rounded-xl border border-border">
             {devices.map((d) => (
               <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-                <Smartphone size={18} className="text-accent" />
+                {d.kind === "desktop" ? <Laptop size={18} className="text-accent" /> : <Smartphone size={18} className="text-accent" />}
                 <div className="min-w-0 flex-1">
                   {edit?.id === d.id ? (
                     <div className="flex items-center gap-1">
@@ -100,7 +106,8 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
                     <div className="flex flex-wrap items-center gap-1.5 font-medium">
                       <span className="truncate">{d.name}</span>
                       {d.model && d.model !== d.name && <span className="text-muted text-[12px] font-normal">{d.model}</span>}
-                      {d.push ? <Badge tone={d.pushError ? "warn" : "ok"}>{tr("Push")}</Badge> : <Badge>{tr("No push")}</Badge>}
+                      {d.os && <span className="text-muted text-[12px] font-normal">{d.os}</span>}
+                      {d.kind === "desktop" ? <Badge tone="accent">{tr("Sync app")}</Badge> : d.push ? <Badge tone={d.pushError ? "warn" : "ok"}>{tr("Push")}</Badge> : <Badge>{tr("No push")}</Badge>}
                     </div>
                   )}
                   <div className="text-muted text-[12px]">
@@ -136,6 +143,7 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
         ) : (
           <Button variant="primary" icon={<QrCode size={15} />} loading={busy} onClick={startPairing}>{tr("Pair a phone")}</Button>
         )}
+        <DesktopApp />
         <p className="text-muted text-[12px]">{tr("NAS notifications reach the phones of administrators through a UnifiedPush distributor installed on the phone (for example the ntfy app); without one, the app checks every 15 minutes.")}</p>
       </div>
     </Modal>

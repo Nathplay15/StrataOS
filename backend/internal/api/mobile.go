@@ -46,10 +46,10 @@ func deviceFrom(ctx context.Context) *deviceRef {
 
 // deviceDenied lists what a device token may not do even when its user may:
 // managing the account's sign-in methods (password, two-factor, passkeys,
-// devices and pairing codes). A stolen phone must not be able to make itself
-// a way back in once revoked.
+// devices and pairing codes, the devices of others for an administrator).
+// A stolen device must not be able to make itself a way back in once revoked.
 func deviceDenied(p string) bool {
-	return strings.HasPrefix(p, "/api/me/") && p != "/api/me/quotas" || p == "/api/logout"
+	return strings.HasPrefix(p, "/api/me/") && p != "/api/me/quotas" || p == "/api/logout" || strings.HasPrefix(p, "/api/devices")
 }
 
 // bearerAuth authenticates a request carrying a device token (see authenticate).
@@ -142,7 +142,8 @@ func (p *devicePairings) create(user string) string {
 func (p *devicePairings) take(code string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	k := key(strings.ToLower(strings.TrimSpace(code)))
+	// Typed by hand on a computer: grouped with dashes or spaces.
+	k := key(strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(strings.TrimSpace(code))))
 	c, ok := p.m[k]
 	delete(p.m, k)
 	if !ok || time.Now().After(c.expires) {
@@ -174,6 +175,8 @@ type deviceView struct {
 	Name      string    `json:"name"`
 	Model     string    `json:"model"`
 	App       string    `json:"app,omitempty"`
+	Kind      string    `json:"kind"` // "android" or "desktop"
+	OS        string    `json:"os,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	LastSeen  time.Time `json:"lastSeen,omitzero"`
 	LastIP    string    `json:"lastIp,omitempty"`
@@ -183,18 +186,38 @@ type deviceView struct {
 }
 
 func viewDevice(d store.MobileDevice) deviceView {
-	return deviceView{ID: d.ID, Name: d.Name, Model: d.Model, App: d.App, CreatedAt: d.CreatedAt, LastSeen: d.LastSeen, LastIP: d.LastIP, Push: d.PushURL != "", PushError: d.PushError}
+	kind := d.Kind
+	if kind == "" {
+		kind = "android"
+	}
+	return deviceView{ID: d.ID, Name: d.Name, Model: d.Model, App: d.App, Kind: kind, OS: d.OS, CreatedAt: d.CreatedAt, LastSeen: d.LastSeen, LastIP: d.LastIP, Push: d.PushURL != "", PushError: d.PushError}
 }
 
-// addDevice creates a device and returns its token (shown once).
+// deviceKind keeps the known kinds of clients ("" = a phone, the default).
+func deviceKind(k string) string {
+	if k == "desktop" {
+		return k
+	}
+	return ""
+}
+
+// addDevice creates a phone and returns its token (shown once).
 func (s *Server) addDevice(user, name, model, app, ip string) (string, store.MobileDevice, error) {
+	return s.addDeviceKind(user, name, model, app, "", "", ip)
+}
+
+// addDeviceKind creates a device of a kind ("" phone, "desktop" computer).
+func (s *Server) addDeviceKind(user, name, model, app, kind, osName, ip string) (string, store.MobileDevice, error) {
 	tok := deviceTokenPrefix + token()
 	h := sha256.Sum256([]byte(tok))
 	now := time.Now()
 	d := store.MobileDevice{ID: token()[:16], Name: cleanLabel(name, 64), Model: cleanLabel(model, 80), App: cleanLabel(app, 32),
-		TokenHash: hex.EncodeToString(h[:]), CreatedAt: now, LastSeen: now, LastIP: ip}
+		Kind: deviceKind(kind), OS: cleanLabel(osName, 64), TokenHash: hex.EncodeToString(h[:]), CreatedAt: now, LastSeen: now, LastIP: ip}
 	if d.Name == "" {
 		d.Name = d.Model
+	}
+	if d.Name == "" && d.Kind == "desktop" {
+		d.Name = "Computer"
 	}
 	if d.Name == "" {
 		d.Name = "Phone"
@@ -205,10 +228,14 @@ func (s *Server) addDevice(user, name, model, app, ip string) (string, store.Mob
 			return errUnauthorized
 		}
 		if len(u.MobileDevices) >= maxDevicesPerUser {
-			return badRequest(fmt.Sprintf("at most %d mobile devices per account: remove one first", maxDevicesPerUser))
+			return badRequest(fmt.Sprintf("at most %d paired devices per account: remove one first", maxDevicesPerUser))
 		}
 		u.MobileDevices = append(u.MobileDevices, d)
-		s.store.LogLocked(st, "info", "auth", user, "Mobile device paired: "+d.Name+" from "+ip)
+		if d.Kind == "desktop" {
+			s.store.LogLocked(st, "info", "auth", user, "Desktop sync app paired: "+d.Name+" from "+ip)
+		} else {
+			s.store.LogLocked(st, "info", "auth", user, "Mobile device paired: "+d.Name+" from "+ip)
+		}
 		return nil
 	})
 	return tok, d, err
@@ -255,6 +282,8 @@ func (s *Server) mobileRoutes() {
 			DeviceName  string `json:"deviceName"`
 			Model       string `json:"model"`
 			App         string `json:"app"`
+			Kind        string `json:"kind"` // "desktop" for the sync app of a computer
+			OS          string `json:"os"`
 		}
 		if err := decode(r, &req); err != nil {
 			writeErr(w, err)
@@ -284,7 +313,7 @@ func (s *Server) mobileRoutes() {
 			}
 		}
 		s.limiter.reset(ip)
-		tok, d, err := s.addDevice(u.Username, req.DeviceName, req.Model, req.App, ip)
+		tok, d, err := s.addDeviceKind(u.Username, req.DeviceName, req.Model, req.App, req.Kind, req.OS, ip)
 		if err != nil {
 			writeErr(w, err)
 			return
@@ -301,7 +330,7 @@ func (s *Server) mobileRoutes() {
 	s.user("GET /api/mobile/info", func(r *http.Request) (any, error) {
 		host, _ := hostname()
 		out := map[string]any{"hostname": host, "version": s.version, "vapidKey": s.vapidPublicKey(),
-			"features": []string{"uploads", "exists", "events", "push"}}
+			"features": []string{"uploads", "exists", "events", "push", "sync"}}
 		s.store.Read(func(st *store.State) {
 			if u := st.User(userOf(r)); u != nil {
 				out["user"] = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""}
@@ -326,6 +355,7 @@ func (s *Server) mobileRoutes() {
 		var req struct {
 			Name    *string `json:"name"`
 			App     *string `json:"app"`
+			OS      *string `json:"os"`
 			PushURL *string `json:"pushUrl"`
 			P256DH  string  `json:"p256dh"`
 			Auth    string  `json:"auth"`
@@ -355,6 +385,9 @@ func (s *Server) mobileRoutes() {
 			}
 			if req.App != nil {
 				d.App = cleanLabel(*req.App, 32)
+			}
+			if req.OS != nil {
+				d.OS = cleanLabel(*req.OS, 64)
 			}
 			if req.PushURL != nil {
 				d.PushURL, d.PushP256DH, d.PushAuth, d.PushError = *req.PushURL, req.P256DH, req.Auth, ""

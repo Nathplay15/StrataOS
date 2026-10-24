@@ -42,14 +42,19 @@ const (
 )
 
 type mobileUpload struct {
-	ID      string    `json:"id"`
-	User    string    `json:"user"`
-	Admin   bool      `json:"admin,omitempty"` // created by an administrator: files keep root as owner, like web uploads
-	Folder  string    `json:"folder"`          // absolute destination folder
-	Name    string    `json:"name"`
-	Size    int64     `json:"size"`
-	ModTime int64     `json:"modTime,omitempty"` // Unix milliseconds
-	SHA256  string    `json:"sha256,omitempty"`
+	ID      string `json:"id"`
+	User    string `json:"user"`
+	Admin   bool   `json:"admin,omitempty"` // created by an administrator: files keep root as owner, like web uploads
+	Folder  string `json:"folder"`          // absolute destination folder
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	ModTime int64  `json:"modTime,omitempty"` // Unix milliseconds
+	SHA256  string `json:"sha256,omitempty"`
+	// Sync clients (sync.go): dotfiles allowed, and with Replace the file
+	// takes the place of the version IfMatch ("" = none, "*" = any).
+	Sync    bool      `json:"sync,omitempty"`
+	Replace bool      `json:"replace,omitempty"`
+	IfMatch string    `json:"ifMatch,omitempty"`
 	Created time.Time `json:"created"`
 	Updated time.Time `json:"updated"`
 }
@@ -300,7 +305,7 @@ func uploadOffset(rt *os.Root, t target, u *mobileUpload) (int64, error) {
 func (s *Server) mobileUploadRoutes() {
 	// Create an upload. The app may give the SHA-256 of the file: it is
 	// checked once complete.
-	s.user("POST /api/mobile/uploads", func(r *http.Request) (any, error) {
+	s.syncRaw("POST /api/mobile/uploads", func(r *http.Request) (any, error) {
 		var req struct {
 			Folder  string `json:"folder"`
 			Name    string `json:"name"`
@@ -308,12 +313,25 @@ func (s *Server) mobileUploadRoutes() {
 			ModTime int64  `json:"modTime"`
 			SHA256  string `json:"sha256"`
 			MkDirs  bool   `json:"mkdirs"` // create missing folders under the share (backup albums, years)
+			Sync    bool   `json:"sync"`
+			Replace bool   `json:"replace"`
+			IfMatch string `json:"ifMatch"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		if err := validFileName(req.Name); err != nil {
+		nameOK := validFileName
+		if req.Sync {
+			nameOK = validSyncName
+			if s.ransomBlocked(userOf(r)) {
+				return nil, &Error{Status: http.StatusForbidden, Msg: "your account is blocked by the ransomware protection: ask an administrator"}
+			}
+		}
+		if err := nameOK(req.Name); err != nil {
 			return nil, err
+		}
+		if len(req.IfMatch) > 64 {
+			return nil, badRequest("invalid ifMatch")
 		}
 		if req.Size < 0 || req.Size > maxUploadSize {
 			return nil, badRequest("invalid size")
@@ -333,6 +351,9 @@ func (s *Server) mobileUploadRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		if reason := s.readOnlyReason(t); req.Sync && reason != "" {
+			return nil, &Error{Status: http.StatusForbidden, Msg: reason}
+		}
 		if err := s.spaceFor(r, t, req.Size); err != nil {
 			return nil, err
 		}
@@ -345,7 +366,7 @@ func (s *Server) mobileUploadRoutes() {
 			return nil, notFound("folder not found")
 		}
 		u := &mobileUpload{ID: token()[:24], User: userOf(r), Admin: isAdmin(r), Folder: t.abs, Name: req.Name, Size: req.Size,
-			ModTime: req.ModTime, SHA256: req.SHA256, Created: time.Now(), Updated: time.Now()}
+			ModTime: req.ModTime, SHA256: req.SHA256, Sync: req.Sync, Replace: req.Replace, IfMatch: req.IfMatch, Created: time.Now(), Updated: time.Now()}
 		uploads.mu.Lock()
 		s.uploadsLoadLocked()
 		n := 0
@@ -405,6 +426,11 @@ func (s *Server) mobileUploadRoutes() {
 	s.userRaw("PATCH /api/mobile/uploads/{id}", func(w http.ResponseWriter, r *http.Request) {
 		v, err := s.patchUpload(w, r)
 		if err != nil {
+			var c *syncConflict
+			if errors.As(err, &c) {
+				writeSyncErr(w, err)
+				return
+			}
 			var e *Error
 			if errors.As(err, &e) && e.Status == http.StatusConflict {
 				if off, ok := v.(int64); ok {
@@ -417,6 +443,53 @@ func (s *Server) mobileUploadRoutes() {
 			return
 		}
 		writeJSON(w, http.StatusOK, v)
+	})
+
+	// Complete a finished upload again, possibly under another name or
+	// condition (after a 412: the file changed on the NAS meanwhile).
+	s.syncRaw("POST /api/mobile/uploads/{id}/commit", func(r *http.Request) (any, error) {
+		var req struct {
+			Name    *string `json:"name"`
+			IfMatch *string `json:"ifMatch"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		u, l := s.getUpload(userOf(r), r.PathValue("id"))
+		if u == nil {
+			return nil, &Error{Status: http.StatusGone, Msg: "upload expired or cancelled: start again"}
+		}
+		l.Lock()
+		defer l.Unlock()
+		if req.Name != nil {
+			check := validFileName
+			if u.Sync {
+				check = validSyncName
+			}
+			if err := check(*req.Name); err != nil {
+				return nil, err
+			}
+			u.Name = *req.Name
+		}
+		if req.IfMatch != nil {
+			u.IfMatch = *req.IfMatch
+		}
+		uploads.mu.Lock()
+		if x := uploads.m[u.ID]; x != nil {
+			x.Name, x.IfMatch = u.Name, u.IfMatch
+			s.uploadsSaveLocked()
+		}
+		uploads.mu.Unlock()
+		t, err := s.uploadTarget(u.User, isAdmin(r), u.Folder)
+		if err != nil {
+			return nil, err
+		}
+		rt, err := t.open()
+		if err != nil {
+			return nil, err
+		}
+		defer rt.Close()
+		return s.completeUpload(u, t, rt)
 	})
 
 	s.user("DELETE /api/mobile/uploads/{id}", func(r *http.Request) (any, error) {
@@ -619,6 +692,9 @@ func (s *Server) patchUpload(w http.ResponseWriter, r *http.Request) (any, error
 
 // completeUpload moves the finished file in place and forgets the upload.
 func (s *Server) completeUpload(u *mobileUpload, t target, rt *os.Root) (any, error) {
+	if u.Replace {
+		return s.syncReplace(u, t, rt)
+	}
 	var owner func(string)
 	if !u.Admin {
 		owner = func(rel string) { s.chownTo(u.User, rt, rel) }
