@@ -96,6 +96,11 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.zxing.embedded)
     implementation(libs.unifiedpush)
+    // Video and music playback (Android app v2)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.session)
+    implementation(libs.media3.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)

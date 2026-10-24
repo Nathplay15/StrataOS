@@ -4,11 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.pdf.PdfRenderer
-import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.widget.MediaController
-import android.widget.VideoView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -47,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.FileEntry
 import java.io.File
@@ -71,9 +67,8 @@ fun Viewer(e: FileEntry, f: File, onClose: () -> Unit) {
         Box(Modifier.padding(pad).fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             when (kindOf(e.name)) {
                 Kind.IMAGE -> ImageView(f)
-                Kind.VIDEO -> VideoPlayer(f)
                 Kind.PDF -> PdfView(f)
-                Kind.OTHER -> Unit
+                else -> Unit // videos and music open in the player
             }
         }
     }
@@ -108,17 +103,6 @@ private fun ImageView(f: File) {
     }
     Image(bmp.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().transformable(state)
         .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y))
-}
-
-@Composable
-private fun VideoPlayer(f: File) {
-    AndroidView(factory = { c ->
-        VideoView(c).apply {
-            setMediaController(MediaController(c).also { it.setAnchorView(this) })
-            setVideoURI(Uri.fromFile(f))
-            setOnPreparedListener { start() }
-        }
-    }, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable

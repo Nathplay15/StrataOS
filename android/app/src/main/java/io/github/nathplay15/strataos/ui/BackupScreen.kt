@@ -26,6 +26,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,7 +51,7 @@ import io.github.nathplay15.strataos.backup.MediaScanner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackupScreen() {
+fun BackupScreen(onBack: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val s = remember { BackupSettings(ctx) }
     var tick by remember { mutableIntStateOf(0) } // settings changed: recompose
@@ -61,7 +65,7 @@ fun BackupScreen() {
     fun changed() { tick++; BackupScheduler.apply(ctx) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.backup_title)) })
+        TopAppBar(title = { Text(stringResource(R.string.backup_title)) }, navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } })
         key(tick) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.backup_intro), style = MaterialTheme.typography.bodyMedium)

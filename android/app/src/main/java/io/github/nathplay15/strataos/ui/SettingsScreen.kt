@@ -25,6 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +53,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onSignedOut: () -> Unit) {
+fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val p = Graph.prefs
@@ -63,7 +67,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
     val distributors = remember(tick) { Push.distributors(ctx) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.tab_settings)) })
+        TopAppBar(title = { Text(stringResource(R.string.a_app_settings)) }, navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -123,6 +127,9 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
                     BackupScheduler.cancelAll(ctx)
                     EventsWorker.cancel(ctx)
                     Graph.backupDb.reset()
+                    io.github.nathplay15.strataos.ui.player.Playback.release()
+                    io.github.nathplay15.strataos.data.OfflineSyncWorker.cancel(ctx)
+                    io.github.nathplay15.strataos.data.favorites.clearAll()
                     p.signOut()
                     Graph.reset()
                     onSignedOut()
