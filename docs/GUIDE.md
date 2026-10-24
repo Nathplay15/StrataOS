@@ -227,3 +227,28 @@ The **StrataOS app for Android** (Android 8 and later) browses your files, backs
 - **Lock**: "Unlock with fingerprint or screen lock" protects the app on a shared phone.
 
 Lost or replaced phone? Account menu → Mobile devices → "Revoke": the app on that phone is signed out at once and stops backing up.
+
+## 23. Ceph
+
+**Ceph** spreads data over the disks of several NAS and keeps each piece on several of them (3 copies by default, on 3 different NAS): a disk or a whole NAS can stop without losing data, and without interruption. StrataOS installs Ceph from Debian (Settings → Components → **Ceph**) and runs it itself; it can also use a Ceph cluster managed elsewhere.
+
+**When it is worth it**: from **3 NAS** (below, there is no fault tolerance: StrataOS only allows it as a "test mode"), on a fast network (**10 Gb/s recommended**; 1 Gb/s works but limits writes, which go to every copy), with about **4 GB of RAM per disk** given to Ceph on top of what the NAS already uses (StrataOS keeps the caches small on NAS with less than 6 GB, which is slower). For one NAS, RAID, Btrfs or ZFS remain simpler and faster; for a standby copy, use high availability (section 18).
+
+**Creating a cluster**: install the Ceph component on every NAS. On the first one, Storage → **Ceph** → "Create a Ceph cluster": give it a name and choose the network the NAS share (optionally a second network for the copies between NAS). On each other NAS, "Join a cluster" shows a one-time code: type its address and code on the first NAS. Then pick the disks for Ceph on each NAS (blank disks; disks with old data are erased after you type the cluster name; the system disk and the disks of StrataOS volumes are never offered) and what to create: an **RBD pool** (block devices) and/or a **CephFS** filesystem. StrataOS sets up the monitors (on 3 NAS), the managers, the disks (BlueStore) and the pools; the placement groups are sized automatically.
+
+**The Ceph page** shows the health (with an explanation of each warning), the capacity, the disks and services of each NAS, the placement groups, recovery and client traffic. A health change is notified like other alerts. From there:
+
+- **Add a disk**, or **Remove** one: Ceph first copies its data to the other disks, then the disk is erased. **Replace** puts a new disk in place of a failed one (it keeps its number).
+- **Maintenance mode** stops Ceph from moving data while you restart a NAS.
+- **Add to Ceph** another member of the cluster, or remove a NAS that no longer holds disks.
+- **Client keys** give another NAS or computer access to one pool or filesystem only.
+
+**Using Ceph as storage** (Ceph → Storage on this NAS, also for an external cluster: enter its monitor addresses, a Ceph user and its key, which stays on the NAS, readable by the system only; "Test the connection" checks them first):
+
+- **CephFS** becomes a volume of the NAS: create shared folders on it like on any volume. Several NAS can mount the same CephFS at once.
+- An **RBD image** becomes a volume formatted in ext4, XFS or Btrfs, for **one NAS only**: mounting it on two NAS at once would corrupt it, so StrataOS refuses an image another client already uses.
+- **VM storage**: an RBD pool where the disks of virtual machines live; it appears in "Disk locations" when you create a VM from an ISO.
+
+Ceph volumes are mounted by StrataOS once the cluster answers, so a NAS starts normally even when the others are off.
+
+**Limits**: Ceph needs most of the cluster to work: with 3 NAS, one may stop; if two stop, the data waits for them. Cloud images and imported VMs cannot be put on Ceph yet (only VMs installed from an ISO). Snapshots and backups of Ceph volumes go through the usual tools of the volume (Btrfs snapshots, backup tasks), not through Ceph. Changing the networks of an existing cluster is not possible from the interface.

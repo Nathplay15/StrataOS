@@ -227,3 +227,28 @@ L'**application StrataOS pour Android** (Android 8 et plus) parcourt vos fichier
 - **Verrouillage** : « Déverrouiller par empreinte ou verrouillage d'écran » protège l'application sur un téléphone partagé.
 
 Téléphone perdu ou remplacé ? Menu du compte → Appareils mobiles → « Révoquer » : l'application de ce téléphone est déconnectée immédiatement et cesse de sauvegarder.
+
+## 23. Ceph
+
+**Ceph** répartit les données sur les disques de plusieurs NAS et garde chaque morceau sur plusieurs d'entre eux (3 copies par défaut, sur 3 NAS différents) : un disque, ou un NAS entier, peut s'arrêter sans perte de données et sans interruption. StrataOS installe Ceph depuis Debian (Paramètres → Composants → **Ceph**) et le pilote lui-même ; il peut aussi utiliser un cluster Ceph géré ailleurs.
+
+**Quand est-ce utile** : à partir de **3 NAS** (en dessous, il n'y a aucune tolérance aux pannes : StrataOS ne le permet qu'en « mode test »), sur un réseau rapide (**10 Gb/s conseillé** ; 1 Gb/s fonctionne mais limite les écritures, qui vont vers chaque copie), avec environ **4 Go de RAM par disque** confié à Ceph en plus de ce que le NAS utilise déjà (StrataOS réduit les caches sur les NAS de moins de 6 Go, ce qui est plus lent). Pour un seul NAS, le RAID, Btrfs ou ZFS restent plus simples et plus rapides ; pour une copie de secours, utilisez la haute disponibilité (section 18).
+
+**Créer un cluster** : installez le composant Ceph sur chaque NAS. Sur le premier, Stockage → **Ceph** → « Créer un cluster Ceph » : donnez-lui un nom et choisissez le réseau que partagent les NAS (éventuellement un second réseau pour les copies entre NAS). Sur chacun des autres, « Rejoindre un cluster » affiche un code à usage unique : saisissez son adresse et son code sur le premier NAS. Choisissez ensuite les disques confiés à Ceph sur chaque NAS (disques vierges ; ceux qui contiennent d'anciennes données sont effacés après que vous avez tapé le nom du cluster ; le disque système et les disques des volumes StrataOS ne sont jamais proposés) et ce qu'il faut créer : un **pool RBD** (périphériques en mode bloc) et/ou un système de fichiers **CephFS**. StrataOS met en place les moniteurs (sur 3 NAS), les gestionnaires, les disques (BlueStore) et les pools ; les groupes de placement sont dimensionnés automatiquement.
+
+**La page Ceph** montre l'état de santé (avec une explication de chaque avertissement), la capacité, les disques et services de chaque NAS, les groupes de placement, la reconstruction et le trafic des clients. Un changement d'état est notifié comme les autres alertes. Depuis cette page :
+
+- **Ajouter un disque**, ou en **Retirer** un : Ceph recopie d'abord ses données sur les autres disques, puis le disque est effacé. **Remplacer** met un nouveau disque à la place d'un disque en panne (il garde son numéro).
+- Le **mode maintenance** empêche Ceph de déplacer les données pendant que vous redémarrez un NAS.
+- **Ajouter à Ceph** un autre membre du cluster, ou retirer un NAS qui n'a plus de disque.
+- Les **clés clientes** donnent à un autre NAS ou ordinateur l'accès à un seul pool ou système de fichiers.
+
+**Utiliser Ceph comme stockage** (Ceph → Stockage de ce NAS, aussi pour un cluster externe : saisissez les adresses de ses moniteurs, un utilisateur Ceph et sa clé, qui reste sur le NAS, lisible par le système seul ; « Tester la connexion » les vérifie d'abord) :
+
+- **CephFS** devient un volume du NAS : créez-y des dossiers partagés comme sur n'importe quel volume. Plusieurs NAS peuvent monter le même CephFS en même temps.
+- Une **image RBD** devient un volume formaté en ext4, XFS ou Btrfs, pour **un seul NAS** : la monter sur deux NAS à la fois la corromprait, StrataOS refuse donc une image déjà utilisée par un autre client.
+- **Stockage des VM** : un pool RBD où vivent les disques des machines virtuelles ; il apparaît dans « Emplacement des disques » quand vous créez une VM depuis un ISO.
+
+StrataOS monte les volumes Ceph dès que le cluster répond : un NAS démarre donc normalement même quand les autres sont éteints.
+
+**Limites** : Ceph a besoin de la majorité du cluster : avec 3 NAS, un seul peut s'arrêter ; si deux s'arrêtent, les données attendent leur retour. Les images cloud et les VM importées ne peuvent pas encore aller sur Ceph (seules les VM installées depuis un ISO). Les instantanés et sauvegardes des volumes Ceph passent par les outils habituels du volume (instantanés Btrfs, tâches de sauvegarde), pas par Ceph. Les réseaux d'un cluster existant ne peuvent pas être changés depuis l'interface.

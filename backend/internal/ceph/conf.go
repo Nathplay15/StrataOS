@@ -67,6 +67,9 @@ func Config(p ConfParams) string {
 		kv(k, "cephx")
 	}
 	kv("auth_allow_insecure_global_id_reclaim", "false")
+	// Only the manager modules StrataOS reads (the default restful and nfs
+	// modules need packages it does not install, and would warn).
+	kv("mgr_initial_modules", "iostat")
 	size, minSize := p.Size, p.MinSize
 	if size < 1 {
 		size = 3

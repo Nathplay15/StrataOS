@@ -15,6 +15,8 @@ StrataOS/
 │   │   ├── system/     Monitoring, services, logs, network, updates, restore points
 │   │   ├── jobs/       Background jobs
 │   │   ├── scheduler/  Scheduled tasks (snapshots and retention, scrubs, SMART…)
+│   │   ├── cluster/    Cluster of NAS: members, their addresses, authenticated peer calls
+│   │   ├── ceph/       Ceph: ceph.conf and keys, daemons of the node, status parsing, CephFS/RBD clients
 │   │   ├── i18n/       Translation of notifications and reports
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
@@ -68,6 +70,7 @@ Details in [vm/README.md](../vm/README.md).
 | `make test` | Go unit tests |
 | `make vm-test` | Full end-to-end suite on a fresh VM (about 360 checks, ~40 min) |
 | `make ha-test` | High availability with three VMs |
+| `make ceph-test` | Ceph cluster of three VMs (1280 MB each, about an hour): wizard API, CephFS/RBD volumes, VM storage, external key, disk removal, a NAS down and back |
 | `make upgrade-test` | Installs the previous release, fills it, upgrades to the current code |
 | `make arm64-test` | The arm64 package in an emulated ARM VM |
 | `vm/iso-test.sh <iso>` | Installs an ISO in a blank VM |
@@ -77,6 +80,12 @@ Details in [vm/README.md](../vm/README.md).
 `vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
+
+## Cluster of NAS and Ceph
+
+A **cluster** (`internal/cluster`, `api/h_cluster.go`, state `State.Cluster`) is a group of NAS that trust each other; the VM clustering will build on it. A NAS joins with a one-time code it shows (`POST /api/cluster/prepare`), typed on a member (`POST /api/cluster/members`); like the high availability pairing, each side pins the other's HTTPS certificate fingerprint, and members then call each other on `/api/cluster/peer/*` with the shared token in `X-Strata-Cluster`. Each member has an address in the cluster's public network (and private network, when there is one) and roles (`mon`, `mgr`, `mds`, `osd`).
+
+**Ceph** (`internal/ceph`, `api/h_ceph.go`, `api/h_ceph_storage.go`) uses the Debian packages (`packaging/scripts/install-ceph.sh`) and their systemd units, without cephadm. The NAS where the administrator works orchestrates: it builds the fsid, the keys and the monitor map, then each node runs `/api/cluster/peer/ceph/<op>` on itself (`base`, `mon`, `mgr`, `mds`, `osd`, `osd-stop`, `osd-zap`, `daemon-remove`, `purge`). Daemon names are the short host names, read by each node itself. Keys stay in `/etc/ceph` and `/etc/ceph/strata` (root only); `ceph.RedactKeys` removes them from job logs and errors. Ceph volumes are ordinary volumes (`State.Volumes`) plus a `State.Ceph.Volumes` entry; their fstab lines are `noauto` and `cephLoop` mounts them (mapping RBD images first) once the cluster answers, and sends the health notifications from the NAS whose monitor leads the quorum. VM disks on Ceph use a libvirt RBD pool (`vms/rbd.go`, `CreateReq.Storage` = `rbd:<pool>`).
 
 ## Android app
 
