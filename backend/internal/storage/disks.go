@@ -88,7 +88,7 @@ type BlockDevice struct {
 	// Computed fields (disks only).
 	Kind   string `json:"kind,omitempty"`   // hdd | ssd | nvme | usb | virtual
 	System bool   `json:"system,omitempty"` // hosts the running OS
-	Usage  string `json:"usage,omitempty"`  // free | raid | lvm | zfs | btrfs | filesystem | partitioned | system
+	Usage  string `json:"usage,omitempty"`  // free | raid | lvm | zfs | btrfs | filesystem | partitioned | system | ceph
 	UsedBy string `json:"usedBy,omitempty"` // name of the array/pool/volume group using it
 }
 
@@ -148,7 +148,8 @@ func ListDisks() ([]BlockDevice, error) {
 	}
 	var disks []BlockDevice
 	for _, d := range all {
-		if d.Type != "disk" || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") || d.Size == 0 {
+		// Ceph RBD and NBD devices are network block devices, not disks of the NAS.
+		if d.Type != "disk" || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") || strings.HasPrefix(d.Name, "rbd") || strings.HasPrefix(d.Name, "nbd") || d.Size == 0 {
 			continue
 		}
 		classify(&d)
@@ -224,6 +225,10 @@ func classify(d *BlockDevice) {
 	if d.Usage == "lvm" {
 		if vg := pvVG(d.Path); vg != "" {
 			d.UsedBy = vg
+			// ceph-volume names the LVM group of each OSD ceph-<uuid>.
+			if strings.HasPrefix(vg, "ceph-") {
+				d.Usage = "ceph"
+			}
 		}
 	}
 }

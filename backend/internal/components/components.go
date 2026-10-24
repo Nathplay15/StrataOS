@@ -105,6 +105,11 @@ var All = []Component{
 		Caches:   []string{"/var/cache/strata-minidlna"}},
 	{ID: "nvr", Name: "Surveillance recorder",
 		Packages: []string{"ffmpeg"}},
+	{ID: "ceph", Name: "Ceph",
+		Packages: []string{"ceph-mon", "ceph-mgr", "ceph-osd", "ceph-mds", "ceph-volume", "ceph-common", "ceph-base", "ceph-mgr-modules-core"},
+		Services: []string{"ceph.target", "ceph-mon.target", "ceph-mgr.target", "ceph-osd.target", "ceph-mds.target", "ceph-crash.service"},
+		Files:    []string{"/etc/ceph/strata", "/etc/ceph/ceph.conf", "/etc/ceph/ceph.client.admin.keyring", "/etc/ceph/rbdmap"},
+		Data:     []string{"/var/lib/ceph"}},
 	{ID: "docpreview", Name: "Document previews",
 		Packages: []string{"libreoffice-core-nogui", "libreoffice-writer-nogui", "libreoffice-calc-nogui", "libreoffice-impress-nogui", "libreoffice-draw-nogui", "fonts-crosextra-carlito", "fonts-crosextra-caladea"},
 		Caches:   []string{"/var/cache/strata/previews"}},
@@ -256,6 +261,8 @@ type Facts struct {
 	AVSchedules []string // enabled scheduled scans
 	Tailscale   bool     // signed in
 	Tunnel      bool
+	CephNode    bool     // node of a Ceph cluster
+	CephUse     []string // Ceph volumes and VM storage of this NAS
 }
 
 func list(names []string) string {
@@ -288,6 +295,13 @@ func Blockers(id string, f Facts) []Blocker {
 	case "iscsi":
 		if len(f.Targets) > 0 {
 			hard("iSCSI targets: %s (delete them first)", list(f.Targets))
+		}
+	case "ceph":
+		if f.CephNode {
+			hard("This NAS is a node of a Ceph cluster (remove it from Ceph first)")
+		}
+		if len(f.CephUse) > 0 {
+			hard("Ceph storage in use: %s (remove it first)", list(f.CephUse))
 		}
 	case "ha":
 		if f.HARole != "" {

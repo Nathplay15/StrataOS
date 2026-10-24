@@ -116,6 +116,7 @@ func New(c Config) *Server {
 	go s.consoleLoop()
 	go s.mobileUploadsLoop()
 	go s.rpiKernelResume()
+	go s.cephLoop()
 	return s
 }
 
@@ -262,6 +263,8 @@ func (s *Server) routes() {
 	s.mobileRoutes()
 	s.mobileUploadRoutes()
 	s.rpiKernelRoutes()
+	s.clusterRoutes()
+	s.cephRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

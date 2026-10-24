@@ -140,6 +140,18 @@ func (s *Server) componentFacts(ctx context.Context, id string) components.Facts
 			}
 		}
 		f.Tunnel = st.Remote.Tunnel.Enabled
+		f.CephNode = st.Ceph.Local != nil
+		for _, v := range st.Ceph.Volumes {
+			if x := st.Volume(v.VolumeID); x != nil {
+				f.CephUse = append(f.CephUse, x.Name)
+			}
+		}
+		for _, p := range st.Ceph.VMPools {
+			f.CephUse = append(f.CephUse, p.Name)
+		}
+		for _, e := range st.Ceph.External {
+			f.CephUse = append(f.CephUse, e.Name)
+		}
 	})
 	// The slower checks only for the component concerned.
 	switch id {

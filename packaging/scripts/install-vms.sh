@@ -8,6 +8,8 @@ case "$(dpkg --print-architecture)" in
   *) emu="qemu-system-x86 ovmf" ;;
 esac
 apt-get install -y --no-install-recommends $emu qemu-utils libvirt-daemon-system libvirt-clients virtinst swtpm swtpm-tools dnsmasq-base xorriso pciutils
+# VM disks on Ceph when the Ceph component is there.
+if command -v rbd >/dev/null; then apt-get install -y --no-install-recommends libvirt-daemon-driver-storage-rbd qemu-block-extra; fi
 # libvirtd's socket can start the daemon during the install, before the
 # package has created its libvirt-qemu user: it then fails in a loop and hits
 # systemd's start limit. Clear that and start it now that everything exists.

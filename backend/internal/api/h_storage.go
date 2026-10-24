@@ -365,6 +365,9 @@ func (s *Server) storageRoutes() {
 		if storage.IsMountpoint(v.MountPoint) {
 			return nil, nil
 		}
+		if cv, ok := s.cephVolumeOf(v.ID); ok {
+			return nil, s.cephMountVolume(r.Context(), *v, cv)
+		}
 		_, _, _, err = storage.MountExisting(v.Name, storage.FindByUUID(v.UUID))
 		return nil, err
 	})
@@ -395,6 +398,13 @@ func (s *Server) storageRoutes() {
 		devices := storage.DevicesByUUID(v.UUID)
 		if err := storage.UnmountVolume(v.MountPoint); err != nil {
 			return nil, err
+		}
+		if _, ok := s.cephVolumeOf(v.ID); ok {
+			// Ceph volume: unmap it; wipe deletes an RBD image StrataOS created.
+			if err := s.cephDetachVolume(r.Context(), *v, wipe); err != nil {
+				return nil, err
+			}
+			wipe = false
 		}
 		if wipe && v.ManagedVG != "" {
 			// The LVM group made for the volume goes, freeing the disks and the SSD.

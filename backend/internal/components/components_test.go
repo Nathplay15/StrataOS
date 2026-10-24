@@ -28,7 +28,7 @@ func TestTable(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []string{"zfs", "docker", "nut", "vms", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview"} {
+	for _, id := range []string{"zfs", "docker", "nut", "vms", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview", "ceph"} {
 		if Find(id) == nil {
 			t.Errorf("component %s missing", id)
 		}
