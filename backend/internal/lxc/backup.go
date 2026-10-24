@@ -91,7 +91,7 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 	if unlock == nil {
 		return "", 0, busy(name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(name)
 	if err != nil {
 		return "", 0, err
@@ -174,7 +174,7 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 	}
 	argv := append(usernsArgs(s), "tar", "--create", "--format=posix")
 	argv = append(argv, tarCommon...)
-	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,`, "--exclude=./dev/*", ".")
+	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,`, "--exclude=./dev/*", "--exclude=./lost+found", ".")
 	cmd := command(ctx, argv)
 	cmd.Stdout = out
 	errb := &limitedText{max: 8 << 10}
@@ -402,7 +402,7 @@ func Import(ctx context.Context, r ImportReq, logf func(string, ...any)) (err er
 	if unlock == nil {
 		return busy(s.Name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	if _, err := os.Stat(Dir(s.Name)); err == nil {
 		return fmt.Errorf("a container named %s already exists", s.Name)
 	}
@@ -529,7 +529,7 @@ func adopt(ctx context.Context, base string, r ImportReq, logf func(string, ...a
 	if unlock == nil {
 		return busy(s.Name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	if _, err := os.Stat(Dir(s.Name)); err == nil {
 		return fmt.Errorf("a container named %s already exists", s.Name)
 	}
@@ -601,7 +601,7 @@ func shiftOwners(ctx context.Context, s *Spec, from, to IDMap) error {
 	}
 	a, b := *s, *s
 	a.IDMap, b.IDMap = from, to
-	pack := command(ctx, append(usernsArgs(&a), "tar", "--create", "--format=posix", "--numeric-owner", "--xattrs", "--xattrs-include=*", "--acls", "--file=-", "-C", rootfs, "--exclude=./"+shift, "."))
+	pack := command(ctx, append(usernsArgs(&a), "tar", "--create", "--format=posix", "--numeric-owner", "--xattrs", "--xattrs-include=*", "--acls", "--file=-", "-C", rootfs, "--exclude=./"+shift, "--exclude=./lost+found", "."))
 	unpack := command(ctx, append(usernsArgs(&b), "tar", "--extract", "--same-permissions", "--numeric-owner", "--xattrs", "--xattrs-include=*", "--acls", "--file=-", "-C", tmp))
 	r, err := pack.StdoutPipe()
 	if err != nil {

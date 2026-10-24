@@ -250,7 +250,7 @@ func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) (err er
 	if unlock == nil {
 		return busy(r.Name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	if err := ValidName(r.Name); err != nil {
 		return err
 	}
@@ -463,7 +463,7 @@ func Start(ctx context.Context, name string) error {
 	if unlock == nil {
 		return busy(name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(name)
 	if err != nil {
 		return err
@@ -583,7 +583,7 @@ func Update(ctx context.Context, name string, set Settings) (restart bool, err e
 	if unlock == nil {
 		return false, busy(name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(name)
 	if err != nil {
 		return false, err
@@ -608,7 +608,8 @@ func Update(ctx context.Context, name string, set Settings) (restart bool, err e
 		}
 	}
 	running := State(name) == "running"
-	if set.SizeGB != s.Storage.SizeGB && n.Storage.Backend != "dir" {
+	// 0: size unchanged.
+	if set.SizeGB != 0 && set.SizeGB != s.Storage.SizeGB && n.Storage.Backend != "dir" {
 		be, err := BackendFor(n.Storage.Backend)
 		if err != nil {
 			return false, err
@@ -670,7 +671,7 @@ func Delete(ctx context.Context, name string) error {
 	if unlock == nil {
 		return busy(name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(name)
 	if err != nil {
 		return err
@@ -702,7 +703,7 @@ func Clone(ctx context.Context, src, dst string, logf func(string, ...any)) (err
 	if unlock == nil {
 		return busy(src)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(src)
 	if err != nil {
 		return err
@@ -770,7 +771,7 @@ func Rename(ctx context.Context, name, newName string) error {
 	if unlock == nil {
 		return busy(name)
 	}
-	defer unlock()
+	defer func() { unlock() }()
 	s, err := Load(name)
 	if err != nil {
 		return err
