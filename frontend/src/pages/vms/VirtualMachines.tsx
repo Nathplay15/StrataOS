@@ -264,7 +264,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
         <Field label={tr("Virtual CPUs")}><Input type="number" min={1} max={64} value={f.vcpus} onChange={(e) => set({ vcpus: +e.target.value })} /></Field>
         <Field label={tr("Memory (MiB)")}><Input type="number" min={256} step={256} value={f.memoryMb} onChange={(e) => set({ memoryMb: +e.target.value })} /></Field>
         {source !== "import" && <Field label={tr("Disk size (GiB)")} hint={tr("Thin-provisioned (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>}
-        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
+        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect ceph={source === "iso"} value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
         {source === "iso" && (
           <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
             <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>

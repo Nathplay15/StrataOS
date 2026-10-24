@@ -18,6 +18,7 @@ const usageLabel: Record<string, [string, "neutral" | "ok" | "warn" | "danger" |
   btrfs: [tr("Btrfs"), "accent"],
   filesystem: [tr("File system"), "warn"],
   partitioned: [tr("Partitioned"), "warn"],
+  ceph: ["Ceph", "accent"],
 };
 
 const kindLabel: Record<string, string> = { hdd: "HDD", ssd: "SSD", nvme: "NVMe", usb: "USB", virtual: "Virtuel" };
@@ -145,7 +146,7 @@ export default function Disks() {
                 <div className="flex justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
                   <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>
                   {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
-                  {!d.system && d.usage !== "free" && (
+                  {!d.system && d.usage !== "free" && d.usage !== "ceph" && (
                     <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
                   )}
                 </div>

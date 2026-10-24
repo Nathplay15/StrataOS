@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend catalog-texts backend build deb repo iso docs dev clean test vm-test ha-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend catalog-texts backend build deb repo iso docs dev clean test vm-test ha-test ceph-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -61,6 +61,10 @@ vm-test: deb
 
 ha-test: deb
 	./vm/ha-test.sh
+
+# Ceph cluster of three VMs (1280 MB each, about an hour), separate from vm-test.
+ceph-test: deb
+	./vm/ceph-test.sh
 
 # Upgrade from the previous version (latest git tag, or OLD_REF=<ref>) with data.
 upgrade-test: deb

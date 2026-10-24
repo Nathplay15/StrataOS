@@ -14,6 +14,7 @@ const Lvm = lazy(() => import("../pages/storage/Lvm"));
 const Iscsi = lazy(() => import("../pages/storage/Iscsi"));
 const SpaceAnalyzer = lazy(() => import("../pages/storage/SpaceAnalyzer"));
 const Duplicates = lazy(() => import("../pages/storage/Duplicates"));
+const Ceph = lazy(() => import("../pages/storage/Ceph"));
 const Shares = lazy(() => import("../pages/Shares"));
 const UsersPage = lazy(() => import("../pages/Users"));
 const Files = lazy(() => import("../pages/Files"));
@@ -91,6 +92,7 @@ export const APPS: AppDef[] = [
       { id: "zfs", label: "ZFS", icon: <Boxes size={16} />, component: page(Zfs), path: "/storage/zfs" },
       { id: "lvm", label: "LVM", icon: <Server size={16} />, component: page(Lvm), path: "/storage/lvm" },
       { id: "iscsi", label: "iSCSI", icon: <HardDriveUpload size={16} />, component: page(Iscsi), path: "/storage/iscsi" },
+      { id: "ceph", label: "Ceph", icon: <Network size={16} />, component: page(Ceph), path: "/storage/ceph" },
       { id: "disks", label: tr("Disks"), icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
       { id: "analyzer", label: tr("Space analyzer"), icon: <PieChart size={16} />, component: page(SpaceAnalyzer), path: "/storage/analyzer" },
       { id: "duplicates", label: tr("Duplicates"), icon: <Copy size={16} />, component: page(Duplicates), path: "/storage/duplicates" },
