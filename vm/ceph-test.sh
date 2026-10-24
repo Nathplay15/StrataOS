@@ -56,12 +56,22 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable --now lan-ip.service"
 }
 cleanup_vms() { [ -n "${KEEP:-}" ] && return; for i in 1 2 3; do N "$i" destroy >/dev/null 2>&1; done; }
+# On failure: what the NAS logged, to debug without keeping the VMs.
+diag() {
+  [ "$FAILS" -eq 0 ] && return
+  for i in 1 2 3; do
+    N "$i" status | grep -q running || continue
+    printf '\n--- ceph%s ---\n' "$i"
+    N "$i" ssh 'sudo journalctl -u strata --no-pager -n 40 -o cat; sudo timeout 20 ceph -s 2>&1 | head -30; free -m; sudo dmesg | grep -i -E "oom|killed process" | tail -5' 2>&1
+  done
+}
 
 section "Three VMs on a shared LAN"
 for i in 1 2 3; do N "$i" destroy >/dev/null 2>&1; done
 for i in 1 2 3; do (N "$i" create >"$T/create$i.log" 2>&1 && N "$i" deploy "$DEB" >>"$T/create$i.log" 2>&1; echo $? >"$T/create$i.rc") & done
 wait
 for i in 1 2 3; do [ "$(cat "$T/create$i.rc")" = 0 ] || { tail -20 "$T/create$i.log"; cleanup_vms; exit 1; }; done
+trap 'diag; cleanup_vms' INT TERM
 for i in 1 2 3; do lan_ip "$i"; done
 check "LAN between the VMs" "$(N 3 ssh 'ping -c1 -W2 10.98.0.1 >/dev/null && ping -c1 -W2 10.98.0.2 >/dev/null && echo up')" "up"
 for i in 1 2 3; do
@@ -70,6 +80,7 @@ for i in 1 2 3; do
 done
 for i in 1 2 3; do echo "$(api "$i" POST /api/system/components/ceph/install)" >"$T/inst$i"; done
 for i in 1 2 3; do check "Ceph component on ceph$i" "$(job "$i" "$(cat "$T/inst$i")")" "success"; done
+[ "$FAILS" -eq 0 ] || { diag; cleanup_vms; exit 1; }
 check "Ceph installed" "$(api 1 GET /api/ceph | py 'print(d["installed"], d["version"][:2])')" "True 18"
 N 1 ssh 'free -m | sed -n 2p' | sed 's/^/  RAM after install, ceph1: /'
 
@@ -98,6 +109,7 @@ check "system disk refused" "$(api 1 GET /api/ceph/disks | py 'print([x["reason"
 T0=$(date +%s)
 check "cluster bootstrap" "$(job 1 "$(api 1 POST /api/ceph/bootstrap -d "{\"disks\":$DISKS,\"rbd\":true,\"cephfs\":true}")" 400)" "success"
 echo "  bootstrap took $(( $(date +%s) - T0 )) s"
+[ "$FAILS" -eq 0 ] || { diag; cleanup_vms; exit 1; }  # nothing else can work
 check "healthy" "$(wait_healthy 1 600)" "ok"
 api 1 GET /api/ceph | py 'st=d["status"]; print("  ", st["health"]["status"], [c["code"]+": "+c["message"] for c in st["health"]["checks"]], st["pgStates"])'
 check "3 monitors in quorum, 3 OSDs up" "$(api 1 GET /api/ceph | py 'st=d["status"]; print(len(st["quorum"]), st["osdsUp"], st["mgrAvailable"])')" "3 3 True"
@@ -215,5 +227,6 @@ check "cluster dissolved" "$(api 1 POST /api/cluster/leave) $(api 2 GET /api/clu
 check "Ceph component uninstalled" "$(job 1 "$(api 1 POST /api/system/components/ceph/uninstall -d '{}')") $(N 1 ssh 'command -v ceph-mon || echo gone')" "gone"
 
 printf '\n%s passed, %s failed in %d min\n' "$PASSES" "$FAILS" $(( ($(date +%s) - START) / 60 ))
+diag
 cleanup_vms
 [ "$FAILS" -eq 0 ]
