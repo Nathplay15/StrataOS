@@ -149,26 +149,33 @@ func TestGenerateConfig(t *testing.T) {
 
 func TestValidateSpec(t *testing.T) {
 	bad := map[string]func(s *Spec){
-		"traversal mount":  func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/../etc", Target: "/mnt/x"}} },
-		"outside volumes":  func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/etc", Target: "/mnt/x"}} },
-		"system target":    func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/etc/x"}} },
-		"relative target":  func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "mnt"}} },
-		"root target":      func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/"}} },
-		"newline target":   func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/mnt/a\nlxc.x = 1"}} },
-		"twice":            func(s *Spec) { m := Mount{Share: "x", Source: "/srv/strata/main/x", Target: "/mnt/x"}; s.Mounts = []Mount{m, m} },
-		"container folder": func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/.strata-lxc/db", Target: "/mnt/x"}} },
-		"bridge name":      func(s *Spec) { s.Network = Network{Mode: "bridge", Bridge: "br0 x"} },
-		"mac":              func(s *Spec) { s.Network.MAC = "01:00:5e:00:00:01" },
-		"mac format":       func(s *Spec) { s.Network.MAC = "00:16:3e:01:02" },
-		"address":          func(s *Spec) { s.Network.Address = "192.168.1.300/24" },
-		"ipv6 address":     func(s *Spec) { s.Network.Address = "fd00::5/64" },
-		"gateway":          func(s *Spec) { s.Network.Address, s.Network.Gateway = "10.0.3.9/24", "x" },
-		"dns":              func(s *Spec) { s.Network.Address, s.Network.DNS = "10.0.3.9/24", []string{"a;b"} },
-		"memory":           func(s *Spec) { s.MemoryMB = 10 },
-		"cpus":             func(s *Spec) { s.CPUs = -1 },
-		"include":          func(s *Spec) { s.Includes = []string{"/etc/shadow"} },
-		"order":            func(s *Spec) { s.AutostartOrder = 5000 },
-		"idmap root":       func(s *Spec) { s.IDMap.UIDs = []int{0} },
+		"traversal mount": func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/../etc", Target: "/mnt/x"}} },
+		"outside volumes": func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/etc", Target: "/mnt/x"}} },
+		"system target":   func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/etc/x"}} },
+		"relative target": func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "mnt"}} },
+		"root target":     func(s *Spec) { s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/"}} },
+		"newline target": func(s *Spec) {
+			s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/x", Target: "/mnt/a\nlxc.x = 1"}}
+		},
+		"twice": func(s *Spec) {
+			m := Mount{Share: "x", Source: "/srv/strata/main/x", Target: "/mnt/x"}
+			s.Mounts = []Mount{m, m}
+		},
+		"container folder": func(s *Spec) {
+			s.Mounts = []Mount{{Share: "x", Source: "/srv/strata/main/.strata-lxc/db", Target: "/mnt/x"}}
+		},
+		"bridge name":  func(s *Spec) { s.Network = Network{Mode: "bridge", Bridge: "br0 x"} },
+		"mac":          func(s *Spec) { s.Network.MAC = "01:00:5e:00:00:01" },
+		"mac format":   func(s *Spec) { s.Network.MAC = "00:16:3e:01:02" },
+		"address":      func(s *Spec) { s.Network.Address = "192.168.1.300/24" },
+		"ipv6 address": func(s *Spec) { s.Network.Address = "fd00::5/64" },
+		"gateway":      func(s *Spec) { s.Network.Address, s.Network.Gateway = "10.0.3.9/24", "x" },
+		"dns":          func(s *Spec) { s.Network.Address, s.Network.DNS = "10.0.3.9/24", []string{"a;b"} },
+		"memory":       func(s *Spec) { s.MemoryMB = 10 },
+		"cpus":         func(s *Spec) { s.CPUs = -1 },
+		"include":      func(s *Spec) { s.Includes = []string{"/etc/shadow"} },
+		"order":        func(s *Spec) { s.AutostartOrder = 5000 },
+		"idmap root":   func(s *Spec) { s.IDMap.UIDs = []int{0} },
 	}
 	for name, f := range bad {
 		s := testSpec()

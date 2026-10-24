@@ -491,6 +491,8 @@ export interface BackupTask {
   running?: boolean;
   // Virtual machines backed up with the folders (see pages/system/BackupVMs.tsx).
   vms?: string[];
+  // LXC containers backed up with the folders (lxc/<name>.tar.zst at the destination).
+  containers?: string[];
   vmMode?: "" | "snapshot" | "suspend" | "shutdown";
 }
 

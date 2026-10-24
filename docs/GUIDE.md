@@ -163,6 +163,23 @@ Each VM can take **Snapshots** (with its memory if it is running) and be **Clone
 
 **PCI passthrough** (turn on "Advanced") gives a whole device, such as a graphics card, to a VM. It is for experienced users: a wrong device can make the NAS unreachable.
 
+### Containers (LXC)
+
+The same app runs **LXC containers**: light Linux systems that share the NAS's kernel. Install them from the app (or Settings → Components), then **Create → Container (LXC)**: pick an image (Debian 12 and 13, Ubuntu LTS, Alpine, Fedora, Arch, Rocky… downloaded from images.linuxcontainers.org and checked with their GPG signature), a name, a volume and the limits. Containers and VMs share one list; the filter above it shows one kind or the other.
+
+**Container or VM?** A container starts in a second and uses almost no memory of its own, which suits Linux services (a web server, Pi-hole, Home Assistant Core, a small database, Docker). Take a VM for Windows, another kernel, kernel modules, or when you want the strongest isolation.
+
+- **Unprivileged** (the default): the container's users are shifted to ids 100000 and up of the NAS, so its root is a nobody on the NAS. **Privileged** containers use the NAS's ids as they are: something that escapes one controls the NAS. Only use them for software that cannot run otherwise; the choice cannot be changed later.
+- **Storage**: on a Btrfs volume, a subvolume; on a ZFS dataset, a dataset; elsewhere a **disk image** (an ext4 file). These three enforce the disk size. A plain **folder** works anywhere but has no size limit.
+- **Limits**: CPU (in cores), memory and swap apply at once, even to a running container; the disk can grow later. Inside, `free` and `top` show the limits.
+- **Network**: NAT (a private network behind the NAS, 10.0.3.0/24) or a bridge on the local network (the same bridges as the VMs), with DHCP or a static address. The address is shown in the list. VLAN tags are not supported (VMs do not have them either).
+- **Shared folders** are mounted inside (read-only or read-write). In an unprivileged container their files appear as "nobody": in the **Shared folders** tab, keep the number of some StrataOS accounts or groups, then create users with the same number in the container (`useradd -u 1001 alice`) to read and write their files.
+- **Options**: *nesting* and *keyctl* to run Docker inside, *FUSE*, *TUN* for VPN software; start with the NAS, in order and with a delay.
+- The **Console** tab opens a root shell in the browser, or the container's own console (its login prompt; set a root password when you create it). **Resources** draws CPU, memory, network and disk graphs.
+- **Snapshots** save the root file system (not the memory); restore one with the container stopped. On ZFS, restoring removes the snapshots taken after it. **Backups** writes a `.tar.zst` archive to a shared folder (from a snapshot when the container runs), and backup tasks can include containers next to folders and VMs. **Import a backup** (in the creation wizard) restores one on this NAS or another, and also adds a container folder found on a volume moved from another NAS.
+
+Containers keep running while StrataOS updates or restarts, and the ones marked "start with the NAS" start again after a reboot. The Containers component cannot be uninstalled while containers exist.
+
 ## 16. Surveillance
 
 The **Surveillance** page records network cameras (RTSP or MJPEG) with the built-in recorder.
