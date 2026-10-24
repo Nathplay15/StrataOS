@@ -50,6 +50,9 @@ fun visibleSections(all: List<ManageSection>, admin: Boolean): List<ManageSectio
 
 private const val STATUS = "status"
 
+/** Opens a folder of the NAS in the Files tab (from a management area: snapshots, shares…). */
+val LocalOpenInFiles = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
+
 /**
  * The Manage tab: the NAS status and the management areas. Phones show a
  * grid and open an area full screen; tablets keep the list beside the area.

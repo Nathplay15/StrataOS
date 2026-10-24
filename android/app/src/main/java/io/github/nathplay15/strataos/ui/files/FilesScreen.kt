@@ -165,12 +165,13 @@ fun FilesScreen(path: String, setPath: (String) -> Unit, accountAction: @Composa
 @Composable
 private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -> Unit, accountAction: @Composable () -> Unit, showPdf: (FileEntry, File) -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val prefs = remember { BrowserPrefs(ctx) }
     var order by remember { mutableStateOf(prefs.order) }
     var grid by remember { mutableStateOf(prefs.grid) }
     val inRecycle = path.contains("/.recycle")
-    val load = rememberLoad(path) { api().listFiles(path, hidden = inRecycle) }
+    val load = rememberLoad(path) { api().listFiles(path, hidden = inRecycle || path.contains("/.snapshots")) }
     val shares = rememberLoad(Unit) { runCatching { api().shares() }.getOrDefault(emptyList()) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -263,7 +264,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
             OfflineSyncWorker.schedule(ctx)
         }
         favTick++
-        toast(ctx, ctx.getString(if (offline) R.string.a_offline_added else R.string.a_favorite_added, items.size))
+        toast(ctx, res.getString(if (offline) R.string.a_offline_added else R.string.a_favorite_added, items.size))
     }
 
     val saveOne = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
@@ -272,7 +273,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
         if (uri != null) fetch(e) { f ->
             scope.launch {
                 runCatching { withContext(Dispatchers.IO) { copyToUri(ctx, f, uri) } }
-                    .onSuccess { toast(ctx, ctx.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
+                    .onSuccess { toast(ctx, res.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
             }
         }
     }
@@ -280,9 +281,9 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
         val items = saving
         saving = emptyList()
         if (tree != null && items.isNotEmpty()) scope.launch {
-            progress = ctx.getString(R.string.preparing) to 0f
+            progress = res.getString(R.string.preparing) to 0f
             runCatching { withContext(Dispatchers.IO) { saveToTree(ctx, tree, items) { i -> progress = items[i].name to i.toFloat() / items.size } } }
-                .onSuccess { toast(ctx, ctx.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
+                .onSuccess { toast(ctx, res.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
             progress = null
         }
     }
@@ -294,11 +295,11 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         val folder = list?.path ?: return@rememberLauncherForActivityResult
         if (uris.isNotEmpty()) scope.launch {
-            progress = ctx.getString(R.string.preparing) to 0f
+            progress = res.getString(R.string.preparing) to 0f
             val dir = withContext(Dispatchers.IO) { stageUris(ctx, uris) }
             progress = null
             UploadWorker.enqueue(ctx, folder, dir)
-            toast(ctx, ctx.getString(R.string.upload_started, uris.size))
+            toast(ctx, res.getString(R.string.upload_started, uris.size))
         }
     }
 
@@ -493,7 +494,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                     val r = api().trashFiles(items.map { it.path })
                     items.forEach { favorites.remove(it.path) }
                     withContext(Dispatchers.Main) {
-                        toast(ctx, if (r.recycled > 0) ctx.getString(R.string.a_moved_to_bin, r.recycled) else ctx.getString(R.string.a_deleted_n, r.deleted))
+                        toast(ctx, if (r.recycled > 0) res.getString(R.string.a_moved_to_bin, r.recycled) else res.getString(R.string.a_deleted_n, r.deleted))
                     }
                 }
             },

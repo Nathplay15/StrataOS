@@ -164,6 +164,7 @@ private fun Tabs(tab: Int, onTab: (Int) -> Unit) {
 @Composable
 private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs: @Composable () -> Unit = {}, onBack: (() -> Unit)? = null, onAlbumGone: () -> Unit = {}) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val act = rememberActions()
     var query by rememberSaveable { mutableStateOf("") }
@@ -288,11 +289,12 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                     else -> R.string.a_no_photos
                 }))
                 total < 0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator() }
-                else -> LazyVerticalGrid(GridCells.Adaptive(100.dp), Modifier.fillMaxSize(), state = grid, contentPadding = PaddingValues(2.dp)) {
+                else -> { val locale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
+                LazyVerticalGrid(GridCells.Adaptive(100.dp), Modifier.fillMaxSize(), state = grid, contentPadding = PaddingValues(2.dp)) {
                     var index = 0
                     for ((month, photos) in groupByMonth(list)) {
                         item(key = "m$month", span = { GridItemSpan(maxLineSpan) }) {
-                            Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())).replaceFirstChar { it.titlecase() },
+                            Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)).replaceFirstChar { it.titlecase() },
                                 style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(12.dp, 16.dp, 12.dp, 6.dp))
                         }
                         val base = index
@@ -310,6 +312,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                         index += photos.size
                     }
                 }
+                }
             }
         }
     }
@@ -322,7 +325,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
             onConfirm = {
                 act.run({ selected = emptySet(); reloadTick++ }) {
                     val r = api().trashFiles(ps.map { it.path })
-                    withContext(Dispatchers.Main) { toast(ctx, if (r.recycled > 0) ctx.getString(R.string.a_moved_to_bin, r.recycled) else ctx.getString(R.string.a_deleted_n, r.deleted)) }
+                    withContext(Dispatchers.Main) { toast(ctx, if (r.recycled > 0) res.getString(R.string.a_moved_to_bin, r.recycled) else res.getString(R.string.a_deleted_n, r.deleted)) }
                 }
             })
     }
@@ -344,18 +347,19 @@ fun formatPhotoDate(unix: Long): String = runCatching {
 @Composable
 private fun SaveLauncher(items: List<Photo>, done: () -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val one = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         if (uri != null) scope.launch {
             runCatching { withContext(Dispatchers.IO) { copyToUri(ctx, localCopy(ctx, items[0].entry()), uri) } }
-                .onSuccess { toast(ctx, ctx.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
+                .onSuccess { toast(ctx, res.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
         }
         done()
     }
     val many = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
         if (tree != null) scope.launch {
             runCatching { withContext(Dispatchers.IO) { saveToTree(ctx, tree, items.map { it.entry() }) {} } }
-                .onSuccess { toast(ctx, ctx.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
+                .onSuccess { toast(ctx, res.getString(R.string.saved)) }.onFailure { toast(ctx, errorText(ctx, it)) }
         }
         done()
     }
@@ -366,12 +370,13 @@ private fun SaveLauncher(items: List<Photo>, done: () -> Unit) {
 @Composable
 private fun AddToAlbumDialog(paths: List<String>, onDone: () -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val act = rememberActions()
     val load = rememberLoad(Unit) { api().albums() }
     var creating by remember { mutableStateOf(false) }
     if (creating) {
         TextDialog(stringResource(R.string.a_new_album), stringResource(R.string.name), confirm = stringResource(R.string.create), onDismiss = { creating = false; onDone() }) { n ->
-            act.run({ toast(ctx, ctx.getString(R.string.a_added_to_album, paths.size, n)) }) { api().createAlbum(n, paths) }
+            act.run({ toast(ctx, res.getString(R.string.a_added_to_album, paths.size, n)) }) { api().createAlbum(n, paths) }
         }
         return
     }
@@ -387,7 +392,7 @@ private fun AddToAlbumDialog(paths: List<String>, onDone: () -> Unit) {
                             ListItem(headlineContent = { Text(a.name) }, supportingContent = { Text(stringResource(R.string.a_photo_count, a.count)) },
                                 leadingContent = { Icon(Icons.Default.PhotoAlbum, null) },
                                 modifier = Modifier.clickable {
-                                    act.run({ toast(ctx, ctx.getString(R.string.a_added_to_album, paths.size, a.name)); onDone() }) { api().changeAlbum(a.id, add = paths) }
+                                    act.run({ toast(ctx, res.getString(R.string.a_added_to_album, paths.size, a.name)); onDone() }) { api().changeAlbum(a.id, add = paths) }
                                 })
                         }
                     }

@@ -77,6 +77,7 @@ private data class Target(val url: String, val fingerprint: String, val caOnly: 
 @Composable
 fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Unit) {
     val ctx = LocalContext.current
+    val appRes = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     var address by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<List<FoundNas>>(emptyList()) }
@@ -135,7 +136,7 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
                     val (h, p) = hostPort(l.url)
                     val info = withContext(Dispatchers.IO) { CertProbe.probe(h, p) }
                     if (fp.isNotEmpty() && info.fingerprint != fp) {
-                        error = ctx.getString(R.string.err_qr_fingerprint, info.fingerprint)
+                        error = appRes.getString(R.string.err_qr_fingerprint, info.fingerprint)
                         return@launch
                     }
                     if (fp.isEmpty()) {
@@ -161,7 +162,7 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
 
     val scan = androidx.activity.compose.rememberLauncherForActivityResult(ScanContract()) { res ->
         val l = res.contents?.let { parsePairLink(it) }
-        if (res.contents != null && l == null) error = ctx.getString(R.string.err_qr_invalid)
+        if (res.contents != null && l == null) error = appRes.getString(R.string.err_qr_invalid)
         if (l != null) pairWith(l)
     }
 
@@ -175,7 +176,7 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
         Icon(Icons.Default.Storage, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
         Text(stringResource(R.string.welcome_title), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.welcome_text), style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = { scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(ctx.getString(R.string.scan_prompt)).setBeepEnabled(false).setOrientationLocked(true)) },
+        Button(onClick = { scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(appRes.getString(R.string.scan_prompt)).setBeepEnabled(false).setOrientationLocked(true)) },
             modifier = Modifier.fillMaxWidth(), enabled = !busy) {
             Icon(Icons.Default.QrCodeScanner, null)
             Spacer(Modifier.size(8.dp))
@@ -203,7 +204,7 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(onClick = {
             val url = normalizeAddress(address)
-            if (url == null) error = ctx.getString(R.string.err_address) else check(url)
+            if (url == null) error = appRes.getString(R.string.err_address) else check(url)
         }, enabled = !busy && address.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.connect))
         }
@@ -238,6 +239,7 @@ fun TrustDialog(info: CertInfo, onTrust: (caOnly: Boolean) -> Unit, onCancel: ()
 @Composable
 private fun SignIn(t: Target, onBack: () -> Unit, onPaired: (PairResponse) -> Unit) {
     val ctx = LocalContext.current
+    val appRes = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
@@ -269,7 +271,7 @@ private fun SignIn(t: Target, onBack: () -> Unit, onPaired: (PairResponse) -> Un
                     onPaired(r)
                 } catch (e: ApiException) {
                     if (e.twoFactor) needCode = true
-                    error = if (e.twoFactor && code.isBlank()) ctx.getString(R.string.two_factor_needed) else errorText(ctx, e)
+                    error = if (e.twoFactor && code.isBlank()) appRes.getString(R.string.two_factor_needed) else errorText(ctx, e)
                 } catch (e: Exception) {
                     error = errorText(ctx, e)
                 } finally {

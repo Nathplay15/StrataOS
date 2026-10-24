@@ -60,6 +60,7 @@ import io.github.nathplay15.strataos.ui.toast
 @Composable
 fun ShareLinksScreen(back: (() -> Unit)?) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val load = rememberLoad(Unit) { api().shareLinks() }
     val act = rememberActions()
     var deleting by remember { mutableStateOf<ShareLink?>(null) }
@@ -84,7 +85,7 @@ fun ShareLinksScreen(back: (() -> Unit)?) {
                         },
                         trailingContent = {
                             androidx.compose.foundation.layout.Row {
-                                IconButton(onClick = { copyText(ctx, l.name, u); toast(ctx, ctx.getString(R.string.a_copied)) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.a_copy_link)) }
+                                IconButton(onClick = { copyText(ctx, l.name, u); toast(ctx, res.getString(R.string.a_copied)) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.a_copy_link)) }
                                 IconButton(onClick = { shareText(ctx, u) }) { Icon(Icons.Default.Share, stringResource(R.string.share)) }
                                 IconButton(onClick = { deleting = l }) { Icon(Icons.Default.Delete, stringResource(R.string.a_delete)) }
                             }
@@ -105,11 +106,12 @@ fun ShareLinksScreen(back: (() -> Unit)?) {
 @Composable
 fun FavoritesScreen(back: () -> Unit, openFolder: (String) -> Unit, open: (FileEntry) -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     var tick by remember { mutableIntStateOf(0) }
     val list = remember(tick) { favorites.all().sortedWith(compareBy<Favorite> { !it.dir }.thenBy { it.name.lowercase() }) }
     BackTo(onBack = back)
     SectionScaffold(stringResource(R.string.a_favorites), back, actions = {
-        if (list.any { it.offline }) IconButton(onClick = { OfflineSyncWorker.syncNow(ctx); toast(ctx, ctx.getString(R.string.a_sync_started)) }) {
+        if (list.any { it.offline }) IconButton(onClick = { OfflineSyncWorker.syncNow(ctx); toast(ctx, res.getString(R.string.a_sync_started)) }) {
             Icon(Icons.Default.Sync, stringResource(R.string.a_sync_now))
         }
     }) { m ->

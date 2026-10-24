@@ -202,10 +202,12 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     )
     val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
     val content: @Composable () -> Unit = {
-        when (tab) {
-            "photos" -> PhotosScreen(account)
-            "manage" -> ManageScreen(account)
-            else -> FilesScreen(filesPath, { filesPath = it }, account)
+        androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }) {
+            when (tab) {
+                "photos" -> PhotosScreen(account)
+                "manage" -> ManageScreen(account)
+                else -> FilesScreen(filesPath, { filesPath = it }, account)
+            }
         }
     }
     if (LocalConfiguration.current.screenWidthDp >= WIDE_DP) {
