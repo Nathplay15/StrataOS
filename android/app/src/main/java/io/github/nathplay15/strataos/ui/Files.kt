@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -99,6 +100,7 @@ fun cacheFor(ctx: Context, e: FileEntry): File {
 @Composable
 fun FilesScreen(path: String, setPath: (String) -> Unit) {
     val ctx = LocalContext.current
+    val res = LocalResources.current
     val scope = rememberCoroutineScope()
     val loader = rememberLoader(path) { Graph.api()!!.files(path) }
     var viewing by remember { mutableStateOf<Pair<FileEntry, File>?>(null) }
@@ -146,7 +148,7 @@ fun FilesScreen(path: String, setPath: (String) -> Unit) {
         if (uri != null) fetch(e) { f ->
             scope.launch(Dispatchers.IO) {
                 runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { out -> f.inputStream().use { it.copyTo(out) } } }
-                    .onSuccess { withContext(Dispatchers.Main) { Toast.makeText(ctx, ctx.getString(R.string.saved), Toast.LENGTH_SHORT).show() } }
+                    .onSuccess { withContext(Dispatchers.Main) { Toast.makeText(ctx, res.getString(R.string.saved), Toast.LENGTH_SHORT).show() } }
             }
         }
     }
@@ -154,11 +156,11 @@ fun FilesScreen(path: String, setPath: (String) -> Unit) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         val folder = list?.path ?: return@rememberLauncherForActivityResult
         if (uris.isNotEmpty()) scope.launch {
-            progress = ctx.getString(R.string.preparing) to 0f
+            progress = res.getString(R.string.preparing) to 0f
             val dir = withContext(Dispatchers.IO) { stageUris(ctx, uris) }
             progress = null
             UploadWorker.enqueue(ctx, folder, dir)
-            Toast.makeText(ctx, ctx.getString(R.string.upload_started, uris.size), Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, res.getString(R.string.upload_started, uris.size), Toast.LENGTH_SHORT).show()
         }
     }
 

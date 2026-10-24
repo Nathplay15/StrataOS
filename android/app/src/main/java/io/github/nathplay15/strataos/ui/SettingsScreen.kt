@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun SettingsScreen(onSignedOut: () -> Unit) {
     val ctx = LocalContext.current
+    val res = LocalResources.current
     val scope = rememberCoroutineScope()
     val p = Graph.prefs
     var tick by remember { mutableIntStateOf(0) }
@@ -100,7 +102,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
             if (cfg?.isAdmin == true && distributors.isNotEmpty()) OutlinedButton(onClick = {
                 scope.launch {
                     val vapid = withContext(Dispatchers.IO) { runCatching { Graph.api()?.info()?.vapidKey }.getOrNull() } ?: ""
-                    Push.register(ctx as android.app.Activity, vapid) { ok -> if (!ok) Toast.makeText(ctx, ctx.getString(R.string.push_failed), Toast.LENGTH_LONG).show(); tick++ }
+                    Push.register(ctx as android.app.Activity, vapid) { ok -> if (!ok) Toast.makeText(ctx, res.getString(R.string.push_failed), Toast.LENGTH_LONG).show(); tick++ }
                 }
             }) { Text(stringResource(R.string.push_setup)) }
             HorizontalDivider()

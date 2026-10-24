@@ -1,8 +1,8 @@
 package io.github.nathplay15.strataos.ui.surveillance
 
-import android.app.Activity
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +46,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -177,7 +176,7 @@ fun LivePictures(c: Camera, modifier: Modifier) {
 /** Hides the system bars while shown (full-screen video). */
 @Composable
 fun Immersive() {
-    val activity = LocalContext.current as? Activity ?: return
+    val activity = LocalActivity.current ?: return
     DisposableEffect(activity) {
         val ctl = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         ctl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
