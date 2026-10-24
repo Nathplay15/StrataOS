@@ -49,6 +49,9 @@ fun Api.updateUser(name: String, r: UserUpdate) = call(sendJson("PUT", "/api/use
 fun Api.deleteUser(name: String, removeHome: Boolean) =
     call(send("DELETE", "/api/users/$name", null, *(if (removeHome) arrayOf("removeHome" to "1") else emptyArray())), okSer)
 
+/** Removes the two-factor authentication of another account (its owner sets it up again). */
+fun Api.reset2fa(name: String) = ok("POST", "/api/users/$name/2fa/reset")
+
 fun Api.groups(): List<NasGroup> = call(get("/api/groups"), ListSerializer(NasGroup.serializer()))
 fun Api.createGroup(name: String, members: List<String>) = call(sendJson("POST", "/api/groups", GroupReq(name, members)), okSer)
 fun Api.setGroupMembers(name: String, members: List<String>) = call(sendJson("PUT", "/api/groups/$name", GroupReq(members = members)), okSer)

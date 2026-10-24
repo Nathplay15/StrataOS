@@ -135,9 +135,10 @@ fun AreaScreen(
     subtitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
     fab: @Composable () -> Unit = {},
+    systemBack: (() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    BackHandler(onBack = onBack)
+    BackHandler(onBack = systemBack ?: onBack)
     val snack = remember { SnackbarHostState() }
     CompositionLocalProvider(LocalSnackbar provides snack) {
         Scaffold(
