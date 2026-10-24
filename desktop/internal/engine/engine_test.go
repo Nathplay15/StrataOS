@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -522,5 +523,34 @@ func TestPlanTable(t *testing.T) {
 		if strings.Join(got, " ") != c.want {
 			t.Errorf("%s: %v, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+// Many files: the first round and an idle round stay quick.
+func TestManyFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow")
+	}
+	h := newHarness(t)
+	for i := range 20000 {
+		d := "d" + strconv.Itoa(i%100)
+		if i%2 == 0 {
+			h.write(d+"/l"+strconv.Itoa(i), "x", t0)
+		} else {
+			h.fake.put(d+"/r"+strconv.Itoa(i), "y", t0)
+		}
+	}
+	start := time.Now()
+	h.sync()
+	first := time.Since(start)
+	start = time.Now()
+	h.sync()
+	idle := time.Since(start)
+	if n := h.eng.Status().Pairs[0].Files; n != 20000 {
+		t.Fatalf("%d files synchronized", n)
+	}
+	t.Logf("20000 files: first round %v, idle round %v", first, idle)
+	if idle > 5*time.Second {
+		t.Fatalf("idle round too slow: %v", idle)
 	}
 }
