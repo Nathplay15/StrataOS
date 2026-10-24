@@ -497,7 +497,9 @@ func TestNames(t *testing.T) {
 func TestPlanTable(t *testing.T) {
 	f := func(p string, size, mt int64) *LocalEntry { return &LocalEntry{Path: p, Size: size, MTime: mt} }
 	rf := func(p, v string, size int64) *RemoteEntry { return &RemoteEntry{Path: p, Version: v, Size: size} }
-	b := func(p, v string, size, mt int64) *BaseEntry { return &BaseEntry{Path: p, Version: v, Size: size, LocalMTime: mt} }
+	b := func(p, v string, size, mt int64) *BaseEntry {
+		return &BaseEntry{Path: p, Version: v, Size: size, LocalMTime: mt}
+	}
 	for _, c := range []struct {
 		name string
 		v    view

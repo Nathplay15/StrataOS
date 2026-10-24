@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=StrataOS Sync
+Comment=Synchronizes folders with a StrataOS NAS
+Comment[fr]=Synchronise des dossiers avec un NAS StrataOS
+Exec=strataos-sync
+Icon=strataos-sync
+Terminal=false
+Categories=Network;FileTransfer;
+StartupNotify=false

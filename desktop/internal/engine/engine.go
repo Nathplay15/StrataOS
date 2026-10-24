@@ -18,11 +18,11 @@ import (
 
 // Options configure the engine.
 type Options struct {
-	StateFile string                 // the state database
-	Device    string                 // this computer's name, in conflict copies
-	Ignore    []string               // name patterns never synchronized (DefaultIgnore when nil)
+	StateFile string                  // the state database
+	Device    string                  // this computer's name, in conflict copies
+	Ignore    []string                // name patterns never synchronized (DefaultIgnore when nil)
 	Trash     func(path string) error // local deletions (the OS trash)
-	OnEvent   func(Event)            // conflicts, errors, the deletion brake
+	OnEvent   func(Event)             // conflicts, errors, the deletion brake
 	// The deletion brake: a round deleting at least BrakeMin files and more
 	// than BrakeRatio of the files synchronized waits for the user.
 	BrakeMin   int
@@ -104,7 +104,7 @@ type pairRun struct {
 	allowDel  bool
 	restore   bool
 
-	trees   map[string][]op // this round: local folders trashed whole, with their content's ops
+	trees map[string][]op // this round: local folders trashed whole, with their content's ops
 
 	kick    chan struct{}
 	cancel  context.CancelFunc
