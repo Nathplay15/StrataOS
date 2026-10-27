@@ -84,6 +84,21 @@ func (m *Manager) start(root string, a *active) {
 	_ = j.Save(m.file(root))
 }
 
+// Settle waits (2 seconds at most) until the changes inotify reported
+// under root are in the index: a client asking right after a change made
+// elsewhere sees it.
+func (m *Manager) Settle(root string) {
+	m.mu.Lock()
+	var w *Watcher
+	if a := m.open[root]; a != nil {
+		w = a.w
+	}
+	m.mu.Unlock()
+	for i := 0; w != nil && i < 40 && w.Pending(); i++ {
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 // Refresh rescans the folder holding rel at once (after a change made
 // through the API, so its answer and the next changes include it).
 func (m *Manager) Refresh(root, rel string) {

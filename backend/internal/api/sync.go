@@ -285,6 +285,7 @@ func (s *Server) syncRoutes() {
 		if err != nil {
 			return nil, &Error{Status: http.StatusServiceUnavailable, Msg: "the shared folder is unavailable (volume missing or encrypted folder locked)"}
 		}
+		s.syncIndex().Settle(f.share.Path)
 		limit := min(max(qInt(r, "limit", 1000), 1), 5000)
 		wait := min(max(qInt(r, "wait", 0), 0), 55)
 		deadline := time.After(time.Duration(wait) * time.Second)

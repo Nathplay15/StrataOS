@@ -361,4 +361,13 @@ func TestJournalWatcher(t *testing.T) {
 	cur = j.Cursor()
 	write(t, root, "e/new/d", "d") // the watches followed the move
 	wait("e/new/d")
+	// Pending covers the time between a change and its rescan.
+	cur = j.Cursor()
+	write(t, root, "e/now", "n")
+	for i := 0; i < 40 && w.Pending(); i++ {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := paths(changes(t, j, "", cur)); got != "e/now" {
+		t.Fatalf("after Pending: %q", got)
+	}
 }

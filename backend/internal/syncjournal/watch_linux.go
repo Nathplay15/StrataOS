@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -22,7 +23,8 @@ type Watcher struct {
 	mu   sync.Mutex
 	wds  map[int]string // watch → folder
 	byP  map[string]int
-	full bool // a watch could not be added
+	full bool        // a watch could not be added
+	busy atomic.Bool // changes seen, not rescanned yet
 	stop chan struct{}
 	done chan struct{}
 }
@@ -48,6 +50,16 @@ func (w *Watcher) Degraded() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.full
+}
+
+// Pending tells whether changes were reported and not rescanned yet
+// (including events still queued in the kernel).
+func (w *Watcher) Pending() bool {
+	if w.busy.Load() {
+		return true
+	}
+	n, err := unix.IoctlGetInt(w.fd, unix.TIOCINQ) // FIONREAD: bytes queued
+	return err == nil && n > 0
 }
 
 // Watching returns the number of folders watched (0: the root is gone).
@@ -124,6 +136,7 @@ func (w *Watcher) loop() {
 		}
 		clear(dirty)
 		overflow, first = false, time.Time{}
+		w.busy.Store(false)
 	}
 	for {
 		select {
@@ -140,6 +153,7 @@ func (w *Watcher) loop() {
 		if n <= 0 {
 			continue
 		}
+		w.busy.Store(true) // before the queue empties: Pending never misses a change
 		r, err := unix.Read(w.fd, buf)
 		if err == unix.EAGAIN || err == unix.EINTR {
 			continue
@@ -177,6 +191,10 @@ func (w *Watcher) loop() {
 				first = time.Now()
 			}
 			dirty[d] = true
+			w.busy.Store(true)
+		}
+		if len(dirty) == 0 && !overflow {
+			w.busy.Store(false) // only events of nothing indexed
 		}
 		// A busy folder is still rescanned at least every 2 seconds.
 		if !first.IsZero() && time.Since(first) > 2*time.Second {
