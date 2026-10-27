@@ -103,9 +103,15 @@ class PlayerActivity : ComponentActivity() {
         }
         setContent {
             StrataTheme {
-                PlayerScreen(inPip, onClose = { Playback.stop(); finish() }, onPip = ::enterPip)
+                PlayerScreen(inPip, onClose = ::close, onPip = ::enterPip)
             }
         }
+    }
+
+    /** Back: a video stops; music goes on in the background (notification). */
+    private fun close() {
+        if (Playback.current?.video != false || Playback.player?.isPlaying != true) Playback.release()
+        finish()
     }
 
     override fun onStart() {

@@ -96,12 +96,21 @@ fun ManageScreen(accountAction: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text(stringResource(R.string.a_manage)) }, actions = { accountAction() })
         val status = rememberLoad(Unit) { val a = api(); a.systemInfo() to a.overview() }
-        Refreshable(status) { (info, ov) ->
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = status.refreshing, onRefresh = status.reload) {
             LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Card(Modifier.fillMaxWidth().clickable { open = STATUS }) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val st = status.state
+                            if (st is Loaded.Failed) Text(errorText(ctx, st.error), color = MaterialTheme.colorScheme.error)
+                            val (info, ov) = status.value ?: (null to null)
+                            if (info == null || ov == null) {
+                                if (st is Loaded.Loading) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text(stringResource(R.string.a_open_status), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                return@Column
+                            }
                             Text(info.hostname, style = MaterialTheme.typography.titleLarge)
                             Text(stringResource(R.string.a_version, info.version), style = MaterialTheme.typography.bodySmall)
                             Row(verticalAlignment = Alignment.CenterVertically) {

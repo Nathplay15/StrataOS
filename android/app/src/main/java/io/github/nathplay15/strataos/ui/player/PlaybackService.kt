@@ -20,7 +20,11 @@ class PlaybackService : MediaSessionService() {
         session = MediaSession.Builder(this, Playback.ensurePlayer(this)).setSessionActivity(open).build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        // A new player since this service started (the previous one was closed).
+        session?.let { s -> Playback.ensurePlayer(this).let { p -> if (s.player !== p) s.player = p } }
+        return session
+    }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val p = session?.player
@@ -30,7 +34,8 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         session?.release()
         session = null
-        Playback.release()
+        // The player itself stays: the player screen may still show it; it is
+        // released when that screen closes.
         super.onDestroy()
     }
 }
