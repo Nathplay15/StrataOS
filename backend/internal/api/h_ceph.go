@@ -679,8 +679,18 @@ func (s *Server) cephCreatePool(ctx context.Context, j *jobs.Job, kind, name str
 			return err
 		}
 	case "cephfs":
+		// Pools and filesystem made here rather than by "fs volume create",
+		// which needs the manager's volumes module to be up.
 		j.Logf("CephFS filesystem %s", name)
-		if _, err := ceph.Local.Ceph(ctx, "fs", "volume", "create", name); err != nil {
+		meta, data := "cephfs."+name+".meta", "cephfs."+name+".data"
+		for _, p := range []string{meta, data} {
+			if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "create", p); err != nil {
+				return err
+			}
+		}
+		// The metadata pool is small but hot: let the autoscaler favour it.
+		_, _ = ceph.Local.Ceph(ctx, "osd", "pool", "set", meta, "pg_autoscale_bias", "4")
+		if _, err := ceph.Local.Ceph(ctx, "fs", "new", name, meta, data); err != nil {
 			return err
 		}
 		n := 0
@@ -1225,8 +1235,27 @@ func (s *Server) cephRoutes() {
 		if err := s.cephPoolUnused(r.Context(), "", name); err != nil {
 			return nil, err
 		}
-		if _, err := ceph.Local.Ceph(r.Context(), "fs", "volume", "rm", name, "--yes-i-really-mean-it"); err != nil {
+		var raw []byte
+		var pools []string
+		if ceph.Local.JSON(r.Context(), &raw, "fs", "ls") == nil {
+			if fss, err := ceph.ParseFSList(raw); err == nil {
+				for _, f := range fss {
+					if f.Name == name {
+						pools = append([]string{f.MetadataPool}, f.DataPools...)
+					}
+				}
+			}
+		}
+		if _, err := ceph.Local.Ceph(r.Context(), "fs", "fail", name); err != nil {
 			return nil, err
+		}
+		if _, err := ceph.Local.Ceph(r.Context(), "fs", "rm", name, "--yes-i-really-mean-it"); err != nil {
+			return nil, err
+		}
+		for _, p := range pools {
+			if _, err := ceph.Local.Ceph(r.Context(), "osd", "pool", "rm", p, p, "--yes-i-really-really-mean-it"); err != nil {
+				return nil, err
+			}
 		}
 		s.audit(r, "ceph", "Deleted the CephFS filesystem "+name)
 		return nil, nil

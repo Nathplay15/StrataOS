@@ -94,7 +94,7 @@ for i in 2 3; do
   check "ceph$i joins" "$(api 1 POST /api/cluster/members -d "{\"host\":\"10.98.0.$i\",\"code\":\"$CODE\"}")" "\"name\":\"ceph$i\""
 done
 check "three members everywhere" "$(for i in 1 2 3; do api "$i" GET /api/cluster | py 'print(sum(1 for m in d["members"] if m["online"]), end=" ")'; done)" "3 3 3"
-check "no token in the API" "$(api 2 GET /api/cluster | py 'print(repr(d["cluster"].get("token")))')" "''"
+check "no token in the API" "$(api 2 GET /api/cluster | py 'print(repr(d["cluster"].get("token") or None))')" "None"
 check "peer API refuses a wrong token" "$(N 1 ssh "curl -sk -X POST -H 'X-Strata-Cluster: $(printf 'ab%.0s' $(seq 32))' https://10.98.0.2:7443/api/cluster/peer/info")" "unknown NAS"
 
 section "Creating the Ceph cluster"

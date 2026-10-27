@@ -10,7 +10,7 @@ check "invalid network refused" "$(c POST /api/cluster -d '{"name":"Lab","public
 check "network without an address refused" "$(c POST /api/cluster -d '{"name":"Lab","publicNet":"198.51.100.0/24"}')" "no address in the network"
 NET=$(c GET /api/cluster | py 'print(d["networks"][0])')
 check "cluster created" "$(c POST /api/cluster -d "{\"name\":\"E2E lab\",\"publicNet\":\"$NET\"}" | py 'print(d["name"], len(d["members"]), d["token"] if "token" in d else "")')" "E2E lab 1"
-check "token never sent back" "$(c GET /api/cluster | py 'print(repr(d["cluster"].get("token")))')" "''"
+check "token never sent back" "$(c GET /api/cluster | py 'print(repr(d["cluster"].get("token") or None))')" "None"
 check "already in a cluster" "$(c POST /api/cluster/prepare)" "already in a cluster"
 check "peer API without token refused" "$(vm 'curl -sk -X POST https://127.0.0.1:7443/api/cluster/peer/info')" "unknown NAS"
 check "peer join with a wrong code refused" "$(vm "curl -sk -X POST -H 'Content-Type: application/json' -d '{\"code\":\"AAAAA-BBBBB\"}' https://127.0.0.1:7443/api/cluster/peer/join")" "wrong or expired"
