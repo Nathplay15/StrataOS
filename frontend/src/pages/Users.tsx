@@ -7,6 +7,7 @@ import type { Group, Me, User, UserQuota } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
+import { AdminDevices } from "../components/AdminDevices";
 
 type Form = { source?: string; username: string; fullName: string; email: string; role: "admin" | "user"; password: string; groups: string[]; ssh: boolean; docker: boolean; disabled: boolean };
 
@@ -118,7 +119,7 @@ function GroupModal({ group, users, onClose }: { group: Group | null; users: Use
 
 export default function Users({ me }: { me: Me }) {
   const { confirm } = useUI();
-  const [tab, setTab] = useState<"users" | "groups">("users");
+  const [tab, setTab] = useState<"users" | "groups" | "devices">("users");
   const [editUser, setEditUser] = useState<User | null | undefined>(undefined);
   const [editGroup, setEditGroup] = useState<Group | null | undefined>(undefined);
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
@@ -131,12 +132,12 @@ export default function Users({ me }: { me: Me }) {
 
   return (
     <div>
-      <PageHeader title={tr("Users and groups")} subtitle={tr("NAS accounts (web interface, SMB, NFS, SSH)")} icon={<UsersIcon size={20} />} actions={tab === "users"
+      <PageHeader title={tr("Users and groups")} subtitle={tr("NAS accounts (web interface, SMB, NFS, SSH)")} icon={<UsersIcon size={20} />} actions={tab === "devices" ? undefined : tab === "users"
         ? <Button variant="primary" icon={<UserPlus size={15} />} onClick={() => setEditUser(null)}>{tr("New user")}</Button>
         : <Button variant="primary" icon={<Plus size={15} />} onClick={() => setEditGroup(null)}>{tr("New group")}</Button>} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "users", label: tr("Users ({0})", users.data?.length ?? 0) }, { id: "groups", label: tr("Groups ({0})", userGroups.length) }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "users", label: tr("Users ({0})", users.data?.length ?? 0) }, { id: "groups", label: tr("Groups ({0})", userGroups.length) }, { id: "devices", label: tr("Devices") }]} />
       <ErrorBox error={users.error || groups.error} />
-      {tab === "users" ? (
+      {tab === "devices" ? <AdminDevices /> : tab === "users" ? (
         <Card pad={false}>
           {users.isLoading ? <Spinner /> : (
             <div className="overflow-x-auto">

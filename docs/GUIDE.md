@@ -71,6 +71,7 @@ To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the ne
 - **Viewing files**: double-click a file to open it in a tab. PDFs open in the built-in viewer (search, zoom, print); Word and Excel files (and CSV) preview directly; any video or audio file plays, even formats the browser doesn't know (the NAS converts them on the fly); HEIC, TIFF and RAW photos display; zip, tar, 7z and RAR archives can be browsed and extracted. PowerPoint and other documents need the optional **Document previews** component (Settings → Components, about 400 MB). "Open with" lets you choose between the viewer, the text editor, OnlyOffice and a download; the details panel shows the type, owner and a SHA-256 on demand.
 - **Office documents**: install **OnlyOffice Docs** from the App Center (about 3 GB), then turn on "Open office documents with OnlyOffice" in Settings (Office documents card). Word, Excel and PowerPoint (and OpenDocument) files then open in OnlyOffice; several people can edit the same document together, and those who can only read the share get a read-only view. The container reaches StrataOS at `http://host.docker.internal:7070` (the HTTP port must stay on); another document server can be set in the same place. If you use StrataOS over HTTPS, give the document server an HTTPS address too (browsers block an HTTP editor in an HTTPS page).
 - **Android phones**: the StrataOS app browses your files and backs up your photos (see section 22).
+- **Computers (Windows, macOS, Linux)**: the StrataOS Sync app keeps folders of the computer and of the NAS identical, in both directions (see section 23).
 - **Other devices**: turn on WebDAV, SFTP or FTP in File services.
 
 To **share with someone who has no account**, use "Share a link" on a file or folder (password, expiry date, download limit, or a drop box to receive files). You can find and delete your links in **Shared links**.
@@ -233,8 +234,8 @@ Updates → "Update StrataOS". Before each update, a **restore point** is create
 
 The **StrataOS app for Android** (Android 8 and later) browses your files, backs up the photos and videos of your phone and shows the NAS alerts. It needs no Google services.
 
-1. **Install**: on the phone, download `strataos-<version>.apk` from the Releases page (also linked in account menu → Mobile devices → "Download the app (APK)"), open it and allow installing apps from this source when Android asks.
-2. **Connect**: in the web interface, account menu → **Mobile devices** → "Pair a phone", then "Scan a QR code" in the app: no password to type (the code works once, for 10 minutes). You can also enter the NAS address, or pick it under "Found on this network", and sign in with your password and two-factor code. Away from home, use the VPN, Tailscale or a domain name (section 13).
+1. **Install**: on the phone, download `strataos-<version>.apk` from the Releases page (also linked in account menu → Phones and computers → "Download the app (APK)"), open it and allow installing apps from this source when Android asks.
+2. **Connect**: in the web interface, account menu → **Phones and computers** → "Pair a phone", then "Scan a QR code" in the app: no password to type (the code works once, for 10 minutes). You can also enter the NAS address, or pick it under "Found on this network", and sign in with your password and two-factor code. Away from home, use the VPN, Tailscale or a domain name (section 13).
 3. **Check the certificate**: if the NAS uses its own certificate, the app shows its "Certificate fingerprint (SHA-256)". Compare it with the one shown in Pair a phone, then tap "Trust this NAS": the app accepts only this certificate from then on, and warns you if it changes.
 
 - **Files**: browse, open, "Save to phone", share, upload and create folders. From any other app, **Share → StrataOS** sends files to the NAS folder you choose.
@@ -243,4 +244,31 @@ The **StrataOS app for Android** (Android 8 and later) browses your files, backs
 - **Notifications** (administrators): install the **ntfy** app on the phone as UnifiedPush distributor, then "Set up instant notifications" in the app's Settings; without it, the app checks the NAS every 15 minutes. Choose the level of the "StrataOS app (phones)" channel in Settings → Notifications, like the other channels.
 - **Lock**: "Unlock with fingerprint or screen lock" protects the app on a shared phone.
 
-Lost or replaced phone? Account menu → Mobile devices → "Revoke": the app on that phone is signed out at once and stops backing up.
+Lost or replaced phone? Account menu → Phones and computers → "Revoke": the app on that phone is signed out at once and stops backing up.
+
+## 23. The desktop sync app
+
+**StrataOS Sync** keeps folders of a computer and folders of the NAS identical, in both directions, in the background, like Synology Drive Client: a file added, changed, renamed or deleted on one side is soon the same on the other. The files are really on the computer (no placeholders), so they open without network too; changes made meanwhile are sent when the NAS is reachable again.
+
+**Install** (download links in the web interface: account menu → **Phones and computers** → Desktop app, or the Releases page):
+
+- **Windows** 10 and 11: `strataos-sync-<version>-windows-x64.msi` installs for your account only (no administrator rights). The app is not signed: if SmartScreen warns, choose "More info" → "Run anyway". A portable `.zip` is there too.
+- **macOS** 11 and later (Intel and Apple silicon): open `strataos-sync-<version>-macos.dmg` and drag **StrataOS Sync** to Applications. The app is not signed: the first time, right-click it → **Open** → Open (or System Settings → Privacy & Security → **Open Anyway**).
+- **Linux**: `strataos-sync-<version>-linux-amd64.deb` (or `-arm64.deb`) for Debian and Ubuntu (`sudo apt install ./strataos-sync-…deb`), or the `.tar.gz` elsewhere. The icon appears in the notification area (on GNOME, with the "AppIndicator" extension; without it, open the settings from the app menu).
+
+**Pair the computer**: the app opens its settings in your web browser at the first launch. In the web interface of the NAS, account menu → **Phones and computers** → "Pair a computer", then "Copy the pairing link" and paste it in the app (Account tab); or type the address of the NAS (or choose "Find on the network") and the pairing code, or sign in with your user name and password (and two-factor code). If the NAS uses its own certificate, the app shows its fingerprint: check it is the one shown by "Pair a computer" (the link carries it), then tick "The fingerprints match". The app then accepts only this certificate and refuses to connect if it changes (unless it comes from a public authority, such as Let's Encrypt).
+
+**Choose the folders** (Folders tab): a folder of the NAS (a shared folder or a folder inside it) and a folder of the computer, as many pairs as you like. Files already on both sides are merged: identical files are not copied again, different ones are kept both (below). Under each pair, "Subfolders not synchronized" leaves out folders of the NAS you don't want on this computer (their files stay on the NAS). Settings: the name of the computer, upload and download limits, the files never synchronized (by default `.DS_Store`, `Thumbs.db`, `desktop.ini`, Office lock files `~$*`, `*.tmp`, `.~lock*`), start at login (on by default) and the language.
+
+The icon shows the state (up to date, syncing, paused, error) and its menu opens a synchronized folder or the NAS web interface, pauses or resumes, and opens the settings.
+
+**Conflicts**: when the same file changed on both sides before they could be synchronized, nothing is overwritten: the NAS version keeps the name and yours becomes `name (conflict from <computer> <date>).ext`, on both sides. A notification tells you; compare and keep what you need.
+
+**Deletions** go to the trash of the computer (Recycle Bin on Windows) or to the recycle bin of the shared folder on the NAS when it has one (its "Network recycle bin" option; otherwise the file is deleted on the NAS). As a safety brake, when a round would delete more than half of the files of a folder (at least 20), the app waits: in its Status tab, choose "Delete them" or "Keep them (restore)" (the files come back from the other side). A missing local folder (an unplugged disk) or an unreadable one never counts as deleted.
+
+The app follows your rights: in a read-only shared folder, local changes are refused with a clear message (and kept on the computer); a full or frozen shared folder becomes read-only too. Lost laptop? Account menu → Phones and computers → "Revoke" (administrators: Users → Devices): the computer is signed out at once, its files stay on it.
+
+Limits: symbolic links are not synchronized (they are listed as skipped), nor are names that the other side refuses (on Windows: `< > : " | ? * \`, names ending with a dot or a space, `CON`, `NUL`…; on the NAS: `\`); two names that differ only by upper or lower case on the NAS keep only the first on Windows and macOS (the other is listed). On macOS, a change inside an existing file is noticed within a minute (creations, renames and deletions at once). The app has been tested with tens of thousands of files per folder; it keeps its state in memory, so hundreds of thousands of files need a few hundred MB.
+
+**Headless mode** (servers, scripts): `strataos-sync pair --server https://nas:7443 --code <code> --fingerprint <fingerprint>`, then `strataos-sync add --local ~/Documents --remote /srv/strata/main/Documents`, and `strataos-sync daemon` (or `sync-once` from a scheduled task). `strataos-sync --help` lists everything. The settings and state live in `~/.config/StrataOS Sync` (Linux), `~/Library/Application Support/StrataOS Sync` (macOS) or `%AppData%\StrataOS Sync` (Windows); `config.json` holds the device token, readable by your account only.
+

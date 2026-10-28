@@ -3,7 +3,9 @@
 # Raspberry Pi image, the Android app (strataos-<version>.apk, signed with the
 # release key from the ANDROID_* secrets; left out with a warning when they are
 # missing), and their SHA-256 checksums signed with the archive key
-# (SHA256SUMS.asc). Release notes: packaging/release-notes/<version>.md,
+# (SHA256SUMS.asc), and the desktop sync app (strataos-sync-<version>-*: Windows
+# .msi and .zip, macOS .dmg, Linux .deb and .tar.gz, built by the desktop-*
+# jobs below and downloaded by the release job). Release notes: packaging/release-notes/<version>.md,
 # followed by packaging/release-notes/footer.md (checking the download).
 # Pre-releases: VERSION 0.8.0~beta.1 (or ~alpha.N, ~rc.N), tag v0.8.0-beta.1,
 # notes packaging/release-notes/0.8.0-beta.1.md; published as a GitHub
@@ -26,7 +28,63 @@ env:
   REPO_URL: https://nathplay15.github.io/StrataOS/apt
 
 jobs:
+  # ---- Desktop sync app: one job per system, files handed over as artifacts. ----
+  desktop-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - run: |
+          (cd desktop && go test ./...)
+          desktop/packaging/build.sh linux
+          desktop/packaging/build.sh windows
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-linux
+          path: dist/strataos-sync-*
+
+  desktop-macos:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - run: desktop/packaging/build.sh macos
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos
+          path: dist/strataos-sync-*.dmg
+
+  desktop-windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - run: |
+          desktop/packaging/build.sh windows
+          dotnet tool install --global wix --version 5.0.2
+          desktop/packaging/windows/build-msi.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: dist/strataos-sync-*.msi
+
   release:
+    needs: [desktop-linux, desktop-macos, desktop-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -120,6 +178,13 @@ jobs:
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify android/app/build/outputs/apk/release/app-release.apk
           cp android/app/build/outputs/apk/release/app-release.apk "dist/strataos-${V}.apk"
 
+      # The desktop app built by the desktop-* jobs (already named after the tag form).
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: dist
+
       - name: Checksums
         run: |
           cd dist
@@ -130,7 +195,8 @@ jobs:
             done
           fi
           APK=$(ls "strataos-${FV}.apk" 2>/dev/null || true)
-          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" $APK > SHA256SUMS
+          DESKTOP=$(ls strataos-sync-"${FV}"-* 2>/dev/null || true)
+          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" $APK $DESKTOP > SHA256SUMS
           cat SHA256SUMS
 
       # Detached armored signature with the archive key, the one the
@@ -151,7 +217,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS $FV" --notes-file release-notes.md \
             "dist/strataos_${FV}_amd64.deb" "dist/strataos_${FV}_arm64.deb" \
             "dist/strataos-${FV}-amd64.iso" "dist/strataos-${FV}-arm64.iso" "dist/strataos-${FV}-raspberrypi.img.xz" \
-            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
+            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) $(ls dist/strataos-sync-"${FV}"-* 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
 
       - name: Update the website and APT repository
         env:

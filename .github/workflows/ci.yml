@@ -69,7 +69,7 @@ jobs:
           node scripts/docs-site.mjs ../build/site
 
       - name: Shell scripts
-        run: for f in vm/*.sh packaging/*.sh packaging/*/*.sh; do bash -n "$f" || exit 1; done
+        run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh desktop/packaging/*.sh desktop/packaging/*/*.sh; do bash -n "$f" || exit 1; done
 
       - name: Debian packages (amd64, arm64)
         run: |
@@ -100,6 +100,80 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
           cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease
+
+  # ---- Desktop sync app (desktop/): tests and every package. ----
+  desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Format, vet, unit tests
+        run: |
+          cd desktop
+          out=$(gofmt -l .)
+          test -z "$out" || { echo "not formatted: $out"; exit 1; }
+          go vet ./...
+          go test ./...
+          # Windows and macOS compile here too (macOS without its menu bar icon: cgo).
+          GOOS=windows go vet ./...
+          GOOS=darwin CGO_ENABLED=0 go vet ./...
+          GOOS=darwin CGO_ENABLED=0 go build -o /dev/null ./cmd/strataos-sync
+      - name: Linux packages and Windows zip
+        run: |
+          desktop/packaging/build.sh linux
+          desktop/packaging/build.sh windows
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-linux
+          path: dist/strataos-sync-*
+          retention-days: 7
+
+  desktop-macos:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Unit tests and universal app
+        run: |
+          (cd desktop && go test ./...)
+          desktop/packaging/build.sh macos
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos
+          path: dist/strataos-sync-*.dmg
+          retention-days: 7
+
+  desktop-windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Unit tests, installer
+        run: |
+          (cd desktop && go test ./...)
+          desktop/packaging/build.sh windows
+          dotnet tool install --global wix --version 5.0.2
+          desktop/packaging/windows/build-msi.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: dist/strataos-sync-*.msi
+          retention-days: 7
 
   e2e:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.e2e)

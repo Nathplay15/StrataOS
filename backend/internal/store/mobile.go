@@ -6,10 +6,14 @@ import "time"
 // long-lived bearer token of which only the SHA-256 is kept; the token acts
 // as its user, with the user's current rights (role read at each request).
 type MobileDevice struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`  // given by the user ("Pixel of Alice")
-	Model     string    `json:"model"` // reported by the app (manufacturer and model)
-	App       string    `json:"app,omitempty"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`  // given by the user ("Pixel of Alice")
+	Model string `json:"model"` // reported by the app (manufacturer and model)
+	App   string `json:"app,omitempty"`
+	// Kind: "desktop" for the sync app of a computer, "" (or "android") for a
+	// phone; OS is what the client reports ("Windows 11", "macOS 15.1").
+	Kind      string    `json:"kind,omitempty"`
+	OS        string    `json:"os,omitempty"`
 	TokenHash string    `json:"tokenHash"`
 	CreatedAt time.Time `json:"createdAt"`
 	LastSeen  time.Time `json:"lastSeen,omitzero"`

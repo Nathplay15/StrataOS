@@ -21,6 +21,7 @@ StrataOS/
 ├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode)
 ├── docs/               User guide and FAQ (English and French), hardware, this file
 ├── android/            Android app (Kotlin, Jetpack Compose), see below
+├── desktop/            Desktop sync app (Go, its own module), see below
 ├── packaging/          .deb package, installer ISO, Raspberry Pi image, APT repository, website
 └── vm/                 QEMU/KVM test machines and end-to-end tests
 ```
@@ -140,6 +141,52 @@ printf %s "$K_keyPassword" | gh secret set ANDROID_KEY_PASSWORD
 ```
 
 Without these secrets the release still publishes everything else, and the workflow shows a warning instead of `strataos-<version>.apk`.
+
+## Desktop sync app
+
+`desktop/` is a Go module of its own (`strataos-sync`): one binary per system, the sync engine in pure Go (no cgo, state in bbolt), except the macOS menu bar icon (fyne.io/systray needs cgo there, so the macOS build runs on a macOS runner). The version follows `VERSION`.
+
+| Folder | What |
+|---|---|
+| `cmd/strataos-sync/` | Entry point: the tray app without a command, the headless commands (`pair`, `add`, `sync-once`, `daemon`…) otherwise |
+| `internal/engine/` | Sync engine: local scan, NAS change feed, three-way plan (local / NAS / last synchronized state), transfers with resume, moves, conflicts, deletion brake |
+| `internal/api/` | Client of the Sync API, certificate pinning (same rules as the Android app) |
+| `internal/app/` | Ties settings, client and engine together; the settings page (`web/`, served on 127.0.0.1 with a per-launch token) |
+| `internal/tray/`, `internal/platform/`, `internal/trash/` | Tray icon and menu; opening folders, notifications, start at login per system; the system trash |
+| `internal/i18n/catalog/` | Texts, one JSON file per language (`en`, `fr`; add `de.json`… with the same keys: a missing key shows in English) |
+| `internal/mdns/` | LAN discovery of `_strataos._tcp` |
+| `packaging/` | `build.sh linux|windows|macos`, the WiX source of the `.msi` (`windows/`), the macOS `Info.plist` |
+
+```bash
+cd desktop
+go test ./...                                   # engine (fake NAS), pinning, settings server, catalogs, trash
+go run ./cmd/strataos-sync --config /tmp/s      # tray app with a throwaway configuration
+GOOS=windows go build ./cmd/strataos-sync       # cross-compiling checks (macOS: CGO_ENABLED=0, no tray)
+../desktop/packaging/build.sh linux             # dist/strataos-sync-<version>-linux-{amd64,arm64}.deb, -linux-amd64.tar.gz
+```
+
+`.msi` (WiX 4+, `packaging/windows/build-msi.sh`) and `.dmg` (`build.sh macos`) are built on Windows and macOS runners by `ci.yml` and `release.yml` (jobs `desktop-*`, whose files the release job downloads and publishes). End-to-end test: `vm/e2e.d/97-desktop-sync.sh` (builds the client with Go on the host).
+
+### Sync API
+
+For any client paired with a device token (`Authorization: Bearer stdev_…`; pairing: `POST /api/mobile/pair`, with `"kind": "desktop"` and `"os"` for a computer). Paths: `folder` is the absolute NAS folder followed (a shared folder or a folder inside one); `path` is relative to it, with `/`. Rights are the file manager's, checked at each request. Entries: `{"path", "dir", "size", "mtime" (Unix ms), "version", "hash" (SHA-256, when known), "id" (inode: the same file after a move), "deleted"}`. A **version** changes with any write, replacement or date change of a file (inode, size, date); clients send back the version they last saw to make changes conditional.
+
+| Request | Does |
+|---|---|
+| `GET /api/sync/info` | Server version and time, features |
+| `GET /api/sync/shares` | Shared folders the user can follow (`writable`, `recycleBin`) |
+| `GET /api/sync/changes?folder=&cursor=&limit=&wait=` | Entries changed after `cursor` (none: everything, `reset: true`), oldest first, at most `limit` (1000, up to 5000); `more: true`: ask again at once. `wait` (seconds, ≤ 55) holds the request until a change (long poll). An unknown or too old cursor (deletions are remembered 30 days) answers a full listing with `reset: true`: compare it with what you have. |
+| `GET /api/sync/file?folder=&path=` | The file, with `Range`; `ETag` / `X-Strata-Version` give its version (`If-Range` with it resumes safely) |
+| `POST /api/sync/hashes` `{folder, paths}` | SHA-256 of up to 1000 files (cached; computed within 20 s, missing ones: ask again) |
+| `POST /api/sync/mkdir` `{folder, path}` | Creates a folder and the missing ones above it |
+| `POST /api/sync/move` `{folder, from, to, ifMatch}` | Renames or moves inside the shared folder; 412 if the file is not at version `ifMatch` or the destination exists |
+| `POST /api/sync/delete` `{folder, path, ifMatch}` | Deletes a file at version `ifMatch` (`*`: any) to the recycle bin of the share when it has one, or an empty folder (`.DS_Store`, `Thumbs.db`… do not count); 412 otherwise |
+| `POST /api/mobile/uploads` `{folder, name, size, modTime, sync: true, replace: true, ifMatch, mkdirs}` then `PATCH /api/mobile/uploads/{id}` | Resumable upload (see the Android app); with `replace`, the last chunk puts the file in place of the version `ifMatch` (`""`: there must be none, `*`: any) |
+| `POST /api/mobile/uploads/{id}/commit` `{name, ifMatch}` | After a 412, completes the uploaded file again (under a conflict name, say) |
+
+Conflicts answer **412** `{"error", "conflict": true, "current": <entry or null>}`; a finished upload stays on the NAS until committed or cancelled. Errors: 401 (token revoked), 403 (read-only, frozen or no access, with the reason), 404 (folder gone: never delete local files then), 503 (volume missing or encrypted folder locked), 507 (quota or space).
+
+The server side is `backend/internal/api/sync*.go` and `backend/internal/syncjournal`: a per-share index of files numbered by change (gzipped gob in `/var/lib/strata/sync-index/`), loaded when a client asks, refreshed by inotify (one watch per folder; past the limit, full rescans every minute) and a full rescan every 5 minutes, so changes made over SMB, NFS, SFTP or the web appear like the others. Hashes are computed in the background for files up to 256 MB and cached by inode, size and date (a move keeps its hash). An index unused for an hour is saved and closed; the next request reloads it and rescans.
 
 ## Releases
 
