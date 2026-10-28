@@ -132,7 +132,7 @@ func TestGenerateConfig(t *testing.T) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
-	for _, no := range []string{"lxc.idmap", "cgroup2.cpu", "memory.max", "seccomp"} {
+	for _, no := range []string{"lxc.idmap", "cgroup2.cpu", "memory.max", "seccomp", "allow_nesting"} {
 		if strings.Contains(got, no) {
 			t.Errorf("%q not expected in:\n%s", no, got)
 		}

@@ -279,9 +279,11 @@ func GenerateConfig(s *Spec, o ConfigOpts) string {
 	}
 
 	f := s.Features
-	if f.Nesting {
+	if f.Nesting || !s.Privileged {
 		// The generated AppArmor profile, with nesting: /proc and /sys are
-		// also mounted uncovered for the inner containers.
+		// also mounted uncovered for the inner containers. Always on for an
+		// unprivileged container: the sandboxing of systemd ≥ 257 services
+		// (networkd, resolved…) needs it, as on Proxmox.
 		kv("lxc.apparmor.profile", "generated")
 		kv("lxc.apparmor.allow_nesting", "1")
 	}

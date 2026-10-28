@@ -110,7 +110,7 @@ export function MountFields({ mounts, set, mapUsers, setMapUsers, mapGroups, set
 export function FeatureFields({ f, set, privileged }: { f: LXCFeatures; set: (f: LXCFeatures) => void; privileged: boolean }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Switch checked={!!f.nesting} onChange={(v) => set({ ...f, nesting: v })} label={tr("Nesting")} hint={tr("Containers inside this one (Docker, Podman)")} />
+      <Switch checked={!!f.nesting || !privileged} disabled={!privileged} onChange={(v) => set({ ...f, nesting: v })} label={tr("Nesting")} hint={privileged ? tr("Containers inside this one (Docker, Podman)") : tr("Always on in an unprivileged container (systemd needs it); with keyctl, Docker runs inside")} />
       <Switch checked={!!f.keyctl} disabled={privileged} onChange={(v) => set({ ...f, keyctl: v })} label="keyctl" hint={tr("Needed by Docker in an unprivileged container")} />
       <Switch checked={!!f.fuse} onChange={(v) => set({ ...f, fuse: v })} label="FUSE" hint={tr("File systems in user space (sshfs, rclone mount…)")} />
       <Switch checked={!!f.tun} onChange={(v) => set({ ...f, tun: v })} label="TUN" hint={tr("VPN software (WireGuard in user space, OpenVPN, Tailscale)")} />
