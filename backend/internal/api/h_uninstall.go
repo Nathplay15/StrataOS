@@ -17,6 +17,7 @@ import (
 	"strataos/internal/components"
 	"strataos/internal/docker"
 	"strataos/internal/jobs"
+	"strataos/internal/lxc"
 	"strataos/internal/media"
 	"strataos/internal/nvr"
 	"strataos/internal/remote"
@@ -184,6 +185,8 @@ func (s *Server) componentFacts(ctx context.Context, id string) components.Facts
 				f.VMs = append(f.VMs, v.Name)
 			}
 		}
+	case "lxc":
+		f.LXC = lxc.Names()
 	case "tailscale":
 		if remote.TailscaleInstalled() {
 			f.Tailscale = remote.TailscaleStatus(ctx).LoggedIn
@@ -402,6 +405,12 @@ func (s *Server) componentOff(ctx context.Context, j *jobs.Job, p *componentPlan
 		err = update(func(st *store.State) { st.UPS = nil })
 	case "vms":
 		err = update(func(st *store.State) { st.VMs = store.VMSettings{} })
+	case "lxc":
+		err = update(func(st *store.State) {
+			for _, b := range st.Backups {
+				b.Containers = nil
+			}
+		})
 	case "rclone":
 		err = update(func(st *store.State) {
 			for _, c := range st.Clouds {

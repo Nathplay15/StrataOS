@@ -274,6 +274,12 @@ func CapsFrom(r *http.Request) Caps {
 	return Caps{HEVC: q.Get("hevc") == "1", AV1: q.Get("av1") == "1"}
 }
 
+// HeightFrom reads the picture height asked for (height=720…, 0 when none).
+func HeightFrom(r *http.Request) int {
+	h, _ := strconv.Atoi(r.URL.Query().Get("height"))
+	return h
+}
+
 // StartFrom reads the start time in seconds (start=…).
 func StartFrom(r *http.Request) float64 {
 	v, err := strconv.ParseFloat(r.URL.Query().Get("start"), 64)
@@ -286,7 +292,8 @@ func StartFrom(r *http.Request) float64 {
 // ServeFile plays f in the browser: the file itself when it can (Range
 // requests, seeking by the browser), otherwise a remux or a transcode from
 // start= (seeking restarts the request). Query: start, audio (track index),
-// hevc, av1. name gives the extension; the caller checked access to f.
+// hevc, av1, height (a lower transcoded quality). name gives the extension;
+// the caller checked access to f.
 func ServeFile(w http.ResponseWriter, r *http.Request, f *os.File, name string) error {
 	info, err := Probe(r.Context(), f)
 	if err != nil {
@@ -302,6 +309,7 @@ func ServeFile(w http.ResponseWriter, r *http.Request, f *os.File, name string) 
 	if err != nil {
 		return err
 	}
+	plan = WithHeight(plan, HeightFrom(r))
 	if plan.Mode == Native {
 		st, err := f.Stat()
 		if err != nil {

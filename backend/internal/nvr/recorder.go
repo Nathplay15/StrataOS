@@ -53,6 +53,9 @@ type Manager struct {
 	mu         sync.Mutex
 	recs       map[string]*recorder
 	lives      map[string]*live
+	streams    map[string]*liveStream // live video (livestream.go), by camera/kind
+	// startStream runs the ffmpeg of a live stream (nil: startFFmpeg).
+	startStream streamStarter
 }
 
 func NewManager() *Manager {
@@ -141,6 +144,12 @@ func (m *Manager) Forget(id string) {
 	if l := m.lives[id]; l != nil {
 		l.cancel()
 		delete(m.lives, id)
+	}
+	for _, kind := range []string{"main", "sub"} {
+		if s := m.streams[id+"/"+kind]; s != nil {
+			s.cancel() // its viewers are closed when ffmpeg ends
+			delete(m.streams, id+"/"+kind)
+		}
 	}
 	m.mu.Unlock()
 	if id != "" && !strings.ContainsAny(id, "/.") {

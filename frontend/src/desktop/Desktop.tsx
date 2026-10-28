@@ -176,7 +176,7 @@ function UserMenu({ me }: { me: Me }) {
           <button className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
           <button className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
           <button className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
-          <button className={item} onClick={() => { setOpen(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Mobile devices")}</button>
+          <button className={item} onClick={() => { setOpen(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
           <button className={item} onClick={() => setUIMode("classic")}><MonitorIcon size={15} /> {" "}{tr("Classic interface")}</button>
           {me.role === "admin" && (
             <>

@@ -265,11 +265,11 @@ func (s *Server) healthWatcher() {
 // notify sends a notification of level info, warning or error to the
 // channels that accept it (switch, minimum level, quiet hours).
 func (s *Server) notify(level, subject, msg string) {
-	go func() {
+	s.bg.Go(func() {
 		if _, err := s.sendNotification(level, subject, msg); err != nil && !errors.Is(err, errNoChannel) {
 			slog.Warn("notification failed", "err", err)
 		}
-	}()
+	})
 }
 
 var errNoChannel = badRequest("no notification channel configured")

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,9 @@ func badRequest(msg string) error { return &Error{Status: http.StatusBadRequest,
 func notFound(msg string) error   { return &Error{Status: http.StatusNotFound, Msg: msg} }
 
 type Server struct {
+	// bg tracks notifications being sent (tests wait for them before their data folder goes).
+	bg sync.WaitGroup
+
 	store    *store.Store
 	jobs     *jobs.Manager
 	monitor  *system.Monitor
@@ -110,6 +114,7 @@ func New(c Config) *Server {
 	go s.configAutoLoop()
 	go s.hardwareLoop()
 	go s.vmAutostartLoop()
+	go s.lxcAutostartLoop()
 	go s.nvrLoop()
 	go s.fleetResume()
 	go s.autoUpdateLoop()
@@ -117,6 +122,7 @@ func New(c Config) *Server {
 	go s.mobileUploadsLoop()
 	go s.rpiKernelResume()
 	go s.cephLoop()
+	go s.dockerUpdatesLoop() // Android app v2 (part A): container updates
 	return s
 }
 
@@ -231,6 +237,7 @@ func (s *Server) routes() {
 	s.certRoutes()
 	s.upsRoutes()
 	s.vmRoutes()
+	s.lxcRoutes()
 	s.cloudRoutes()
 	s.davRoutes()
 	s.fileServiceRoutes()
@@ -262,7 +269,11 @@ func (s *Server) routes() {
 	s.consoleRoutes()
 	s.mobileRoutes()
 	s.mobileUploadRoutes()
+	s.syncRoutes()
 	s.rpiKernelRoutes()
+	// Android app v2 (part A): file manager additions, container updates.
+	s.fileMoreRoutes()
+	s.dockerUpdateRoutes()
 	s.clusterRoutes()
 	s.cephRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

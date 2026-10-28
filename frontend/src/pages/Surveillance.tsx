@@ -195,9 +195,21 @@ function LiveTile({ cam, big, onClick }: { cam: Camera; big: boolean; onClick: (
     }
     next(5000);
   };
+  // Enlarged, an RTSP camera plays as live video (main stream remuxed by the
+  // NAS); a codec the browser cannot decode falls back to the pictures.
+  const [videoFailed, setVideoFailed] = useState(false);
+  const video = big && /^rtsps?:/.test(cam.url) && !videoFailed;
+  // Stay close to live: skip ahead when the browser has buffered too much.
+  const catchUp = (v: HTMLVideoElement) => {
+    if (v.buffered.length && v.buffered.end(v.buffered.length - 1) - v.currentTime > 2) v.currentTime = v.buffered.end(v.buffered.length - 1) - 0.3;
+  };
   return (
     <button onClick={onClick} className={cx("group relative aspect-video overflow-hidden rounded-xl border border-line bg-black text-left", big && "ring-1 ring-accent/40")}>
-      <img src={`/api/nvr/cameras/${cam.id}/live.jpg?t=${tick}`} alt="" className="h-full w-full object-contain" onLoad={() => { setErr(null); next(1000); }} onError={onError} />
+      {video ? (
+        <video src={`/api/nvr/cameras/${cam.id}/live.mp4?stream=main`} autoPlay muted playsInline className="h-full w-full object-contain" onError={() => setVideoFailed(true)} onTimeUpdate={(e) => catchUp(e.currentTarget)} />
+      ) : (
+        <img src={`/api/nvr/cameras/${cam.id}/live.jpg?t=${tick}`} alt="" className="h-full w-full object-contain" onLoad={() => { setErr(null); next(1000); }} onError={onError} />
+      )}
       {err && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-[12.5px] text-white/80">{srv(err)}</div>}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-3 py-2 text-[12.5px] text-white">
         <span className="font-medium">{cam.name}</span>
@@ -216,7 +228,7 @@ function Live({ data }: { data: Data }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-muted text-[12.5px]">{tr("One picture per second, from the sub-stream when there is one. Click a camera to enlarge it.")}</div>
+        <div className="text-muted text-[12.5px]">{tr("One picture per second, from the sub-stream when there is one. Click a camera to enlarge it and watch its live video.")}</div>
         {!solo && (
           <div className="flex gap-1">{[1, 2, 3, 4].map((n) => <Button key={n} size="sm" variant={cols === n ? "primary" : "ghost"} onClick={() => setCols(n)}>{n}×</Button>)}</div>
         )}

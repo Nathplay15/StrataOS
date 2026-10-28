@@ -233,6 +233,7 @@ func clearRouting(kill bool) {
 	prefs := []int{prioMain, prioTunnelSrc, prioTunnel}
 	if kill {
 		prefs = append(prefs, killPrefs...)
+		_ = updatesMarking("")
 	}
 	for _, f := range families {
 		for _, p := range prefs {
@@ -326,6 +327,9 @@ func SetupRouting(cl store.VPNClient) error {
 
 func setupRouting(cl store.VPNClient, v6 bool, aptUID int) error {
 	if err := ensureKill(KillRules(cl, v6, aptUID)); err != nil {
+		return err
+	}
+	if err := updatesMarking(UpdatesMarking(cl, aptUID)); err != nil {
 		return err
 	}
 	clearRouting(false)
@@ -580,4 +584,25 @@ func dockerUser(wgs []string) {
 			}
 		}
 	}
+}
+
+// updatesMarking puts the table of UpdatesMarking in place ("": removes it).
+// The kernel only looks at the mark of a reply during its reverse path check
+// with src_valid_mark.
+func updatesMarking(table string) error {
+	if !sys.Has("nft") {
+		if table != "" {
+			return fmt.Errorf("nftables is not installed")
+		}
+		return nil
+	}
+	_, _ = sys.Run("nft", "delete", "table", "inet", "strata_vpn_updates")
+	if table == "" {
+		return nil
+	}
+	if _, err := sys.Run("sysctl", "-q", "-w", "net.ipv4.conf.all.src_valid_mark=1"); err != nil {
+		return err
+	}
+	_, err := sys.RunInput(table, "nft", "-f", "-")
+	return err
 }

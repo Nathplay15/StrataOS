@@ -22,9 +22,12 @@ import (
 // so they never go into the tunnel themselves), and the Docker network of
 // the apps routed through it.
 const (
-	OutIface          = "strata-out"
-	RouteTable        = 52000
-	FwMark            = 0xcb20 // 52000
+	OutIface   = "strata-out"
+	RouteTable = 52000
+	FwMark     = 0xcb20 // 52000
+	// UpdatesMark marks APT's connections when they may bypass the kill
+	// switch (see UpdatesMarking).
+	UpdatesMark       = 0xcb21
 	AppsNetwork       = "strata-vpn"
 	AppsBridge        = "br-strata-vpn"
 	DefaultAppsSubnet = "172.31.250.0/24"
@@ -379,6 +382,9 @@ func KillRules(cl store.VPNClient, v6 bool, aptUID int) [][]string {
 		if cl.AllowUpdates && aptUID >= 0 {
 			u := p(aptUID)
 			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioUpdates), "uidrange", u + "-" + u, "lookup", "main"})
+			// The replies: the reverse path check looks them up as root,
+			// with the mark of their connection (UpdatesMarking).
+			cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioUpdates), "fwmark", mark(UpdatesMark), "lookup", "main"})
 		}
 		cmds = append(cmds, []string{f, "rule", "add", "pref", p(prioKillAll), "not", "fwmark", mark(FwMark), "blackhole"})
 	}
@@ -454,4 +460,27 @@ func TunnelPublicIP(ctx context.Context, cl store.VPNClient) (string, error) {
 	}
 	// Some echo services answer an IPv4 client in IPv4-mapped IPv6 form.
 	return addr.Unmap().String(), nil
+}
+
+// UpdatesMarking is the nftables table that marks APT's connections (and
+// their replies) when the whole NAS goes through the tunnel and updates may
+// bypass it: with the rule "fwmark UpdatesMark lookup main", the reverse path
+// check of the kernel (rp_filter) accepts the replies, which it would
+// otherwise send to the kill switch's blackhole. "" when not needed.
+func UpdatesMarking(cl store.VPNClient, aptUID int) string {
+	if cl.Scope != "all" || !cl.AllowUpdates || aptUID < 0 {
+		return ""
+	}
+	m := mark(UpdatesMark)
+	return fmt.Sprintf(`table inet strata_vpn_updates {
+	chain output {
+		type route hook output priority mangle; policy accept;
+		meta skuid %d ct mark set %s meta mark set %s
+	}
+	chain prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+		ct mark %s meta mark set %s
+	}
+}
+`, aptUID, m, m, m, m)
 }

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -119,6 +120,23 @@ type Plan struct {
 	CopyAudio bool    `json:"copyAudio"`
 	// Type is the Content-Type sent: the file's own for Native.
 	Type string `json:"type"`
+	// Height caps the transcoded picture below MaxHeight (0: MaxHeight),
+	// for clients choosing a lower quality (mobile app on a slow link).
+	Height int `json:"height,omitempty"`
+}
+
+// Qualities are the picture heights a client may ask for.
+var Qualities = []int{360, 480, 720, 1080}
+
+// WithHeight forces a transcode to at most h lines when the video is taller
+// (h must be one of Qualities; anything else leaves p unchanged).
+func WithHeight(p Plan, h int) Plan {
+	if p.AudioOnly || p.Video == nil || !slices.Contains(Qualities, h) || (p.Video.Height > 0 && p.Video.Height <= h) {
+		return p
+	}
+	p.Height, p.CopyVideo, p.Mode, p.Type = h, false, Transcode, "video/mp4"
+	p.CopyAudio = p.Audio == nil || audioInMP4(p.Audio.Codec)
+	return p
 }
 
 // Containers browsers play from a plain URL, by extension.
@@ -263,6 +281,10 @@ const MaxHeight = 1080
 func Args(p Plan, start float64, hw HW) []string {
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error"}
 	encodeVideo := !p.AudioOnly && !p.CopyVideo
+	maxH := MaxHeight
+	if p.Height > 0 && p.Height < maxH {
+		maxH = p.Height
+	}
 	vaapi := encodeVideo && hw.VAAPI && hw.Device != ""
 	if vaapi {
 		args = append(args, "-init_hw_device", "vaapi=va:"+hw.Device, "-filter_hw_device", "va",
@@ -295,14 +317,14 @@ func Args(p Plan, start float64, hw HW) []string {
 			if p.Video.Interlaced {
 				vf += ",deinterlace_vaapi"
 			}
-			vf += fmt.Sprintf(",scale_vaapi=w=-2:h='min(ih,%d)':format=nv12", MaxHeight)
+			vf += fmt.Sprintf(",scale_vaapi=w=-2:h='min(ih,%d)':format=nv12", maxH)
 			args = append(args, "-vf", vf, "-c:v", "h264_vaapi", "-qp", "24", "-g", "60")
 		default:
 			vf := ""
 			if p.Video.Interlaced {
 				vf = "yadif,"
 			}
-			vf += fmt.Sprintf("scale=-2:'min(ih,%d)',format=yuv420p", MaxHeight)
+			vf += fmt.Sprintf("scale=-2:'min(ih,%d)',format=yuv420p", maxH)
 			args = append(args, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-g", "60", "-profile:v", "high")
 		}
 	}

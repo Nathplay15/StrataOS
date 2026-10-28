@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StrataOS Sync</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="icon.png">
+</head>
+<body>
+<header>
+  <img src="icon.png" alt="" width="28" height="28">
+  <h1>StrataOS Sync</h1>
+  <span id="summary" class="muted"></span>
+  <span class="grow"></span>
+  <button id="pause" class="ghost"></button>
+  <button id="syncnow" class="ghost" data-t="action.syncnow"></button>
+</header>
+<nav id="tabs">
+  <button data-tab="status" data-t="tab.status"></button>
+  <button data-tab="folders" data-t="tab.folders"></button>
+  <button data-tab="account" data-t="tab.account"></button>
+  <button data-tab="settings" data-t="tab.settings"></button>
+</nav>
+<main>
+  <div id="error" class="notice error" hidden></div>
+
+  <section id="tab-status" hidden>
+    <div id="signedout" class="notice error" hidden data-t="status.signedout"></div>
+    <div id="pairs-status"></div>
+    <p id="nofolder" class="muted" hidden data-t="status.nofolder"></p>
+  </section>
+
+  <section id="tab-folders" hidden>
+    <div id="pairs"></div>
+    <div class="card">
+      <h2 data-t="folders.add"></h2>
+      <label><span data-t="folders.remote"></span>
+        <div class="row"><input id="remote" readonly><button id="browse-remote" data-t="action.choose"></button></div>
+      </label>
+      <div id="remote-browser" class="browser" hidden></div>
+      <label><span data-t="folders.local"></span>
+        <div class="row"><input id="local" spellcheck="false"><button id="browse-local" data-t="action.browse"></button></div>
+      </label>
+      <p class="muted" data-t="folders.localhint"></p>
+      <button id="add-pair" class="primary" data-t="folders.addbutton"></button>
+    </div>
+  </section>
+
+  <section id="tab-account" hidden>
+    <div id="paired" class="card" hidden>
+      <h2 data-t="account.paired"></h2>
+      <dl>
+        <dt data-t="account.nas"></dt><dd id="acc-nas"></dd>
+        <dt data-t="account.address"></dt><dd id="acc-server" class="mono"></dd>
+        <dt data-t="account.user"></dt><dd id="acc-user"></dd>
+        <dt data-t="account.fingerprint"></dt><dd id="acc-fp" class="mono small"></dd>
+      </dl>
+      <div class="row">
+        <button id="open-web" data-t="action.openweb"></button>
+        <button id="signout" class="danger" data-t="account.signout"></button>
+      </div>
+    </div>
+    <div id="pairing" class="card" hidden>
+      <h2 data-t="pair.title"></h2>
+      <p class="muted" data-t="pair.intro"></p>
+      <label><span data-t="pair.link"></span><input id="p-link" spellcheck="false" placeholder="strataos://pair?…"></label>
+      <p class="muted center" data-t="pair.or"></p>
+      <label><span data-t="pair.address"></span>
+        <div class="row"><input id="p-url" spellcheck="false" placeholder="https://nas.local:7443"><button id="discover" data-t="pair.discover"></button></div>
+      </label>
+      <div id="found" class="list"></div>
+      <div class="method">
+        <label class="inline"><input type="radio" name="method" value="code" checked> <span data-t="pair.withcode"></span></label>
+        <label class="inline"><input type="radio" name="method" value="password"> <span data-t="pair.withpassword"></span></label>
+      </div>
+      <div id="m-code"><label><span data-t="pair.code"></span><input id="p-code" spellcheck="false" autocomplete="off"></label></div>
+      <div id="m-password" hidden>
+        <label><span data-t="pair.username"></span><input id="p-user" autocomplete="username"></label>
+        <label><span data-t="pair.password"></span><input id="p-pass" type="password" autocomplete="current-password"></label>
+        <label id="otp-row" hidden><span data-t="pair.otp"></span><input id="p-otp" inputmode="numeric" autocomplete="one-time-code"></label>
+      </div>
+      <div id="cert" class="notice" hidden>
+        <p data-t="pair.cert"></p>
+        <p class="mono small" id="cert-fp"></p>
+        <label class="inline"><input type="checkbox" id="cert-ok"> <span data-t="pair.certok"></span></label>
+      </div>
+      <button id="pair" class="primary" data-t="pair.button"></button>
+    </div>
+  </section>
+
+  <section id="tab-settings" hidden>
+    <div class="card">
+      <label><span data-t="settings.device"></span><input id="s-device"></label>
+      <div class="grid2">
+        <label><span data-t="settings.up"></span><input id="s-up" type="number" min="0"></label>
+        <label><span data-t="settings.down"></span><input id="s-down" type="number" min="0"></label>
+      </div>
+      <p class="muted" data-t="settings.limithint"></p>
+      <label><span data-t="settings.ignore"></span><textarea id="s-ignore" rows="6" spellcheck="false"></textarea></label>
+      <p class="muted" data-t="settings.ignorehint"></p>
+      <label class="inline"><input type="checkbox" id="s-autostart"> <span data-t="settings.autostart"></span></label>
+      <label class="inline"><input type="checkbox" id="s-notify"> <span data-t="settings.notify"></span></label>
+      <label><span data-t="settings.language"></span>
+        <select id="s-lang"><option value="" data-t="settings.langauto"></option><option value="en">English</option><option value="fr">Français</option></select>
+      </label>
+      <button id="save-settings" class="primary" data-t="action.save"></button>
+    </div>
+    <p class="muted small" id="about"></p>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

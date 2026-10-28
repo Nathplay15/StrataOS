@@ -28,6 +28,7 @@ import (
 
 	"strataos/internal/iscsi"
 	"strataos/internal/jobs"
+	"strataos/internal/lxc"
 	"strataos/internal/network"
 	"strataos/internal/remote"
 	"strataos/internal/storage"
@@ -375,7 +376,7 @@ func (s *Server) systemRoutes() {
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ceph": "install-ceph.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "lxc": "install-lxc.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ceph": "install-ceph.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}
@@ -406,6 +407,7 @@ func componentsInstalled() map[string]bool {
 		"restic":     sys.Has("restic"),
 		"nut":        sys.Has("upsmon"),
 		"vms":        sys.Has("virsh"),
+		"lxc":        lxc.Installed(),
 		"rclone":     sys.Has("rclone"),
 		"ftp":        fileservices.FTPInstalled(),
 		"directory":  directory.ADInstalled() && directory.LDAPInstalled(),

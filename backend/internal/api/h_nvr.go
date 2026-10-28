@@ -351,6 +351,7 @@ func videoType(name string) string {
 
 func (s *Server) nvrRoutes() {
 	s.frigateRoutes()
+	s.nvrLiveRoutes()
 	s.admin("GET /api/nvr", func(r *http.Request) (any, error) {
 		n := s.nvrState()
 		names := frigateNames(n)

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Upload
@@ -69,11 +70,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Kind { IMAGE, VIDEO, PDF, OTHER }
+enum class Kind { IMAGE, VIDEO, AUDIO, PDF, OTHER }
 
 fun kindOf(name: String): Kind = when (name.substringAfterLast('.', "").lowercase()) {
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif" -> Kind.IMAGE
-    "mp4", "m4v", "mov", "webm", "mkv", "3gp" -> Kind.VIDEO
+    "mp4", "m4v", "mov", "webm", "mkv", "3gp", "avi", "wmv", "ts", "m2ts", "mts", "mpg", "mpeg", "flv", "ogv", "vob" -> Kind.VIDEO
+    "mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "alac", "aiff", "aif", "mka", "ape" -> Kind.AUDIO
     "pdf" -> Kind.PDF
     else -> Kind.OTHER
 }
@@ -81,9 +83,10 @@ fun kindOf(name: String): Kind = when (name.substringAfterLast('.', "").lowercas
 fun mimeOf(name: String): String =
     MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
 
-private fun iconOf(e: FileEntry): ImageVector = if (e.dir) Icons.Default.Folder else when (kindOf(e.name)) {
+fun iconOf(e: FileEntry): ImageVector = if (e.dir) Icons.Default.Folder else when (kindOf(e.name)) {
     Kind.IMAGE -> Icons.Default.Image
     Kind.VIDEO -> Icons.Default.Movie
+    Kind.AUDIO -> Icons.Default.MusicNote
     Kind.PDF -> Icons.Default.PictureAsPdf
     Kind.OTHER -> Icons.Default.Description
 }
@@ -93,146 +96,6 @@ fun cacheFor(ctx: Context, e: FileEntry): File {
     val dir = File(ctx.cacheDir, "open/" + Integer.toHexString(e.path.hashCode()))
     dir.mkdirs()
     return File(dir, e.name)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FilesScreen(path: String, setPath: (String) -> Unit) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val loader = rememberLoader(path) { Graph.api()!!.files(path) }
-    var viewing by remember { mutableStateOf<Pair<FileEntry, File>?>(null) }
-    var progress by remember { mutableStateOf<Pair<String, Float>?>(null) }
-    var menuFor by remember { mutableStateOf<FileEntry?>(null) }
-    var newFolder by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf<FileEntry?>(null) }
-    val list = (loader.state as? Loaded.Ok)?.value
-
-    viewing?.let { (e, f) ->
-        Viewer(e, f) { viewing = null }
-        return
-    }
-
-    BackHandler(enabled = path.isNotEmpty() && list != null && list.path != "/srv/strata") {
-        setPath(list!!.path.substringBeforeLast('/').ifEmpty { "" })
-    }
-
-    fun fetch(e: FileEntry, then: (File) -> Unit) {
-        scope.launch {
-            val f = cacheFor(ctx, e)
-            try {
-                if (!(f.exists() && f.length() == e.size)) {
-                    progress = e.name to 0f
-                    withContext(Dispatchers.IO) {
-                        Graph.api()!!.download(e.path, f) { d, t -> if (t > 0) progress = e.name to d.toFloat() / t }
-                    }
-                }
-                then(f)
-            } catch (ex: Exception) {
-                Toast.makeText(ctx, errorText(ctx, ex), Toast.LENGTH_LONG).show()
-            } finally {
-                progress = null
-            }
-        }
-    }
-
-    fun open(e: FileEntry) = fetch(e) { f ->
-        if (kindOf(e.name) != Kind.OTHER) viewing = e to f else openWith(ctx, f)
-    }
-
-    val saveTo = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
-        val e = saving ?: return@rememberLauncherForActivityResult
-        saving = null
-        if (uri != null) fetch(e) { f ->
-            scope.launch(Dispatchers.IO) {
-                runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { out -> f.inputStream().use { it.copyTo(out) } } }
-                    .onSuccess { withContext(Dispatchers.Main) { Toast.makeText(ctx, ctx.getString(R.string.saved), Toast.LENGTH_SHORT).show() } }
-            }
-        }
-    }
-
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        val folder = list?.path ?: return@rememberLauncherForActivityResult
-        if (uris.isNotEmpty()) scope.launch {
-            progress = ctx.getString(R.string.preparing) to 0f
-            val dir = withContext(Dispatchers.IO) { stageUris(ctx, uris) }
-            progress = null
-            UploadWorker.enqueue(ctx, folder, dir)
-            Toast.makeText(ctx, ctx.getString(R.string.upload_started, uris.size), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text(list?.path?.removePrefix("/srv/strata")?.ifEmpty { null }?.trim('/') ?: stringResource(R.string.tab_files), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    if (list != null && list.path != "/srv/strata") IconButton(onClick = { setPath(list.path.substringBeforeLast('/')) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    if (list?.writable == true) IconButton(onClick = { newFolder = true }) { Icon(Icons.Default.CreateNewFolder, stringResource(R.string.new_folder)) }
-                    IconButton(onClick = loader.reload) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh)) }
-                },
-            )
-        },
-        floatingActionButton = {
-            if (list?.writable == true) FloatingActionButton(onClick = { pick.launch("*/*") }) { Icon(Icons.Default.Upload, stringResource(R.string.upload)) }
-        },
-    ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
-            progress?.let { (name, p) ->
-                Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
-                LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
-            }
-            LoadedContent(loader) { l ->
-                if (l.entries.isEmpty()) {
-                    Box(Modifier.fillMaxSize().padding(32.dp)) { Text(stringResource(R.string.empty_folder), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                } else LazyColumn(Modifier.fillMaxSize()) {
-                    items(l.entries, key = { it.path }) { e ->
-                        Box {
-                            ListItem(
-                                headlineContent = { Text(e.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = { Text(if (e.dir) formatDate(e.modTime) else formatBytes(e.size) + " · " + formatDate(e.modTime)) },
-                                leadingContent = { Icon(iconOf(e), null, tint = if (e.dir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
-                                modifier = Modifier.combinedClickable(onClick = { if (e.dir) setPath(e.path) else open(e) }, onLongClick = { if (!e.dir) menuFor = e }),
-                            )
-                            DropdownMenu(expanded = menuFor == e, onDismissRequest = { menuFor = null }) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.open)) }, onClick = { menuFor = null; open(e) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.open_with)) }, onClick = { menuFor = null; fetch(e) { openWith(ctx, it) } })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.save_to_phone)) }, onClick = { menuFor = null; saving = e; saveTo.launch(e.name) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, onClick = { menuFor = null; fetch(e) { shareFile(ctx, it) } })
-                            }
-                        }
-                        HorizontalDivider()
-                    }
-                }
-            }
-        }
-    }
-
-    if (newFolder) {
-        var name by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { newFolder = false },
-            title = { Text(stringResource(R.string.new_folder)) },
-            text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(stringResource(R.string.name)) }) },
-            confirmButton = {
-                TextButton(enabled = name.isNotBlank() && !name.contains('/'), onClick = {
-                    newFolder = false
-                    val p = list!!.path + "/" + name.trim()
-                    scope.launch {
-                        runCatching { withContext(Dispatchers.IO) { Graph.api()!!.mkdir(p) } }
-                            .onSuccess { loader.reload() }
-                            .onFailure { Toast.makeText(ctx, errorText(ctx, it), Toast.LENGTH_LONG).show() }
-                    }
-                }) { Text(stringResource(R.string.create)) }
-            },
-            dismissButton = { TextButton(onClick = { newFolder = false }) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
 }
 
 fun uriFor(ctx: Context, f: File): Uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
