@@ -138,7 +138,13 @@ private fun VmList(
                     filter == "cts" || !vmsOk -> go("ctnew")
                     else -> adding = true
                 }
-            }, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.vm_create)) })
+            }, icon = { Icon(Icons.Default.Add, null) }, text = {
+                Text(stringResource(when {
+                    filter == "vms" || !ctOk -> R.string.vm_create
+                    filter == "cts" || !vmsOk -> R.string.ct_new
+                    else -> R.string.ct_create
+                }))
+            })
             DropdownMenu(adding, { adding = false }) {
                 DropdownMenuItem({ Text(stringResource(R.string.ct_new_vm)) }, { adding = false; go("new") })
                 DropdownMenuItem({ Text(stringResource(R.string.ct_new)) }, { adding = false; go("ctnew") })

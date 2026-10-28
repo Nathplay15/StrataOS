@@ -196,7 +196,8 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     var filesPath by rememberSaveable { mutableStateOf("") }
     if (overlay != null) {
         BackHandler { setOverlay(null) }
-        Surface(Modifier.fillMaxSize()) {
+        // The overlays draw their own top bar (status bar inset); keep their content above the navigation bar.
+        Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
             when (overlay) {
                 "backup" -> BackupScreen(onBack = { setOverlay(null) })
                 "sync" -> io.github.nathplay15.strataos.ui.sync.SyncScreen(onBack = { setOverlay(null) })

@@ -123,4 +123,5 @@
     <string name="ct_terminal">Terminal</string>
     <string name="ct_tun_help">Logiciels de VPN (WireGuard en espace utilisateur, OpenVPN, Tailscale)</string>
     <string name="ct_volume">Volume</string>
+    <string name="ct_create">Créer</string>
 </resources>
