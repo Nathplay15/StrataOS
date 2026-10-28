@@ -200,8 +200,8 @@ func (s *Server) vmcInventory() vmcInventory {
 func vmCPUs(list []vms.VM) map[string]string {
 	out := map[string]string{}
 	for _, vm := range list {
-		if mi, err := vms.MigrationInfo(vm.Name); err == nil && mi.CPUMode == "custom" && mi.CPUModel != "" {
-			out[vm.Name] = mi.CPUModel
+		if m := vms.CPUModelOf(vm.Name); m != "" {
+			out[vm.Name] = m
 		}
 	}
 	return out

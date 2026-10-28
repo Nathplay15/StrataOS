@@ -122,6 +122,19 @@ func MigrationInfo(name string) (*MigInfo, error) {
 	return mi, nil
 }
 
+// CPUModelOf returns the named CPU model of a VM ("" for the host's CPU).
+func CPUModelOf(name string) string {
+	out, err := virsh("dumpxml", name, "--inactive")
+	if err != nil {
+		return ""
+	}
+	var d migXML
+	if xml.Unmarshal([]byte(out), &d) != nil || (d.CPU.Mode != "custom" && d.CPU.Mode != "") {
+		return ""
+	}
+	return d.CPU.Model
+}
+
 // HostCPU describes the processor of this NAS (vendor, family, model and
 // flags, hashed): two NAS with the same signature run host-CPU VMs alike.
 func HostCPU() string {
