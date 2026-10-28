@@ -5,7 +5,7 @@
 # CephFS and RBD volumes, a shared folder on Ceph over SMB, VM storage (libvirt RBD pool),
 # an external connection with a restricted key, adding and safely removing a disk,
 # maintenance, one NAS stopped (degraded but available) then back (recovery), and the
-# removal of everything. About 60 minutes; needs about 4 GB of free RAM.
+# removal of everything. About 15 minutes (with the Debian image cached); needs about 4 GB of free RAM.
 # Usage: make deb && ./vm/ceph-test.sh   (recreates the three VMs; KEEP=1 keeps them)
 set -uo pipefail
 cd "$(dirname "$0")/.."

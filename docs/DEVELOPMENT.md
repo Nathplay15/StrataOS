@@ -70,7 +70,7 @@ Details in [vm/README.md](../vm/README.md).
 | `make test` | Go unit tests |
 | `make vm-test` | Full end-to-end suite on a fresh VM (about 360 checks, ~40 min) |
 | `make ha-test` | High availability with three VMs |
-| `make ceph-test` | Ceph cluster of three VMs (1280 MB each, about an hour): wizard API, CephFS/RBD volumes, VM storage, external key, disk removal, a NAS down and back |
+| `make ceph-test` | Ceph cluster of three VMs (1280 MB each, about 15 minutes): wizard API, CephFS/RBD volumes, VM storage, external key, disk removal, a NAS down and back |
 | `make upgrade-test` | Installs the previous release, fills it, upgrades to the current code |
 | `make arm64-test` | The arm64 package in an emulated ARM VM |
 | `vm/iso-test.sh <iso>` | Installs an ISO in a blank VM |

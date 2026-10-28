@@ -62,7 +62,7 @@ vm-test: deb
 ha-test: deb
 	./vm/ha-test.sh
 
-# Ceph cluster of three VMs (1280 MB each, about an hour), separate from vm-test.
+# Ceph cluster of three VMs (1280 MB each, about 15 minutes), separate from vm-test.
 ceph-test: deb
 	./vm/ceph-test.sh
 
