@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -42,7 +44,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.R
+import io.github.nathplay15.strataos.net.manage.LxcList
 import io.github.nathplay15.strataos.net.manage.NasJob
+import io.github.nathplay15.strataos.net.manage.lxc
 import io.github.nathplay15.strataos.net.manage.Vm
 import io.github.nathplay15.strataos.net.manage.VmList
 import io.github.nathplay15.strataos.net.manage.installComponent
@@ -62,7 +66,8 @@ import io.github.nathplay15.strataos.ui.formatBytes
 
 // Virtual machines: list with state and resources, power actions, details
 // (snapshots, resources, CD-ROM, deletion), creation wizard and the console.
-// Routes: "list", "vm:<name>", "console:<name>", "new".
+// Routes: "list", "vm:<name>", "console:<name>", "new"; LXC containers (shown
+// with the VMs, like the web interface): "ct:<name>", "ctnew", "term:<name>".
 
 @Composable
 fun VmsArea(back: () -> Unit) {
@@ -82,13 +87,18 @@ fun VmsArea(back: () -> Unit) {
             }
         }
     }
-    val home = { route = "list"; data.reload() }
+    val cts = rememberData(polling || kind == "ct", every = if (polling || kind == "ct") 5000 else 0) { api -> api.lxc() }
+    val home = { route = "list"; data.reload(); cts.reload() }
     val vm = data.value?.vms?.firstOrNull { it.name == name }
+    val ct = cts.value?.containers?.firstOrNull { it.name == name }
     when {
         kind == "console" && name.isNotEmpty() -> VncScreen(name, onBack = { route = "vm:$name" })
         kind == "new" -> VmCreate(data.value, onBack = home)
         kind == "vm" && vm != null -> VmDetail(vm, data.value!!, cpuPct[vm.name], onBack = home, open = { route = it }, reload = data.reload)
-        else -> VmList(data, cpuPct, back) { route = it }
+        kind == "ctnew" -> ContainerCreate(cts.value?.bridges.orEmpty(), onBack = home)
+        kind == "ct" && ct != null -> ContainerDetail(ct, cts.value!!.bridges, onBack = home, open = { route = it }, reload = cts.reload)
+        kind == "term" && name.isNotEmpty() -> ContainerTerminal(name, onBack = { route = "ct:$name" })
+        else -> VmList(data, cts, cpuPct, back) { route = it }
     }
 }
 
@@ -109,27 +119,77 @@ fun VmState(v: Vm) {
 }
 
 @Composable
-private fun VmList(data: io.github.nathplay15.strataos.ui.adminkit.Data<VmList>, cpu: Map<String, Int>, back: () -> Unit, go: (String) -> Unit) {
+private fun VmList(
+    data: io.github.nathplay15.strataos.ui.adminkit.Data<VmList>, cts: io.github.nathplay15.strataos.ui.adminkit.Data<LxcList>,
+    cpu: Map<String, Int>, back: () -> Unit, go: (String) -> Unit,
+) {
     val actions = rememberActions()
     var job by remember { mutableStateOf<NasJob?>(null) }
+    var filter by rememberSaveable { mutableStateOf("all") }
+    var adding by remember { mutableStateOf(false) }
+    val lxc = cts.value
     AreaScreen(stringResource(R.string.area_vms), back, fab = {
-        if (data.value?.installed == true) ExtendedFloatingActionButton(onClick = { go("new") }, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.vm_create)) })
+        val vmsOk = data.value?.installed == true
+        val ctOk = lxc?.installed == true
+        if (vmsOk || ctOk) Box {
+            ExtendedFloatingActionButton(onClick = {
+                when {
+                    filter == "vms" || !ctOk -> go("new")
+                    filter == "cts" || !vmsOk -> go("ctnew")
+                    else -> adding = true
+                }
+            }, icon = { Icon(Icons.Default.Add, null) }, text = {
+                Text(stringResource(when {
+                    filter == "vms" || !ctOk -> R.string.vm_create
+                    filter == "cts" || !vmsOk -> R.string.ct_new
+                    else -> R.string.ct_create
+                }))
+            })
+            DropdownMenu(adding, { adding = false }) {
+                DropdownMenuItem({ Text(stringResource(R.string.ct_new_vm)) }, { adding = false; go("new") })
+                DropdownMenuItem({ Text(stringResource(R.string.ct_new)) }, { adding = false; go("ctnew") })
+            }
+        }
     }) { pad ->
         Refreshable(data, pad) { l ->
-            when {
-                !l.installed -> Empty(Icons.Default.Computer, stringResource(R.string.vm_not_installed)) {
-                    Button(onClick = { actions.run { job = it.installComponent("vms") } }, enabled = !actions.busy) { Text(stringResource(R.string.vm_install)) }
+            val showVms = filter != "cts"
+            val showCts = filter != "vms"
+            LazyVerticalGrid(GridCells.Adaptive(340.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 88.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("all" to R.string.ct_filter_all, "vms" to R.string.ct_filter_vms, "cts" to R.string.ct_filter_cts).forEach { (f, label) ->
+                            FilterChip(filter == f, { filter = f }, { Text(stringResource(label)) })
+                        }
+                    }
                 }
-                l.vms.isEmpty() -> Empty(Icons.Default.Computer, stringResource(R.string.vm_none))
-                else -> LazyVerticalGrid(GridCells.Adaptive(340.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 88.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (!l.kvm) item { Text(stringResource(R.string.vm_no_kvm), color = MaterialTheme.colorScheme.error) }
-                    items(l.vms, key = { it.name }) { v -> VmCard(v, l, cpu[v.name], actions, go, data.reload) }
+                if (showVms) {
+                    if (!l.installed) item(span = { GridItemSpan(maxLineSpan) }) {
+                        Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.vm_not_installed))
+                            Button(onClick = { actions.run { job = it.installComponent("vms") } }, enabled = !actions.busy) { Text(stringResource(R.string.vm_install)) }
+                        } }
+                    } else {
+                        if (!l.kvm) item(span = { GridItemSpan(maxLineSpan) }) { Text(stringResource(R.string.vm_no_kvm), color = MaterialTheme.colorScheme.error) }
+                        if (l.vms.isEmpty() && filter == "vms") item(span = { GridItemSpan(maxLineSpan) }) { Text(stringResource(R.string.vm_none), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        items(l.vms, key = { "vm:" + it.name }) { v -> VmCard(v, l, cpu[v.name], actions, go, data.reload) }
+                    }
+                }
+                if (showCts && lxc != null) {
+                    if (!lxc.installed) item(span = { GridItemSpan(maxLineSpan) }) {
+                        Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.ct_not_installed))
+                            Button(onClick = { actions.run { job = it.installComponent("lxc") } }, enabled = !actions.busy) { Text(stringResource(R.string.ct_install)) }
+                        } }
+                    } else {
+                        if (lxc.containers.isEmpty() && filter == "cts") item(span = { GridItemSpan(maxLineSpan) }) { Text(stringResource(R.string.ct_none), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        items(lxc.containers, key = { "ct:" + it.name }) { c -> ContainerCard(c, actions, go, cts.reload) }
+                    }
                 }
             }
         }
     }
-    job?.let { j -> JobDialog(j) { job = null; data.reload() } }
+    job?.let { j -> JobDialog(j) { job = null; data.reload(); cts.reload() } }
 }
 
 @Composable

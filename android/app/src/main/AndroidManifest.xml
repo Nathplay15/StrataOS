@@ -113,6 +113,11 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- Answers of the folder sync deletion brake notification. -->
+        <receiver
+            android:name=".sync.SyncActionReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

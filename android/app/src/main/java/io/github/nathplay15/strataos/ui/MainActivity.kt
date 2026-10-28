@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -103,8 +104,14 @@ class MainActivity : FragmentActivity() {
         handle(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (signedIn) io.github.nathplay15.strataos.sync.SyncLive.start(this)
+    }
+
     override fun onStop() {
         super.onStop()
+        io.github.nathplay15.strataos.sync.SyncLive.stop()
         // Locked again when the app goes to the background (not on rotation).
         if (!isChangingConfigurations) unlocked = false
     }
@@ -159,6 +166,7 @@ fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
     "photos" -> "photos" to null
     "manage", "status" -> "manage" to null
     "backup" -> "files" to "backup"
+    "sync" -> "files" to "sync"
     "settings" -> "files" to "settings"
     else -> "files" to null
 }
@@ -177,6 +185,7 @@ private fun AccountButton(openOverlay: (String) -> Unit) {
             )
             HorizontalDivider()
             DropdownMenuItem({ Text(stringResource(R.string.tab_backup)) }, { menu = false; openOverlay("backup") }, leadingIcon = { Icon(Icons.Default.Backup, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.sync_title)) }, { menu = false; openOverlay("sync") }, leadingIcon = { Icon(Icons.Default.Sync, null) })
             DropdownMenuItem({ Text(stringResource(R.string.a_app_settings)) }, { menu = false; openOverlay("settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) })
         }
     }
@@ -187,9 +196,11 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     var filesPath by rememberSaveable { mutableStateOf("") }
     if (overlay != null) {
         BackHandler { setOverlay(null) }
-        Surface(Modifier.fillMaxSize()) {
+        // The overlays draw their own top bar (status bar inset); keep their content above the navigation bar.
+        Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
             when (overlay) {
                 "backup" -> BackupScreen(onBack = { setOverlay(null) })
+                "sync" -> io.github.nathplay15.strataos.ui.sync.SyncScreen(onBack = { setOverlay(null) })
                 else -> SettingsScreen(onSignedOut, onBack = { setOverlay(null) })
             }
         }
