@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,9 @@ func badRequest(msg string) error { return &Error{Status: http.StatusBadRequest,
 func notFound(msg string) error   { return &Error{Status: http.StatusNotFound, Msg: msg} }
 
 type Server struct {
+	// bg tracks notifications being sent (tests wait for them before their data folder goes).
+	bg sync.WaitGroup
+
 	store    *store.Store
 	jobs     *jobs.Manager
 	monitor  *system.Monitor

@@ -22,8 +22,11 @@ func newTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{store: st, jobs: jobs.NewManager(), sessions: newSessions(""),
+	s := &Server{store: st, jobs: jobs.NewManager(), sessions: newSessions(""),
 		limiter: &limiter{hits: map[string][]time.Time{}}, dataDir: dir, mux: http.NewServeMux()}
+	// Notifications sent in the background may still write to dir (VAPID key…).
+	t.Cleanup(s.bg.Wait)
+	return s
 }
 
 func TestLimiterBoundsConcurrentAttempts(t *testing.T) {
