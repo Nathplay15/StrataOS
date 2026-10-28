@@ -25,10 +25,12 @@ check "mount of an unknown share refused" "$(c POST /api/lxc -d '{"name":"x1","l
 check "location outside the volumes refused" "$(c POST /api/lxc -d '{"name":"x1","location":"/etc","backend":"dir"}')" "inside a volume"
 
 vm "echo shared-file-ok | sudo tee $P/lxc-e2e.txt >/dev/null; sudo chown $USER_NAME $P/lxc-e2e.txt"
-AUID=$(vm "id -u $USER_NAME")
+AUID=$(vm "id -u $USER_NAME") AGID=$(vm "id -g $USER_NAME") FGID=$(vm "getent group famille | cut -d: -f3")
+# As alice inside: her uid and the group of the share keep their numbers.
+asalice() { cexec $CT setpriv --reuid "$AUID" --regid "$AGID" --groups "$FGID" "$@"; }
 CREATE=$(c POST /api/lxc -d "{\"name\":\"$CT\",\"image\":{\"distro\":\"debian\",\"release\":\"trixie\"},\"location\":\"/srv/strata/main\",\"backend\":\"image\",\"sizeGb\":3,
   \"cpus\":1,\"memoryMb\":256,\"swapMb\":0,\"network\":{\"mode\":\"nat\"},\"mounts\":[{\"share\":\"Photos\",\"target\":\"/mnt/photos\",\"readOnly\":true}],
-  \"mapUsers\":[\"$USER_NAME\"],\"start\":true,\"rootPassword\":\"Ct-Root-Pass-1\"}")
+  \"mapUsers\":[\"$USER_NAME\"],\"mapGroups\":[\"famille\"],\"start\":true,\"rootPassword\":\"Ct-Root-Pass-1\"}")
 check "Debian container created from the download template" "$(job "$CREATE")" "success"
 check "container running" "$(wait_state $CT running)" "running"
 IP=""
@@ -42,9 +44,10 @@ FUID=$(vm "sudo stat -c %u /srv/strata/main/.strata-lxc/$CT/rootfs/etc/passwd")
 check "unprivileged: files owned by shifted ids" "$([ "${FUID:-0}" -ge 100000 ] && echo shifted || echo "uid $FUID")" "shifted"
 PUID=$(vm "ps -o uid= -p \$(sudo lxc-info -P /var/lib/strata/lxc -n $CT -p -H)" | tr -d ' ')
 check "container root is not the NAS's root" "$([ "${PUID:-0}" -ge 100000 ] && echo unprivileged || echo "uid $PUID")" "unprivileged"
-check "shared folder mounted read-only" "$(cexec $CT cat /mnt/photos/lxc-e2e.txt)" "shared-file-ok"
-check "read-only mount refuses writes" "$(cexec $CT sh -c 'touch /mnt/photos/x 2>&1')" "Read-only"
-check "mapped user keeps its uid inside" "$(cexec $CT stat -c %u /mnt/photos/lxc-e2e.txt)" "$AUID"
+check "shared folder mounted, readable by the mapped user" "$(asalice cat /mnt/photos/lxc-e2e.txt)" "shared-file-ok"
+check "container root alone cannot read it (unmapped)" "$(cexec $CT cat /mnt/photos/lxc-e2e.txt)" "Permission denied"
+check "read-only mount refuses writes" "$(asalice touch /mnt/photos/x 2>&1)" "Read-only"
+check "mapped user keeps its uid inside" "$(asalice stat -c %u /mnt/photos/lxc-e2e.txt)" "$AUID"
 check "memory limit applied (memory.max)" "$(cexec $CT cat /sys/fs/cgroup/memory.max)" "268435456"
 check "CPU limit applied (cpu.max)" "$(cexec $CT cat /sys/fs/cgroup/cpu.max)" "100000 100000"
 check "root password set" "$(cexec $CT sh -c 'grep ^root: /etc/shadow | cut -d: -f2 | cut -c1')" '$'
@@ -107,7 +110,8 @@ check "restored to the snapshot" "$(job "$(c POST /api/lxc/$CT/snapshots/s1/rest
 c POST /api/lxc/$CT/start >/dev/null
 check "running again" "$(wait_state $CT running)" "running"
 check "file back to its snapshot content" "$(cexec $CT cat /root/marker)" "before"
-check "read-write mount after the restart" "$(cexec $CT sh -c 'touch /mnt/photos/.lxc-rw && echo rw-ok')" "rw-ok"
+check "read-write mount after the restart" "$(asalice sh -c 'touch /mnt/photos/.lxc-rw && echo rw-ok')" "rw-ok"
+check "file written inside belongs to alice on the NAS" "$(vm "stat -c %U $P/.lxc-rw")" "$USER_NAME"
 vm "sudo rm -f $P/.lxc-rw"
 check "snapshot deleted" "$(c DELETE /api/lxc/$CT/snapshots/s1 >/dev/null; c GET /api/lxc/$CT/snapshots)" "[]"
 
