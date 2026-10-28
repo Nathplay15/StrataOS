@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Box, ExternalLink, FileText, Pause, Play, Plus, RotateCw, Square, SquareTerminal, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Box, ExternalLink, FileText, Pause, Play, Plus, RotateCw, Square, SquareTerminal, Trash2, X } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Container, ContainerStats } from "../../lib/types";
@@ -8,6 +8,7 @@ import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { Terminal } from "../../components/Terminal";
 import { tr, locale } from "../../lib/i18n";
+import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
 
 export function DockerGuard({ children }: { children: React.ReactNode }) {
   const info = useQuery({ queryKey: ["docker-info"], queryFn: () => api.get<{ available: boolean; error?: string }>("/api/docker/info"), staleTime: 30000 });
@@ -185,6 +186,8 @@ export default function Containers() {
   const stats = useQuery({ queryKey: ["container-stats"], queryFn: () => api.get<Record<string, ContainerStats>>("/api/docker/stats"), refetchInterval: 5000 });
   const act = useAction((p: { id: string; action: string }) => api.post(`/api/docker/containers/${p.id}/${p.action}`));
   const del = useAction((id: string) => api.del(`/api/docker/containers/${id}`), { success: tr("Container deleted") });
+  const updates = useDockerUpdates();
+  const update = useApplyUpdate();
   const host = location.hostname;
   const list = (data ?? []).filter((c) => !filter || name(c).includes(filter) || c.Image.includes(filter));
 
@@ -196,6 +199,7 @@ export default function Containers() {
       </>} />
       <DockerGuard>
         <ErrorBox error={error} />
+        <UpdatesBar />
         <Card pad={false}>
           {isLoading ? <Spinner /> : !list.length ? <Empty icon={<Box />} title={tr("No containers")} text={tr("Install an application from the App Center or create a container.")} /> : (
             <div className="overflow-x-auto">
@@ -206,12 +210,14 @@ export default function Containers() {
                     const st = stats.data?.[c.Id];
                     const running = c.State === "running";
                     const stack = c.Labels["com.docker.compose.project"];
+                    const upd = updates.data?.containers.find((u) => u.id === c.Id)?.status === "available";
                     const ports = [...new Map(c.Ports.filter((p) => p.PublicPort).map((p) => [`${p.PublicPort}/${p.Type}`, p])).values()];
                     return (
                       <tr key={c.Id}>
                         <td>
                           <button className="whitespace-nowrap text-left font-medium hover:text-accent" onClick={() => setInspect(c.Id)}>{name(c)}</button>
                           <div className="min-w-[180px] text-muted text-[11.5px]">{c.Status}{stack && <> {" "}{tr("· stack")}{" "}<b>{stack}</b></>}</div>
+                          {upd && <div className="mt-1"><UpdateBadge /></div>}
                         </td>
                         <td><Health value={c.State} /></td>
                         <td className="mono max-w-[260px] truncate text-muted" title={c.Image}>{c.Image}</td>
@@ -237,6 +243,7 @@ export default function Containers() {
                           ) : (
                             <IconButton title={tr("Start")} onClick={() => act.mutate({ id: c.Id, action: "start" })}><Play size={15} /></IconButton>
                           )}
+                          {upd && <IconButton title={tr("Update")} className="!text-warn" onClick={() => update.mutate({ container: c.Id })}><ArrowUpCircle size={15} /></IconButton>}
                           <IconButton title={tr("Logs")} onClick={() => setLogs(c)}><FileText size={15} /></IconButton>
                           <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", name(c)), text: stack ? tr("This container belongs to the stack \"{0}\": it will be recreated on the next deployment.", stack) : tr("The container will be stopped and deleted. Its named volumes are kept."), danger: true })) del.mutate(c.Id); }}><Trash2 size={15} /></IconButton>
                         </td>

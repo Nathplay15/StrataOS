@@ -9,6 +9,7 @@ import { Badge, Button, Card, Empty, ErrorBox, Field, Health, Input, Modal, Page
 import { DockerGuard } from "./Containers";
 import { CustomMetaModal } from "./AppStore";
 import { tr } from "../../lib/i18n";
+import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
 
 const sample = `services:
   web:
@@ -64,6 +65,8 @@ export default function Stacks() {
   const [meta, setMeta] = useState<Stack | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["stacks"], queryFn: () => api.get<Stack[]>("/api/docker/stacks"), refetchInterval: 8000 });
   const act = useAction((p: { name: string; action: string }) => api.post(`/api/docker/stacks/${p.name}/${p.action}`));
+  const updates = useDockerUpdates();
+  const update = useApplyUpdate();
   const del = useAction((p: { name: string; volumes: boolean }) => api.del(`/api/docker/stacks/${p.name}${p.volumes ? "?volumes=1" : ""}`), { success: tr("Stack deleted") });
 
   return (
@@ -71,6 +74,7 @@ export default function Stacks() {
       <PageHeader title={tr("Compose stacks")} subtitle={tr("Multi-container applications described by a docker-compose file")} icon={<Package size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} onClick={() => setEdit(null)}>{tr("New stack")}</Button>} />
       <DockerGuard>
         <ErrorBox error={error} />
+        <UpdatesBar />
         {isLoading ? <Spinner /> : !data?.length ? (
           <Card><Empty icon={<Package />} title={tr("No stacks")} text={tr("Paste a docker-compose.yaml file to deploy a complete application, or use the App Center.")} action={<Button variant="primary" onClick={() => setEdit(null)}>{tr("Create a stack")}</Button>} /></Card>
         ) : (
@@ -86,6 +90,7 @@ export default function Stacks() {
                     <span>{s.running}/{s.services} {" "}{tr("active container(s)")}</span>
                     <span>{tr("· modified")}{" "}{ago(s.modifiedAt)}</span>
                   </div>
+                  {updates.data?.stacks[s.name] && <div className="mt-2"><UpdateBadge /></div>}
                   {s.app && <div className="mt-2"><Badge tone="accent">{tr("App Center:")}{" "}{s.app}</Badge></div>}
                   {s.custom && <div className="mt-2"><Badge tone="accent">{tr("My apps:")}{" "}{s.custom.name}</Badge></div>}
                 </div>
@@ -98,7 +103,7 @@ export default function Stacks() {
                       <Button size="sm" variant="ghost" icon={<RotateCw size={14} />} onClick={() => act.mutate({ name: s.name, action: "restart" })} />
                     </>
                   )}
-                  <Button size="sm" variant="ghost" icon={<ArrowDownToLine size={14} />} title={tr("Update images")} onClick={() => act.mutate({ name: s.name, action: "update" })} />
+                  <Button size="sm" variant={updates.data?.stacks[s.name] ? "primary" : "ghost"} icon={<ArrowDownToLine size={14} />} title={tr("Update images")} onClick={() => update.mutate({ stack: s.name })}>{updates.data?.stacks[s.name] ? tr("Update") : null}</Button>
                   <Button size="sm" variant="ghost" icon={<FileText size={14} />} onClick={() => setLogs(s.name)} />
                   <Button size="sm" variant="ghost" icon={<Edit3 size={14} />} onClick={() => setEdit(s.name)} />
                   {!s.app && <Button size="sm" variant="ghost" icon={<AppWindow size={14} />} title={s.custom ? tr("App Center details") : tr("Add to My apps")} onClick={() => setMeta(s)} />}

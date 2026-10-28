@@ -10,6 +10,7 @@ import { Badge, Button, Card, ErrorBox, Field, Health, Input, Modal, Notice, Pag
 import { DockerGuard } from "./Containers";
 import { tr } from "../../lib/i18n";
 import { AppUninstallModal } from "../../components/Uninstall";
+import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
 
 function randomSecret(length = 18) {
   const a = new Uint8Array(length);
@@ -142,14 +143,16 @@ export default function AppStore() {
   const match = (s: string) => !q || s.toLowerCase().includes(q);
   const custom = (data?.custom ?? []).filter((c) => (cat === "" || cat === MY_APPS) && match(c.name + (c.description ?? "")));
   const apps = (data?.apps ?? []).filter((a) => (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match([a.name, a.description, a.category, tr(a.description), tr(a.category)].join(" ")));
-  const act = useAction((p: { name: string; action: string }) => api.post(`/api/docker/stacks/${p.name}/${p.action}`));
   const [removing, setRemoving] = useState<{ stack: string; name: string } | null>(null);
+  const updates = useDockerUpdates();
+  const update = useApplyUpdate();
   const host = location.hostname;
   const actions = (stack: string, name: string, port: string | number | undefined, extra?: ReactNode) => (
     <>
-      <span className="mr-auto flex items-center gap-1 text-ok text-[12.5px]"><Check size={14} /> {" "}{tr("Installed")}</span>
+      {updates.data?.stacks[stack] ? <span className="mr-auto"><UpdateBadge /></span> : <span className="mr-auto flex items-center gap-1 text-ok text-[12.5px]"><Check size={14} /> {" "}{tr("Installed")}</span>}
+      {updates.data?.stacks[stack] && <Button size="sm" variant="primary" icon={<ArrowDownToLine size={13} />} onClick={() => update.mutate({ stack })}>{tr("Update")}</Button>}
       {port ? <a href={`http://${host}:${port}`} target="_blank" rel="noreferrer"><Button size="sm" icon={<ExternalLink size={13} />}>{tr("Open")}</Button></a> : null}
-      <Button size="sm" variant="ghost" icon={<ArrowDownToLine size={14} />} title={tr("Update")} onClick={() => act.mutate({ name: stack, action: "update" })} />
+      {!updates.data?.stacks[stack] && <Button size="sm" variant="ghost" icon={<ArrowDownToLine size={14} />} title={tr("Update")} onClick={() => update.mutate({ stack })} />}
       {extra}
       <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} title={tr("Uninstall")} onClick={() => setRemoving({ stack, name })} />
     </>
@@ -165,6 +168,7 @@ export default function AppStore() {
         <Button icon={<Plus size={15} />} onClick={() => setAdding(true)}>{tr("Add a custom app")}</Button>
       </>} />
       <DockerGuard>
+        <UpdatesBar />
         <div className="mb-5 flex flex-wrap gap-1.5">
           {chip("", tr("All"))}
           {chip(MY_APPS, tr("My apps"))}

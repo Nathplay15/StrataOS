@@ -89,7 +89,13 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 | `upload/` | Resumable chunked uploads and the background upload worker (Share to StrataOS, Upload) |
 | `backup/` | Photo and video backup: MediaStore scan, dedupe, WorkManager scheduling |
 | `notify/` | UnifiedPush receiver, the 15-minute fallback check, notifications |
-| `ui/` | Compose screens |
+| `data/` | Server configuration, token vault, favorites and offline files (`Favorites.kt`, `OfflineSync.kt`) |
+| `ui/` | Navigation shell (`MainActivity.kt`: Files, Photos, Manage; rail on tablets), shared widgets (`Common.kt`, `Widgets.kt`, `NasImage.kt` thumbnails), the Manage tab (`ManageScreen.kt`, areas listed in `SectionsA.kt`/`SectionsB.kt`) |
+| `ui/files/` | File browser v2: sort, search, selection, copy/move, recycle bin, share links, favorites |
+| `ui/photos/` | Photos timeline, albums, full-screen pager (also used by Files) |
+| `ui/player/` | Media3 player: NAS streaming (probe, remux/transcode from `start=`), tracks, quality, resume, background audio (`PlaybackService`), picture-in-picture |
+| `ui/storage/` | Storage manager: volumes, disks/SMART, RAID, ZFS, snapshots, shares, quotas, safe creation flows |
+| `ui/apps/` | App Center, containers, stacks, images, one-click container updates |
 
 The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens, uploads, events, push) and `backend/internal/webpush` (RFC 8291 encryption, VAPID); its end-to-end test is `vm/e2e.d/96-mobile-api.sh`.
 
@@ -111,12 +117,12 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;an
 
 ```bash
 cd android
-./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses
+./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses, file sorting, storage plans, update states, playback URLs
 ./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease     # signed when the release key is available (below), unsigned otherwise
 ```
 
-Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`. The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
+Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`; the v2 areas keep theirs in their own files (`strings_a.xml`…). The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
 
 In the emulator, the development VM is at `https://10.0.2.2:7443`. `adb shell am start -d "strataos://pair?url=…&fp=…&code=…"` opens a pairing link like the QR code does.
 

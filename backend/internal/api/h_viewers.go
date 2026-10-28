@@ -276,6 +276,7 @@ func (s *Server) viewerRoutes() {
 		if err != nil {
 			return nil, badRequest(err.Error())
 		}
+		plan = mediaplay.WithHeight(plan, mediaplay.HeightFrom(r)) // quality chosen in the mobile app
 		return map[string]any{"installed": true, "plan": plan, "duration": info.Duration, "format": info.Format,
 			"audioTracks": info.AudioTracks(), "subtitles": info.Subtitles(), "vaapi": mediaplay.Default.HW().VAAPI}, nil
 	})

@@ -19,7 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -36,6 +38,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import io.github.nathplay15.strataos.ui.photos.PhotosScreen
+import io.github.nathplay15.strataos.ui.files.FilesScreen
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.runtime.remember
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,6 +71,7 @@ class MainActivity : FragmentActivity() {
     private var signedIn by mutableStateOf(false)
     private var unlocked by mutableStateOf(false)
     private var tab by mutableStateOf("files")
+    private var overlay by mutableStateOf<String?>(null)
     private var pairLink by mutableStateOf<PairLink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +86,7 @@ class MainActivity : FragmentActivity() {
                     when {
                         !signedIn -> Onboarding(initialLink = pairLink, onLinkUsed = { pairLink = null }, onDone = { signedIn = true; unlocked = true })
                         Graph.prefs.biometricLock && !unlocked -> LockScreen { authenticate() }
-                        else -> Home(tab, { tab = it }, onSignedOut = { signedIn = false })
+                        else -> Home(tab, { tab = it }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null })
                     }
                 }
             }
@@ -90,7 +110,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handle(intent: Intent?) {
-        intent?.getStringExtra("tab")?.let { tab = it }
+        intent?.getStringExtra("tab")?.let { destinationOf(it).let { (t, o) -> tab = t; overlay = o } }
         intent?.data?.toString()?.let { parsePairLink(it) }?.let { if (!signedIn) pairLink = it }
     }
 
@@ -134,15 +154,74 @@ private fun LockScreen(unlock: () -> Unit) {
     }
 }
 
+/** Where a tab name of a notification or an older version leads: (tab, overlay). */
+fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
+    "photos" -> "photos" to null
+    "manage", "status" -> "manage" to null
+    "backup" -> "files" to "backup"
+    "settings" -> "files" to "settings"
+    else -> "files" to null
+}
+
+/** The account button of the top bars: who is signed in, photo backup, app settings. */
 @Composable
-private fun Home(tab: String, setTab: (String) -> Unit, onSignedOut: () -> Unit) {
+private fun AccountButton(openOverlay: (String) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val cfg = Graph.prefs.server
+    Box {
+        IconButton(onClick = { menu = true }) { Icon(Icons.Default.AccountCircle, stringResource(R.string.a_account)) }
+        DropdownMenu(menu, { menu = false }) {
+            Text(
+                stringResource(R.string.a_account_line, cfg?.fullName?.ifEmpty { null } ?: cfg?.username ?: "", cfg?.hostname ?: ""),
+                style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            DropdownMenuItem({ Text(stringResource(R.string.tab_backup)) }, { menu = false; openOverlay("backup") }, leadingIcon = { Icon(Icons.Default.Backup, null) })
+            DropdownMenuItem({ Text(stringResource(R.string.a_app_settings)) }, { menu = false; openOverlay("settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) })
+        }
+    }
+}
+
+@Composable
+private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOverlay: (String?) -> Unit, onSignedOut: () -> Unit) {
     var filesPath by rememberSaveable { mutableStateOf("") }
+    if (overlay != null) {
+        BackHandler { setOverlay(null) }
+        Surface(Modifier.fillMaxSize()) {
+            when (overlay) {
+                "backup" -> BackupScreen(onBack = { setOverlay(null) })
+                else -> SettingsScreen(onSignedOut, onBack = { setOverlay(null) })
+            }
+        }
+        return
+    }
     val tabs = listOf(
         Triple("files", R.string.tab_files, Icons.Default.Folder),
-        Triple("backup", R.string.tab_backup, Icons.Default.Backup),
-        Triple("status", R.string.tab_status, Icons.Default.MonitorHeart),
-        Triple("settings", R.string.tab_settings, Icons.Default.Settings),
+        Triple("photos", R.string.a_photos, Icons.Default.PhotoLibrary),
+        Triple("manage", R.string.a_manage, Icons.Default.Dashboard),
     )
+    val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
+    val content: @Composable () -> Unit = {
+        androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }) {
+            when (tab) {
+                "photos" -> PhotosScreen(account)
+                "manage" -> ManageScreen(account)
+                else -> FilesScreen(filesPath, { filesPath = it }, account)
+            }
+        }
+    }
+    if (LocalConfiguration.current.screenWidthDp >= WIDE_DP) {
+        // Tablets: a navigation rail beside the content.
+        Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+            NavigationRail(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+                tabs.forEach { (id, label, icon) ->
+                    NavigationRailItem(selected = tab == id, onClick = { setTab(id) }, icon = { Icon(icon, null) }, label = { Text(stringResource(label)) })
+                }
+            }
+            Surface(Modifier.weight(1f).fillMaxHeight()) { content() }
+        }
+        return
+    }
     // The tabs draw their own top bar (status bar inset); the navigation bar takes the bottom one.
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), bottomBar = {
         NavigationBar {
@@ -151,13 +230,6 @@ private fun Home(tab: String, setTab: (String) -> Unit, onSignedOut: () -> Unit)
             }
         }
     }) { pad ->
-        Surface(Modifier.padding(pad)) {
-            when (tab) {
-                "backup" -> BackupScreen()
-                "status" -> StatusScreen()
-                "settings" -> SettingsScreen(onSignedOut)
-                else -> FilesScreen(filesPath) { filesPath = it }
-            }
-        }
+        Surface(Modifier.padding(pad)) { content() }
     }
 }

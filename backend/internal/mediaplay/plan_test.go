@@ -179,3 +179,32 @@ func TestStreamWithFFmpeg(t *testing.T) {
 		t.Errorf("status %d", rec.Code)
 	}
 }
+
+func TestWithHeight(t *testing.T) {
+	tall := h264
+	tall.Height = 2160
+	p, _ := Decide(info("mov,mp4", tall, aac), "film.mp4", Caps{}, -1)
+	if p.Mode != Native {
+		t.Fatalf("film.mp4: %s", p.Mode)
+	}
+	q := WithHeight(p, 720)
+	if q.Mode != Transcode || q.CopyVideo || !q.CopyAudio || q.Height != 720 {
+		t.Errorf("720p: %+v", q)
+	}
+	if a := strings.Join(Args(q, 0, HW{}), " "); !strings.Contains(a, "min(ih,720)") {
+		t.Errorf("720p args: %s", a)
+	}
+	if WithHeight(p, 0).Mode != Native || WithHeight(p, 123).Mode != Native {
+		t.Error("no or unknown quality must keep the plan")
+	}
+	small := h264
+	small.Height = 480
+	p, _ = Decide(info("mov,mp4", small, aac), "film.mp4", Caps{}, -1)
+	if WithHeight(p, 720).Mode != Native {
+		t.Error("a video smaller than the quality asked must not be transcoded")
+	}
+	p, _ = Decide(info("mp3", Stream{Type: "audio", Codec: "mp3"}), "song.mp3", Caps{}, -1)
+	if WithHeight(p, 360).Mode != Native {
+		t.Error("audio must not be transcoded for a picture height")
+	}
+}

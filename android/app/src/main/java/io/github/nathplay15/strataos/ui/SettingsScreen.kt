@@ -25,6 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +53,9 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onSignedOut: () -> Unit) {
+fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val p = Graph.prefs
     var tick by remember { mutableIntStateOf(0) }
@@ -63,7 +68,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
     val distributors = remember(tick) { Push.distributors(ctx) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.tab_settings)) })
+        TopAppBar(title = { Text(stringResource(R.string.a_app_settings)) }, navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -100,7 +105,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
             if (cfg?.isAdmin == true && distributors.isNotEmpty()) OutlinedButton(onClick = {
                 scope.launch {
                     val vapid = withContext(Dispatchers.IO) { runCatching { Graph.api()?.info()?.vapidKey }.getOrNull() } ?: ""
-                    Push.register(ctx as android.app.Activity, vapid) { ok -> if (!ok) Toast.makeText(ctx, ctx.getString(R.string.push_failed), Toast.LENGTH_LONG).show(); tick++ }
+                    Push.register(ctx as android.app.Activity, vapid) { ok -> if (!ok) Toast.makeText(ctx, res.getString(R.string.push_failed), Toast.LENGTH_LONG).show(); tick++ }
                 }
             }) { Text(stringResource(R.string.push_setup)) }
             HorizontalDivider()
@@ -123,6 +128,9 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
                     BackupScheduler.cancelAll(ctx)
                     EventsWorker.cancel(ctx)
                     Graph.backupDb.reset()
+                    io.github.nathplay15.strataos.ui.player.Playback.release()
+                    io.github.nathplay15.strataos.data.OfflineSyncWorker.cancel(ctx)
+                    io.github.nathplay15.strataos.data.favorites.clearAll()
                     p.signOut()
                     Graph.reset()
                     onSignedOut()
