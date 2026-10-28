@@ -604,20 +604,27 @@ func (s *Server) vmcEnsureTLS(ctx context.Context) error {
 		return nil
 	}
 	// libvirtd takes its sockets and certificates when it starts; the VMs
-	// keep running while it restarts.
-	slog.Info("vm cluster: libvirt TLS configured")
+	// keep running while it restarts. Its sockets stop too, or a virsh call
+	// in between would start it again without the TLS socket.
+	slog.Info("vm cluster: configuring libvirt TLS")
+	sockets := []string{"libvirtd.socket", "libvirtd-ro.socket", "libvirtd-admin.socket", "libvirtd-tls.socket"}
 	_, _ = sys.Run("systemctl", "daemon-reload")
-	_, _ = sys.Run("systemctl", "stop", "libvirtd.service")
 	if _, err := sys.Run("systemctl", "enable", "libvirtd-tls.socket"); err != nil {
 		return err
 	}
-	_, _ = sys.Run("systemctl", "reset-failed", "libvirtd-tls.socket")
-	if _, err := sys.Run("systemctl", "restart", "libvirtd-tls.socket"); err != nil {
+	var err2 error
+	for try := 0; try < 3; try++ {
+		_, _ = sys.Run("systemctl", append([]string{"stop", "libvirtd.service"}, sockets...)...)
+		_, _ = sys.Run("systemctl", append([]string{"reset-failed"}, sockets...)...)
+		_, err2 = sys.Run("systemctl", append([]string{"start"}, sockets...)...)
 		_, _ = sys.Run("systemctl", "start", "libvirtd.service")
-		return err
+		if err2 == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
 	}
-	if _, err := sys.Run("systemctl", "start", "libvirtd.service"); err != nil {
-		return err
+	if err2 != nil {
+		return fmt.Errorf("libvirt TLS socket: %w", err2)
 	}
 	if !vms.LibvirtReady(ctx, time.Minute) {
 		return errors.New("libvirt does not answer after its restart")
