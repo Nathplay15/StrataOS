@@ -121,10 +121,19 @@ func makePlan(v view) plan {
 
 	// Local moves: a synced item gone, a new item with its file ID (and,
 	// for files, its size and date), nothing on the NAS at the new place.
+	// File IDs of new items are only looked at when something synced
+	// disappeared locally (they cost a file opening each on Windows).
+	gone := false
+	for k, b := range v.base {
+		if v.local[k] == nil && b.LocalID != 0 && !done[k] {
+			gone = true
+			break
+		}
+	}
 	newLocal := map[uint64]string{}
 	for k := range keys {
 		l, r, b := v.local[k], v.remote[k], v.base[k]
-		if l != nil && b == nil && r == nil && !done[k] {
+		if gone && l != nil && b == nil && r == nil && !done[k] {
 			if id := idOf(l); id != 0 {
 				newLocal[id] = k
 			}

@@ -116,7 +116,7 @@ func (pr *pairRun) rebase(fromKey, toKey, fromRemote, toRemote, fromLocal, toLoc
 }
 
 func fileHash(p string) (string, error) {
-	f, err := os.Open(p)
+	f, err := openShared(p)
 	if err != nil {
 		return "", err
 	}
@@ -433,6 +433,11 @@ func (p *progressWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// resumeMin: smaller uploads are not recorded for resuming (one chunk; a
+// database transaction per small file would slow a first sync down a lot,
+// notably on Windows where each one waits for the disk).
+var resumeMin int64 = 8 << 20
+
 // upload sends a local file, replacing the NAS version ifMatch ("" = none
 // expected). When the NAS file changed meanwhile, the uploaded copy is kept
 // on the NAS under a conflict name and the local file renamed the same way.
@@ -440,11 +445,18 @@ func (pr *pairRun) upload(ctx context.Context, key string, l *LocalEntry, ifMatc
 	if !sameLocal(pr.p.Local, l) {
 		return errSkip
 	}
-	f, err := os.Open(pr.abs(l.Path))
+	// Shared for deletion: on Windows the user may still rename or delete
+	// the file during a long upload (the upload then fails and is planned again).
+	f, err := openShared(pr.abs(l.Path))
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	closed := false
+	defer func() {
+		if !closed {
+			f.Close()
+		}
+	}()
 	st := pr.data.uploads[key]
 	resume := ""
 	if st.ID != "" && st.Size == l.Size && st.MTime == l.MTime && st.IfMatch == ifMatch {
@@ -452,6 +464,9 @@ func (pr *pairRun) upload(ctx context.Context, key string, l *LocalEntry, ifMatc
 	}
 	req := UploadReq{Rel: l.Path, Size: l.Size, MTime: l.MTime / 1e6, IfMatch: ifMatch, Body: f, ResumeID: resume,
 		OnID: func(id string) {
+			if l.Size <= resumeMin {
+				return // sent in one request: nothing to resume (and no write per file)
+			}
 			u := uploadState{ID: id, Size: l.Size, MTime: l.MTime, IfMatch: ifMatch}
 			pr.data.uploads[key] = u
 			_ = pr.e.st.write(pr.p.ID, []change{{bUploads, key, u}}, nil)
@@ -463,6 +478,8 @@ func (pr *pairRun) upload(ctx context.Context, key string, l *LocalEntry, ifMatc
 	if errors.As(err, &c) {
 		delete(pr.data.uploads, key)
 		pr.queue(change{bUploads, key, nil})
+		f.Close() // Windows renames no open file: the local copy is renamed next
+		closed = true
 		return pr.uploadConflict(ctx, key, l, c)
 	}
 	if err != nil {

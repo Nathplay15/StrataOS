@@ -2,7 +2,6 @@ package i18n
 
 import (
 	"encoding/json"
-	"os"
 	"regexp"
 	"testing"
 )
@@ -34,8 +33,23 @@ func TestCatalogs(t *testing.T) {
 	if T("fr", "status.files", 3) != "3 fichiers" || T("ja", "status.files", 3) != "3 files" {
 		t.Fatal("T")
 	}
-	os.Setenv("LANG", "fr_CA.UTF-8")
-	if Pick("") != "fr" || Pick("en") != "en" {
-		t.Fatal("Pick")
+	// The explicit choice first, then the system's language, whatever the
+	// environment of the machine running the test.
+	for _, c := range []struct {
+		cands []string
+		want  string
+	}{
+		{[]string{"en", "", "fr-FR", "fr_FR.UTF-8"}, "en"},
+		{[]string{"", "", "fr-FR", "en_US.UTF-8"}, "fr"},
+		{[]string{"", "", "", "", "", "fr_CA.UTF-8"}, "fr"},
+		{[]string{"", "", "", "C", "", "pt_BR.UTF-8"}, "pt"},
+		{[]string{"", "", "xx-YY", "", ""}, "en"},
+	} {
+		if got := pick(c.cands...); got != c.want {
+			t.Errorf("pick(%q) = %q, want %q", c.cands, got, c.want)
+		}
+	}
+	if Pick("fr") != "fr" {
+		t.Fatal("Pick ignores the choice")
 	}
 }

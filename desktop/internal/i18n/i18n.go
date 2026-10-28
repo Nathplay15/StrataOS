@@ -51,11 +51,17 @@ func Languages() []string {
 	return l
 }
 
-// Pick returns the language to use: the one chosen, else the system's
-// (LANG, LC_ALL…; the OS-specific detection fills STRATA_LANG), else English.
+// Pick returns the language to use: the one chosen in the settings, else
+// the language of the user's system (the preference of macOS or Windows,
+// the locale variables on Linux), else English.
 func Pick(chosen string) string {
+	return pick(chosen, os.Getenv("STRATA_LANG"), systemLang(), os.Getenv("LC_ALL"), os.Getenv("LC_MESSAGES"), os.Getenv("LANG"))
+}
+
+// pick returns the first candidate with a catalog ("fr_CA.UTF-8" and
+// "fr-FR" give "fr").
+func pick(cands ...string) string {
 	once.Do(load)
-	cands := []string{chosen, os.Getenv("STRATA_LANG"), os.Getenv("LC_ALL"), os.Getenv("LC_MESSAGES"), os.Getenv("LANG"), systemLang()}
 	for _, c := range cands {
 		c = strings.ReplaceAll(strings.SplitN(c, ".", 2)[0], "_", "-")
 		if c == "" || c == "C" || c == "POSIX" {

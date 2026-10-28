@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -348,7 +349,10 @@ func TestInterruptedTransfersResume(t *testing.T) {
 	if h.read("big.bin") != big {
 		t.Fatal("resumed download damaged")
 	}
-	// Upload: interrupted, then resumed with the same upload.
+	// Upload: interrupted, then resumed with the same upload (small here:
+	// resuming is kept for files of more than one chunk).
+	defer func(v int64) { resumeMin = v }(resumeMin)
+	resumeMin = 0
 	h.write("up.bin", big+"x", t0)
 	h.fake.failUploadAt = 4000
 	if err := h.eng.SyncOnce(context.Background()); err == nil {
@@ -373,12 +377,16 @@ func TestInterruptedTransfersResume(t *testing.T) {
 func TestDeleteBrake(t *testing.T) {
 	for _, apply := range []bool{true, false} {
 		h := newHarness(t)
+		// (Names valid everywhere: "f|.txt" would be skipped on Windows.)
 		for i := range 30 {
-			h.fake.put("f"+string(rune('a'+i))+".txt", "x", t0)
+			h.fake.put("f"+strconv.Itoa(i)+".txt", "x", t0)
 		}
 		h.sync()
+		if n := len(strings.Fields(h.tree())); n != 30 {
+			t.Fatalf("%d files synchronized", n)
+		}
 		for i := range 25 {
-			h.fake.remove("f" + string(rune('a'+i)) + ".txt")
+			h.fake.remove("f" + strconv.Itoa(i) + ".txt")
 		}
 		h.sync()
 		st := h.eng.Status().Pairs[0]
@@ -532,7 +540,11 @@ func TestManyFiles(t *testing.T) {
 		t.Skip("slow")
 	}
 	h := newHarness(t)
-	for i := range 20000 {
+	n := 20000
+	if runtime.GOOS == "windows" {
+		n = 4000 // creating files is much slower there (NTFS, antivirus)
+	}
+	for i := range n {
 		d := "d" + strconv.Itoa(i%100)
 		if i%2 == 0 {
 			h.write(d+"/l"+strconv.Itoa(i), "x", t0)
@@ -546,10 +558,10 @@ func TestManyFiles(t *testing.T) {
 	start = time.Now()
 	h.sync()
 	idle := time.Since(start)
-	if n := h.eng.Status().Pairs[0].Files; n != 20000 {
-		t.Fatalf("%d files synchronized", n)
+	if got := h.eng.Status().Pairs[0].Files; got != n {
+		t.Fatalf("%d files synchronized", got)
 	}
-	t.Logf("20000 files: first round %v, idle round %v", first, idle)
+	t.Logf("%d files: first round %v, idle round %v", n, first, idle)
 	if idle > 5*time.Second {
 		t.Fatalf("idle round too slow: %v", idle)
 	}
