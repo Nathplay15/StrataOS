@@ -92,16 +92,20 @@ func New(base, token, pin string) *Client {
 	if u, err := url.Parse(c.Base); err == nil {
 		host = u.Hostname()
 	}
-	tr := &http.Transport{
-		Proxy:               http.ProxyFromEnvironment,
-		DialContext:         (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-		TLSClientConfig:     tlsConfig(host, pin),
-		TLSHandshakeTimeout: 15 * time.Second,
-		MaxIdleConnsPerHost: 8,
-		IdleConnTimeout:     90 * time.Second,
+	transport := func(header time.Duration) *http.Transport {
+		return &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			DialContext:         (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+			TLSClientConfig:     tlsConfig(host, pin),
+			TLSHandshakeTimeout: 15 * time.Second,
+			// A NAS that stops answering is an error, not a hang.
+			ResponseHeaderTimeout: header,
+			MaxIdleConnsPerHost:   8,
+			IdleConnTimeout:       90 * time.Second,
+		}
 	}
-	c.hc = &http.Client{Transport: tr}
-	c.lp = &http.Client{Transport: tr}
+	c.hc = &http.Client{Transport: transport(2 * time.Minute)}
+	c.lp = &http.Client{Transport: transport(90 * time.Second)} // long polls answer within 55 s
 	return c
 }
 

@@ -16,7 +16,10 @@ GO=$(command -v go || echo "$HOME/.local/opt/go/bin/go")
 S="$TMP/strataos-sync"
 (cd desktop && CGO_ENABLED=0 "$GO" build -o "$S" ./cmd/strataos-sync) 2>&1 | tail -3
 check "client built" "$("$S" --version 2>&1)" "strataos-sync"
-sync1() { "$S" --config "$SC" sync-once "$@" 2>&1; }
+sync1() { # a hang dumps the goroutines (kept in SYNC_E2E_LOG when set)
+  local out rc; out=$(timeout -s QUIT 240 "$S" --config "$SC" sync-once "$@" 2>&1); rc=$?
+  printf "%s\n" "$out" | tee -a "${SYNC_E2E_LOG:-/dev/null}"; return $rc
+}
 bt() { local m=$1 p=$2; shift 2; curl -sk -X "$m" -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' "$HTTPS$p" "$@"; }
 web_put() { # web_put <folder> <file>: upload through the web file manager
   curl -s -b "$J2" -H 'X-Strata: 1' -F "file=@$2" "$B/api/files/upload?path=$1" >/dev/null
@@ -123,7 +126,7 @@ sync1 --confirm-deletes >/dev/null
 check "deletions applied once confirmed" "$(ls "$L/many" 2>/dev/null | wc -l)" "0"
 
 # Revoked in the web interface: the client stops.
-DID=$(u GET /api/me/devices | py 'print([x["id"] for x in d if x["name"]=="e2e-laptop"][0])')
+DID=$(u GET /api/me/devices | py 'print([x["id"] for x in d if x["name"]=="e2e-laptop"][-1])')
 u DELETE "/api/me/devices/$DID" >/dev/null
 check "revoked computer stops" "$(sync1)" "no longer paired"
 check "its files stay" "$(cat "$L/nas.txt")" "their version"
