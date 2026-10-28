@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- LXC containers in the Virtual machines area (ui/vms/Container*.kt). -->
-<resources>
+<!-- MissingTranslation: the other languages are added at integration (remove this then). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="ct_add">Add</string>
     <string name="ct_address">Static address (optional)</string>
     <string name="ct_addresses">Addresses</string>
