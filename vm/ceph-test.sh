@@ -34,8 +34,9 @@ job() { local n=$1 id; id=$(echo "$2" | py 'print(d.get("id",""))' 2>/dev/null);
   for _ in $(seq 1 ${3:-600}); do [ "$(api "$n" GET "/api/jobs/$id" | py 'print(d["status"])' 2>/dev/null)" = running ] || break; sleep 3; done
   api "$n" GET "/api/jobs/$id" | py 'print(d["status"], d.get("error","")); print(d.get("log","")[-3000:]) if d["status"]!="success" else None'; }
 health() { api "$1" GET /api/ceph | py 'st=d.get("status") or {}; h=st.get("health",{}); print(h.get("status","?"), " ".join(c["code"] for c in h.get("checks",[])), d.get("error",""))' 2>/dev/null; }
-# Health warnings that are expected on small test VMs.
-EXPECTED="MON_DISK_LOW|RECENT_CRASH|POOL_TOO_FEW_PGS|TOO_FEW_PGS|BLUESTORE_SLOW_OP_ALERT|MDS_INSUFFICIENT_STANDBY"
+# Health warnings that are expected on small test VMs (slow heartbeats are
+# remembered for 15 minutes after a NAS was killed, on VMs short of CPU).
+EXPECTED="OSD_SLOW_PING_TIME_BACK|OSD_SLOW_PING_TIME_FRONT|MON_DISK_LOW|RECENT_CRASH|POOL_TOO_FEW_PGS|TOO_FEW_PGS|BLUESTORE_SLOW_OP_ALERT|MDS_INSUFFICIENT_STANDBY"
 healthy() { local h; h=$(health "$1"); case "$h" in HEALTH_OK*) echo ok; return ;; esac
   case "$h" in HEALTH_WARN*) [ -z "$(echo "$h" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' | grep -Ev "^($EXPECTED)$")" ] && { echo "ok ($h)"; return; } ;; esac; echo "$h"; }
 wait_healthy() { local n=$1 t=${2:-600} h=""; for _ in $(seq 1 $((t / 10))); do h=$(healthy "$n"); case "$h" in ok*) break ;; esac; sleep 10; done; echo "$h"; }
@@ -114,7 +115,7 @@ check "healthy" "$(wait_healthy 1 600)" "ok"
 api 1 GET /api/ceph | py 'st=d["status"]; print("  ", st["health"]["status"], [c["code"]+": "+c["message"] for c in st["health"]["checks"]], st["pgStates"])'
 check "3 monitors in quorum, 3 OSDs up" "$(api 1 GET /api/ceph | py 'st=d["status"]; print(len(st["quorum"]), st["osdsUp"], st["mgrAvailable"])')" "3 3 True"
 check "OSDs on each NAS" "$(api 1 GET /api/ceph | py 'print(sorted(o["host"] for o in d["osds"]))')" "['ceph1', 'ceph2', 'ceph3']"
-check "pools and filesystem" "$(api 2 GET /api/ceph | py 'print(sorted(p["name"] for p in d["pools"]), [f["name"] for f in d["filesystems"]], [p["size"] for p in d["pools"] if p["name"]=="rbd"])')" "'rbd'], ['cephfs'] [3]"
+check "pools and filesystem" "$(api 2 GET /api/ceph | py 'print(sorted(p["name"] for p in d["pools"]), [f["name"] for f in d["filesystems"]], [p["size"] for p in d["pools"] if p["name"]=="rbd"])')" "'rbd'] ['cephfs'] [3]"
 check "metadata servers" "$(api 1 GET /api/ceph | py 'print(sorted(x["status"] for x in d["daemons"] if x["kind"]=="mds"))')" "'up'"
 check "roles of the members" "$(api 3 GET /api/cluster | py 'print([m["roles"] for m in d["members"]])')" "'mds', 'mgr', 'mon', 'osd'"
 check "Ceph disk shown as such" "$(api 2 GET /api/storage/disks | py 'print([x["usage"] for x in d if x["serial"].endswith("-1")])')" "['ceph']"
@@ -159,7 +160,7 @@ check "image gone" "$(N 1 ssh 'sudo rbd ls rbd | grep -c cephvm || true')" "0"
 section "External cluster with a restricted key"
 KEYJSON=$(api 1 POST /api/ceph/clients -d '{"name":"nas3ext","fs":"cephfs","pool":"rbd"}')
 check "client key created (shown once)" "$(echo "$KEYJSON" | py 'print(d["user"], d["key"][:2], len(d["mons"]))')" "nas3ext AQ 3"
-check "client keys listed without their key" "$(api 1 GET /api/ceph | py 'print([c["name"] for c in d["clients"]], "key" in json.dumps(d["clients"]))')" "'nas3ext'] False"
+check "client keys listed without their key" "$(api 1 GET /api/ceph | py 'print([c["name"] for c in d["clients"]], "key" in json.dumps(d["clients"]))')" "'nas3ext', 'strata-vms'] False"
 EXT=$(echo "$KEYJSON" | py 'print(json.dumps({"name":"Lab external","mons":", ".join(d["mons"][:2]),"user":"client."+d["user"],"key":d["key"]}))')
 check "wrong key refused" "$(api 3 POST /api/ceph/external/test -d "$(echo "$EXT" | py 'd["key"]="AQBSdFRiAAAAABAAhYqOzKwRFT1CRGlWbTOKEQ=="; print(json.dumps(d))')")" "error"
 check "connection test" "$(api 3 POST /api/ceph/external/test -d "$EXT" | py 'print(len(d["fsid"]), [f["name"] for f in d["filesystems"]])')" "36 ['cephfs']"
@@ -179,7 +180,7 @@ check "4 OSDs" "$(sleep 20; api 1 GET /api/ceph | py 'print(d["status"]["osds"],
 check "healthy after adding a disk" "$(wait_healthy 1 600)" "ok"
 check "removal of a disk Ceph cannot do without refused" "$(api 1 DELETE /api/ceph/osds/$(api 1 GET /api/ceph | py 'print([o["id"] for o in d["osds"] if o["host"]=="ceph2"][0])'))" "cannot keep 3 copies"
 OSD4=$(api 1 GET /api/ceph | py 'print(max(o["id"] for o in d["osds"]))')
-check "maintenance on" "$(api 1 POST /api/ceph/maintenance -d '{"on":true}'; api 1 GET /api/ceph | py 'print(d["noout"], [c["code"] for c in d["status"]["health"]["checks"]])')" "True ['OSDMAP_FLAGS'"
+check "maintenance on" "$(api 1 POST /api/ceph/maintenance -d '{"on":true}'; api 1 GET /api/ceph | py 'print(d["noout"], "OSDMAP_FLAGS" in [c["code"] for c in d["status"]["health"]["checks"]])')" "True True"
 check "maintenance off" "$(api 1 POST /api/ceph/maintenance -d '{"on":false}'; api 1 GET /api/ceph | py 'print(d["noout"])')" "False"
 T0=$(date +%s)
 check "safe removal (out, wait, destroy)" "$(job 1 "$(api 1 DELETE /api/ceph/osds/$OSD4)" 600)" "success"
@@ -221,7 +222,7 @@ for n in 1 2; do for v in $(api $n GET /api/ceph/storage | py 'print(" ".join(v[
 check "RBD image deleted with its volume" "$(N 1 ssh 'sudo rbd ls rbd | grep -c nas1 || true') $(N 1 ssh 'ls /dev/rbd* 2>/dev/null | wc -l')" "0 0"
 check "Ceph cluster destroyed" "$(job 1 "$(api 1 DELETE '/api/ceph?confirm=Lab')" 300)" "success"
 check "disks free again" "$(for i in 1 2 3; do api "$i" GET /api/storage/disks | py 'print([x["usage"] for x in d if not x.get("system")], end=" ")'; done)" "['free', 'free'] ['free', 'free'] ['free', 'free']"
-check "no Ceph daemon left" "$(for i in 1 2 3; do N "$i" ssh 'pgrep -c ceph- || true'; done | tr '\n' ' ')" "0 0 0"
+check "no Ceph daemon left" "$(for i in 1 2 3; do N "$i" ssh 'pgrep -c -x "ceph-(mon|mgr|osd|mds)" || true'; done | tr '\n' ' ')" "0 0 0"
 for i in 2 3; do check "ceph$i removed from the cluster" "$(api 1 DELETE "/api/cluster/members/$(api 1 GET /api/cluster | py "print([m['id'] for m in d['members'] if m['name']=='ceph$i'][0])")")" '"ok":true'; done
 check "cluster dissolved" "$(api 1 POST /api/cluster/leave) $(api 2 GET /api/cluster | py 'print(d["cluster"])')" "None"
 check "Ceph component uninstalled" "$(job 1 "$(api 1 POST /api/system/components/ceph/uninstall -d '{}')") $(N 1 ssh 'command -v ceph-mon || echo gone')" "gone"

@@ -640,6 +640,11 @@ func (s *Server) cephHealthCheck(fails int) int {
 		return fails
 	}
 	fails = 0
+	for _, c := range st.Health.Checks {
+		if c.Code == "MGR_MODULE_DEPENDENCY" && !c.Muted {
+			cephMuteKnown(ctx)
+		}
+	}
 	var q struct {
 		Leader string `json:"quorum_leader_name"`
 	}

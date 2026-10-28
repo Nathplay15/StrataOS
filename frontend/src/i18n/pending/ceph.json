@@ -962,5 +962,9 @@
  [
   "Les disques arrêtés ne sont jamais marqués out : les données ne sont pas recopiées ailleurs quand un disque tombe en panne.",
   "Down disks are never marked out: data is not copied elsewhere when a disk fails."
+ ],
+ [
+  "Certains modules du gestionnaire Ceph ne se chargent pas. Sur Debian 13, c'est un problème connu de son Python avec Ceph 18 : le stockage fonctionne, mais le dimensionnement automatique des groupes de placement et certaines statistiques manquent.",
+  "Some modules of the Ceph manager cannot load. On Debian 13 this is a known problem of its Python with Ceph 18: the storage works, but the automatic sizing of placement groups and some statistics are missing."
  ]
 ]

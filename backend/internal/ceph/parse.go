@@ -277,7 +277,33 @@ var explanations = map[string]string{
 	"BLUESTORE_SLOW_OP_ALERT":  "A disk answers slowly.",
 	"DEVICE_HEALTH":            "A disk is expected to fail soon (SMART): replace it.",
 	"OBJECT_UNFOUND":           "Some data cannot be found on any disk. Bring back every NAS and disk that was turned off.",
+	"MGR_MODULE_DEPENDENCY":    "Some modules of the Ceph manager cannot load. On Debian 13 this is a known problem of its Python with Ceph 18: the storage works, but the automatic sizing of placement groups and some statistics are missing.",
 	"OSD_NO_DOWN_OUT_INTERVAL": "Down disks are never marked out: data is not copied elsewhere when a disk fails.",
+}
+
+// PyO3Only reports whether `ceph health detail -f json` says the manager
+// modules fail only because of PyO3 and sub-interpreters (Debian 13).
+func PyO3Only(data []byte) bool {
+	var raw struct {
+		Checks map[string]struct {
+			Detail []struct {
+				Message string `json:"message"`
+			} `json:"detail"`
+		} `json:"checks"`
+	}
+	if json.Unmarshal(data, &raw) != nil {
+		return false
+	}
+	c, ok := raw.Checks["MGR_MODULE_DEPENDENCY"]
+	if !ok || len(c.Detail) == 0 {
+		return false
+	}
+	for _, d := range c.Detail {
+		if !strings.Contains(d.Message, "PyO3") {
+			return false
+		}
+	}
+	return true
 }
 
 // Explain returns the plain explanation of a health check ("" when unknown).

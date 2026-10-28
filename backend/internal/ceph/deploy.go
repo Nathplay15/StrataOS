@@ -290,7 +290,7 @@ func ParseVolumeList(data []byte) (map[int][]string, error) {
 // Purge removes every Ceph daemon and key of this node (leaving the
 // cluster, or destroying it). OSDs must be gone first.
 func Purge() error {
-	_ = systemctl("disable", "--now", "ceph.target", "ceph-mon.target", "ceph-mgr.target", "ceph-mds.target", "ceph-osd.target")
+	_ = systemctl("disable", "--now", "ceph.target", "ceph-mon.target", "ceph-mgr.target", "ceph-mds.target", "ceph-osd.target", "ceph-crash.service")
 	for _, kind := range []string{"mon", "mgr", "mds"} {
 		dirs, _ := filepath.Glob(filepath.Join(varLib, kind, "ceph-*"))
 		for _, d := range dirs {

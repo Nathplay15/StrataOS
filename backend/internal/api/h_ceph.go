@@ -536,6 +536,7 @@ func (s *Server) cephBootstrap(ctx context.Context, req cephBootstrapReq, j *job
 		st, err := ceph.Local.Status(ctx)
 		return err == nil && st.OSDsUp >= totalDisks, nil
 	})
+	cephMuteKnown(ctx)
 	if req.RBD {
 		if err := s.cephCreatePool(ctx, j, "rbd", rbdPool); err != nil {
 			return err
@@ -596,7 +597,7 @@ func waitFor(ctx context.Context, d time.Duration, ok func() (bool, error)) erro
 func (s *Server) cephCreateOSDs(ctx context.Context, j *jobs.Job, members []store.ClusterMember, disks map[string][]string, erase bool, from, to float64) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var errs []string
+	var errs, created []string
 	total, done := 0, 0
 	for _, m := range members {
 		total += len(disks[m.ID])
@@ -622,17 +623,21 @@ func (s *Server) cephCreateOSDs(ctx context.Context, j *jobs.Job, members []stor
 					j.Logf("OSD on %s of %s failed: %v", d, m.Name, err)
 				} else {
 					j.Logf("OSD on %s of %s created", d, m.Name)
+					created = append(created, m.ID)
 				}
 				mu.Unlock()
 			}
 		}()
 	}
 	wg.Wait()
+	// The new OSDs reach the CRUSH map only once started: take the roles
+	// from what was created.
+	slices.Sort(created)
+	for _, id := range slices.Compact(created) {
+		s.setClusterRoles(ctx, id, []string{"osd"}, nil)
+	}
 	if len(errs) > 0 {
 		return fmt.Errorf("some OSDs could not be created: %s", strings.Join(errs, "; "))
-	}
-	if total > 0 {
-		s.setRolesFromOSDs(ctx)
 	}
 	return nil
 }
@@ -669,7 +674,7 @@ func (s *Server) cephCreatePool(ctx context.Context, j *jobs.Job, kind, name str
 	switch kind {
 	case "rbd":
 		j.Logf("RBD pool %s", name)
-		if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "create", name); err != nil {
+		if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "create", name, strconv.Itoa(s.cephPGs(ctx, 32))); err != nil {
 			return err
 		}
 		if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "application", "enable", name, "rbd"); err != nil {
@@ -683,8 +688,8 @@ func (s *Server) cephCreatePool(ctx context.Context, j *jobs.Job, kind, name str
 		// which needs the manager's volumes module to be up.
 		j.Logf("CephFS filesystem %s", name)
 		meta, data := "cephfs."+name+".meta", "cephfs."+name+".data"
-		for _, p := range []string{meta, data} {
-			if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "create", p); err != nil {
+		for p, n := range map[string]int{meta: 16, data: 32} {
+			if _, err := ceph.Local.Ceph(ctx, "osd", "pool", "create", p, strconv.Itoa(s.cephPGs(ctx, n))); err != nil {
 				return err
 			}
 		}
@@ -713,6 +718,31 @@ func (s *Server) cephCreatePool(ctx context.Context, j *jobs.Job, kind, name str
 		return fmt.Errorf("unknown pool kind")
 	}
 	return nil
+}
+
+// cephPGs is the number of placement groups a new pool starts with. The
+// autoscaler adjusts it when it runs, but the manager of Debian 13 cannot load
+// its Python modules (see cephMuteKnown): start with a sensible number, lower
+// on clusters with few disks.
+func (s *Server) cephPGs(ctx context.Context, want int) int {
+	if st, err := ceph.Local.Status(ctx); err == nil && st.OSDs > 0 && st.OSDs < 3 {
+		return max(want/4, 8)
+	}
+	return want
+}
+
+// cephMuteKnown mutes the health warning of the manager modules that the
+// Python of Debian 13 cannot load (PyO3 extensions in sub-interpreters, a
+// known Debian/Ceph 18 problem): storage is not affected, but the warning
+// would hide real problems behind a permanent HEALTH_WARN.
+func cephMuteKnown(ctx context.Context) {
+	var raw []byte
+	if ceph.Local.JSON(ctx, &raw, "health", "detail") != nil {
+		return
+	}
+	if ceph.PyO3Only(raw) {
+		_, _ = ceph.Local.Ceph(ctx, "health", "mute", "MGR_MODULE_DEPENDENCY", "--sticky")
+	}
 }
 
 // cephOSDs reads the OSDs with their usage and disk.
