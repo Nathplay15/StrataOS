@@ -46,7 +46,7 @@ import io.github.nathplay15.strataos.ui.NasImage
 import okhttp3.HttpUrl
 
 /** A picture (or a video, shown by its thumbnail) of a full-screen pager. */
-data class PagerImage(val path: String, val name: String, val url: HttpUrl, val video: Boolean = false, val subtitle: String = "")
+data class PagerImage(val path: String, val name: String, val url: HttpUrl, val video: Boolean = false, val subtitle: String = "", val alternatives: List<HttpUrl> = emptyList())
 
 /**
  * Full-screen viewer: swipe between pictures, pinch or double tap to zoom,
@@ -78,7 +78,7 @@ fun ImagePager(
                 }
             } else {
                 Zoomable(onTap = { chrome = !chrome }) {
-                    NasImage(it.url, it.name, Modifier.fillMaxSize(), maxPx = 2048, contentScale = ContentScale.Fit)
+                    NasImage(it.url, it.name, Modifier.fillMaxSize(), maxPx = 2048, contentScale = ContentScale.Fit, alternatives = it.alternatives)
                 }
             }
         }

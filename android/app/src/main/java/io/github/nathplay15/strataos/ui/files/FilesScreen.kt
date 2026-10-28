@@ -140,6 +140,20 @@ private fun thumbOf(e: FileEntry, px: Int) = when {
     else -> null
 }
 
+/**
+ * Other sources for a picture: the Photos index (when the folder is indexed),
+ * then the file itself when small (/api/files/image needs the document
+ * preview component for most formats).
+ */
+private fun thumbAlternatives(e: FileEntry, big: Boolean): List<okhttp3.HttpUrl> {
+    if (e.dir || kindOf(e.name) != Kind.IMAGE) return emptyList()
+    val v = e.modTime
+    return listOfNotNull(
+        api().photoThumbUrl(e.path, if (big) "l" else "s").newBuilder().addQueryParameter("v", v).build(),
+        if (e.size in 1..(if (big) 25L shl 20 else 4L shl 20)) api().url("/api/files/download", "path" to e.path, "v" to v) else null,
+    )
+}
+
 /** The file browser: folders of the NAS, search, selection, operations, favorites. */
 @Composable
 fun FilesScreen(path: String, setPath: (String) -> Unit, accountAction: @Composable () -> Unit = {}) {
@@ -209,7 +223,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
     }
 
     pager?.let { (items, i) ->
-        ImagePager(items.map { PagerImage(it.path, it.name, thumbOf(it, 2048)!!, subtitle = formatDate(it.modTime)) }, i, onClose = { pager = null }) { cur ->
+        ImagePager(items.map { PagerImage(it.path, it.name, thumbOf(it, 2048)!!, subtitle = formatDate(it.modTime), alternatives = thumbAlternatives(it, true)) }, i, onClose = { pager = null }) { cur ->
             val e = items.first { it.path == cur.path }
             IconButton(onClick = { pager = null; linkFor = e }) { Icon(Icons.Default.Link, stringResource(R.string.a_share_link)) }
             IconButton(onClick = {
@@ -406,7 +420,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                         items(shown, key = { it.path }) { e ->
                             Column(Modifier.padding(4.dp).combinedClickable(onClick = { click(e) }, onLongClick = { long(e) }), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box {
-                                    NasImage(thumbOf(e, 256), e.name, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)), maxPx = 256, fallback = iconOf(e))
+                                    NasImage(thumbOf(e, 256), e.name, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)), maxPx = 256, fallback = iconOf(e), alternatives = thumbAlternatives(e, false))
                                     if (e.path in selected) Icon(Icons.Default.CheckCircle, stringResource(R.string.a_selected_one), Modifier.align(Alignment.TopEnd).padding(4.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
                                 Text(e.name, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
@@ -427,7 +441,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                                 },
                                 leadingContent = {
                                     if (selected.isNotEmpty()) Checkbox(e.path in selected, { click(e) })
-                                    else NasImage(thumbOf(e, 128), null, Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)), maxPx = 128, fallback = iconOf(e))
+                                    else NasImage(thumbOf(e, 128), null, Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)), maxPx = 128, fallback = iconOf(e), alternatives = thumbAlternatives(e, false))
                                 },
                                 trailingContent = {
                                     Box {

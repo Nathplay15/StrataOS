@@ -50,6 +50,12 @@ object Thumbs {
         return File(Graph.app.cacheDir, "thumbs/${h.take(2)}/$h")
     }
 
+    /** The first of [urls] the NAS can answer (previews may be missing: other sources follow). */
+    suspend fun loadFirst(urls: List<HttpUrl>, maxPx: Int): Bitmap? {
+        for (u in urls) load(u, maxPx)?.let { return it }
+        return null
+    }
+
     /** The picture at [url], decoded to at most about [maxPx] pixels; null when the NAS has none. */
     suspend fun load(url: HttpUrl, maxPx: Int): Bitmap? {
         val key = url.toString()
@@ -103,9 +109,10 @@ fun NasImage(
     maxPx: Int = 400,
     contentScale: ContentScale = ContentScale.Crop,
     fallback: ImageVector? = null,
+    alternatives: List<HttpUrl> = emptyList(),
 ) {
     var bmp by remember(url) { mutableStateOf(url?.let { Thumbs.cached(it) }) }
-    LaunchedEffect(url) { if (bmp == null && url != null) bmp = Thumbs.load(url, maxPx) }
+    LaunchedEffect(url) { if (bmp == null && url != null) bmp = Thumbs.loadFirst(listOf(url) + alternatives, maxPx) }
     val b = bmp
     if (b != null) {
         Image(b.asImageBitmap(), contentDescription, modifier, contentScale = contentScale)
