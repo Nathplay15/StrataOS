@@ -527,6 +527,9 @@ type State struct {
 	NVR       NVR             `json:"nvr,omitzero"`
 	Console   Console         `json:"console,omitzero"` // appliance screen on the local display
 	Mobile    Mobile          `json:"mobile,omitzero"`
+	// Cluster of NAS and Ceph storage (store/cluster.go).
+	Cluster Cluster `json:"cluster,omitzero"`
+	Ceph    Ceph    `json:"ceph,omitzero"`
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`

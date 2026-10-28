@@ -58,6 +58,9 @@ func (s *Server) fleetSummary() map[string]any {
 	if ha := s.fleetHA(); ha != nil {
 		ov["ha"] = ha
 	}
+	if c := s.clusterState(); c.ID != "" && len(c.Members) > 1 {
+		ov["cluster"] = c.ID
+	}
 	return ov
 }
 

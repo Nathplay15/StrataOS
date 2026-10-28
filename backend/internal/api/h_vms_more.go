@@ -116,7 +116,12 @@ func (s *Server) vmAutostartLoop() {
 	}
 	vms.MarkStarted()
 	var entries []vms.AutostartEntry
-	s.store.Read(func(st *store.State) { entries = autostartEntries(st) })
+	s.store.Read(func(st *store.State) {
+		entries = slices.DeleteFunc(autostartEntries(st), func(e vms.AutostartEntry) bool {
+			// HA VMs start once the cluster says where they run.
+			return slices.ContainsFunc(st.Cluster.VMs.HA, func(h store.ClusterHAVM) bool { return h.Name == e.Name })
+		})
+	})
 	vms.StartAll(ctx, entries, func(name string, err error) {
 		if err != nil {
 			s.store.Log("error", "vms", "", "VM "+name+" did not start with the NAS: "+err.Error())
@@ -258,6 +263,7 @@ func (s *Server) vmMoreRoutes() {
 		if err := req.Cloud.Validate(); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		req.CPUModel = s.vmcNewCPU()
 		s.audit(r, "vms", "Creating virtual machine "+req.Name+" from cloud image "+req.Image)
 		return s.jobs.Start("vm", "Creating VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			if err := vms.CreateFromCloud(ctx, req, s.vmProgress(j)); err != nil {
@@ -300,6 +306,7 @@ func (s *Server) vmMoreRoutes() {
 		if err := vms.ValidName(req.Name); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		req.CPUModel = s.vmcNewCPU()
 		s.audit(r, "vms", "Importing "+req.Source+" as virtual machine "+req.Name)
 		return s.jobs.Start("vm", "Importing VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			if err := vms.Import(ctx, req, s.vmProgress(j)); err != nil {

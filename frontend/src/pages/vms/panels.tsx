@@ -15,8 +15,13 @@ function useShares() {
   return useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
 }
 
-export function StorageSelect({ value, onChange, allowSame }: { value: string; onChange: (v: string) => void; allowSame?: boolean }) {
+export function StorageSelect({ value, onChange, allowSame, ceph }: { value: string; onChange: (v: string) => void; allowSame?: boolean; ceph?: boolean }) {
   const shares = useShares();
+  // VM storage on Ceph (libvirt RBD pools), for VMs installed from an ISO.
+  const rbd = useQuery({ queryKey: ["ceph-vm-pools"], queryFn: () => api.get<{ name: string; label: string; active: boolean }[]>("/api/ceph/vm-pools"), enabled: !!ceph });
+  useEffect(() => {
+    if (!ceph && value.startsWith("rbd:")) onChange(shares.data?.[0]?.path ?? "");
+  }, [ceph]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!value && !allowSame && shares.data?.length) onChange(shares.data[0].path);
   }, [shares.data]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -25,6 +30,7 @@ export function StorageSelect({ value, onChange, allowSame }: { value: string; o
       {allowSame && <option value="">{tr("Next to the original VM")}</option>}
       {!allowSame && shares.data?.length === 0 && <option value="">{tr("No shared folders")}</option>}
       {shares.data?.map((s) => <option key={s.name} value={s.path}>{s.name} ({s.path})</option>)}
+      {ceph && rbd.data?.filter((p) => p.active).map((p) => <option key={p.name} value={`rbd:${p.name}`}>{p.label}</option>)}
     </Select>
   );
 }

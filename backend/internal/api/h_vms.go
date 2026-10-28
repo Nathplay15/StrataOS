@@ -57,6 +57,7 @@ func (s *Server) vmRoutes() {
 		if err := vms.ValidName(req.Name); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		req.CPUModel = s.vmcNewCPU()
 		s.audit(r, "vms", "Creating virtual machine "+req.Name)
 		return s.jobs.Start("vm", "Creating VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			if err := vms.Create(ctx, req, j.Logf); err != nil {

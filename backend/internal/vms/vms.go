@@ -107,6 +107,9 @@ type domainXML struct {
 			Device string `xml:"device,attr"`
 			Source struct {
 				File string `xml:"file,attr"`
+				// Network disks (Ceph RBD): protocol and pool/image.
+				Protocol string `xml:"protocol,attr"`
+				Name     string `xml:"name,attr"`
 			} `xml:"source"`
 			Target struct {
 				Dev string `xml:"dev,attr"`
@@ -191,6 +194,9 @@ func Get(name string) (*VM, error) {
 	}
 	for _, dk := range d.Devices.Disks {
 		disk := Disk{Device: dk.Device, Target: dk.Target.Dev, Bus: dk.Target.Bus, Source: dk.Source.File}
+		if dk.Source.Protocol == "rbd" {
+			disk.Source = "rbd:" + dk.Source.Name
+		}
 		if dk.Device == "disk" && dk.Source.File != "" {
 			if info, err := sys.Run("qemu-img", "info", "--force-share", "--output=json", dk.Source.File); err == nil {
 				if m := regexp.MustCompile(`"virtual-size":\s*(\d+)`).FindStringSubmatch(info); m != nil {
@@ -288,6 +294,9 @@ type CreateReq struct {
 	Network   string `json:"network"` // "nat" or a bridge name
 	Firmware  string `json:"firmware"`
 	Autostart bool   `json:"autostart"`
+	// CPUModel: a named QEMU model (the cluster-safe CPU of a VM cluster);
+	// "" leaves virt-install's default (the host's processor).
+	CPUModel string `json:"cpuModel,omitempty"`
 }
 
 // insideStrata validates a path below /srv/strata (no traversal).
@@ -339,6 +348,8 @@ func grantQemu(p string, write bool) error {
 	_, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":r", p)
 	return err
 }
+
+var cpuModelRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$`)
 
 var bridgeRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-]{0,14}$`)
 
@@ -397,6 +408,9 @@ type installSpec struct {
 
 // Create defines a VM with virt-install and boots it on its ISO.
 func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
+	if pool, ok := strings.CutPrefix(r.Storage, RBDPrefix); ok {
+		return createOnPool(ctx, r, pool, logf)
+	}
 	if r.DiskGB < 1 {
 		return fmt.Errorf("invalid CPU, memory or disk size")
 	}
@@ -467,6 +481,12 @@ func install(ctx context.Context, r CreateReq, spec installSpec, logf func(strin
 			args = append(args, "--tpm", "backend.type=emulator,backend.version=2.0,model=tpm-crb")
 		}
 	}
+	if r.CPUModel != "" {
+		if !cpuModelRe.MatchString(r.CPUModel) {
+			return fmt.Errorf("invalid CPU model")
+		}
+		args = append(args, "--cpu", r.CPUModel)
+	}
 	args = append(args, spec.extra...)
 	// Autostart is handled by StrataOS itself (ordered start), not by libvirt.
 	logf("virt-install %s", strings.Join(args, " "))
@@ -509,6 +529,13 @@ func Action(name, action string) error {
 				return fmt.Errorf("%s is a template: create a VM from it instead", name)
 			}
 			refreshUSB(vm)
+			var bridges []string
+			for _, n := range vm.NICs {
+				if n.Type == "bridge" {
+					bridges = append(bridges, n.Source)
+				}
+			}
+			AllowBridgeForwarding(bridges)
 			if err := prepareVFIO(vm); err != nil {
 				return err
 			}
@@ -597,12 +624,18 @@ func Delete(name string, removeDisks bool) error {
 	if vm.State != "shut off" {
 		_, _ = virsh("destroy", name)
 	}
+	ceph := rbdDisks(name)
 	if _, err := virsh("undefine", name, "--nvram", "--snapshots-metadata", "--tpm"); err != nil {
 		if _, err2 := virsh("undefine", name, "--nvram"); err2 != nil {
 			return err
 		}
 	}
 	_ = os.Remove(consoleLogPath(name))
+	if removeDisks && len(ceph) > 0 {
+		if err := deleteRBDDisks(ceph); err != nil {
+			return err
+		}
+	}
 	if removeDisks && vm.Dir != "" && strings.HasPrefix(vm.Dir, "/srv/strata/") && filepath.Base(vm.Dir) == name {
 		return os.RemoveAll(vm.Dir)
 	}

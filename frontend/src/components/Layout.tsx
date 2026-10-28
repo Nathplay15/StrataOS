@@ -30,6 +30,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/storage/zfs", label: "ZFS", icon: <Boxes size={17} />, admin: true },
       { to: "/storage/lvm", label: "LVM", icon: <Server size={17} />, admin: true },
       { to: "/storage/iscsi", label: "iSCSI", icon: <HardDriveUpload size={17} />, admin: true },
+      { to: "/storage/ceph", label: "Ceph", icon: <Network size={17} />, admin: true },
       { to: "/storage/analyzer", label: tr("Space analyzer"), icon: <PieChart size={17} />, admin: true },
       { to: "/storage/duplicates", label: tr("Duplicates"), icon: <Copy size={17} />, admin: true },
       { to: "/backup", label: tr("Backup"), icon: <DatabaseBackup size={17} />, admin: true },

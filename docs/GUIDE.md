@@ -201,7 +201,7 @@ The **Hardware** page shows temperatures and fans. Under Fan control, choose "BI
 
 ## 18. High availability
 
-With two or more NAS on the same network, one of them (the primary) serves the shared folders at a **shared address**; the others receive a copy of the accounts, shared folders and files (continuously or periodically) and take over within seconds if the primary fails. Volumes on the secondaries can have different names: enter the mapping when you pair them. To restart the primary without interruption, use "Maintenance". After a failure, the primary never takes control back on its own: hand control back from the active secondary, which first copies its changes over.
+With two or more NAS on the same network, one of them (the primary) serves the shared folders at a **shared address**; the others receive a copy of the accounts, shared folders and files (continuously or periodically) and take over within seconds if the primary fails. Volumes on the secondaries can have different names: enter the mapping when you pair them. To restart the primary without interruption, use "Maintenance". After a failure, the primary never takes control back on its own: hand control back from the active secondary, which first copies its changes over. For virtual machines restarted on another NAS, see section 25.
 
 ## 19. Monitoring and notifications
 
@@ -299,3 +299,47 @@ Limits: symbolic links are not synchronized (they are listed as skipped), nor ar
 
 **Headless mode** (servers, scripts): `strataos-sync pair --server https://nas:7443 --code <code> --fingerprint <fingerprint>`, then `strataos-sync add --local ~/Documents --remote /srv/strata/main/Documents`, and `strataos-sync daemon` (or `sync-once` from a scheduled task). `strataos-sync --help` lists everything. The settings and state live in `~/.config/StrataOS Sync` (Linux), `~/Library/Application Support/StrataOS Sync` (macOS) or `%AppData%\StrataOS Sync` (Windows); `config.json` holds the device token, readable by your account only.
 
+## 24. Ceph
+
+**Ceph** spreads data over the disks of several NAS and keeps each piece on several of them (3 copies by default, on 3 different NAS): a disk or a whole NAS can stop without losing data, and without interruption. StrataOS installs Ceph from Debian (Settings → Components → **Ceph**) and runs it itself; it can also use a Ceph cluster managed elsewhere.
+
+**When it is worth it**: from **3 NAS** (below, there is no fault tolerance: StrataOS only allows it as a "test mode"), on a fast network (**10 Gb/s recommended**; 1 Gb/s works but limits writes, which go to every copy), with about **4 GB of RAM per disk** given to Ceph on top of what the NAS already uses (StrataOS keeps the caches small on NAS with less than 6 GB, which is slower). For one NAS, RAID, Btrfs or ZFS remain simpler and faster; for a standby copy, use high availability (section 18).
+
+**Creating a cluster**: install the Ceph component on every NAS. On the first one, Storage → **Ceph** → "Create a Ceph cluster": give it a name and choose the network the NAS share (optionally a second network for the copies between NAS). On each other NAS, "Join a cluster" shows a one-time code: type its address and code on the first NAS. Then pick the disks for Ceph on each NAS (blank disks; disks with old data are erased after you type the cluster name; the system disk and the disks of StrataOS volumes are never offered) and what to create: an **RBD pool** (block devices) and/or a **CephFS** filesystem. StrataOS sets up the monitors (on 3 NAS), the managers, the disks (BlueStore) and the pools; the placement groups are sized automatically.
+
+**The Ceph page** shows the health (with an explanation of each warning), the capacity, the disks and services of each NAS, the placement groups, recovery and client traffic. A health change is notified like other alerts. From there:
+
+- **Add a disk**, or **Remove** one: Ceph first copies its data to the other disks, then the disk is erased. **Replace** puts a new disk in place of a failed one (it keeps its number).
+- **Maintenance mode** stops Ceph from moving data while you restart a NAS.
+- **Add to Ceph** another member of the cluster, or remove a NAS that no longer holds disks.
+- **Client keys** give another NAS or computer access to one pool or filesystem only.
+
+**Using Ceph as storage** (Ceph → Storage on this NAS, also for an external cluster: enter its monitor addresses, a Ceph user and its key, which stays on the NAS, readable by the system only; "Test the connection" checks them first):
+
+- **CephFS** becomes a volume of the NAS: create shared folders on it like on any volume. Several NAS can mount the same CephFS at once.
+- An **RBD image** becomes a volume formatted in ext4, XFS or Btrfs, for **one NAS only**: mounting it on two NAS at once would corrupt it, so StrataOS refuses an image another client already uses.
+- **VM storage**: an RBD pool where the disks of virtual machines live; it appears in "Disk locations" when you create a VM from an ISO.
+
+Ceph volumes are mounted by StrataOS once the cluster answers, so a NAS starts normally even when the others are off.
+
+**Limits**: Ceph needs most of the cluster to work: with 3 NAS, one may stop; if two stop, the data waits for them. Cloud images and imported VMs cannot be put on Ceph yet (only VMs installed from an ISO). Snapshots and backups of Ceph volumes go through the usual tools of the volume (Btrfs snapshots, backup tasks), not through Ceph. Changing the networks of an existing cluster is not possible from the interface.
+
+## 25. Cluster of NAS for virtual machines
+
+The NAS of a cluster (Storage → Ceph → the cluster of NAS, section 24) can manage their virtual machines together, like Proxmox: every NAS shows all the VMs and containers, a VM moves from one NAS to another while it runs, and the VMs under **high availability** restart on another NAS when theirs fails.
+
+**What you need**: the Virtual machines component on every NAS of the cluster; **3 NAS** for high availability (with two, neither can tell the failure of the other from its own isolation); **Ceph** storage for the VM disks (Storage → Ceph → VM storage, added on **each** NAS, from the cluster's own Ceph); the same network bridges on every NAS (same names, on the same network), since a VM keeps its network interface when it moves. A fast network between the NAS helps: a live migration copies the whole memory of the VM.
+
+**The Cluster tab** (Virtual machines app, shown when the NAS is in a cluster): the NAS with their state (online, maintenance, the leader that takes the recovery decisions), the quorum, and every VM and container of every NAS with its state and resources. Start, stop, open the console (it goes through the NAS you are using), migrate, high availability. **CPU of new VMs**: "Host processor" is the fastest but a running VM can then only move to a NAS with the very same processor; "Cluster-safe" picks the newest processor model all the NAS can run, used by the VMs created afterwards. For an existing VM, shut it down and use the CPU button of its line.
+
+**Migrating a VM** (arrows button): choose the target NAS; StrataOS checks first that it answers, has enough free memory, can run the VM's processor, has the same bridges (or lets you choose another one), the same Ceph storage, and that no CD-ROM image or USB/PCI device ties the VM to this NAS (eject it first; a VM with snapshots cannot move). A running VM on Ceph moves **live**: it keeps running while its memory is copied, then continues on the target within a second. A VM with its disks on the NAS itself can move too, with "Copy the disks", much slower (the whole disk travels while the VM runs). A stopped VM on Ceph just moves its definition. The migration is a job you can cancel (the VM then keeps running where it was). The transfers between NAS are encrypted with certificates StrataOS creates for the cluster, without any password.
+
+**Containers** (LXC) move stopped: the container is stopped, copied to the other NAS in the backup format, started there if it was running, then deleted here.
+
+**High availability** (heart button): turn it on for a VM whose disks are all on the cluster's Ceph, and optionally choose a preferred NAS. The NAS of the cluster check each other every 5 seconds. When one stops answering for about 45 seconds and most of the cluster agrees, the leader **fences** it (Ceph refuses any further write from its old VM processes) and its HA VMs that were running restart on the preferred NAS, or on the NAS with the most free memory. A NAS that loses contact with most of the cluster stops its own HA VMs after 30 seconds, before the others restart them. When the failed NAS comes back, it removes its old copy of the VMs instead of starting them: a VM never runs twice with the same disk. HA VMs that were running start again after a restart of their NAS, and with the NAS if "Start with the NAS" is set.
+
+**Maintenance** (button of each NAS): its running VMs on Ceph move live to the other NAS, and no VM is placed on it until the maintenance ends. Use it before an update or a restart. Grouped updates of the Multi-NAS console never restart two NAS of the same cluster at once, and a NAS of the cluster empties itself this way before its restart (the maintenance ends by itself when it is back).
+
+**Difference with high availability for files** (section 18): that one pairs two NAS for the shared folders (a copy of the data and a shared address). The VM cluster shares the VM disks through Ceph and restarts VMs; both can be used together.
+
+**Limits**: a VM restarted by high availability boots again (what was in its memory is lost, like after a power cut). Only Ceph disks are protected; VMs with disks on a NAS, USB or PCI devices passed through cannot be under HA. If the whole network fails, every NAS stops its HA VMs and none restarts them until most of the cluster sees each other again. Containers cannot move live or be under HA. A VM moved while stopped keeps its UEFI settings; a VM migrated with copied disks loses nothing but takes time. Up to 16 NAS for VM migrations.

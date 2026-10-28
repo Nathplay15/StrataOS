@@ -77,6 +77,8 @@ func TestFleetLanes(t *testing.T) {
 		{"named but not in HA any more", []fleetNode{ha("p", "primary", "s"), plain("s")}, false, [][]int{{0}, {1}}},
 		{"primary with two secondaries",
 			[]fleetNode{ha("p", "primary", "s1", "s2"), ha("s1", "secondary", "p"), ha("s2", "secondary", "p"), plain("x")}, false, [][]int{{1, 2, 0}, {3}}},
+		{"members of a cluster of NAS share a lane",
+			[]fleetNode{{Hostname: "c1", Cluster: "k"}, plain("x"), {Hostname: "c2", Cluster: "k"}, {Hostname: "o1", Cluster: "other"}}, false, [][]int{{0, 2}, {1}, {3}}},
 		{"two pairs side by side",
 			[]fleetNode{ha("p1", "primary", "s1"), ha("p2", "primary", "s2"), ha("s1", "secondary", "p1"), ha("s2", "secondary", "p2")}, false, [][]int{{2, 0}, {3, 1}}},
 	} {

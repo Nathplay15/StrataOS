@@ -55,6 +55,8 @@ type CreateFSReq struct {
 	DataProfile string   `json:"dataProfile"` // btrfs: single raid0 raid1 raid1c3 raid1c4 raid10 raid5 raid6
 	MetaProfile string   `json:"metaProfile"`
 	Compression bool     `json:"compression"`
+	// MountOpts are added to the fstab options (network block devices).
+	MountOpts string `json:"-"`
 }
 
 var btrfsProfiles = map[string]int{"single": 1, "dup": 1, "raid0": 2, "raid1": 2, "raid1c3": 3, "raid1c4": 4, "raid10": 4, "raid5": 2, "raid6": 3}
@@ -147,6 +149,9 @@ func CreateFilesystem(ctx context.Context, r CreateFSReq, logf func(string, ...a
 	if r.FSType == "btrfs" && r.Compression {
 		opts += ",compress=zstd:1"
 	}
+	if r.MountOpts != "" {
+		opts += "," + r.MountOpts
+	}
 	switch r.FSType {
 	case "xfs":
 		opts += ",uquota"
@@ -166,6 +171,12 @@ func CreateFilesystem(ctx context.Context, r CreateFSReq, logf func(string, ...a
 
 // MountExisting mounts an already formatted device as a volume.
 func MountExisting(name, dev string) (fstype, uuid, mountpoint string, err error) {
+	return MountExistingOpts(name, dev, "")
+}
+
+// MountExistingOpts is MountExisting with more fstab options (network block
+// devices: "_netdev,noauto").
+func MountExistingOpts(name, dev, extra string) (fstype, uuid, mountpoint string, err error) {
 	if err := ValidName(name); err != nil {
 		return "", "", "", err
 	}
@@ -186,7 +197,11 @@ func MountExisting(name, dev string) (fstype, uuid, mountpoint string, err error
 	mountpoint = filepath.Join(MountRoot, name)
 	Lock.Lock()
 	defer Lock.Unlock()
-	if err := mountAndPersist(uuid, mountpoint, fstype, "defaults,noatime,nofail,x-systemd.device-timeout=30s"); err != nil {
+	opts := "defaults,noatime,nofail,x-systemd.device-timeout=30s"
+	if extra != "" {
+		opts += "," + extra
+	}
+	if err := mountAndPersist(uuid, mountpoint, fstype, opts); err != nil {
 		return "", "", "", err
 	}
 	return fstype, uuid, mountpoint, nil

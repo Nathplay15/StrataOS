@@ -11,9 +11,10 @@ import type { LXCData } from "./containers/types";
 import { ContainerCard } from "./containers/ContainerCard";
 import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
 import { ContainerDetail, type DetailTab } from "./containers/ContainerDetail";
+import { ClusterPanel, useClusterData } from "./cluster/ClusterPanel";
 import { AutostartPanel, BackupsPanel, CloneVM, ConsoleLog, PCIPanel, Snapshots, StorageSelect, USBPanel } from "./panels";
 
-type Tab = "vms" | "templates" | "usb" | "autostart" | "backups" | "pci";
+type Tab = "vms" | "cluster" | "templates" | "usb" | "autostart" | "backups" | "pci";
 
 function useAdvanced(): [boolean, (v: boolean) => void] {
   const [v, setV] = useState(() => {
@@ -53,6 +54,8 @@ export default function VirtualMachines() {
   const [kind, setKind] = useState<Kind>("all");
   const [detail, setDetail] = useState<{ name: string; tab: DetailTab } | null>(null);
   const [advanced, setAdvanced] = useAdvanced();
+  const clq = useClusterData();
+  const inCluster = !!clq.data?.cluster && (clq.data?.members.length ?? 0) > 1;
 
   const header = (actions?: React.ReactNode) => <PageHeader title={tr("Virtual machines")} subtitle={tr("KVM machines and LXC containers, with in-browser console")} icon={<Monitor size={20} />} actions={actions} />;
   if ((vmq.isLoading && !data) || (lxq.isLoading && !lx)) return <div>{header()}<ErrorBox error={error} /><Spinner /></div>;
@@ -80,6 +83,7 @@ export default function VirtualMachines() {
   const containers = lx?.containers ?? [];
   const tabs: { id: Tab; label: React.ReactNode }[] = [
     { id: "vms", label: tr("Machines ({0})", machines.length + containers.length) },
+    ...(inCluster ? [{ id: "cluster" as Tab, label: tr("Cluster") }] : []),
     ...(vmOK ? [
       { id: "templates" as Tab, label: tr("Templates ({0})", templates.length) },
       { id: "usb" as Tab, label: tr("USB devices") },
@@ -136,6 +140,7 @@ export default function VirtualMachines() {
           )}
         </>
       )}
+      {tab === "cluster" && inCluster && clq.data && <ClusterPanel data={clq.data} />}
       {tab === "templates" && (templates.length === 0 ? (
         <Card><Empty icon={<LayoutTemplate />} title={tr("No templates")} text={tr("Prepare a VM (updates, software), shut it down, then convert it to a template to create identical VMs from it.")} /></Card>
       ) : (
@@ -329,7 +334,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
         <Field label={tr("Virtual CPUs")}><Input type="number" min={1} max={64} value={f.vcpus} onChange={(e) => set({ vcpus: +e.target.value })} /></Field>
         <Field label={tr("Memory (MiB)")}><Input type="number" min={256} step={256} value={f.memoryMb} onChange={(e) => set({ memoryMb: +e.target.value })} /></Field>
         {source !== "import" && <Field label={tr("Disk size (GiB)")} hint={tr("Thin-provisioned (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>}
-        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
+        <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect ceph={source === "iso"} value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
         {source === "iso" && (
           <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
             <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
@@ -416,7 +421,7 @@ function EditVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
   );
 }
 
-function Console({ name, onClose }: { name: string; onClose: () => void }) {
+export function Console({ name, url, onClose }: { name: string; url?: string; onClose: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const rfb = useRef<import("@novnc/novnc/lib/rfb").default | null>(null);
   const [status, setStatus] = useState("Connexion…");
@@ -426,14 +431,14 @@ function Console({ name, onClose }: { name: string; onClose: () => void }) {
       if (cancelled || !box.current) return;
       // noVNC ships CommonJS: depending on the bundler the class is default or default.default.
       const RFB = ((m.default as unknown as { default?: typeof m.default }).default ?? m.default) as typeof m.default;
-      const r = new RFB(box.current, wsURL(`/api/vms/${encodeURIComponent(name)}/vnc`), { wsProtocols: ["binary"] });
+      const r = new RFB(box.current, wsURL(url ?? `/api/vms/${encodeURIComponent(name)}/vnc`), { wsProtocols: ["binary"] });
       r.scaleViewport = true;
       r.addEventListener("connect", () => { setStatus(""); r.focus(); });
       r.addEventListener("disconnect", () => setStatus(tr("Disconnected")));
       rfb.current = r;
     });
     return () => { cancelled = true; rfb.current?.disconnect(); };
-  }, [name]);
+  }, [name, url]);
 
   return (
     <Modal open onClose={onClose} wide="xl" title={<span className="flex items-center gap-2"><MonitorPlay size={17} />{tr("Console of")}{" "}{name}{status && <span className="text-muted text-[12px] font-normal">— {status}</span>}</span>}
