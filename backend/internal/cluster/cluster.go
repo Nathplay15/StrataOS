@@ -195,6 +195,15 @@ func (p Peer) client() *http.Client {
 	return &http.Client{Transport: &http.Transport{TLSClientConfig: cfg, DisableKeepAlives: true}}
 }
 
+// Client is the HTTP client that pins the member's certificate (streams,
+// websockets).
+func (p Peer) Client() *http.Client { return p.client() }
+
+// URL is the address of a peer API path.
+func (p Peer) URL(path string) string {
+	return "https://" + net.JoinHostPort(p.Host, "7443") + "/api/cluster/peer/" + path
+}
+
 // PeerError is an error answer of the other NAS.
 type PeerError struct {
 	Status int

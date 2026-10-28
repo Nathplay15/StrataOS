@@ -16,6 +16,39 @@ type Cluster struct {
 	PublicNet  string    `json:"publicNet,omitempty"`
 	PrivateNet string    `json:"privateNet,omitempty"`
 	Created    time.Time `json:"created,omitzero"`
+	// VMs: the VM cluster settings every member holds a copy of.
+	VMs VMCluster `json:"vms,omitzero"`
+}
+
+// VMCluster is the shared table of the VM cluster: high availability, nodes
+// in maintenance, the CPU model of cluster VMs. Every member keeps a copy;
+// Version orders them (a change is committed only when a majority of the
+// members accepted it, see internal/vmcluster).
+type VMCluster struct {
+	Version int64 `json:"version,omitempty"`
+	// HA lists the VMs restarted on another member when their node fails.
+	HA []ClusterHAVM `json:"ha,omitempty"`
+	// Maintenance: IDs of the members in maintenance (no VM is placed there).
+	Maintenance []string `json:"maintenance,omitempty"`
+	// CPUModel of the VMs created while in the cluster: "" (the host's own
+	// CPU, fastest, live migration only between identical CPUs) or a named
+	// QEMU model all members can run (e.g. "Haswell-noTSX").
+	CPUModel string `json:"cpuModel,omitempty"`
+}
+
+// ClusterHAVM is a VM under high availability.
+type ClusterHAVM struct {
+	Name      string `json:"name"`
+	Owner     string `json:"owner"`               // member ID that runs (or holds) it
+	Preferred string `json:"preferred,omitempty"` // member ID chosen first on a restart
+	// Running: last state its owner reported (only running VMs are restarted).
+	Running bool `json:"running,omitempty"`
+	// Recover: the owner was declared dead; the new owner must start it.
+	Recover bool `json:"recover,omitempty"`
+	// Migrating: member ID it is being migrated to (its copy there is expected).
+	Migrating string `json:"migrating,omitempty"`
+	// XML: inactive libvirt definition, to define it on another member.
+	XML string `json:"xml,omitempty"`
 }
 
 // ClusterMember is one NAS of the cluster.

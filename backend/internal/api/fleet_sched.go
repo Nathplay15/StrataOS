@@ -61,6 +61,7 @@ type fleetNode struct {
 	Host     string
 	HARole   string   // primary | secondary | ""
 	HAPeers  []string // names and addresses of its HA partners, as it reports them
+	Cluster  string   // ID of its cluster of NAS (VMs move between members)
 }
 
 func (n fleetNode) knows(o fleetNode) bool {
@@ -72,8 +73,8 @@ func (n fleetNode) knows(o fleetNode) bool {
 	return false
 }
 
-// fleetGroups puts the NAS that report each other as HA partners in the same
-// group: group[i] is the index of the first member of i's group, or -1 when
+// fleetGroups puts the NAS that report each other as HA partners, and the
+// members of the same cluster of NAS, in the same group: group[i] is the index of the first member of i's group, or -1 when
 // i is not paired with another selected NAS.
 func fleetGroups(nodes []fleetNode) []int {
 	parent := make([]int, len(nodes))
@@ -91,7 +92,8 @@ func fleetGroups(nodes []fleetNode) []int {
 	for i := range nodes {
 		for j := i + 1; j < len(nodes); j++ {
 			a, b := nodes[i], nodes[j]
-			if a.HARole == "" || b.HARole == "" || !(a.knows(b) || b.knows(a)) {
+			sameCluster := a.Cluster != "" && a.Cluster == b.Cluster
+			if !sameCluster && (a.HARole == "" || b.HARole == "" || !(a.knows(b) || b.knows(a))) {
 				continue
 			}
 			paired[i], paired[j] = true, true
@@ -112,7 +114,7 @@ func fleetGroups(nodes []fleetNode) []int {
 
 // fleetLanes orders the update: lanes run side by side, the NAS of a lane
 // one after the other. Rolling is a single lane. The members of an HA pair
-// always share a lane (never both down at once), secondaries first so the
+// (and of a cluster of NAS) always share a lane (never two down at once), secondaries first so the
 // primary keeps serving until its partner is back with the new version.
 func fleetLanes(nodes []fleetNode, rolling bool) [][]int {
 	groups := fleetGroups(nodes)

@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -27,6 +28,7 @@ import (
 	"strataos/internal/store"
 	"strataos/internal/sys"
 	"strataos/internal/system"
+	"strataos/internal/vms"
 )
 
 var (
@@ -369,6 +371,16 @@ func (s *Server) fleetPeerRoutes() {
 			return nil, &Error{Status: http.StatusConflict, Msg: "no restart is required"}
 		}
 		s.store.Log("warning", "fleet", m.Name+" (console)", fmt.Sprintf("Restart requested by the console %s after an update", m.Name))
+		if c := s.clusterState(); c.ID != "" && len(c.Members) > 1 && vms.Installed() {
+			// Member of a VM cluster: its VMs move to the other members first.
+			go func() {
+				s.vmcBeforeReboot(func(f string, a ...any) { slog.Info("before restart", "msg", fmt.Sprintf(f, a...)) })
+				if err := system.Power("reboot"); err != nil {
+					s.store.Log("error", "fleet", "", "Restart failed: "+err.Error())
+				}
+			}()
+			return nil, nil
+		}
 		return nil, system.Power("reboot")
 	})
 }
@@ -908,6 +920,7 @@ func (s *Server) fleetUpdateRoutes() {
 						Role  string   `json:"role"`
 						Peers []string `json:"peers"`
 					} `json:"ha"`
+					Cluster string `json:"cluster"`
 				}
 				if err := fleetCall(r.Context(), m, http.MethodGet, "/api/fleet/peer/summary", nil, &sum); err != nil {
 					errs[i] = fmt.Errorf("%s: %v", m.Name, err)
@@ -916,7 +929,7 @@ func (s *Server) fleetUpdateRoutes() {
 				if !sum.Access.Updates {
 					errs[i] = fmt.Errorf("%s: this NAS does not allow the console to install updates", m.Name)
 				}
-				nodes[i] = fleetNode{Hostname: sum.Hostname, Host: m.Host, HARole: sum.HA.Role, HAPeers: sum.HA.Peers}
+				nodes[i] = fleetNode{Hostname: sum.Hostname, Host: m.Host, HARole: sum.HA.Role, HAPeers: sum.HA.Peers, Cluster: sum.Cluster}
 			}()
 		}
 		wg.Wait()
@@ -929,7 +942,10 @@ func (s *Server) fleetUpdateRoutes() {
 		for i, m := range members {
 			it := store.FleetUpdateItem{Member: m.ID, Name: m.Name, Host: m.Host, State: "pending"}
 			if groups[i] >= 0 {
-				it.HA = firstNonEmpty(nodes[i].HARole, "secondary")
+				it.HA = nodes[i].HARole
+				if it.HA == "" && nodes[i].Cluster == "" {
+					it.HA = "secondary"
+				}
 			}
 			run.Items = append(run.Items, it)
 		}

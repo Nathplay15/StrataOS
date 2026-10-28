@@ -294,6 +294,9 @@ type CreateReq struct {
 	Network   string `json:"network"` // "nat" or a bridge name
 	Firmware  string `json:"firmware"`
 	Autostart bool   `json:"autostart"`
+	// CPUModel: a named QEMU model (the cluster-safe CPU of a VM cluster);
+	// "" leaves virt-install's default (the host's processor).
+	CPUModel string `json:"cpuModel,omitempty"`
 }
 
 // insideStrata validates a path below /srv/strata (no traversal).
@@ -345,6 +348,8 @@ func grantQemu(p string, write bool) error {
 	_, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":r", p)
 	return err
 }
+
+var cpuModelRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$`)
 
 var bridgeRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-]{0,14}$`)
 
@@ -475,6 +480,12 @@ func install(ctx context.Context, r CreateReq, spec installSpec, logf func(strin
 		if r.OS == "windows" && sys.Has("swtpm") {
 			args = append(args, "--tpm", "backend.type=emulator,backend.version=2.0,model=tpm-crb")
 		}
+	}
+	if r.CPUModel != "" {
+		if !cpuModelRe.MatchString(r.CPUModel) {
+			return fmt.Errorf("invalid CPU model")
+		}
+		args = append(args, "--cpu", r.CPUModel)
 	}
 	args = append(args, spec.extra...)
 	// Autostart is handled by StrataOS itself (ordered start), not by libvirt.

@@ -20,6 +20,7 @@ import (
 	"strataos/internal/cluster"
 	"strataos/internal/ha"
 	"strataos/internal/store"
+	"strataos/internal/vmcluster"
 )
 
 // clusterPairing is the one-time code shown on a NAS waiting to join.
@@ -41,6 +42,7 @@ func (s *Server) clusterState() store.Cluster {
 // maskCluster removes the shared token.
 func maskCluster(c store.Cluster) store.Cluster {
 	c.Token = ""
+	c.VMs = store.VMCluster{} // shown by /api/vmcluster
 	return c
 }
 
@@ -387,6 +389,9 @@ func (s *Server) clusterRoutes() {
 		s.store.Read(func(st *store.State) { node = st.Ceph.Local != nil })
 		if node {
 			return nil, badRequest("this NAS is a Ceph node: remove it from Ceph (or destroy the Ceph cluster) first")
+		}
+		if len(vmcluster.Owned(c.VMs, c.Self)) > 0 {
+			return nil, badRequest("VMs of this NAS are under high availability: turn it off or move them first")
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()

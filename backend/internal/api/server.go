@@ -122,6 +122,7 @@ func New(c Config) *Server {
 	go s.mobileUploadsLoop()
 	go s.rpiKernelResume()
 	go s.cephLoop()
+	go s.vmcLoop()
 	go s.dockerUpdatesLoop() // Android app v2 (part A): container updates
 	return s
 }
@@ -276,6 +277,7 @@ func (s *Server) routes() {
 	s.dockerUpdateRoutes()
 	s.clusterRoutes()
 	s.cephRoutes()
+	s.vmClusterRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))
