@@ -144,7 +144,7 @@ jobs:
       - name: Unit tests and universal app
         run: |
           (cd desktop && go test ./...)
-          desktop/packaging/build.sh macos
+          .github/scripts/annotate.sh desktop/packaging/build.sh macos
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-macos
@@ -166,9 +166,9 @@ jobs:
       - name: Unit tests, installer
         run: |
           (cd desktop && go test ./...)
-          desktop/packaging/build.sh windows
+          .github/scripts/annotate.sh desktop/packaging/build.sh windows
           dotnet tool install --global wix --version 5.0.2
-          desktop/packaging/windows/build-msi.sh
+          .github/scripts/annotate.sh desktop/packaging/windows/build-msi.sh
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-windows
