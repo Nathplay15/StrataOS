@@ -441,15 +441,6 @@ func (s *Server) vmClusterRoutes() {
 		if err := vms.ValidName(name); err != nil {
 			return nil, badRequest(err.Error())
 		}
-		c, m, err := s.vmcMember(req.Node)
-		if err != nil {
-			return nil, err
-		}
-		if req.Preferred != "" {
-			if _, ok := cluster.Member(c, req.Preferred); !ok {
-				return nil, badRequest("unknown preferred member")
-			}
-		}
 		if !req.On {
 			err := s.vmcCommit(r.Context(), func(t *store.VMCluster) error {
 				t.HA = slices.DeleteFunc(t.HA, func(h store.ClusterHAVM) bool { return h.Name == name })
@@ -460,6 +451,15 @@ func (s *Server) vmClusterRoutes() {
 			}
 			s.audit(r, "vms", "High availability off for VM "+name)
 			return nil, nil
+		}
+		c, m, err := s.vmcMember(req.Node)
+		if err != nil {
+			return nil, err
+		}
+		if req.Preferred != "" {
+			if _, ok := cluster.Member(c, req.Preferred); !ok {
+				return nil, badRequest("unknown preferred member")
+			}
 		}
 		if len(c.Members) < vmcluster.MinHAMembers {
 			return nil, badRequest(fmt.Sprintf("high availability needs %d NAS in the cluster at least", vmcluster.MinHAMembers))
