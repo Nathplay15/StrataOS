@@ -88,6 +88,8 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 | `net/` | API client (OkHttp, device token), certificate pinning, LAN discovery (`_strataos._tcp`, announced by `packaging/avahi/strata.service`) |
 | `upload/` | Resumable chunked uploads and the background upload worker (Share to StrataOS, Upload) |
 | `backup/` | Photo and video backup: MediaStore scan, dedupe, WorkManager scheduling |
+| `sync/` | Two-way folder sync: a Kotlin port of the desktop engine (`Plan.kt`, `Engine.kt`: three-way plan, transfers with resume, moves, conflicts, deletion brake), the phone side (`SafFs.kt` for folders chosen with the system picker, `FileFs` for the app's own folders), the Sync API client (`ApiRemote.kt`), state in SQLite (`SyncDb.kt`), WorkManager runs and the foreground long poll (`SyncWorker.kt`, `SyncLive.kt`) |
+| `term/` | VT100/xterm screen (`TermScreen.kt`) and its view (`TerminalView.kt`) for the container terminals |
 | `notify/` | UnifiedPush receiver, the 15-minute fallback check, notifications |
 | `data/` | Server configuration, token vault, favorites and offline files (`Favorites.kt`, `OfflineSync.kt`) |
 | `ui/` | Navigation shell (`MainActivity.kt`: Files, Photos, Manage; rail on tablets), shared widgets (`Common.kt`, `Widgets.kt`, `NasImage.kt` thumbnails), the Manage tab (`ManageScreen.kt`, areas listed in `SectionsA.kt`/`SectionsB.kt`) |
@@ -97,6 +99,7 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 | `ui/storage/` | Storage manager: volumes, disks/SMART, RAID, ZFS, snapshots, shares, quotas, safe creation flows |
 | `ui/apps/` | App Center, containers, stacks, images, one-click container updates |
 | `ui/adminkit/` | Building blocks of the management areas: screens with their own top bar and back, pull to refresh, confirmations (typed name for destructive actions), NAS jobs, authenticated pictures, save/share |
+| `ui/sync/` | Folder sync screens (account menu → Folder sync): pairs, their state, conflicts, skipped items, adding a pair |
 | `ui/surveillance/`, `ui/vms/`, `ui/vpn/`, `ui/users/`, `ui/fleet/`, `ui/nassettings/`, `ui/web/` | Management areas listed in `ui/SectionsB.kt` (their API calls in `net/Api<Area>.kt`) |
 | `vnc/` | RFB client of the VM consoles (ZRLE, CopyRect, Raw, DesktopSize) over the NAS websocket |
 
@@ -105,6 +108,11 @@ The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens,
 - **Live camera video**: `GET /api/nvr/cameras/{id}/live.mp4?stream=main|sub` (`api/h_nvr_live.go`, `internal/nvr/livestream.go`) remuxes the camera's RTSP stream (no transcoding) to fragmented MP4 cut at every key frame and at least every 500 ms. One ffmpeg per camera and stream is shared by every viewer (each gets the init segment, then the fragments from the latest key frame; a viewer too slow skips to the next key frame) and stops 5 s after the last one. The app plays it with Media3 (small buffers, a little faster than real time when it falls behind); the web interface uses it in the enlarged live view.
 - **Web interface in the app**: `POST /api/mobile/websession` (device token only) returns a one-time code valid one minute; the WebView opens `/api/mobile/websession/{code}`, which sets an ordinary session cookie remembering the device (`session.Device`) and redirects to `/`. Revoking the device ends that session, `deviceDenied` applies to it (except `/api/logout`), and opening it again replaces the previous one. The WebView accepts a certificate error only for the certificate pinned at pairing on the NAS's own address (`onReceivedSslError`, never a blanket proceed); pages of other origins (the apps on other ports) open in the browser.
 - **VM console**: the app speaks RFB itself over `GET /api/vms/{name}/vnc` (OkHttp websocket with the device token), no WebView.
+
+Since 0.8.1:
+
+- **Folder sync** uses the Sync API (below) with the phone's device token: any device token may follow folders, with the rights of its user (`api/sync.go`, `s.user`), so the server side is unchanged. The engine is `desktop/internal/engine` ported to Kotlin with the same plan and the same test cases (`SyncEngineTest.kt`, with a fake NAS and a `FileFs` folder). Differences: one-way pairs (`filterForMode`: phone → NAS drops the ops that change the phone, NAS → phone those that change the NAS; a conflict of a phone → NAS pair uploads the phone version as the conflict copy and records the NAS version as the base), deleted phone files go to `<pair>/.trash/<date>/` (purged after 30 days, never synchronized), and the brake decision ("apply"/"restore") is kept in the pair status until the next round. Documents providers give no file IDs and cannot set dates: in a SAF folder, phone renames are a new upload plus a deletion, and a download replaces its target by renaming the old file to `.strataos-sync-old-<base64 name>` first (put back by the next listing if the app died in between). Each pair has a periodic WorkManager job (15 minutes, its own network and charging constraints, battery not low; skipped in battery saver unless started by hand); `SyncLive` long-polls `/api/sync/changes` for each pair while the app is in the foreground.
+- **LXC containers** in the Virtual machines area use `/api/lxc/…` (`net/manage/ApiLxc.kt`). The terminal speaks the websocket of `GET /api/lxc/{name}/console?mode=shell|console` (binary output; `{"type":"input","data"}` and `{"type":"resize","cols","rows"}` input) and draws it with `term/TermScreen.kt`, a small VT100/xterm parser (cursor moves, erase, insert/delete, scroll regions, SGR colours including 256 and true colour, alternate screen, application cursor keys, answers to cursor position queries); it has no mouse reporting or double-width characters.
 
 Their end-to-end test is `vm/e2e.d/96b-mobile-v2.sh`.
 
@@ -126,12 +134,12 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;an
 
 ```bash
 cd android
-./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses, file sorting, storage plans, update states, playback URLs, VNC decoding, management logic
+./gradlew testDebugUnitTest   # unit tests: folder sync engine (fake NAS), terminal parser, containers, resumable uploads, backup planning, certificate pinning, token storage, addresses, file sorting, storage plans, update states, playback URLs, VNC decoding, management logic
 ./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease     # signed when the release key is available (below), unsigned otherwise
 ```
 
-Texts: `app/src/main/res/values/strings.xml` (English) and the v2 areas' own files (`strings_a.xml`, `strings_manage.xml`), translated in `values-fr`, `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl` and `values-zh-rCN` like the web interface (a missing string shows in English).
+Texts: `app/src/main/res/values/strings.xml` (English) and the areas' own files (`strings_a.xml`, `strings_manage.xml`, `strings_sync.xml`, `strings_lxc.xml`), translated in `values-fr`, `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl` and `values-zh-rCN` like the web interface (a missing string shows in English).
 
 In the emulator, the development VM is at `https://10.0.2.2:7443`. `adb shell am start -d "strataos://pair?url=…&fp=…&code=…"` opens a pairing link like the QR code does.
 
