@@ -131,7 +131,7 @@ cd android
 ./gradlew assembleRelease     # signed when the release key is available (below), unsigned otherwise
 ```
 
-Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`; the v2 areas have theirs in their own files (`strings_a.xml`, `strings_manage.xml`) (English and French so far, marked `tools:ignore="MissingTranslation"` until the other languages are done). The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
+Texts: `app/src/main/res/values/strings.xml` (English) and the v2 areas' own files (`strings_a.xml`, `strings_manage.xml`), translated in `values-fr`, `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl` and `values-zh-rCN` like the web interface (a missing string shows in English).
 
 In the emulator, the development VM is at `https://10.0.2.2:7443`. `adb shell am start -d "strataos://pair?url=…&fp=…&code=…"` opens a pairing link like the QR code does.
 

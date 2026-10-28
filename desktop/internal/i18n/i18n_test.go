@@ -31,7 +31,7 @@ func TestCatalogs(t *testing.T) {
 			}
 		}
 	}
-	if T("fr", "status.files", 3) != "3 fichiers" || T("de", "status.files", 3) != "3 files" {
+	if T("fr", "status.files", 3) != "3 fichiers" || T("ja", "status.files", 3) != "3 files" {
 		t.Fatal("T")
 	}
 	os.Setenv("LANG", "fr_CA.UTF-8")

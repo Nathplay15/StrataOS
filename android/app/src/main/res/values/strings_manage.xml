@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Management areas: surveillance, VMs, VPN, users, Multi-NAS, NAS settings, web interface. The languages other than English and French are still to do (a missing string shows in English). -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<!-- Management areas: surveillance, VMs, VPN, users, Multi-NAS, NAS settings, web interface. -->
+<resources>
     <string name="area_fleet">Multi-NAS</string>
     <string name="area_nas_settings">NAS settings</string>
     <string name="area_surveillance">Surveillance</string>

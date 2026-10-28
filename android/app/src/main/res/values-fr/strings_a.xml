@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android app v2, part A: files, photos, player, storage, applications. -->
-<!-- MissingTranslation: the integrator adds the other languages, then removes this tools:ignore. -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<resources>
     <string name="a_account">Compte</string>
     <string name="a_account_line">%1$s sur %2$s</string>
     <string name="a_actions_for">Actions pour %1$s</string>

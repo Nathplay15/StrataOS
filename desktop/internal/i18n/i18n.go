@@ -1,5 +1,5 @@
 // Package i18n holds the texts of the app: one JSON catalog per language
-// in catalog/ (en, fr; de, es, it, pt-BR, nl and zh-CN can be added as
+// in catalog/ (en, fr, de, es, it, pt, nl, zh; others can be added as
 // files: a missing text shows in English).
 package i18n
 
