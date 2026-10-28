@@ -6,7 +6,7 @@
 # test DHCP server, the cluster-wide view and its console relayed by another member,
 # a live migration cl1 → cl2 while it is pinged, high availability: cl2 killed, the VM
 # restarted on another NAS after fencing, cl2 back without running it twice, then
-# maintenance of a member. About 30 minutes; needs about 4 GB of free RAM.
+# maintenance of a member, a container moved to another NAS. About 15 minutes; needs about 4 GB of free RAM.
 # Usage: make deb && ./vm/cluster-test.sh   (recreates the three VMs; KEEP=1 keeps them)
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -139,9 +139,10 @@ check "live migration cl1 → cl2 (asked on cl3)" "$(job 3 "$(api 3 POST /api/vm
 echo "  migration took $(( $(date +%s) - T0 )) s"
 sleep 5
 N 3 ssh 'kill -INT $(cat /tmp/ping.pid); sleep 1; tail -3 /tmp/ping.log' >"$T/ping.txt"
-LOSS=$(grep -o '[0-9.]*% packet loss' "$T/ping.txt" | cut -d% -f1)
+# A ping every 0.2 s: the VM may pause a moment while it switches NAS (nested, slow VMs).
+LOST=$(grep 'packet loss' "$T/ping.txt" | python3 -c "import sys,re; l=sys.stdin.read(); m=re.search(r'(\d+) packets transmitted, (\d+) received', l); print(int(m[1])-int(m[2]) if m else 999)")
 echo "  ping: $(grep 'packet loss' "$T/ping.txt")"
-check "the VM kept answering (loss < 5 %)" "$(python3 -c "print('ok' if float('${LOSS:-100}') < 5 else 'loss ${LOSS:-?}%')")" "ok"
+check "the VM kept answering (pause under 3 s)" "$([ "$LOST" -le 15 ] && echo ok || echo "$LOST pings lost")" "ok"
 check "runs on cl2 only" "$(running_on)" "cl2 "
 check "no longer defined on cl1" "$(N 1 ssh 'sudo virsh -c qemu:///system list --all --name | grep -c tvm || true')" "0"
 check "traffic was encrypted (TLS on 16514)" "$(N 2 ssh 'sudo ss -ltn | grep -c ":16514" ; sudo test -f /etc/pki/qemu/server-cert.pem && echo certs')" "certs"

@@ -71,7 +71,7 @@ Details in [vm/README.md](../vm/README.md).
 | `make test` | Go unit tests |
 | `make vm-test` | Full end-to-end suite on a fresh VM (about 360 checks, ~40 min) |
 | `make ha-test` | High availability with three VMs |
-| `make cluster-test` | VM cluster of three VMs (1280 MB each, about 35 minutes): Ceph, a CirrOS VM on RBD with nested KVM, cluster view and relayed console, live migration while pinging, HA after killing a NAS (fencing, no double run when it comes back), maintenance |
+| `make cluster-test` | VM cluster of three VMs (1280 MB each, about 15 minutes): Ceph, a CirrOS VM on RBD with nested KVM, cluster view and relayed console, live migration while pinging, HA after killing a NAS (fencing, no double run when it comes back), maintenance, a container moved (`NO_LXC=1` skips it) |
 | `make ceph-test` | Ceph cluster of three VMs (1280 MB each, about 15 minutes): wizard API, CephFS/RBD volumes, VM storage, external key, disk removal, a NAS down and back |
 | `make upgrade-test` | Installs the previous release, fills it, upgrades to the current code |
 | `make arm64-test` | The arm64 package in an emulated ARM VM |
