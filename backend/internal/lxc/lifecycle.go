@@ -232,13 +232,54 @@ func ensureTraverse(s *Spec) {
 		return
 	}
 	uid := strconv.Itoa(s.IDMap.Base)
+	dirs := []string{Dir(s.Name)}
+	// lxc also needs the lxc path itself to be reachable (search only:
+	// nothing in it can be listed or read that other accounts cannot).
+	for d := LXCPath; d != "/" && d != "."; d = filepath.Dir(d) {
+		dirs = append(dirs, d)
+	}
 	for d := filepath.Dir(s.Storage.Base); strings.HasPrefix(d, MountRoot); d = filepath.Dir(d) {
+		dirs = append(dirs, d)
+	}
+	for _, d := range dirs {
 		fi, err := os.Stat(d)
 		if err != nil || fi.Mode().Perm()&0o001 != 0 {
 			continue
 		}
+		out, _ := sys.Run("getfacl", "-cp", d)
+		if aclSearchable(out, uid) {
+			continue
+		}
 		_, _ = sys.Run("setfacl", "-m", "u:"+uid+":x", d)
+		// StrataOS sets 0700 on its data folder at each start, which empties
+		// the ACL mask: give the mask its search bit back (group entries keep
+		// their own bits, so nothing else changes).
+		out, _ = sys.Run("getfacl", "-cp", d)
+		if m := aclMask(out); m != "" && !aclSearchable(out, uid) {
+			_, _ = sys.Run("setfacl", "-m", "m::"+m[:2]+"x", d)
+		}
 	}
+}
+
+// aclSearchable reports whether getfacl output gives uid an effective x.
+func aclSearchable(out, uid string) bool {
+	for _, l := range strings.Split(out, "\n") {
+		entry, eff, _ := strings.Cut(l, "#effective:")
+		if strings.TrimSpace(entry) == "user:"+uid+":--x" {
+			return eff == "" || strings.Contains(eff, "x")
+		}
+	}
+	return false
+}
+
+// aclMask returns the mask entry of getfacl output (e.g. "r-x").
+func aclMask(out string) string {
+	for _, l := range strings.Split(out, "\n") {
+		if m, ok := strings.CutPrefix(strings.TrimSpace(l), "mask::"); ok && len(m) == 3 {
+			return m
+		}
+	}
+	return ""
 }
 
 // Create makes a container from an image (a job: it downloads the image).

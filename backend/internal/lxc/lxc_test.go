@@ -366,3 +366,14 @@ func TestEscapes(t *testing.T) {
 		t.Errorf("unit:\n%s", unitText())
 	}
 }
+
+func TestACLParsing(t *testing.T) {
+	masked := "user::rwx\nuser:327680:--x\t#effective:---\ngroup::---\nmask::---\nother::---\n"
+	ok := "user::rwx\nuser:327680:--x\ngroup::r-x\nmask::r-x\nother::---\n"
+	if aclSearchable(masked, "327680") || !aclSearchable(ok, "327680") || aclSearchable(ok, "100000") {
+		t.Error("aclSearchable")
+	}
+	if aclMask(masked) != "---" || aclMask(ok) != "r-x" || aclMask("user::rwx\n") != "" {
+		t.Error("aclMask")
+	}
+}

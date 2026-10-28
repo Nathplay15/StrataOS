@@ -34,7 +34,7 @@ check "container running" "$(wait_state $CT running)" "running"
 IP=""
 for _ in $(seq 1 30); do IP=$(ctjson $CT 'print(" ".join(d["ips"]))'); case "$IP" in 10.0.3.*) break ;; esac; sleep 2; done
 check "container got an address on the NAT network" "$IP" "10.0.3."
-check "listed with the VMs' API shape" "$(c GET /api/lxc | py "print([(x['name'], x['state'], x['storage']['backend'], x['privileged']) for x in d['containers'] if x['name']=='$CT'])")" "('$CT', 'running', 'image', False)"
+check "listed with the VMs' API shape" "$(c GET /api/lxc | py "print([(x['name'], x['state'], x['storage']['backend'], x.get('privileged', False)) for x in d['containers'] if x['name']=='$CT'])")" "('$CT', 'running', 'image', False)"
 check "command run through the API" "$(cexec $CT sh -c 'echo hello; id -u')" "hello
 0"
 check "host name" "$(cexec $CT cat /etc/hostname)" "$CT"

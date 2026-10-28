@@ -481,6 +481,10 @@ func deleteSubvol(ctx context.Context, p string) error {
 	if _, err := os.Stat(p); os.IsNotExist(err) {
 		return nil
 	}
+	if _, err := sys.Run("btrfs", "subvolume", "show", p); err != nil {
+		// A plain folder (left by a creation that failed half-way).
+		return os.RemoveAll(p)
+	}
 	if _, err := run(ctx, 30*time.Minute, "btrfs", "subvolume", "delete", "--recursive", p); err == nil {
 		return nil
 	}
