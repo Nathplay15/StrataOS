@@ -276,6 +276,9 @@ func (s *Server) cephStorageRoutes() {
 		if err != nil {
 			return nil, badRequest(err.Error())
 		}
+		if !ceph.ClientInstalled() {
+			return nil, badRequest("install the Ceph component first (Settings → Components)")
+		}
 		id := "test-" + shortID()
 		defer ceph.RemoveExternal(id)
 		conn, err := ceph.SaveExternal(id, user, req.Key, "", mons)
@@ -304,6 +307,9 @@ func (s *Server) cephStorageRoutes() {
 		mons, user, err := cephExternalCheck(req.Mons, req.User, req.Key)
 		if err != nil {
 			return nil, badRequest(err.Error())
+		}
+		if !ceph.ClientInstalled() {
+			return nil, badRequest("install the Ceph component first (Settings → Components)")
 		}
 		id := "ext-" + shortID()
 		conn, err := ceph.SaveExternal(id, user, req.Key, "", mons)

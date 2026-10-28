@@ -822,8 +822,11 @@ func (s *Server) cephRoutes() {
 		if l == nil {
 			return out, nil
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		// A loaded cluster can take a while to answer: wait for the status
+		// (the monitors' own timeout is shorter), then always say why it is missing.
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
+		out["status"] = nil
 		st, err := ceph.Local.Status(ctx)
 		if err != nil {
 			out["error"] = err.Error()

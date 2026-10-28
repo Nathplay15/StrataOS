@@ -33,13 +33,17 @@ login() { api "$1" POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\
 job() { local n=$1 id; id=$(echo "$2" | py 'print(d.get("id",""))' 2>/dev/null); [ -n "$id" ] || { echo "no-job: $2"; return; }
   for _ in $(seq 1 ${3:-600}); do [ "$(api "$n" GET "/api/jobs/$id" | py 'print(d["status"])' 2>/dev/null)" = running ] || break; sleep 3; done
   api "$n" GET "/api/jobs/$id" | py 'print(d["status"], d.get("error","")); print(d.get("log","")[-3000:]) if d["status"]!="success" else None'; }
-health() { api "$1" GET /api/ceph | py 'st=d.get("status") or {}; h=st.get("health",{}); print(h.get("status","?"), " ".join(c["code"] for c in h.get("checks",[])), d.get("error",""))' 2>/dev/null; }
-# Health warnings that are expected on small test VMs (slow heartbeats are
-# remembered for 15 minutes after a NAS was killed, on VMs short of CPU).
-EXPECTED="OSD_SLOW_PING_TIME_BACK|OSD_SLOW_PING_TIME_FRONT|MON_DISK_LOW|RECENT_CRASH|POOL_TOO_FEW_PGS|TOO_FEW_PGS|BLUESTORE_SLOW_OP_ALERT|MDS_INSUFFICIENT_STANDBY"
+# Status and the codes of the health checks that are not muted.
+health() { api "$1" GET /api/ceph | py 'st=d.get("status") or {}; h=st.get("health",{}); print(h.get("status","?"), " ".join(c["code"] for c in h.get("checks",[]) if not c.get("muted")), d.get("error",""))' 2>/dev/null; }
+# Health warnings that are expected on small test VMs.
+EXPECTED="MON_DISK_LOW|RECENT_CRASH|POOL_TOO_FEW_PGS|TOO_FEW_PGS|MDS_INSUFFICIENT_STANDBY"
+# Slow heartbeats come from a loaded host (and are remembered for 15 minutes,
+# e.g. after a NAS was killed): only tolerated when nothing else is left at the end.
+SLOW="OSD_SLOW_PING_TIME_BACK|OSD_SLOW_PING_TIME_FRONT|BLUESTORE_SLOW_OP_ALERT"
 healthy() { local h; h=$(health "$1"); case "$h" in HEALTH_OK*) echo ok; return ;; esac
   case "$h" in HEALTH_WARN*) [ -z "$(echo "$h" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' | grep -Ev "^($EXPECTED)$")" ] && { echo "ok ($h)"; return; } ;; esac; echo "$h"; }
-wait_healthy() { local n=$1 t=${2:-600} h=""; for _ in $(seq 1 $((t / 10))); do h=$(healthy "$n"); case "$h" in ok*) break ;; esac; sleep 10; done; echo "$h"; }
+wait_healthy() { local n=$1 t=${2:-600} h=""; for _ in $(seq 1 $((t / 10))); do h=$(healthy "$n"); case "$h" in ok*) break ;; esac; sleep 10; done
+  case "$h" in ok*) ;; HEALTH_WARN*) [ -z "$(echo "$h" | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' | grep -Ev "^($EXPECTED|$SLOW)$")" ] && h="ok (slow heartbeats on a loaded host: $h)" ;; esac; echo "$h"; }
 lan_ip() { # a LAN address that comes back at every boot, before Ceph starts
   N "$1" ssh "sudo tee /etc/systemd/system/lan-ip.service >/dev/null <<EOF
 [Unit]
@@ -113,6 +117,7 @@ echo "  bootstrap took $(( $(date +%s) - T0 )) s"
 [ "$FAILS" -eq 0 ] || { diag; cleanup_vms; exit 1; }  # nothing else can work
 check "healthy" "$(wait_healthy 1 600)" "ok"
 api 1 GET /api/ceph | py 'st=d["status"]; print("  ", st["health"]["status"], [c["code"]+": "+c["message"] for c in st["health"]["checks"]], st["pgStates"])'
+check "known Debian 13 manager warning muted (if present)" "$(api 1 GET /api/ceph | py 'm=[c["muted"] for c in d["status"]["health"]["checks"] if c["code"]=="MGR_MODULE_DEPENDENCY"]; print("ok" if all(m) else m)')" "ok"
 check "3 monitors in quorum, 3 OSDs up" "$(api 1 GET /api/ceph | py 'st=d["status"]; print(len(st["quorum"]), st["osdsUp"], st["mgrAvailable"])')" "3 3 True"
 check "OSDs on each NAS" "$(api 1 GET /api/ceph | py 'print(sorted(o["host"] for o in d["osds"]))')" "['ceph1', 'ceph2', 'ceph3']"
 check "pools and filesystem" "$(api 2 GET /api/ceph | py 'print(sorted(p["name"] for p in d["pools"]), [f["name"] for f in d["filesystems"]], [p["size"] for p in d["pools"] if p["name"]=="rbd"])')" "'rbd'] ['cephfs'] [3]"
@@ -176,7 +181,8 @@ section "Disks: add, maintenance, safe removal"
 D2=$(api 1 GET /api/ceph/disks | py 'print([x["path"] for x in d[0]["disks"] if x["eligible"]][0])')
 M1=$(api 1 GET /api/cluster | py 'print([m["id"] for m in d["members"] if m["self"]][0])')
 check "second OSD on ceph1" "$(job 1 "$(api 1 POST /api/ceph/osds -d "{\"member\":\"$M1\",\"device\":\"$D2\"}")")" "success"
-check "4 OSDs" "$(sleep 20; api 1 GET /api/ceph | py 'print(d["status"]["osds"], d["status"]["osdsUp"])')" "4 4"
+for _ in $(seq 1 24); do [ "$(api 1 GET /api/ceph | py 'st=d.get("status") or {}; print(st.get("osds"), st.get("osdsUp"))' 2>/dev/null)" = "4 4" ] && break; sleep 5; done
+check "4 OSDs" "$(api 1 GET /api/ceph | py 'st=d.get("status") or {}; print(st.get("osds"), st.get("osdsUp"), d.get("error",""))')" "4 4"
 check "healthy after adding a disk" "$(wait_healthy 1 600)" "ok"
 check "removal of a disk Ceph cannot do without refused" "$(api 1 DELETE /api/ceph/osds/$(api 1 GET /api/ceph | py 'print([o["id"] for o in d["osds"] if o["host"]=="ceph2"][0])'))" "cannot keep 3 copies"
 OSD4=$(api 1 GET /api/ceph | py 'print(max(o["id"] for o in d["osds"]))')

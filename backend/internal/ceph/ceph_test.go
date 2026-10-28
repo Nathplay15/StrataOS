@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"strataos/internal/storage"
+	"strataos/internal/sys"
 )
 
 func TestConfig(t *testing.T) {
@@ -345,5 +346,21 @@ func TestMappedImages(t *testing.T) {
 	m := mappedIn(root)
 	if len(m) != 2 || m[0].Device != "/dev/rbd0" || m[0].Pool != "rbd" || m[0].Image != "vol1" || m[1].FSID != "other" {
 		t.Errorf("mapped %+v", m)
+	}
+}
+
+func TestFriendly(t *testing.T) {
+	missing := &sys.CmdError{Cmd: "strata-no-such-tool", Code: -1}
+	if err := friendly(missing); err == nil || !strings.Contains(err.Error(), "install the Ceph component") {
+		t.Errorf("missing tool: %v", err)
+	}
+	if err := friendly(&sys.CmdError{Cmd: "sh", Code: -1}); err != ErrUnreachable {
+		t.Errorf("killed: %v", err)
+	}
+	if err := friendly(&sys.CmdError{Cmd: "ceph", Code: 13, Stderr: "error: Permission denied"}); err == nil || !strings.Contains(err.Error(), "refused the user or key") {
+		t.Errorf("denied: %v", err)
+	}
+	if err := friendly(&sys.CmdError{Cmd: "ceph", Code: 1, Stderr: "key AQBSdFRiAAAAABAAhYqOzKwRFT1CRGlWbTOKEQ== bad"}); strings.Contains(err.Error(), "AQBSdFRi") {
+		t.Errorf("key in error: %v", err)
 	}
 }
