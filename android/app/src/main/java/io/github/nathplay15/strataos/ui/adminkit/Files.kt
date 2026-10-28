@@ -30,7 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalResources
 import androidx.core.content.FileProvider
 import io.github.nathplay15.strataos.net.Api
-import io.github.nathplay15.strataos.net.bytes
+import io.github.nathplay15.strataos.net.manage.bytes
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream

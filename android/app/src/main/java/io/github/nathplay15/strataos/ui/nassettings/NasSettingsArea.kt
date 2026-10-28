@@ -40,30 +40,30 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.Graph
 import io.github.nathplay15.strataos.R
-import io.github.nathplay15.strataos.net.AutoUpdatesReq
-import io.github.nathplay15.strataos.net.NasJob
-import io.github.nathplay15.strataos.net.NotifyChannel
-import io.github.nathplay15.strataos.net.autoUpdates
-import io.github.nathplay15.strataos.net.checkUpdates
-import io.github.nathplay15.strataos.net.createRestorePoint
-import io.github.nathplay15.strataos.net.deleteRestorePoint
-import io.github.nathplay15.strataos.net.fileServices
-import io.github.nathplay15.strataos.net.installStrataUpdate
-import io.github.nathplay15.strataos.net.installSystemUpdates
-import io.github.nathplay15.strataos.net.network
-import io.github.nathplay15.strataos.net.notifySettings
-import io.github.nathplay15.strataos.net.power
-import io.github.nathplay15.strataos.net.restorePoints
-import io.github.nathplay15.strataos.net.rollbackRestorePoint
-import io.github.nathplay15.strataos.net.saveAutoUpdates
-import io.github.nathplay15.strataos.net.saveFileServices
-import io.github.nathplay15.strataos.net.saveNotifySettings
-import io.github.nathplay15.strataos.net.serviceAction
-import io.github.nathplay15.strataos.net.services
-import io.github.nathplay15.strataos.net.setUpdateChannel
-import io.github.nathplay15.strataos.net.strataUpdate
-import io.github.nathplay15.strataos.net.testNotification
-import io.github.nathplay15.strataos.net.upgradable
+import io.github.nathplay15.strataos.net.manage.AutoUpdatesReq
+import io.github.nathplay15.strataos.net.manage.NasJob
+import io.github.nathplay15.strataos.net.manage.NotifyChannel
+import io.github.nathplay15.strataos.net.manage.autoUpdates
+import io.github.nathplay15.strataos.net.manage.checkUpdates
+import io.github.nathplay15.strataos.net.manage.createRestorePoint
+import io.github.nathplay15.strataos.net.manage.deleteRestorePoint
+import io.github.nathplay15.strataos.net.manage.fileServices
+import io.github.nathplay15.strataos.net.manage.installStrataUpdate
+import io.github.nathplay15.strataos.net.manage.installSystemUpdates
+import io.github.nathplay15.strataos.net.manage.network
+import io.github.nathplay15.strataos.net.manage.notifySettings
+import io.github.nathplay15.strataos.net.manage.power
+import io.github.nathplay15.strataos.net.manage.restorePoints
+import io.github.nathplay15.strataos.net.manage.rollbackRestorePoint
+import io.github.nathplay15.strataos.net.manage.saveAutoUpdates
+import io.github.nathplay15.strataos.net.manage.saveFileServices
+import io.github.nathplay15.strataos.net.manage.saveNotifySettings
+import io.github.nathplay15.strataos.net.manage.serviceAction
+import io.github.nathplay15.strataos.net.manage.services
+import io.github.nathplay15.strataos.net.manage.setUpdateChannel
+import io.github.nathplay15.strataos.net.manage.strataUpdate
+import io.github.nathplay15.strataos.net.manage.testNotification
+import io.github.nathplay15.strataos.net.manage.upgradable
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.Choice
 import io.github.nathplay15.strataos.ui.adminkit.Confirm
@@ -122,7 +122,7 @@ private fun MenuRow(label: String, icon: ImageVector, open: () -> Unit) {
 
 // ---- Updates ----
 
-private class Updates(val strata: io.github.nathplay15.strataos.net.StrataUpdate, val pkgs: Int, val auto: io.github.nathplay15.strataos.net.AutoUpdates)
+private class Updates(val strata: io.github.nathplay15.strataos.net.manage.StrataUpdate, val pkgs: Int, val auto: io.github.nathplay15.strataos.net.manage.AutoUpdates)
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -285,7 +285,7 @@ private fun NetworkScreen(onBack: () -> Unit) {
 
 // ---- Services ----
 
-private class Svc(val list: List<io.github.nathplay15.strataos.net.NasService>, val files: io.github.nathplay15.strataos.net.FileServices)
+private class Svc(val list: List<io.github.nathplay15.strataos.net.manage.NasService>, val files: io.github.nathplay15.strataos.net.manage.FileServices)
 
 /** The system services the app turns on and off (the others stay in the web interface). */
 val toggledUnits = listOf("smbd.service" to "SMB", "nfs-server.service" to "NFS", "ssh.service" to "SSH")

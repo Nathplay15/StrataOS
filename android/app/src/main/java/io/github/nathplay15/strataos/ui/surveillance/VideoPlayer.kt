@@ -23,7 +23,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import io.github.nathplay15.strataos.net.authHeaders
+import io.github.nathplay15.strataos.net.manage.authHeaders
 import io.github.nathplay15.strataos.ui.adminkit.api
 import kotlinx.coroutines.delay
 import okhttp3.HttpUrl

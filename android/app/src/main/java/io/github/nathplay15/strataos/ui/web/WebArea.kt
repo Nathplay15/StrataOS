@@ -46,7 +46,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import io.github.nathplay15.strataos.Graph
 import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.fingerprint
-import io.github.nathplay15.strataos.net.webSession
+import io.github.nathplay15.strataos.net.manage.webSession
 import io.github.nathplay15.strataos.ui.ErrorPane
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.api

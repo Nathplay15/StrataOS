@@ -73,7 +73,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.R
-import io.github.nathplay15.strataos.net.vncUrl
+import io.github.nathplay15.strataos.net.manage.vncUrl
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.api
 import io.github.nathplay15.strataos.ui.errorText

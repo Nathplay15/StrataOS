@@ -52,9 +52,9 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.github.nathplay15.strataos.R
-import io.github.nathplay15.strataos.net.Camera
-import io.github.nathplay15.strataos.net.liveVideoUrl
-import io.github.nathplay15.strataos.net.livePicture
+import io.github.nathplay15.strataos.net.manage.Camera
+import io.github.nathplay15.strataos.net.manage.liveVideoUrl
+import io.github.nathplay15.strataos.net.manage.livePicture
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.KeyValue
 import io.github.nathplay15.strataos.ui.adminkit.SectionCard

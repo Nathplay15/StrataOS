@@ -1,6 +1,6 @@
 package io.github.nathplay15.strataos.ui.surveillance
 
-import io.github.nathplay15.strataos.net.Segment
+import io.github.nathplay15.strataos.net.manage.Segment
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId

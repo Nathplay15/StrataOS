@@ -40,10 +40,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.R
-import io.github.nathplay15.strataos.net.Camera
-import io.github.nathplay15.strataos.net.FrigateEvent
-import io.github.nathplay15.strataos.net.frigateEvents
-import io.github.nathplay15.strataos.net.frigateFileUrl
+import io.github.nathplay15.strataos.net.manage.Camera
+import io.github.nathplay15.strataos.net.manage.FrigateEvent
+import io.github.nathplay15.strataos.net.manage.frigateEvents
+import io.github.nathplay15.strataos.net.manage.frigateFileUrl
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.AuthImage
 import io.github.nathplay15.strataos.ui.adminkit.Empty

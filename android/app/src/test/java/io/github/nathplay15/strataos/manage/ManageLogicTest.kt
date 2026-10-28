@@ -1,15 +1,15 @@
 package io.github.nathplay15.strataos.manage
 
-import io.github.nathplay15.strataos.net.FrigateEvent
-import io.github.nathplay15.strataos.net.PasswordProblem
-import io.github.nathplay15.strataos.net.Segment
-import io.github.nathplay15.strataos.net.VpnPeer
+import io.github.nathplay15.strataos.net.manage.FrigateEvent
+import io.github.nathplay15.strataos.net.manage.PasswordProblem
+import io.github.nathplay15.strataos.net.manage.Segment
+import io.github.nathplay15.strataos.net.manage.VpnPeer
 import io.github.nathplay15.strataos.net.json
-import io.github.nathplay15.strataos.net.mergeJson
-import io.github.nathplay15.strataos.net.passwordProblem
-import io.github.nathplay15.strataos.net.toReq
-import io.github.nathplay15.strataos.net.userNameRe
-import io.github.nathplay15.strataos.net.vmNameRe
+import io.github.nathplay15.strataos.net.manage.mergeJson
+import io.github.nathplay15.strataos.net.manage.passwordProblem
+import io.github.nathplay15.strataos.net.manage.toReq
+import io.github.nathplay15.strataos.net.manage.userNameRe
+import io.github.nathplay15.strataos.net.manage.vmNameRe
 import io.github.nathplay15.strataos.ui.fleet.fleetWebUrl
 import io.github.nathplay15.strataos.ui.fleet.validFleetHost
 import io.github.nathplay15.strataos.ui.nassettings.hhmm
@@ -103,7 +103,7 @@ class VmLogicTest {
     }
 
     @Test fun actions() {
-        val running = io.github.nathplay15.strataos.net.Vm(name = "a", state = "running")
+        val running = io.github.nathplay15.strataos.net.manage.Vm(name = "a", state = "running")
         assertEquals(listOf("shutdown", "reboot", "suspend", "destroy"), powerActions(running).map { it.first })
         assertEquals(listOf("start"), powerActions(running.copy(state = "shut off")).map { it.first })
         assertEquals(emptyList<String>(), powerActions(running.copy(template = true)).map { it.first })

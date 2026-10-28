@@ -72,8 +72,8 @@ import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.Graph
 import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.Api
-import io.github.nathplay15.strataos.net.NasJob
-import io.github.nathplay15.strataos.net.job
+import io.github.nathplay15.strataos.net.manage.NasJob
+import io.github.nathplay15.strataos.net.manage.job
 import io.github.nathplay15.strataos.ui.ErrorPane
 import io.github.nathplay15.strataos.ui.Loaded
 import io.github.nathplay15.strataos.ui.errorText

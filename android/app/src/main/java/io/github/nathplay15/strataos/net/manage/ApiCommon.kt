@@ -1,4 +1,6 @@
-package io.github.nathplay15.strataos.net
+package io.github.nathplay15.strataos.net.manage
+
+import io.github.nathplay15.strataos.net.*
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
