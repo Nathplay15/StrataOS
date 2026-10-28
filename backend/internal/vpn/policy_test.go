@@ -421,7 +421,7 @@ func TestWholeNASKillSwitch(t *testing.T) {
 	// the tunnel (it still goes through it when it is up).
 	cl.AllowUpdates = true
 	got = rules(KillRules(cl, false, 42))
-	if i := slices.Index(got, "-4 rule add pref 5304 uidrange 42-42 lookup main"); i < 0 || got[i+1] != "-4 rule add pref 5305 not fwmark 0xcb20 blackhole" || len(got) != 8 {
+	if i := slices.Index(got, "-4 rule add pref 5304 uidrange 42-42 lookup main"); i < 0 || got[i+1] != "-4 rule add pref 5304 fwmark 0xcb21 lookup main" || got[i+2] != "-4 rule add pref 5305 not fwmark 0xcb20 blackhole" || len(got) != 9 {
 		t.Errorf("updates allowed\n%s", strings.Join(got, "\n"))
 	}
 	if got := rules(KillRules(cl, false, -1)); slices.ContainsFunc(got, func(r string) bool { return strings.Contains(r, "uidrange") }) {
@@ -455,7 +455,7 @@ func TestRulesMatch(t *testing.T) {
 	if rulesMatch(strings.SplitAfterN(shown, "\n", 2)[1], group("-4", prioLocal)) {
 		t.Error("missing rule not seen")
 	}
-	if !rulesMatch("5305:\tnot from all fwmark 0xcb20 blackhole\n", group("-4", prioKillAll)) || !rulesMatch("5304:\tfrom all uidrange 42-42 lookup main\n", group("-6", prioUpdates)) {
+	if !rulesMatch("5305:\tnot from all fwmark 0xcb20 blackhole\n", group("-4", prioKillAll)) || !rulesMatch("5304:\tfrom all uidrange 42-42 lookup main\n5304:\tfrom all fwmark 0xcb21 lookup main\n", group("-6", prioUpdates)) {
 		t.Error("kill and updates rules")
 	}
 	cl.Scope = "apps"
@@ -528,5 +528,23 @@ func TestExpiryWarnings(t *testing.T) {
 		if Validate(&x) == nil {
 			t.Errorf("%d days accepted", bad)
 		}
+	}
+}
+
+func TestUpdatesMarking(t *testing.T) {
+	cl := store.VPNClient{Scope: "all", AllowUpdates: true}
+	m := UpdatesMarking(cl, 42)
+	for _, want := range []string{"table inet strata_vpn_updates", "type route hook output", "meta skuid 42 ct mark set 0xcb21 meta mark set 0xcb21", "ct mark 0xcb21 meta mark set 0xcb21"} {
+		if !strings.Contains(m, want) {
+			t.Errorf("missing %q\n%s", want, m)
+		}
+	}
+	for _, c := range []store.VPNClient{{Scope: "all"}, {Scope: "apps", AllowUpdates: true}} {
+		if UpdatesMarking(c, 42) != "" {
+			t.Errorf("%+v: marking without updates through the kill switch", c)
+		}
+	}
+	if UpdatesMarking(cl, -1) != "" {
+		t.Error("marking without APT account")
 	}
 }

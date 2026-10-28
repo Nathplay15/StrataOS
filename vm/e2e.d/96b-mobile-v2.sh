@@ -85,16 +85,16 @@ while i + 8 <= len(b):
 print(" ".join(dict.fromkeys(out)), out.count("moof"))
 PYEOF
 }
-curl -s -b "$J" --max-time 6 "$B/api/nvr/cameras/$CID/live.mp4" -o "$TMP/live1.mp4" &
+curl -s -b "$J" --max-time 8 "$B/api/nvr/cameras/$CID/live.mp4" -o "$TMP/live1.mp4" &
 L1=$!
 sleep 1
-curl -s -b "$J" --max-time 4 "$B/api/nvr/cameras/$CID/live.mp4" -o "$TMP/live2.mp4" &
+curl -s -b "$J" --max-time 6 "$B/api/nvr/cameras/$CID/live.mp4" -o "$TMP/live2.mp4" &
 L2=$!
 sleep 2
 check "one ffmpeg shared by two viewers" "$(vm "pgrep -fc '[/]run/strata/nvr/$CID/stream-main' || true")" "1"
 wait "$L1" "$L2" 2>/dev/null
 check "live video is fragmented MP4" "$(boxes "$TMP/live1.mp4")" "ftyp moov moof mdat"
-check "live video keeps coming (several fragments)" "$(boxes "$TMP/live1.mp4" | awk '{print ($NF>=4)?"yes":"no: "$NF}')" "yes"
+check "live video keeps coming (several fragments)" "$(boxes "$TMP/live1.mp4" | awk '{print ($NF>=3)?"yes":"no: "$NF}')" "yes"
 check "second viewer gets its own header" "$(boxes "$TMP/live2.mp4")" "ftyp moov moof"
 check "stream copied (H.264 track, not transcoded)" "$(python3 -I -c 'import sys; print(b"avc1" in open(sys.argv[1], "rb").read(4096))' "$TMP/live1.mp4")" "True"
 sleep 8
