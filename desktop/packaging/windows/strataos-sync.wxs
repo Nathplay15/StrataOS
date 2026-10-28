@@ -3,7 +3,8 @@
      %LocalAppData%\Programs\StrataOS Sync, a Start menu shortcut, and an
      entry in Apps & features. Built with WiX 4+ on a Windows runner:
        wix build -arch x64 -d Version=0.8.0 -d Src=<folder of the exe> strataos-sync.wxs -o strataos-sync.msi
-     The app turns start at login on at its first launch. -->
+     The app turns start at login on at its first launch. The components have
+     fixed GUIDs: per-user files with a registry key path can't use automatic ones. -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="StrataOS Sync" Manufacturer="StrataOS" Version="$(var.Version)" Scope="perUser" Compressed="yes"
            UpgradeCode="65ce5de6-7b51-4d6a-b6cd-e7f6a58c2ee2" Language="1033">
@@ -16,7 +17,7 @@
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsDir" Name="Programs">
         <Directory Id="INSTALLFOLDER" Name="StrataOS Sync">
-          <Component Id="App">
+          <Component Id="App" Guid="3f1c9a52-6e0b-4d2f-9b7e-1a4c8d2e5f60">
             <File Id="AppExe" Source="$(var.Src)\strataos-sync.exe" />
             <File Id="Readme" Source="$(var.Src)\README.txt" />
             <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
@@ -28,7 +29,7 @@
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="Shortcut">
+      <Component Id="Shortcut" Guid="8b2d4e71-0c5a-4f39-a6d8-2e7f1b9c3a45">
         <Shortcut Id="StartMenuShortcut" Name="StrataOS Sync" Description="Synchronizes folders with a StrataOS NAS"
                   Target="[INSTALLFOLDER]strataos-sync.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
         <RegistryValue Root="HKCU" Key="Software\StrataOS\Sync" Name="shortcut" Type="integer" Value="1" KeyPath="yes" />
