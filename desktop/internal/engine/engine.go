@@ -151,11 +151,18 @@ func New(remote Remote, opt Options) (*Engine, error) {
 // Close stops the pairs and closes the database.
 func (e *Engine) Close() error {
 	e.mu.Lock()
-	for _, pr := range e.pairs {
+	prs := e.list()
+	e.mu.Unlock()
+	stopAll(prs)
+	return e.st.close()
+}
+
+// stopAll stops pairs and waits for their rounds. Never with e.mu held: a
+// round takes it (isPaused, Trigger…) and the two would wait for each other.
+func stopAll(prs []*pairRun) {
+	for _, pr := range prs {
 		pr.stop()
 	}
-	e.mu.Unlock()
-	return e.st.close()
 }
 
 func (e *Engine) event(ev Event) {
@@ -167,16 +174,31 @@ func (e *Engine) event(ev Event) {
 // SetPairs sets the pairs to synchronize: new ones start (when running),
 // removed ones stop and their state is forgotten, changed ones restart.
 func (e *Engine) SetPairs(pairs []Pair) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	// First stop what changes or goes, outside the lock (see stopAll).
 	keep := map[string]bool{}
+	var stop []*pairRun
+	e.mu.Lock()
 	for _, p := range pairs {
 		keep[p.ID] = true
+		if old := e.pairs[p.ID]; old != nil && !samePair(old.p, p) {
+			stop = append(stop, old)
+		}
+	}
+	for id, pr := range e.pairs {
+		if !keep[id] {
+			stop = append(stop, pr)
+		}
+	}
+	e.mu.Unlock()
+	stopAll(stop)
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, p := range pairs {
 		if old := e.pairs[p.ID]; old != nil {
-			if old.p.Local == p.Local && old.p.Remote == p.Remote && strings.Join(old.p.Exclude, "\x00") == strings.Join(p.Exclude, "\x00") && old.p.Paused == p.Paused {
+			if samePair(old.p, p) {
 				continue
 			}
-			old.stop()
 			if old.p.Local != p.Local || old.p.Remote != p.Remote {
 				_ = e.st.drop(p.ID) // another folder: start from nothing
 			}
@@ -190,14 +212,17 @@ func (e *Engine) SetPairs(pairs []Pair) error {
 			pr.start(e.runCtx)
 		}
 	}
-	for id, pr := range e.pairs {
+	for id := range e.pairs {
 		if !keep[id] {
-			pr.stop()
 			delete(e.pairs, id)
 			_ = e.st.drop(id)
 		}
 	}
 	return nil
+}
+
+func samePair(a, b Pair) bool {
+	return a.Local == b.Local && a.Remote == b.Remote && strings.Join(a.Exclude, "\x00") == strings.Join(b.Exclude, "\x00") && a.Paused == b.Paused
 }
 
 func (e *Engine) newPair(p Pair) (*pairRun, error) {
@@ -296,11 +321,10 @@ func (e *Engine) Run(ctx context.Context) {
 	e.mu.Unlock()
 	<-ctx.Done()
 	e.mu.Lock()
-	for _, pr := range e.pairs {
-		pr.stop()
-	}
 	e.runCtx = nil
+	prs := e.list()
 	e.mu.Unlock()
+	stopAll(prs)
 }
 
 // SyncOnce makes rounds on every pair until nothing is left (at most a few).

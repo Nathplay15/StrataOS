@@ -94,6 +94,7 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 	if err != nil {
 		return err
 	}
+	a.Manual = cmd != "daemon" // sync-once, add…: no rounds in the background
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)

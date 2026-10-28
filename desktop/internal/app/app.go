@@ -30,6 +30,9 @@ type App struct {
 	Version string
 	// Notify shows a desktop notification (nil: only logged).
 	Notify func(title, body string)
+	// Manual: the engine makes no rounds by itself (commands such as
+	// sync-once drive it with SyncOnce).
+	Manual bool
 
 	mu        sync.Mutex
 	cfg       config.Config
@@ -162,6 +165,10 @@ func (a *App) restart() error {
 	a.engCancel, a.engDone = cancel, make(chan struct{})
 	go func() {
 		defer close(a.engDone)
+		if a.Manual {
+			<-ctx.Done()
+			return
+		}
 		eng.Run(ctx)
 	}()
 	cl := a.client

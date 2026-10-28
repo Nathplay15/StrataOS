@@ -566,3 +566,29 @@ func TestManyFiles(t *testing.T) {
 		t.Fatalf("idle round too slow: %v", idle)
 	}
 }
+
+// Stopping (end of Run, Close, SetPairs) while rounds are in progress
+// returns: it once waited for a round that waited for the engine's lock.
+func TestStopDuringRounds(t *testing.T) {
+	h := newHarness(t)
+	for i := range 200 {
+		h.fake.put("f"+strconv.Itoa(i)+".txt", strings.Repeat("x", 1000), t0)
+	}
+	for attempt := range 20 {
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { h.eng.Run(ctx); close(done) }()
+		time.Sleep(time.Duration(attempt) * time.Millisecond)
+		h.eng.Trigger()
+		h.eng.Pause(attempt%2 == 0)
+		if attempt%3 == 0 {
+			h.eng.SetPairs([]Pair{{ID: "p1", Local: h.local, Remote: "/x" + strconv.Itoa(attempt)}})
+		}
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Run did not return (attempt %d)", attempt)
+		}
+	}
+}
