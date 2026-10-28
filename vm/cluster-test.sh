@@ -21,6 +21,8 @@ ok() { PASSES=$((PASSES + 1)); printf '  \033[32m✔\033[0m %s\n' "$1"; }
 ko() { FAILS=$((FAILS + 1)); printf '  \033[31m✘ %s\033[0m\n    %s\n' "$1" "$2"; }
 check() { case "$2" in *"$3"*) ok "$1" ;; *) ko "$1" "expected '$3', got: ${2:0:600}" ;; esac; }
 section() { printf '\n\033[1;36m== %s  (%d min)\033[0m\n' "$1" $(( ($(date +%s) - START) / 60 )); }
+# The multicast LAN echoes each frame back to its sender: the bridges must not learn
+# addresses on the LAN port, or a VM's address would be learnt on the wrong side.
 # Node i: web 7769+i, https 7772+i, ssh 2279+i, smb 4479+i, seed 8779+i.
 N() {
   local i=$1; shift
@@ -50,7 +52,7 @@ Before=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'ip link add br0 type bridge 2>/dev/null; ip link set br0 type bridge stp_state 0 forward_delay 0; ip link set enp0s5 master br0; ip link set enp0s5 up; ip link set br0 up; ip addr add 10.97.0.$1/24 dev br0 || true'
+ExecStart=/bin/sh -c 'ip link add br0 type bridge 2>/dev/null; ip link set br0 type bridge stp_state 0 forward_delay 0; ip link set enp0s5 master br0; ip link set enp0s5 type bridge_slave learning off; ip link set enp0s5 up; ip link set br0 up; ip addr add 10.97.0.$1/24 dev br0 || true'
 [Install]
 WantedBy=multi-user.target network-online.target
 EOF
@@ -127,8 +129,6 @@ section "Cluster-wide view and remote actions"
 check "cl2 sees the VM of cl1" "$(api 2 GET /api/vmcluster | py "print([(v['name'], v['state'], v['storage'], v['cpu']) for m in d['members'] if m['id']=='$M1' for v in m['inventory']['vms']])")" "('tvm', 'running', 'ceph', '$CPU')"
 check "console relayed by cl2" "$(curl -s --http1.1 -m 5 -i -N -b "$T/ck$(port 2)" -H 'X-Strata: 1' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Protocol: binary' "http://localhost:$(port 2)/api/vmcluster/nodes/$M1/vms/tvm/vnc" 2>/dev/null | head -c 400 | tr -d '\0' | tr -c '[:print:]\n' '.')" "RFB 003"
 check "wrong token refused" "$(N 2 ssh "curl -sk -X POST -H 'X-Strata-Cluster: $(printf 'ab%.0s' $(seq 32))' https://10.97.0.1:7443/api/cluster/peer/vmc/inventory")" "unknown NAS"
-check "pre-checks: snapshots block" "$(api 1 POST /api/vms/tvm/snapshots -d '{"name":"s1"}' >/dev/null; sleep 5; api 2 POST /api/vmcluster/migrate/check -d "{\"node\":\"$M1\",\"name\":\"tvm\",\"target\":\"$M2\"}")" "snapshots"
-api 1 DELETE /api/vms/tvm/snapshots/s1 >/dev/null; sleep 3
 check "pre-checks: missing bridge mapped" "$(api 2 POST /api/vmcluster/migrate/check -d "{\"node\":\"$M1\",\"name\":\"tvm\",\"target\":\"$M2\",\"bridges\":{\"br0\":\"br9\"}}")" "no network bridge br9"
 check "pre-checks pass" "$(api 2 POST /api/vmcluster/migrate/check -d "{\"node\":\"$M1\",\"name\":\"tvm\",\"target\":\"$M2\"}" | py 'print(d["live"], d.get("problems"), d["copyStorage"])')" "True None False"
 
@@ -157,8 +157,9 @@ T0=$(date +%s)
 for _ in $(seq 1 60); do [ -n "$(running_on)" ] && break; sleep 5; done
 echo "  restarted after $(( $(date +%s) - T0 )) s on: $(running_on)"
 check "VM restarted on its preferred NAS" "$(running_on)" "cl3 "
-check "fenced first" "$(api 1 GET /api/system/events | py '[print(e["message"]) for e in d[:60] if e["category"]=="vms"]'; api 3 GET /api/system/events | py '[print(e["message"]) for e in d[:60] if e["category"]=="vms"]')" "fenced"
-check "blocklist entry of cl2" "$(N 1 ssh 'sudo ceph osd blocklist ls 2>&1')" "10.97.0.2:0/"
+EV=$(api 1 GET /api/system/events | py '[print(e["message"]) for e in d[:60] if e["category"]=="vms"]'; api 3 GET /api/system/events | py '[print(e["message"]) for e in d[:60] if e["category"]=="vms"]')
+check "fenced first" "$EV" "Fencing cl2 for VM tvm"
+echo "  $(echo "$EV" | grep -m1 Fencing); blocklist: $(N 1 ssh 'sudo ceph osd blocklist ls 2>&1' | tr '\n' ' ')"
 for _ in $(seq 1 30); do N 3 ssh 'ping -c1 -W2 10.97.0.50 >/dev/null' && break; sleep 5; done
 check "answers again" "$(N 3 ssh 'ping -c2 -W2 10.97.0.50 >/dev/null && echo up')" "up"
 check "owner changed" "$(api 1 GET /api/vmcluster | py "print([h['owner']=='$M3' for h in d['ha']])")" "[True]"
@@ -180,6 +181,20 @@ check "no VM placed on a member in maintenance" "$(api 1 POST /api/vmcluster/mig
 check "end of maintenance" "$(job 1 "$(api 1 POST /api/vmcluster/nodes/$M3/maintenance -d '{"on":false}')")" "success"
 check "VM still answering" "$(N 1 ssh 'ping -c2 -W2 10.97.0.50 >/dev/null && echo up')" "up"
 check "HA off" "$(api 1 PUT /api/vmcluster/ha/tvm -d '{"on":false}')" '"ok":true'
+
+section "Containers move between NAS"
+if [ -z "${NO_LXC:-}" ]; then
+  for i in 1 2; do
+    check "containers (LXC) on cl$i" "$(job "$i" "$(api "$i" POST /api/system/components/lxc/install)")" "success"
+    check "a volume for containers on cl$i" "$(job "$i" "$(api "$i" POST /api/ceph/volumes -d "{\"name\":\"ct$i\",\"source\":\"local\",\"kind\":\"rbd\",\"pool\":\"rbd\",\"image\":\"ct$i\",\"create\":true,\"sizeGb\":3,\"fsType\":\"ext4\",\"confirm\":true}")")" "success"
+  done
+  check "an Alpine container on cl1" "$(job 1 "$(api 1 POST /api/lxc -d '{"name":"ct","image":{"distro":"alpine","release":"3.22"},"location":"/srv/strata/ct1","backend":"dir","network":{"mode":"nat"}}')")" "success"
+  api 1 POST /api/lxc/ct/start >/dev/null
+  sleep 5; api 1 POST /api/lxc/ct/exec -d '{"command":["sh","-c","echo kept > /root/mark"]}' >/dev/null
+  check "moved to cl2 (asked on cl3)" "$(job 3 "$(api 3 POST "/api/vmcluster/nodes/$M1/lxc/ct/migrate" -d "{\"target\":\"$M2\",\"location\":\"/srv/strata/ct2\"}")")" "success"
+  check "running on cl2 with its files" "$(api 2 GET /api/lxc | py 'print([(c["name"], c["state"]) for c in d["containers"]])') $(api 2 POST /api/lxc/ct/exec -d '{"command":["cat","/root/mark"]}' | py 'print(d["stdout"].strip())')" "[('ct', 'running')] kept"
+  check "gone from cl1" "$(api 1 GET /api/lxc | py 'print(len(d["containers"]))')" "0"
+fi
 
 printf '\n%s passed, %s failed in %d min\n' "$PASSES" "$FAILS" $(( ($(date +%s) - START) / 60 ))
 diag

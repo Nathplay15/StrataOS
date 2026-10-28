@@ -529,6 +529,13 @@ func Action(name, action string) error {
 				return fmt.Errorf("%s is a template: create a VM from it instead", name)
 			}
 			refreshUSB(vm)
+			var bridges []string
+			for _, n := range vm.NICs {
+				if n.Type == "bridge" {
+					bridges = append(bridges, n.Source)
+				}
+			}
+			AllowBridgeForwarding(bridges)
 			if err := prepareVFIO(vm); err != nil {
 				return err
 			}

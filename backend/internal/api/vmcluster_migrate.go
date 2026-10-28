@@ -581,7 +581,12 @@ func (s *Server) vmcEnsureTLS(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
-	ips := slices.DeleteFunc(slices.Compact([]string{me.Addr, me.PrivAddr, me.Host}), func(x string) bool { return x == "" })
+	var ips []string
+	for _, a := range []string{me.Addr, me.PrivAddr, me.Host} {
+		if a != "" && !slices.Contains(ips, a) {
+			ips = append(ips, a)
+		}
+	}
 	certChanged, err := vmcluster.EnsureCert(org, ips, vms.QemuGID())
 	if err != nil {
 		return err
@@ -606,7 +611,11 @@ func (s *Server) vmcEnsureTLS(ctx context.Context) error {
 	if _, err := sys.Run("systemctl", "enable", "libvirtd-tls.socket"); err != nil {
 		return err
 	}
-	_, _ = sys.Run("systemctl", "restart", "libvirtd-tls.socket")
+	_, _ = sys.Run("systemctl", "reset-failed", "libvirtd-tls.socket")
+	if _, err := sys.Run("systemctl", "restart", "libvirtd-tls.socket"); err != nil {
+		_, _ = sys.Run("systemctl", "start", "libvirtd.service")
+		return err
+	}
 	if _, err := sys.Run("systemctl", "start", "libvirtd.service"); err != nil {
 		return err
 	}

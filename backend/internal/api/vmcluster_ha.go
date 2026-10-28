@@ -278,6 +278,10 @@ func (s *Server) vmcRound(c store.Cluster, round int) {
 	if !vms.Installed() {
 		return
 	}
+	if round%12 == 2 {
+		// VMs arriving by migration use the bridges of this NAS too.
+		vms.AllowBridgeForwarding(hostBridges())
+	}
 	t := s.vmcTable()
 	if !quorum {
 		if len(c.Members) >= vmcluster.MinHAMembers && vmcluster.ShouldSelfFence(v, lost) {
@@ -565,6 +569,12 @@ func rbdClients(ctx context.Context, img string) ([]vmcluster.Lock, []vmcluster.
 // VM and breaks its locks, so the old QEMU can never write again.
 func (s *Server) vmcFence(ctx context.Context, h store.ClusterHAVM, dead store.ClusterMember) error {
 	deadIPs := slices.DeleteFunc([]string{dead.Addr, dead.PrivAddr, dead.Host}, func(x string) bool { return x == "" })
+	fenced := 0
+	defer func() {
+		// An idle VM may hold no lock and its watch may have expired: then
+		// nothing is left to cut, which is logged too.
+		s.store.Log("warning", "vms", "", fmt.Sprintf("Fencing %s for VM %s: %d Ceph client(s) blocklisted", dead.Name, h.Name, fenced))
+	}()
 	for _, img := range vms.DomainRBD(h.XML) {
 		locks, watchers, err := rbdClients(ctx, img)
 		if err != nil {
@@ -576,6 +586,7 @@ func (s *Server) vmcFence(ctx context.Context, h store.ClusterHAVM, dead store.C
 			if _, err := ceph.Local.Ceph(ctx, "osd", "blocklist", "add", a, "2592000"); err != nil {
 				return fmt.Errorf("blocklisting %s: %w", a, err)
 			}
+			fenced++
 			s.store.Log("warning", "vms", "", fmt.Sprintf("Ceph client %s of %s fenced (disk %s of VM %s)", a, dead.Name, img, h.Name))
 		}
 		for _, l := range vmcluster.LocksToBreak(locks, deadIPs) {

@@ -554,7 +554,7 @@ type MigrateOpts struct {
 	CopyDisks   []string // their targets (vda…)
 }
 
-var percentRe = regexp.MustCompile(`\[\s*(\d+)\s*%\]`)
+var percentRe = regexp.MustCompile(`\[\s*(\d+)(?:\.\d+)?\s*%\]`)
 
 // progressWriter turns `virsh migrate --verbose` output into progress.
 type progressWriter struct {
@@ -568,11 +568,11 @@ func (w *progressWriter) Write(b []byte) (int, error) {
 		if m := percentRe.FindStringSubmatch(part); m != nil {
 			p, _ := strconv.Atoi(m[1])
 			if p != w.last {
-				w.last = p
-				w.set(float64(p))
-				if p%25 == 0 {
+				if p/25 != w.last/25 || w.last < 0 {
 					w.logf("Migration: %d %%", p)
 				}
+				w.last = p
+				w.set(float64(p))
 			}
 		} else if s := strings.TrimSpace(part); s != "" {
 			w.logf("%s", s)
@@ -690,4 +690,26 @@ func QemuGID() int {
 		return ids[1]
 	}
 	return -1
+}
+
+// AllowBridgeForwarding lets the frames of VMs pass through the bridges of
+// the NAS when Docker is installed: Docker sets the FORWARD policy to drop,
+// and with br_netfilter that also drops the traffic between a VM and the
+// network behind its bridge. Only traffic staying on the same bridge is
+// accepted (what a plain switch does).
+func AllowBridgeForwarding(bridges []string) {
+	if !sys.Has("iptables") {
+		return
+	}
+	if _, err := sys.Run("iptables", "-S", "DOCKER-USER"); err != nil {
+		return
+	}
+	for _, b := range bridges {
+		if !bridgeRe.MatchString(b) {
+			continue
+		}
+		if _, err := sys.Run("iptables", "-C", "DOCKER-USER", "-i", b, "-o", b, "-j", "ACCEPT"); err != nil {
+			_, _ = sys.Run("iptables", "-I", "DOCKER-USER", "-i", b, "-o", b, "-j", "ACCEPT")
+		}
+	}
 }

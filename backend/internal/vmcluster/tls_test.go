@@ -63,7 +63,7 @@ func TestTLS(t *testing.T) {
 	if ch, _ := SetTrust([]string{ca2, ca}); ch {
 		t.Error("same authorities: unchanged")
 	}
-	if u := SocketUnit([]string{"10.0.0.1", "fd00::1", "bad"}); !strings.Contains(u, "ListenStream=10.0.0.1:16514") || !strings.Contains(u, "ListenStream=[fd00::1]:16514") || strings.Contains(u, "bad") {
+	if u := SocketUnit([]string{"10.0.0.1", "fd00::1", "bad", "10.0.0.1"}); !strings.Contains(u, "ListenStream=10.0.0.1:16514") || !strings.Contains(u, "ListenStream=[fd00::1]:16514") || strings.Contains(u, "bad") || strings.Count(u, "10.0.0.1:16514") != 1 {
 		t.Errorf("unit:\n%s", u)
 	}
 }

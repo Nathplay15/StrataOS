@@ -14,8 +14,9 @@ type Node struct {
 	OK bool
 }
 
-// marginMB is kept free on a member after placing a VM.
-const marginMB = 256
+// marginMB is kept free on a member after placing a VM (on top of what
+// MemAvailable already leaves to the system).
+const marginMB = 128
 
 // ChooseTarget picks the member to run a VM needing memMB: the preferred
 // one when it can, else the one with the most free memory (lowest ID on a

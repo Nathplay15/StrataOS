@@ -80,7 +80,7 @@ func TestUsableModels(t *testing.T) {
 func TestMigrationProgress(t *testing.T) {
 	var got []float64
 	w := &progressWriter{set: func(p float64) { got = append(got, p) }, logf: func(string, ...any) {}, last: -1}
-	_, _ = w.Write([]byte("Migration: [  0 %]\rMigration: [ 42 %]\rMigration: [ 42 %]\rMigration: [100 %]\n"))
+	_, _ = w.Write([]byte("Migration: [ 0.54 %]\rMigration: [42.10 %]\rMigration: [ 42 %]\rMigration: [100.00 %]\n"))
 	if !slices.Equal(got, []float64{0, 42, 100}) {
 		t.Errorf("progress = %v", got)
 	}

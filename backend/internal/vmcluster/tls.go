@@ -272,11 +272,13 @@ func SetTrust(cas []string) (bool, error) {
 func SocketUnit(ips []string) string {
 	var b strings.Builder
 	b.WriteString("# Written by StrataOS: libvirt TLS for the migrations of the VM cluster.\n[Socket]\nListenStream=\n")
+	var done []string
 	for _, s := range ips {
 		ip := net.ParseIP(s)
-		if ip == nil {
+		if ip == nil || slices.Contains(done, ip.String()) {
 			continue
 		}
+		done = append(done, ip.String())
 		if ip.To4() != nil {
 			fmt.Fprintf(&b, "ListenStream=%s:16514\n", ip)
 		} else {
