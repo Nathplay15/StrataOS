@@ -96,8 +96,17 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 | `ui/player/` | Media3 player: NAS streaming (probe, remux/transcode from `start=`), tracks, quality, resume, background audio (`PlaybackService`), picture-in-picture |
 | `ui/storage/` | Storage manager: volumes, disks/SMART, RAID, ZFS, snapshots, shares, quotas, safe creation flows |
 | `ui/apps/` | App Center, containers, stacks, images, one-click container updates |
+| `ui/adminkit/` | Building blocks of the management areas: screens with their own top bar and back, pull to refresh, confirmations (typed name for destructive actions), NAS jobs, authenticated pictures, save/share |
+| `ui/surveillance/`, `ui/vms/`, `ui/vpn/`, `ui/users/`, `ui/fleet/`, `ui/nassettings/`, `ui/web/` | Management areas listed in `ui/SectionsB.kt` (their API calls in `net/Api<Area>.kt`) |
+| `vnc/` | RFB client of the VM consoles (ZRLE, CopyRect, Raw, DesktopSize) over the NAS websocket |
 
-The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens, uploads, events, push) and `backend/internal/webpush` (RFC 8291 encryption, VAPID); its end-to-end test is `vm/e2e.d/96-mobile-api.sh`.
+The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens, uploads, events, push) and `backend/internal/webpush` (RFC 8291 encryption, VAPID); its end-to-end test is `vm/e2e.d/96-mobile-api.sh`. Since 0.8.0:
+
+- **Live camera video**: `GET /api/nvr/cameras/{id}/live.mp4?stream=main|sub` (`api/h_nvr_live.go`, `internal/nvr/livestream.go`) remuxes the camera's RTSP stream (no transcoding) to fragmented MP4 cut at every key frame and at least every 500 ms. One ffmpeg per camera and stream is shared by every viewer (each gets the init segment, then the fragments from the latest key frame; a viewer too slow skips to the next key frame) and stops 5 s after the last one. The app plays it with Media3 (small buffers, a little faster than real time when it falls behind); the web interface uses it in the enlarged live view.
+- **Web interface in the app**: `POST /api/mobile/websession` (device token only) returns a one-time code valid one minute; the WebView opens `/api/mobile/websession/{code}`, which sets an ordinary session cookie remembering the device (`session.Device`) and redirects to `/`. Revoking the device ends that session, `deviceDenied` applies to it (except `/api/logout`), and opening it again replaces the previous one. The WebView accepts a certificate error only for the certificate pinned at pairing on the NAS's own address (`onReceivedSslError`, never a blanket proceed); pages of other origins (the apps on other ports) open in the browser.
+- **VM console**: the app speaks RFB itself over `GET /api/vms/{name}/vnc` (OkHttp websocket with the device token), no WebView.
+
+Their end-to-end test is `vm/e2e.d/96b-mobile-v2.sh`.
 
 ### Toolchain (no root needed)
 
@@ -117,12 +126,12 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;an
 
 ```bash
 cd android
-./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses, file sorting, storage plans, update states, playback URLs
+./gradlew testDebugUnitTest   # unit tests: resumable uploads, backup planning, certificate pinning, token storage, addresses, file sorting, storage plans, update states, playback URLs, VNC decoding, management logic
 ./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease     # signed when the release key is available (below), unsigned otherwise
 ```
 
-Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`; the v2 areas keep theirs in their own files (`strings_a.xml`…). The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
+Texts: `app/src/main/res/values/strings.xml` (English) and `values-fr/`; the v2 areas have theirs in their own files (`strings_a.xml`, `strings_manage.xml`) (English and French so far, marked `tools:ignore="MissingTranslation"` until the other languages are done). The other languages of the NAS are still to do: `values-de`, `values-es`, `values-it`, `values-pt-rBR`, `values-nl`, `values-zh-rCN` (a missing string shows in English).
 
 In the emulator, the development VM is at `https://10.0.2.2:7443`. `adb shell am start -d "strataos://pair?url=…&fp=…&code=…"` opens a pairing link like the QR code does.
 
