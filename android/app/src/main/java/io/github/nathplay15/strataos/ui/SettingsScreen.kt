@@ -126,6 +126,7 @@ fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
                     Push.unregister(ctx)
                     BackupSettings(ctx).enabled = false
                     BackupScheduler.cancelAll(ctx)
+                    withContext(Dispatchers.IO) { io.github.nathplay15.strataos.sync.SyncScheduler.forgetAll(ctx) }
                     EventsWorker.cancel(ctx)
                     Graph.backupDb.reset()
                     io.github.nathplay15.strataos.ui.player.Playback.release()

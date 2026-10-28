@@ -18,6 +18,7 @@ object Notifier {
     const val INFO = "info"
     const val BACKUP = "backup"
     const val UPLOADS = "uploads"
+    const val SYNC = "sync"
     const val BACKUP_ID = 1
     const val SIGNED_OUT_ID = 2
 
@@ -28,6 +29,7 @@ object Notifier {
             NotificationChannel(INFO, ctx.getString(R.string.channel_info), NotificationManager.IMPORTANCE_DEFAULT),
             NotificationChannel(BACKUP, ctx.getString(R.string.channel_backup), NotificationManager.IMPORTANCE_LOW),
             NotificationChannel(UPLOADS, ctx.getString(R.string.channel_uploads), NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(SYNC, ctx.getString(R.string.sync_title), NotificationManager.IMPORTANCE_LOW),
         ))
     }
 

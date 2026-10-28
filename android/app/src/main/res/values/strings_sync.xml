@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Folder sync between the phone and the NAS (sync/, ui/sync/). -->
+<resources>
+    <string name="sync_title">Folder sync</string>
+    <string name="sync_intro">Each pair keeps a NAS folder and a phone folder alike. Deleted phone files wait 30 days in the pair\'s .trash folder; deleted NAS files go to the recycle bin of the shared folder.</string>
+    <string name="sync_none">No folder synchronized yet. Add a pair: a NAS folder and a phone folder.</string>
+    <string name="sync_add">Add a pair</string>
+    <string name="sync_edit">Change the pair</string>
+    <string name="sync_remove">Stop synchronizing</string>
+    <string name="sync_remove_text">The pair is forgotten. Its files stay on the phone and on the NAS.</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_pause">Pause</string>
+    <string name="sync_resume">Resume</string>
+    <string name="sync_start">Start synchronizing</string>
+    <string name="sync_running">Synchronizing %1$s</string>
+    <string name="sync_progress">%1$d of %2$d · %3$s</string>
+    <string name="sync_last">Last sync %1$s</string>
+    <string name="sync_phone_line">Phone: %1$s · %2$s</string>
+    <string name="sync_state_ok">Up to date</string>
+    <string name="sync_state_syncing">Synchronizing</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">Syncing %d file</item>
+        <item quantity="other">Syncing %d files</item>
+    </plurals>
+    <string name="sync_state_paused">Paused</string>
+    <string name="sync_state_error">Error</string>
+    <string name="sync_state_brake">Waiting for you</string>
+    <string name="sync_state_waiting">Not synchronized yet</string>
+    <string name="sync_mode_both">Two-way</string>
+    <string name="sync_mode_up">Phone → NAS</string>
+    <string name="sync_mode_down">NAS → phone</string>
+    <string name="sync_mode_both_help">Changes on either side go to the other one.</string>
+    <string name="sync_mode_up_help">Phone changes go to the NAS; the phone is never changed.</string>
+    <string name="sync_mode_down_help">NAS changes come to the phone; the NAS is never changed.</string>
+    <string name="sync_nas_folder">NAS folder</string>
+    <string name="sync_phone_folder">Phone folder</string>
+    <string name="sync_direction">Direction</string>
+    <string name="sync_files">Files synchronized</string>
+    <string name="sync_choose">Not chosen</string>
+    <string name="sync_choose_nas">Choose a NAS folder</string>
+    <string name="sync_choose_phone">Choose a folder</string>
+    <string name="sync_shares">Shared folders</string>
+    <string name="sync_share_read_only">Read only</string>
+    <string name="sync_read_only">You can only read this folder: choose NAS → phone, or another folder.</string>
+    <string name="sync_app_folder">Folder of the app</string>
+    <string name="sync_app_folder_help">A folder in the app\'s own storage (Android/data), removed with the app. Other apps cannot see it.</string>
+    <string name="sync_app_folder_name">Folder name</string>
+    <string name="sync_phone_help">Choose any folder of the phone or of a memory card; the app keeps the permission to use it.</string>
+    <string name="sync_folders_fixed">To use other folders, remove this pair and add another one.</string>
+    <string name="sync_folder_used">Another pair already uses this phone folder.</string>
+    <string name="sync_when">When</string>
+    <string name="sync_when_help">Every 15 minutes at best, and within seconds of a change on the NAS while the app is open. Not while battery saver is on. Sync now ignores these conditions.</string>
+    <string name="sync_excluded">Excluded subfolders</string>
+    <string name="sync_excluded_field">Subfolders</string>
+    <string name="sync_excluded_help">One per line, e.g. Videos/Raw</string>
+    <string name="sync_conflicts">Conflicts</string>
+    <string name="sync_no_conflicts">No conflict.</string>
+    <string name="sync_conflicts_help">Changed on both sides: both versions were kept, the phone one under the name shown.</string>
+    <string name="sync_conflicts_clear">Clear the list</string>
+    <string name="sync_conflicts_title">Sync conflicts</string>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d file changed on both sides, both versions were kept.</item>
+        <item quantity="other">%1$s: %2$d files changed on both sides, both versions were kept.</item>
+    </plurals>
+    <string name="sync_skipped">Not synchronized</string>
+    <plurals name="sync_links">
+        <item quantity="one">%d symbolic link skipped</item>
+        <item quantity="other">%d symbolic links skipped</item>
+    </plurals>
+    <string name="sync_trash_help">Phone files deleted by the sync are kept 30 days in the .trash folder of the phone folder.</string>
+    <string name="sync_brake_title">Many files would be deleted</string>
+    <string name="sync_brake_text">%1$s: %2$d files would be deleted on the phone and %3$d on the NAS. Delete them, or restore them?</string>
+    <string name="sync_brake_apply">Delete them</string>
+    <string name="sync_brake_restore">Restore them</string>
+    <string name="sync_folder_missing">The phone folder is missing or no longer allowed: remove the pair and choose it again.</string>
+    <string name="sync_remote_missing">The NAS folder is gone (nothing was deleted on the phone).</string>
+</resources>

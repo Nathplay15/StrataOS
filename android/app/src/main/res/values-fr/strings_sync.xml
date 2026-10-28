@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Synchronisation de dossiers</string>
+    <string name="sync_intro">Chaque paire garde un dossier du NAS et un dossier du téléphone identiques. Les fichiers supprimés du téléphone restent 30 jours dans le dossier .trash de la paire ; ceux supprimés du NAS vont dans la corbeille du dossier partagé.</string>
+    <string name="sync_none">Aucun dossier synchronisé pour l\'instant. Ajoutez une paire : un dossier du NAS et un dossier du téléphone.</string>
+    <string name="sync_add">Ajouter une paire</string>
+    <string name="sync_edit">Modifier la paire</string>
+    <string name="sync_remove">Arrêter la synchronisation</string>
+    <string name="sync_remove_text">La paire est oubliée. Ses fichiers restent sur le téléphone et sur le NAS.</string>
+    <string name="sync_now">Synchroniser maintenant</string>
+    <string name="sync_pause">Mettre en pause</string>
+    <string name="sync_resume">Reprendre</string>
+    <string name="sync_start">Commencer la synchronisation</string>
+    <string name="sync_running">Synchronisation de %1$s</string>
+    <string name="sync_progress">%1$d sur %2$d · %3$s</string>
+    <string name="sync_last">Dernière synchro %1$s</string>
+    <string name="sync_phone_line">Téléphone : %1$s · %2$s</string>
+    <string name="sync_state_ok">À jour</string>
+    <string name="sync_state_syncing">Synchronisation en cours</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">%d fichier à synchroniser</item>
+        <item quantity="other">%d fichiers à synchroniser</item>
+    </plurals>
+    <string name="sync_state_paused">En pause</string>
+    <string name="sync_state_error">Erreur</string>
+    <string name="sync_state_brake">En attente de votre choix</string>
+    <string name="sync_state_waiting">Pas encore synchronisé</string>
+    <string name="sync_mode_both">Dans les deux sens</string>
+    <string name="sync_mode_up">Téléphone → NAS</string>
+    <string name="sync_mode_down">NAS → téléphone</string>
+    <string name="sync_mode_both_help">Les changements d\'un côté passent de l\'autre.</string>
+    <string name="sync_mode_up_help">Les changements du téléphone vont sur le NAS ; le téléphone n\'est jamais modifié.</string>
+    <string name="sync_mode_down_help">Les changements du NAS arrivent sur le téléphone ; le NAS n\'est jamais modifié.</string>
+    <string name="sync_nas_folder">Dossier du NAS</string>
+    <string name="sync_phone_folder">Dossier du téléphone</string>
+    <string name="sync_direction">Sens</string>
+    <string name="sync_files">Fichiers synchronisés</string>
+    <string name="sync_choose">Pas choisi</string>
+    <string name="sync_choose_nas">Choisir un dossier du NAS</string>
+    <string name="sync_choose_phone">Choisir un dossier</string>
+    <string name="sync_shares">Dossiers partagés</string>
+    <string name="sync_share_read_only">Lecture seule</string>
+    <string name="sync_read_only">Vous pouvez seulement lire ce dossier : choisissez NAS → téléphone, ou un autre dossier.</string>
+    <string name="sync_app_folder">Dossier de l\'application</string>
+    <string name="sync_app_folder_help">Un dossier dans le stockage propre à l\'application (Android/data), supprimé avec elle. Les autres applications ne le voient pas.</string>
+    <string name="sync_app_folder_name">Nom du dossier</string>
+    <string name="sync_phone_help">Choisissez n\'importe quel dossier du téléphone ou d\'une carte mémoire ; l\'application garde l\'autorisation de l\'utiliser.</string>
+    <string name="sync_folders_fixed">Pour utiliser d\'autres dossiers, supprimez cette paire et ajoutez-en une autre.</string>
+    <string name="sync_folder_used">Une autre paire utilise déjà ce dossier du téléphone.</string>
+    <string name="sync_when">Quand</string>
+    <string name="sync_when_help">Toutes les 15 minutes au mieux, et quelques secondes après un changement sur le NAS quand l\'application est ouverte. Pas pendant l\'économiseur de batterie. « Synchroniser maintenant » ignore ces conditions.</string>
+    <string name="sync_excluded">Sous-dossiers exclus</string>
+    <string name="sync_excluded_field">Sous-dossiers</string>
+    <string name="sync_excluded_help">Un par ligne, par exemple Vidéos/Brut</string>
+    <string name="sync_conflicts">Conflits</string>
+    <string name="sync_no_conflicts">Aucun conflit.</string>
+    <string name="sync_conflicts_help">Modifiés des deux côtés : les deux versions sont gardées, celle du téléphone sous le nom indiqué.</string>
+    <string name="sync_conflicts_clear">Vider la liste</string>
+    <string name="sync_conflicts_title">Conflits de synchronisation</string>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s : %2$d fichier modifié des deux côtés, les deux versions sont gardées.</item>
+        <item quantity="other">%1$s : %2$d fichiers modifiés des deux côtés, les deux versions sont gardées.</item>
+    </plurals>
+    <string name="sync_skipped">Non synchronisé</string>
+    <plurals name="sync_links">
+        <item quantity="one">%d lien symbolique ignoré</item>
+        <item quantity="other">%d liens symboliques ignorés</item>
+    </plurals>
+    <string name="sync_trash_help">Les fichiers du téléphone supprimés par la synchronisation sont gardés 30 jours dans le dossier .trash du dossier du téléphone.</string>
+    <string name="sync_brake_title">Beaucoup de fichiers seraient supprimés</string>
+    <string name="sync_brake_text">%1$s : %2$d fichiers seraient supprimés sur le téléphone et %3$d sur le NAS. Les supprimer, ou les restaurer ?</string>
+    <string name="sync_brake_apply">Les supprimer</string>
+    <string name="sync_brake_restore">Les restaurer</string>
+    <string name="sync_folder_missing">Le dossier du téléphone n\'existe plus ou n\'est plus autorisé : supprimez la paire et choisissez-le à nouveau.</string>
+    <string name="sync_remote_missing">Le dossier du NAS n\'existe plus (rien n\'a été supprimé sur le téléphone).</string>
+</resources>

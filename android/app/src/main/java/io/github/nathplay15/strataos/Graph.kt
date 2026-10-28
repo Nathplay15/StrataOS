@@ -7,6 +7,7 @@ import io.github.nathplay15.strataos.data.AppPrefs
 import io.github.nathplay15.strataos.data.ServerConfig
 import io.github.nathplay15.strataos.net.Api
 import io.github.nathplay15.strataos.net.nasHttpClient
+import io.github.nathplay15.strataos.sync.SyncDb
 import okhttp3.OkHttpClient
 
 /** The few shared objects of the app (no dependency injection framework). */
@@ -15,6 +16,7 @@ object Graph {
         private set
     val prefs by lazy { AppPrefs(app) }
     val backupDb by lazy { BackupDb(app) }
+    val syncDb by lazy { SyncDb(app) }
 
     private var cached: Triple<ServerConfig, String?, Api>? = null
 
