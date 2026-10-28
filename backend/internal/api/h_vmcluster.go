@@ -90,6 +90,7 @@ type vmcVM struct {
 	Autostart bool     `json:"autostart"`
 	IPs       []string `json:"ips,omitempty"`
 	OS        string   `json:"os,omitempty"`
+	Bridges   []string `json:"bridges,omitempty"` // bridges its network interfaces join
 }
 
 type vmcCT struct {
@@ -171,6 +172,9 @@ func (s *Server) vmcInventory() vmcInventory {
 			for _, n := range vm.NICs {
 				if n.IP != "" {
 					v.IPs = append(v.IPs, n.IP)
+				}
+				if n.Type == "bridge" && !slices.Contains(v.Bridges, n.Source) {
+					v.Bridges = append(v.Bridges, n.Source)
 				}
 			}
 			inv.VMs = append(inv.VMs, v)
