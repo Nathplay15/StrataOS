@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Folder sync between the phone and the NAS (sync/, ui/sync/). -->
-<!-- MissingTranslation: the other languages are added at integration (remove this then). -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<resources>
     <string name="sync_title">Folder sync</string>
     <string name="sync_intro">Each pair keeps a NAS folder and a phone folder alike. Deleted phone files wait 30 days in the pair\'s .trash folder; deleted NAS files go to the recycle bin of the shared folder.</string>
     <string name="sync_none">No folder synchronized yet. Add a pair: a NAS folder and a phone folder.</string>

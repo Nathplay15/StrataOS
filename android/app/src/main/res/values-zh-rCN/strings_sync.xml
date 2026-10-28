@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">文件夹同步</string>
+    <string name="sync_intro">每个配对会让一个 NAS 文件夹和一个手机文件夹保持一致。手机上删除的文件会在配对的 .trash 文件夹中保留 30 天；NAS 上删除的文件会进入共享文件夹的回收站。</string>
+    <string name="sync_none">尚未同步任何文件夹。请添加一个配对：一个 NAS 文件夹和一个手机文件夹。</string>
+    <string name="sync_add">添加配对</string>
+    <string name="sync_edit">修改配对</string>
+    <string name="sync_remove">停止同步</string>
+    <string name="sync_remove_text">将忘记该配对。其文件会保留在手机和 NAS 上。</string>
+    <string name="sync_now">立即同步</string>
+    <string name="sync_pause">暂停</string>
+    <string name="sync_resume">继续</string>
+    <string name="sync_start">开始同步</string>
+    <string name="sync_running">正在同步 %1$s</string>
+    <string name="sync_progress">%1$d / %2$d · %3$s</string>
+    <string name="sync_last">上次同步 %1$s</string>
+    <string name="sync_phone_line">手机：%1$s · %2$s</string>
+    <string name="sync_state_ok">已是最新</string>
+    <string name="sync_state_syncing">正在同步</string>
+    <string name="sync_state_paused">已暂停</string>
+    <string name="sync_state_error">错误</string>
+    <string name="sync_state_brake">等待您确认</string>
+    <string name="sync_state_waiting">尚未同步</string>
+    <string name="sync_mode_both">双向</string>
+    <string name="sync_mode_up">手机 → NAS</string>
+    <string name="sync_mode_down">NAS → 手机</string>
+    <string name="sync_mode_both_help">任一侧的更改都会同步到另一侧。</string>
+    <string name="sync_mode_up_help">手机上的更改会同步到 NAS；手机上的内容绝不会被更改。</string>
+    <string name="sync_mode_down_help">NAS 上的更改会同步到手机；NAS 上的内容绝不会被更改。</string>
+    <string name="sync_nas_folder">NAS 文件夹</string>
+    <string name="sync_phone_folder">手机文件夹</string>
+    <string name="sync_direction">方向</string>
+    <string name="sync_files">已同步的文件</string>
+    <string name="sync_choose">未选择</string>
+    <string name="sync_choose_nas">选择 NAS 文件夹</string>
+    <string name="sync_choose_phone">选择文件夹</string>
+    <string name="sync_shares">共享文件夹</string>
+    <string name="sync_share_read_only">只读</string>
+    <string name="sync_read_only">此文件夹只能读取：请选择 NAS → 手机，或选择其他文件夹。</string>
+    <string name="sync_app_folder">应用文件夹</string>
+    <string name="sync_app_folder_help">应用自有存储（Android/data）中的文件夹，随应用一同删除。其他应用无法看到它。</string>
+    <string name="sync_app_folder_name">文件夹名称</string>
+    <string name="sync_phone_help">可选择手机或存储卡上的任意文件夹；应用会保留使用该文件夹的权限。</string>
+    <string name="sync_folders_fixed">如需使用其他文件夹，请删除此配对并添加新的配对。</string>
+    <string name="sync_folder_used">另一个配对已在使用此手机文件夹。</string>
+    <string name="sync_when">时机</string>
+    <string name="sync_when_help">最快每 15 分钟一次；应用打开期间，NAS 上有更改后数秒内同步。省电模式开启时不会同步。“立即同步”不受这些条件限制。</string>
+    <string name="sync_excluded">排除的子文件夹</string>
+    <string name="sync_excluded_field">子文件夹</string>
+    <string name="sync_excluded_help">每行一个，例如 Videos/Raw</string>
+    <string name="sync_conflicts">冲突</string>
+    <string name="sync_no_conflicts">没有冲突。</string>
+    <string name="sync_conflicts_help">两侧都有更改：两个版本均已保留，手机上的版本使用所示名称。</string>
+    <string name="sync_conflicts_clear">清空列表</string>
+    <string name="sync_conflicts_title">同步冲突</string>
+    <string name="sync_skipped">未同步</string>
+    <string name="sync_trash_help">被同步删除的手机文件会在手机文件夹的 .trash 文件夹中保留 30 天。</string>
+    <string name="sync_brake_title">将删除大量文件</string>
+    <string name="sync_brake_text">%1$s：手机上将删除 %2$d 个文件，NAS 上将删除 %3$d 个文件。要删除还是还原？</string>
+    <string name="sync_brake_apply">删除</string>
+    <string name="sync_brake_restore">还原</string>
+    <string name="sync_folder_missing">手机文件夹不存在或不再被允许访问：请删除该配对并重新选择。</string>
+    <string name="sync_remote_missing">NAS 文件夹已不存在（手机上未删除任何内容）。</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="other">正在同步 %d 个文件</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="other">%1$s：%2$d 个文件在两端都被修改，已保留两个版本。</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="other">已跳过 %d 个符号链接</item>
+    </plurals>
+</resources>

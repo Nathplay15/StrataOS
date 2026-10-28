@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Mapsynchronisatie</string>
+    <string name="sync_intro">Elk paar houdt een NAS-map en een telefoonmap gelijk. Van de telefoon verwijderde bestanden wachten 30 dagen in de map .trash van het paar; van de NAS verwijderde bestanden gaan naar de prullenbak van de gedeelde map.</string>
+    <string name="sync_none">Nog geen map gesynchroniseerd. Voeg een paar toe: een NAS-map en een telefoonmap.</string>
+    <string name="sync_add">Een paar toevoegen</string>
+    <string name="sync_edit">Het paar wijzigen</string>
+    <string name="sync_remove">Synchronisatie stoppen</string>
+    <string name="sync_remove_text">Het paar wordt vergeten. De bestanden blijven op de telefoon en op de NAS staan.</string>
+    <string name="sync_now">Nu synchroniseren</string>
+    <string name="sync_pause">Pauzeren</string>
+    <string name="sync_resume">Hervatten</string>
+    <string name="sync_start">Synchronisatie starten</string>
+    <string name="sync_running">%1$s synchroniseren</string>
+    <string name="sync_progress">%1$d van %2$d · %3$s</string>
+    <string name="sync_last">Laatste synchronisatie %1$s</string>
+    <string name="sync_phone_line">Telefoon: %1$s · %2$s</string>
+    <string name="sync_state_ok">Up-to-date</string>
+    <string name="sync_state_syncing">Bezig met synchroniseren</string>
+    <string name="sync_state_paused">Gepauzeerd</string>
+    <string name="sync_state_error">Fout</string>
+    <string name="sync_state_brake">Wacht op jou</string>
+    <string name="sync_state_waiting">Nog niet gesynchroniseerd</string>
+    <string name="sync_mode_both">Tweerichtings</string>
+    <string name="sync_mode_up">Telefoon → NAS</string>
+    <string name="sync_mode_down">NAS → telefoon</string>
+    <string name="sync_mode_both_help">Wijzigingen aan de ene kant gaan naar de andere.</string>
+    <string name="sync_mode_up_help">Wijzigingen op de telefoon gaan naar de NAS; de telefoon wordt nooit gewijzigd.</string>
+    <string name="sync_mode_down_help">Wijzigingen op de NAS komen naar de telefoon; de NAS wordt nooit gewijzigd.</string>
+    <string name="sync_nas_folder">NAS-map</string>
+    <string name="sync_phone_folder">Telefoonmap</string>
+    <string name="sync_direction">Richting</string>
+    <string name="sync_files">Gesynchroniseerde bestanden</string>
+    <string name="sync_choose">Niet gekozen</string>
+    <string name="sync_choose_nas">Een NAS-map kiezen</string>
+    <string name="sync_choose_phone">Een map kiezen</string>
+    <string name="sync_shares">Gedeelde mappen</string>
+    <string name="sync_share_read_only">Alleen-lezen</string>
+    <string name="sync_read_only">Je kunt deze map alleen lezen: kies NAS → telefoon of een andere map.</string>
+    <string name="sync_app_folder">Map van de app</string>
+    <string name="sync_app_folder_help">Een map in de eigen opslag van de app (Android/data), die samen met de app wordt verwijderd. Andere apps kunnen hem niet zien.</string>
+    <string name="sync_app_folder_name">Mapnaam</string>
+    <string name="sync_phone_help">Kies een willekeurige map van de telefoon of van een geheugenkaart; de app behoudt de toestemming om hem te gebruiken.</string>
+    <string name="sync_folders_fixed">Om andere mappen te gebruiken, verwijdert u dit paar en voegt u een ander toe.</string>
+    <string name="sync_folder_used">Een ander paar gebruikt deze telefoonmap al.</string>
+    <string name="sync_when">Wanneer</string>
+    <string name="sync_when_help">Hooguit elke 15 minuten, en binnen enkele seconden na een wijziging op de NAS zolang de app open is. Niet wanneer de batterijbesparing aan staat. Nu synchroniseren negeert deze voorwaarden.</string>
+    <string name="sync_excluded">Uitgesloten submappen</string>
+    <string name="sync_excluded_field">Submappen</string>
+    <string name="sync_excluded_help">Eén per regel, bijv. Videos/Raw</string>
+    <string name="sync_conflicts">Conflicten</string>
+    <string name="sync_no_conflicts">Geen conflict.</string>
+    <string name="sync_conflicts_help">Aan beide kanten gewijzigd: beide versies zijn bewaard, die van de telefoon onder de getoonde naam.</string>
+    <string name="sync_conflicts_clear">Lijst wissen</string>
+    <string name="sync_conflicts_title">Synchronisatieconflicten</string>
+    <string name="sync_skipped">Niet gesynchroniseerd</string>
+    <string name="sync_trash_help">Door de synchronisatie van de telefoon verwijderde bestanden worden 30 dagen bewaard in de map .trash van de telefoonmap.</string>
+    <string name="sync_brake_title">Er zouden veel bestanden worden verwijderd</string>
+    <string name="sync_brake_text">%1$s: er zouden %2$d bestanden op de telefoon en %3$d op de NAS worden verwijderd. Verwijderen of herstellen?</string>
+    <string name="sync_brake_apply">Verwijderen</string>
+    <string name="sync_brake_restore">Herstellen</string>
+    <string name="sync_folder_missing">De telefoonmap ontbreekt of is niet langer toegestaan: verwijder het paar en kies de map opnieuw.</string>
+    <string name="sync_remote_missing">De NAS-map bestaat niet meer (er is niets van de telefoon verwijderd).</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">%d bestand wordt gesynchroniseerd</item>
+        <item quantity="other">%d bestanden worden gesynchroniseerd</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d bestand is aan beide kanten gewijzigd, beide versies zijn bewaard.</item>
+        <item quantity="other">%1$s: %2$d bestanden zijn aan beide kanten gewijzigd, beide versies zijn bewaard.</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="one">%d symbolische koppeling overgeslagen</item>
+        <item quantity="other">%d symbolische koppelingen overgeslagen</item>
+    </plurals>
+</resources>

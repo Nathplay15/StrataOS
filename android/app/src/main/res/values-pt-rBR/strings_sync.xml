@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Sincronização de pastas</string>
+    <string name="sync_intro">Cada par mantém uma pasta do NAS e uma pasta do celular iguais. Os arquivos excluídos do celular ficam 30 dias na pasta .trash do par; os arquivos excluídos do NAS vão para a lixeira da pasta compartilhada.</string>
+    <string name="sync_none">Nenhuma pasta sincronizada ainda. Adicione um par: uma pasta do NAS e uma pasta do celular.</string>
+    <string name="sync_add">Adicionar um par</string>
+    <string name="sync_edit">Alterar o par</string>
+    <string name="sync_remove">Parar de sincronizar</string>
+    <string name="sync_remove_text">O par é esquecido. Seus arquivos permanecem no celular e no NAS.</string>
+    <string name="sync_now">Sincronizar agora</string>
+    <string name="sync_pause">Pausar</string>
+    <string name="sync_resume">Retomar</string>
+    <string name="sync_start">Iniciar sincronização</string>
+    <string name="sync_running">Sincronizando %1$s</string>
+    <string name="sync_progress">%1$d de %2$d · %3$s</string>
+    <string name="sync_last">Última sincronização %1$s</string>
+    <string name="sync_phone_line">Celular: %1$s · %2$s</string>
+    <string name="sync_state_ok">Atualizado</string>
+    <string name="sync_state_syncing">Sincronizando</string>
+    <string name="sync_state_paused">Pausado</string>
+    <string name="sync_state_error">Erro</string>
+    <string name="sync_state_brake">Aguardando você</string>
+    <string name="sync_state_waiting">Ainda não sincronizado</string>
+    <string name="sync_mode_both">Bidirecional</string>
+    <string name="sync_mode_up">Celular → NAS</string>
+    <string name="sync_mode_down">NAS → celular</string>
+    <string name="sync_mode_both_help">As alterações de um lado vão para o outro.</string>
+    <string name="sync_mode_up_help">As alterações do celular vão para o NAS; o celular nunca é alterado.</string>
+    <string name="sync_mode_down_help">As alterações do NAS vêm para o celular; o NAS nunca é alterado.</string>
+    <string name="sync_nas_folder">Pasta do NAS</string>
+    <string name="sync_phone_folder">Pasta do celular</string>
+    <string name="sync_direction">Direção</string>
+    <string name="sync_files">Arquivos sincronizados</string>
+    <string name="sync_choose">Não escolhida</string>
+    <string name="sync_choose_nas">Escolher uma pasta do NAS</string>
+    <string name="sync_choose_phone">Escolher uma pasta</string>
+    <string name="sync_shares">Pastas compartilhadas</string>
+    <string name="sync_share_read_only">Somente leitura</string>
+    <string name="sync_read_only">Esta pasta é somente leitura: escolha NAS → celular ou outra pasta.</string>
+    <string name="sync_app_folder">Pasta do app</string>
+    <string name="sync_app_folder_help">Uma pasta no armazenamento próprio do app (Android/data), removida junto com o app. Os outros apps não podem vê-la.</string>
+    <string name="sync_app_folder_name">Nome da pasta</string>
+    <string name="sync_phone_help">Escolha qualquer pasta do celular ou de um cartão de memória; o app mantém a permissão para usá-la.</string>
+    <string name="sync_folders_fixed">Para usar outras pastas, remova este par e adicione outro.</string>
+    <string name="sync_folder_used">Outro par já usa esta pasta do celular.</string>
+    <string name="sync_when">Quando</string>
+    <string name="sync_when_help">No máximo a cada 15 minutos, e em poucos segundos após uma alteração no NAS enquanto o app está aberto. Não com a economia de bateria ativada. Sincronizar agora ignora essas condições.</string>
+    <string name="sync_excluded">Subpastas excluídas</string>
+    <string name="sync_excluded_field">Subpastas</string>
+    <string name="sync_excluded_help">Uma por linha, p. ex., Videos/Raw</string>
+    <string name="sync_conflicts">Conflitos</string>
+    <string name="sync_no_conflicts">Nenhum conflito.</string>
+    <string name="sync_conflicts_help">Alterado nos dois lados: as duas versões foram mantidas, a do celular com o nome mostrado.</string>
+    <string name="sync_conflicts_clear">Limpar a lista</string>
+    <string name="sync_conflicts_title">Conflitos de sincronização</string>
+    <string name="sync_skipped">Não sincronizados</string>
+    <string name="sync_trash_help">Os arquivos do celular excluídos pela sincronização ficam 30 dias na pasta .trash da pasta do celular.</string>
+    <string name="sync_brake_title">Muitos arquivos seriam excluídos</string>
+    <string name="sync_brake_text">%1$s: %2$d arquivos seriam excluídos no celular e %3$d no NAS. Excluí-los ou restaurá-los?</string>
+    <string name="sync_brake_apply">Excluí-los</string>
+    <string name="sync_brake_restore">Restaurá-los</string>
+    <string name="sync_folder_missing">A pasta do celular não existe ou não é mais permitida: remova o par e escolha-a novamente.</string>
+    <string name="sync_remote_missing">A pasta do NAS não existe mais (nada foi excluído no celular).</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">Sincronizando %d arquivo</item>
+        <item quantity="other">Sincronizando %d arquivos</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d arquivo foi alterado nos dois lados; as duas versões foram mantidas.</item>
+        <item quantity="other">%1$s: %2$d arquivos foram alterados nos dois lados; as duas versões foram mantidas.</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="one">%d link simbólico ignorado</item>
+        <item quantity="other">%d links simbólicos ignorados</item>
+    </plurals>
+</resources>

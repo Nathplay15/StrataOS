@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Sincronización de carpetas</string>
+    <string name="sync_intro">Cada par mantiene igual una carpeta del NAS y una del teléfono. Los archivos borrados del teléfono esperan 30 días en la carpeta .trash del par; los archivos borrados del NAS van a la papelera de la carpeta compartida.</string>
+    <string name="sync_none">Ninguna carpeta sincronizada todavía. Añada un par: una carpeta del NAS y una del teléfono.</string>
+    <string name="sync_add">Añadir un par</string>
+    <string name="sync_edit">Modificar el par</string>
+    <string name="sync_remove">Dejar de sincronizar</string>
+    <string name="sync_remove_text">Se olvida el par. Sus archivos permanecen en el teléfono y en el NAS.</string>
+    <string name="sync_now">Sincronizar ahora</string>
+    <string name="sync_pause">Pausar</string>
+    <string name="sync_resume">Reanudar</string>
+    <string name="sync_start">Iniciar sincronización</string>
+    <string name="sync_running">Sincronizando %1$s</string>
+    <string name="sync_progress">%1$d de %2$d · %3$s</string>
+    <string name="sync_last">Última sincronización %1$s</string>
+    <string name="sync_phone_line">Teléfono: %1$s · %2$s</string>
+    <string name="sync_state_ok">Actualizado</string>
+    <string name="sync_state_syncing">Sincronizando</string>
+    <string name="sync_state_paused">En pausa</string>
+    <string name="sync_state_error">Error</string>
+    <string name="sync_state_brake">Esperando su respuesta</string>
+    <string name="sync_state_waiting">Aún sin sincronizar</string>
+    <string name="sync_mode_both">Bidireccional</string>
+    <string name="sync_mode_up">Teléfono → NAS</string>
+    <string name="sync_mode_down">NAS → teléfono</string>
+    <string name="sync_mode_both_help">Los cambios en cualquiera de los lados pasan al otro.</string>
+    <string name="sync_mode_up_help">Los cambios del teléfono pasan al NAS; el teléfono nunca se modifica.</string>
+    <string name="sync_mode_down_help">Los cambios del NAS llegan al teléfono; el NAS nunca se modifica.</string>
+    <string name="sync_nas_folder">Carpeta del NAS</string>
+    <string name="sync_phone_folder">Carpeta del teléfono</string>
+    <string name="sync_direction">Dirección</string>
+    <string name="sync_files">Archivos sincronizados</string>
+    <string name="sync_choose">Sin elegir</string>
+    <string name="sync_choose_nas">Elegir una carpeta del NAS</string>
+    <string name="sync_choose_phone">Elegir una carpeta</string>
+    <string name="sync_shares">Carpetas compartidas</string>
+    <string name="sync_share_read_only">Solo lectura</string>
+    <string name="sync_read_only">Esta carpeta es de solo lectura: elija NAS → teléfono u otra carpeta.</string>
+    <string name="sync_app_folder">Carpeta de la aplicación</string>
+    <string name="sync_app_folder_help">Una carpeta en el almacenamiento propio de la aplicación (Android/data), que se elimina con ella. Las demás aplicaciones no pueden verla.</string>
+    <string name="sync_app_folder_name">Nombre de la carpeta</string>
+    <string name="sync_phone_help">Elija cualquier carpeta del teléfono o de una tarjeta de memoria; la aplicación conserva el permiso para usarla.</string>
+    <string name="sync_folders_fixed">Para usar otras carpetas, elimine este par y añada otro.</string>
+    <string name="sync_folder_used">Otro par ya usa esta carpeta del teléfono.</string>
+    <string name="sync_when">Cuándo</string>
+    <string name="sync_when_help">Cada 15 minutos como mucho, y a los pocos segundos de un cambio en el NAS mientras la aplicación está abierta. No con el ahorro de batería activado. Sincronizar ahora ignora estas condiciones.</string>
+    <string name="sync_excluded">Subcarpetas excluidas</string>
+    <string name="sync_excluded_field">Subcarpetas</string>
+    <string name="sync_excluded_help">Una por línea, p. ej., Videos/Raw</string>
+    <string name="sync_conflicts">Conflictos</string>
+    <string name="sync_no_conflicts">Ningún conflicto.</string>
+    <string name="sync_conflicts_help">Modificado en ambos lados: se conservaron las dos versiones, la del teléfono con el nombre indicado.</string>
+    <string name="sync_conflicts_clear">Vaciar la lista</string>
+    <string name="sync_conflicts_title">Conflictos de sincronización</string>
+    <string name="sync_skipped">Sin sincronizar</string>
+    <string name="sync_trash_help">Los archivos del teléfono borrados por la sincronización se conservan 30 días en la carpeta .trash de la carpeta del teléfono.</string>
+    <string name="sync_brake_title">Se borrarían muchos archivos</string>
+    <string name="sync_brake_text">%1$s: se borrarían %2$d archivos en el teléfono y %3$d en el NAS. ¿Borrarlos o restaurarlos?</string>
+    <string name="sync_brake_apply">Borrarlos</string>
+    <string name="sync_brake_restore">Restaurarlos</string>
+    <string name="sync_folder_missing">La carpeta del teléfono no existe o ya no está permitida: elimine el par y vuelva a elegirla.</string>
+    <string name="sync_remote_missing">La carpeta del NAS ya no existe (no se borró nada en el teléfono).</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">Sincronizando %d archivo</item>
+        <item quantity="other">Sincronizando %d archivos</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d archivo cambió en ambos lados; se conservaron las dos versiones.</item>
+        <item quantity="other">%1$s: %2$d archivos cambiaron en ambos lados; se conservaron las dos versiones.</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="one">%d enlace simbólico omitido</item>
+        <item quantity="other">%d enlaces simbólicos omitidos</item>
+    </plurals>
+</resources>

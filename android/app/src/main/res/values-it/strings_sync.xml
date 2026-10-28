@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Sincronizzazione cartelle</string>
+    <string name="sync_intro">Ogni coppia mantiene allineate una cartella del NAS e una del telefono. I file eliminati dal telefono restano 30 giorni nella cartella .trash della coppia; i file eliminati dal NAS vanno nel cestino della cartella condivisa.</string>
+    <string name="sync_none">Nessuna cartella ancora sincronizzata. Aggiungi una coppia: una cartella del NAS e una del telefono.</string>
+    <string name="sync_add">Aggiungi una coppia</string>
+    <string name="sync_edit">Modifica la coppia</string>
+    <string name="sync_remove">Interrompi la sincronizzazione</string>
+    <string name="sync_remove_text">La coppia viene dimenticata. I suoi file restano sul telefono e sul NAS.</string>
+    <string name="sync_now">Sincronizza ora</string>
+    <string name="sync_pause">Metti in pausa</string>
+    <string name="sync_resume">Riprendi</string>
+    <string name="sync_start">Avvia la sincronizzazione</string>
+    <string name="sync_running">Sincronizzazione di %1$s</string>
+    <string name="sync_progress">%1$d di %2$d · %3$s</string>
+    <string name="sync_last">Ultima sincronizzazione %1$s</string>
+    <string name="sync_phone_line">Telefono: %1$s · %2$s</string>
+    <string name="sync_state_ok">Aggiornato</string>
+    <string name="sync_state_syncing">Sincronizzazione in corso</string>
+    <string name="sync_state_paused">In pausa</string>
+    <string name="sync_state_error">Errore</string>
+    <string name="sync_state_brake">In attesa di te</string>
+    <string name="sync_state_waiting">Non ancora sincronizzato</string>
+    <string name="sync_mode_both">Bidirezionale</string>
+    <string name="sync_mode_up">Telefono → NAS</string>
+    <string name="sync_mode_down">NAS → telefono</string>
+    <string name="sync_mode_both_help">Le modifiche su un lato passano all\'altro.</string>
+    <string name="sync_mode_up_help">Le modifiche del telefono vanno al NAS; il telefono non viene mai modificato.</string>
+    <string name="sync_mode_down_help">Le modifiche del NAS arrivano al telefono; il NAS non viene mai modificato.</string>
+    <string name="sync_nas_folder">Cartella del NAS</string>
+    <string name="sync_phone_folder">Cartella del telefono</string>
+    <string name="sync_direction">Direzione</string>
+    <string name="sync_files">File sincronizzati</string>
+    <string name="sync_choose">Non scelta</string>
+    <string name="sync_choose_nas">Scegli una cartella del NAS</string>
+    <string name="sync_choose_phone">Scegli una cartella</string>
+    <string name="sync_shares">Cartelle condivise</string>
+    <string name="sync_share_read_only">Sola lettura</string>
+    <string name="sync_read_only">Questa cartella è di sola lettura: scegli NAS → telefono oppure un\'altra cartella.</string>
+    <string name="sync_app_folder">Cartella dell\'app</string>
+    <string name="sync_app_folder_help">Una cartella nell\'archiviazione propria dell\'app (Android/data), rimossa insieme all\'app. Le altre app non possono vederla.</string>
+    <string name="sync_app_folder_name">Nome della cartella</string>
+    <string name="sync_phone_help">Scegli una qualsiasi cartella del telefono o di una scheda di memoria; l\'app conserva il permesso di usarla.</string>
+    <string name="sync_folders_fixed">Per usare altre cartelle, rimuovi questa coppia e aggiungine un\'altra.</string>
+    <string name="sync_folder_used">Un\'altra coppia usa già questa cartella del telefono.</string>
+    <string name="sync_when">Quando</string>
+    <string name="sync_when_help">Al massimo ogni 15 minuti, ed entro pochi secondi da una modifica sul NAS mentre l\'app è aperta. Non con il risparmio energetico attivo. Sincronizza ora ignora queste condizioni.</string>
+    <string name="sync_excluded">Sottocartelle escluse</string>
+    <string name="sync_excluded_field">Sottocartelle</string>
+    <string name="sync_excluded_help">Una per riga, ad es. Videos/Raw</string>
+    <string name="sync_conflicts">Conflitti</string>
+    <string name="sync_no_conflicts">Nessun conflitto.</string>
+    <string name="sync_conflicts_help">Modificato su entrambi i lati: entrambe le versioni sono state conservate, quella del telefono con il nome indicato.</string>
+    <string name="sync_conflicts_clear">Svuota l\'elenco</string>
+    <string name="sync_conflicts_title">Conflitti di sincronizzazione</string>
+    <string name="sync_skipped">Non sincronizzati</string>
+    <string name="sync_trash_help">I file del telefono eliminati dalla sincronizzazione vengono conservati 30 giorni nella cartella .trash della cartella del telefono.</string>
+    <string name="sync_brake_title">Molti file verrebbero eliminati</string>
+    <string name="sync_brake_text">%1$s: verrebbero eliminati %2$d file sul telefono e %3$d sul NAS. Eliminarli o ripristinarli?</string>
+    <string name="sync_brake_apply">Elimina</string>
+    <string name="sync_brake_restore">Ripristina</string>
+    <string name="sync_folder_missing">La cartella del telefono manca o non è più consentita: rimuovi la coppia e scegline di nuovo la cartella.</string>
+    <string name="sync_remote_missing">La cartella del NAS non esiste più (sul telefono non è stato eliminato nulla).</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">Sincronizzazione di %d file</item>
+        <item quantity="other">Sincronizzazione di %d file</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d file modificato su entrambi i lati, entrambe le versioni sono state conservate.</item>
+        <item quantity="other">%1$s: %2$d file modificati su entrambi i lati, entrambe le versioni sono state conservate.</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="one">%d collegamento simbolico ignorato</item>
+        <item quantity="other">%d collegamenti simbolici ignorati</item>
+    </plurals>
+</resources>

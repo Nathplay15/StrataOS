@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Ordnersynchronisierung</string>
+    <string name="sync_intro">Jedes Paar hält einen NAS-Ordner und einen Handy-Ordner auf demselben Stand. Gelöschte Handy-Dateien liegen 30 Tage im Ordner .trash des Paars; gelöschte NAS-Dateien landen im Papierkorb des freigegebenen Ordners.</string>
+    <string name="sync_none">Noch kein Ordner synchronisiert. Fügen Sie ein Paar hinzu: einen NAS-Ordner und einen Handy-Ordner.</string>
+    <string name="sync_add">Paar hinzufügen</string>
+    <string name="sync_edit">Paar ändern</string>
+    <string name="sync_remove">Synchronisierung beenden</string>
+    <string name="sync_remove_text">Das Paar wird vergessen. Seine Dateien bleiben auf dem Handy und auf dem NAS.</string>
+    <string name="sync_now">Jetzt synchronisieren</string>
+    <string name="sync_pause">Pausieren</string>
+    <string name="sync_resume">Fortsetzen</string>
+    <string name="sync_start">Synchronisierung starten</string>
+    <string name="sync_running">%1$s wird synchronisiert</string>
+    <string name="sync_progress">%1$d von %2$d · %3$s</string>
+    <string name="sync_last">Letzte Synchronisierung: %1$s</string>
+    <string name="sync_phone_line">Handy: %1$s · %2$s</string>
+    <string name="sync_state_ok">Aktuell</string>
+    <string name="sync_state_syncing">Synchronisierung läuft</string>
+    <string name="sync_state_paused">Pausiert</string>
+    <string name="sync_state_error">Fehler</string>
+    <string name="sync_state_brake">Wartet auf Sie</string>
+    <string name="sync_state_waiting">Noch nicht synchronisiert</string>
+    <string name="sync_mode_both">Beidseitig</string>
+    <string name="sync_mode_up">Handy → NAS</string>
+    <string name="sync_mode_down">NAS → Handy</string>
+    <string name="sync_mode_both_help">Änderungen auf einer Seite werden auf die andere übertragen.</string>
+    <string name="sync_mode_up_help">Änderungen vom Handy gehen zum NAS; das Handy wird nie verändert.</string>
+    <string name="sync_mode_down_help">Änderungen vom NAS kommen aufs Handy; das NAS wird nie verändert.</string>
+    <string name="sync_nas_folder">NAS-Ordner</string>
+    <string name="sync_phone_folder">Handy-Ordner</string>
+    <string name="sync_direction">Richtung</string>
+    <string name="sync_files">Synchronisierte Dateien</string>
+    <string name="sync_choose">Nicht ausgewählt</string>
+    <string name="sync_choose_nas">NAS-Ordner auswählen</string>
+    <string name="sync_choose_phone">Ordner auswählen</string>
+    <string name="sync_shares">Freigegebene Ordner</string>
+    <string name="sync_share_read_only">Nur Lesen</string>
+    <string name="sync_read_only">Dieser Ordner ist nur lesbar: Wählen Sie NAS → Handy oder einen anderen Ordner.</string>
+    <string name="sync_app_folder">Ordner der App</string>
+    <string name="sync_app_folder_help">Ein Ordner im eigenen Speicher der App (Android/data), der mit der App entfernt wird. Andere Apps können ihn nicht sehen.</string>
+    <string name="sync_app_folder_name">Ordnername</string>
+    <string name="sync_phone_help">Wählen Sie einen beliebigen Ordner des Handys oder einer Speicherkarte; die App behält die Berechtigung zur Nutzung.</string>
+    <string name="sync_folders_fixed">Um andere Ordner zu verwenden, entfernen Sie dieses Paar und fügen ein neues hinzu.</string>
+    <string name="sync_folder_used">Dieser Handy-Ordner wird bereits von einem anderen Paar verwendet.</string>
+    <string name="sync_when">Wann</string>
+    <string name="sync_when_help">Höchstens alle 15 Minuten und innerhalb von Sekunden nach einer Änderung auf dem NAS, solange die App geöffnet ist. Nicht bei aktiviertem Energiesparmodus. „Jetzt synchronisieren“ ignoriert diese Bedingungen.</string>
+    <string name="sync_excluded">Ausgeschlossene Unterordner</string>
+    <string name="sync_excluded_field">Unterordner</string>
+    <string name="sync_excluded_help">Einer pro Zeile, z. B. Videos/Raw</string>
+    <string name="sync_conflicts">Konflikte</string>
+    <string name="sync_no_conflicts">Kein Konflikt.</string>
+    <string name="sync_conflicts_help">Auf beiden Seiten geändert: Beide Versionen wurden behalten, die vom Handy unter dem angezeigten Namen.</string>
+    <string name="sync_conflicts_clear">Liste leeren</string>
+    <string name="sync_conflicts_title">Synchronisierungskonflikte</string>
+    <string name="sync_skipped">Nicht synchronisiert</string>
+    <string name="sync_trash_help">Von der Synchronisierung gelöschte Handy-Dateien werden 30 Tage im Ordner .trash des Handy-Ordners aufbewahrt.</string>
+    <string name="sync_brake_title">Viele Dateien würden gelöscht</string>
+    <string name="sync_brake_text">%1$s: %2$d Dateien würden auf dem Handy und %3$d auf dem NAS gelöscht. Löschen oder wiederherstellen?</string>
+    <string name="sync_brake_apply">Löschen</string>
+    <string name="sync_brake_restore">Wiederherstellen</string>
+    <string name="sync_folder_missing">Der Handy-Ordner fehlt oder ist nicht mehr erlaubt: Entfernen Sie das Paar und wählen Sie ihn erneut aus.</string>
+    <string name="sync_remote_missing">Der NAS-Ordner existiert nicht mehr (auf dem Handy wurde nichts gelöscht).</string>
+    <plurals name="sync_state_syncing_n">
+        <item quantity="one">%d Datei wird synchronisiert</item>
+        <item quantity="other">%d Dateien werden synchronisiert</item>
+    </plurals>
+    <plurals name="sync_conflicts_text">
+        <item quantity="one">%1$s: %2$d Datei wurde auf beiden Seiten geändert, beide Versionen wurden behalten.</item>
+        <item quantity="other">%1$s: %2$d Dateien wurden auf beiden Seiten geändert, beide Versionen wurden behalten.</item>
+    </plurals>
+    <plurals name="sync_links">
+        <item quantity="one">%d symbolischer Link übersprungen</item>
+        <item quantity="other">%d symbolische Links übersprungen</item>
+    </plurals>
+</resources>
