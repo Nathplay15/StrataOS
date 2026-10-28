@@ -1616,6 +1616,7 @@
  "les moniteurs Ceph ne répondent pas (pas de quorum, ou réseau du cluster coupé)": "los monitores Ceph no responden (sin quórum, o la red del clúster está caída)",
  "les moniteurs n'ont pas formé de quorum : vérifiez que les NAS se joignent sur {0} (ports 3300 et 6789)": "los monitores no formaron quórum: compruebe que los NAS se alcanzan en {0} (puertos 3300 y 6789)",
  "les noyaux Raspberry Pi ne sont pas disponibles dans le dépôt Raspberry Pi": "los kernels de Raspberry Pi no están disponibles en el repositorio de Raspberry Pi",
+ "les outils Ceph ne sont pas installés : installez d'abord le composant Ceph (Paramètres → Composants)": "las herramientas de Ceph no están instaladas: instale primero el componente Ceph (Configuración → Componentes)",
  "les paquets Raspberry Pi ne peuvent pas être installés : {0}": "no se pueden instalar los paquetes de Raspberry Pi: {0}",
  "les réseaux {0} et {1} se chevauchent": "las redes {0} y {1} se solapan",
  "les températures de la courbe doivent croître": "las temperaturas de la curva deben aumentar",

@@ -1616,6 +1616,7 @@
  "les moniteurs Ceph ne répondent pas (pas de quorum, ou réseau du cluster coupé)": "Ceph 监视器无响应（没有仲裁，或集群网络已中断）",
  "les moniteurs n'ont pas formé de quorum : vérifiez que les NAS se joignent sur {0} (ports 3300 et 6789)": "监视器未能形成仲裁：请检查各 NAS 能否通过 {0} 互相连接（端口 3300 和 6789）",
  "les noyaux Raspberry Pi ne sont pas disponibles dans le dépôt Raspberry Pi": "Raspberry Pi 软件源中没有可用的 Raspberry Pi 内核",
+ "les outils Ceph ne sont pas installés : installez d'abord le composant Ceph (Paramètres → Composants)": "未安装 Ceph 工具：请先安装 Ceph 组件（设置 → 组件）",
  "les paquets Raspberry Pi ne peuvent pas être installés : {0}": "无法安装 Raspberry Pi 软件包：{0}",
  "les réseaux {0} et {1} se chevauchent": "网络 {0} 与 {1} 重叠",
  "les températures de la courbe doivent croître": "曲线温度必须递增",

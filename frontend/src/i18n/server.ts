@@ -2031,4 +2031,5 @@ export const serverTexts: [string, string][] = [
   ["les conteneurs (LXC) ne sont pas installés sur {0}", "containers (LXC) are not installed on {0}"],
   ["les VM de ce NAS sont en haute disponibilité : désactivez-la ou déplacez-les d'abord", "VMs of this NAS are under high availability: turn it off or move them first"],
   ["son disque {0} est encore utilisé par un autre NAS (en attente de l'isolement)", "its disk {0} is still used by another NAS (waiting for the fencing)"],
+  ["les outils Ceph ne sont pas installés : installez d'abord le composant Ceph (Paramètres → Composants)", "the Ceph tools are not installed: install the Ceph component first (Settings → Components)"],
 ];
