@@ -111,6 +111,14 @@ func friendly(err error) error {
 	case strings.Contains(msg, "Permission denied") || strings.Contains(msg, "EACCES"), strings.Contains(msg, "handle_auth_bad_method"):
 		return fmt.Errorf("the Ceph cluster refused the user or key (check them and their rights)")
 	}
+	var ce *sys.CmdError
+	if errors.As(err, &ce) && ce.Code == -1 && strings.TrimSpace(ce.Stderr) == "" {
+		// Killed or not started at all: the tools are missing, or it hung.
+		if !sys.Has(ce.Cmd) {
+			return fmt.Errorf("the Ceph tools are not installed: install the Ceph component first (Settings → Components)")
+		}
+		return ErrUnreachable
+	}
 	return redactErr(err)
 }
 
