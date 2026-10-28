@@ -109,7 +109,7 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
 }
 
 // Components whose key is not self-explanatory.
-const componentLabel: Record<string, string> = { docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)") };
+const componentLabel: Record<string, string> = { lxc: tr("Containers (LXC)"), docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)") };
 
 export default function SettingsPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/api/settings") });

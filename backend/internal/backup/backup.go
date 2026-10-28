@@ -71,10 +71,13 @@ func Validate(t *store.BackupTask) error {
 	if strings.TrimSpace(t.Name) == "" {
 		return fmt.Errorf("name is required")
 	}
-	if len(t.Sources) == 0 && len(t.VMs) == 0 {
+	if len(t.Sources) == 0 && len(t.VMs) == 0 && len(t.Containers) == 0 {
 		return fmt.Errorf("choose at least one source")
 	}
 	if err := validateVMs(t); err != nil {
+		return err
+	}
+	if err := validateContainers(t); err != nil {
 		return err
 	}
 	if t.Kind == "sync" {
@@ -223,7 +226,7 @@ type Progress struct {
 
 // Run executes one backup and returns a summary.
 func Run(ctx context.Context, t store.BackupTask, p Progress) (string, error) {
-	if len(t.VMs) > 0 {
+	if len(t.VMs) > 0 || len(t.Containers) > 0 {
 		return runWithVMs(ctx, &t, p)
 	}
 	switch t.Kind {

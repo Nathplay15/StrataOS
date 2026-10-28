@@ -228,6 +228,9 @@ type BackupTask struct {
 	// see backup/vm.go); VMMode keeps running ones consistent: snapshot | suspend | shutdown.
 	VMs    []string `json:"vms,omitempty"`
 	VMMode string   `json:"vmMode,omitempty"`
+	// Containers: LXC containers backed up with the folders (tar.zst archives
+	// in a "lxc" folder at the destination, see backup/lxc.go).
+	Containers []string `json:"containers,omitempty"`
 }
 
 // Directory is the domain the NAS belongs to: Active Directory (Samba/winbind

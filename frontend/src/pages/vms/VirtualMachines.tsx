@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
+import { Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import type { CloudImage, ImportInfo, VM, VMData } from "./types";
+import type { LXCData } from "./containers/types";
+import { ContainerCard } from "./containers/ContainerCard";
+import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
+import { ContainerDetail, type DetailTab } from "./containers/ContainerDetail";
 import { AutostartPanel, BackupsPanel, CloneVM, ConsoleLog, PCIPanel, Snapshots, StorageSelect, USBPanel } from "./panels";
 
 type Tab = "vms" | "templates" | "usb" | "autostart" | "backups" | "pci";
@@ -26,53 +30,112 @@ const stateLabel: Record<string, [string, "ok" | "warn" | "neutral" | "danger"]>
   "in shutdown": [tr("Shutting down"), "warn"],
 };
 
+type Kind = "all" | "vm" | "lxc";
+
 export default function VirtualMachines() {
-  const { data, isLoading, error } = useQuery({ queryKey: ["vms"], queryFn: () => api.get<VMData>("/api/vms"), refetchInterval: 4000 });
+  const vmq = useQuery({ queryKey: ["vms"], queryFn: () => api.get<VMData>("/api/vms"), refetchInterval: 4000 });
+  const lxq = useQuery({ queryKey: ["lxc-list"], queryFn: () => api.get<LXCData>("/api/lxc"), refetchInterval: 4000 });
+  const data = vmq.data;
+  const lx = lxq.data;
+  const error = vmq.error || lxq.error;
   const install = useAction(() => api.post("/api/system/components/vms/install"));
+  const installLXC = useAction(() => api.post("/api/system/components/lxc/install"));
   const [creating, setCreating] = useState(false);
+  const [creatingCT, setCreatingCT] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [console, setConsole] = useState<string | null>(null);
   const [editing, setEditing] = useState<VM | null>(null);
   const [snaps, setSnaps] = useState<VM | null>(null);
   const [cloning, setCloning] = useState<VM | null>(null);
   const [log, setLog] = useState<VM | null>(null);
   const [tab, setTab] = useState<Tab>("vms");
+  const [kind, setKind] = useState<Kind>("all");
+  const [detail, setDetail] = useState<{ name: string; tab: DetailTab } | null>(null);
   const [advanced, setAdvanced] = useAdvanced();
 
-  const header = (actions?: React.ReactNode) => <PageHeader title={tr("Virtual machines")} subtitle={tr("KVM machines with in-browser console")} icon={<Monitor size={20} />} actions={actions} />;
-  if (isLoading || !data) return <div>{header()}<ErrorBox error={error} /><Spinner /></div>;
-  if (!data.installed) {
+  const header = (actions?: React.ReactNode) => <PageHeader title={tr("Virtual machines")} subtitle={tr("KVM machines and LXC containers, with in-browser console")} icon={<Monitor size={20} />} actions={actions} />;
+  if ((vmq.isLoading && !data) || (lxq.isLoading && !lx)) return <div>{header()}<ErrorBox error={error} /><Spinner /></div>;
+  const vmOK = !!data?.installed;
+  const lxcOK = !!lx?.installed;
+  if (!vmOK && !lxcOK) {
     return (
       <div>
         {header()}
-        <Card><Empty icon={<Plug />} title={tr("Virtualization is not installed")} text={tr("Installs QEMU/KVM, libvirt and the UEFI firmware (OVMF).")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button>} /></Card>
+        <ErrorBox error={error} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card><Empty icon={<Plug />} title={tr("Virtualization is not installed")} text={tr("Installs QEMU/KVM, libvirt and the UEFI firmware (OVMF).")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button>} /></Card>
+          <Card><Empty icon={<Box />} title={tr("Containers (LXC) are not installed")} text={tr("Installs LXC: light Linux systems sharing the NAS's kernel, ready in seconds.")} action={<Button variant="primary" loading={installLXC.isPending} onClick={() => installLXC.mutate()}>{tr("Install")}</Button>} /></Card>
+        </div>
       </div>
     );
   }
-  const machines = data.vms.filter((v) => !v.template);
-  const templates = data.vms.filter((v) => v.template);
+  const bridges = data?.bridges ?? lx?.bridges ?? [];
+  if (detail && lxcOK) {
+    return <div><ContainerDetail name={detail.name} bridges={lx?.bridges ?? bridges} tab={detail.tab} setTab={(t) => setDetail({ ...detail, tab: t })} onBack={() => setDetail(null)} /></div>;
+  }
+  const allVMs = data?.vms ?? [];
+  const machines = allVMs.filter((v) => !v.template);
+  const templates = allVMs.filter((v) => v.template);
+  const containers = lx?.containers ?? [];
   const tabs: { id: Tab; label: React.ReactNode }[] = [
-    { id: "vms", label: tr("Machines ({0})", machines.length) },
-    { id: "templates", label: tr("Templates ({0})", templates.length) },
-    { id: "usb", label: tr("USB devices") },
-    { id: "autostart", label: tr("Start order") },
-    { id: "backups", label: tr("Backups") },
-    ...(advanced ? [{ id: "pci" as Tab, label: tr("PCI passthrough") }] : []),
+    { id: "vms", label: tr("Machines ({0})", machines.length + containers.length) },
+    ...(vmOK ? [
+      { id: "templates" as Tab, label: tr("Templates ({0})", templates.length) },
+      { id: "usb" as Tab, label: tr("USB devices") },
+      { id: "autostart" as Tab, label: tr("Start order") },
+      { id: "backups" as Tab, label: tr("Backups") },
+    ] : []),
+    ...(advanced && vmOK ? [{ id: "pci" as Tab, label: tr("PCI passthrough") }] : []),
   ];
-  const cardProps = (vm: VM) => ({ vm, mem: data.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm) });
+  const cardProps = (vm: VM) => ({ vm, mem: data?.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm) });
+  const shownVMs = kind === "lxc" ? [] : machines;
+  const shownCTs = kind === "vm" ? [] : containers;
+  const createMenu = (
+    <div className="relative">
+      <Button variant="primary" icon={<Plus size={15} />} onClick={() => setMenu(!menu)}>{tr("Create")}<ChevronDown size={14} className="ml-1" /></Button>
+      {menu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
+          <div className="card absolute right-0 z-50 mt-1 w-64 overflow-hidden p-1">
+            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(false); if (vmOK) setCreating(true); else install.mutate(); }}>
+              <Monitor size={17} className="mt-0.5 text-accent" /><span><span className="block text-[13px] font-medium">{tr("Virtual machine")}</span><span className="text-muted block text-[11.5px]">{vmOK ? tr("Any operating system, its own kernel") : tr("Install virtualization first")}</span></span>
+            </button>
+            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(false); if (lxcOK) setCreatingCT(true); else installLXC.mutate(); }}>
+              <Box size={17} className="mt-0.5 text-ok" /><span><span className="block text-[13px] font-medium">{tr("Container (LXC)")}</span><span className="text-muted block text-[11.5px]">{lxcOK ? tr("A light Linux system, ready in seconds") : tr("Install LXC first")}</span></span>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div>
-      {header(<div className="flex items-center gap-4"><Switch checked={advanced} onChange={(v) => { setAdvanced(v); if (!v && tab === "pci") setTab("vms"); }} label={tr("Advanced")} /><Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreating(true)}>{tr("Create a VM")}</Button></div>)}
+      {header(<div className="flex items-center gap-4">{vmOK && <Switch checked={advanced} onChange={(v) => { setAdvanced(v); if (!v && tab === "pci") setTab("vms"); }} label={tr("Advanced")} />}{createMenu}</div>)}
       <ErrorBox error={error} />
-      {!data.kvm && <div className="mb-4"><Notice tone="warn">{tr("Hardware acceleration (/dev/kvm) is unavailable: enable virtualization (VT-x / AMD-V) in the BIOS. VMs will run very slowly.")}</Notice></div>}
+      {vmOK && data && !data.kvm && <div className="mb-4"><Notice tone="warn">{tr("Hardware acceleration (/dev/kvm) is unavailable: enable virtualization (VT-x / AMD-V) in the BIOS. VMs will run very slowly.")}</Notice></div>}
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
-      {tab === "vms" && (machines.length === 0 ? (
-        <Card><Empty icon={<Monitor />} title={tr("No virtual machines")} text={tr("Start from a cloud image (ready in a minute), an ISO dropped into a shared folder, or import a disk from another hypervisor.")} action={<Button variant="primary" onClick={() => setCreating(true)}>{tr("Create a VM")}</Button>} /></Card>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {machines.map((vm) => <VMCard key={vm.name} {...cardProps(vm)} />)}
-        </div>
-      ))}
+      {tab === "vms" && (
+        <>
+          {(machines.length > 0 || containers.length > 0) && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {([["all", tr("All ({0})", machines.length + containers.length)], ["vm", tr("Virtual machines ({0})", machines.length)], ["lxc", tr("Containers ({0})", containers.length)]] as [Kind, string][]).map(([k, l]) => (
+                <button key={k} type="button" onClick={() => setKind(k)} className={cx("rounded-full border px-3 py-1 text-[12.5px]", kind === k ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:text-fg")}>{l}</button>
+              ))}
+              {!lxcOK && <Button size="sm" variant="ghost" icon={<Box size={14} />} loading={installLXC.isPending} onClick={() => installLXC.mutate()}>{tr("Install containers (LXC)")}</Button>}
+            </div>
+          )}
+          {shownVMs.length + shownCTs.length === 0 ? (
+            <Card><Empty icon={<Monitor />} title={kind === "lxc" ? tr("No containers") : tr("No virtual machines")} text={kind === "lxc" ? tr("A container is a light Linux system sharing the NAS's kernel: Debian, Ubuntu, Alpine… ready in seconds.") : tr("Start from a cloud image (ready in a minute), an ISO dropped into a shared folder, or import a disk from another hypervisor.")} action={createMenu} /></Card>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {shownVMs.map((vm) => <VMCard key={`vm-${vm.name}`} {...cardProps(vm)} />)}
+              {shownCTs.map((c) => <ContainerCard key={`ct-${c.name}`} c={c} onOpen={(t) => setDetail({ name: c.name, tab: (t as DetailTab) ?? "summary" })} onConsole={() => setDetail({ name: c.name, tab: "console" })} />)}
+            </div>
+          )}
+        </>
+      )}
       {tab === "templates" && (templates.length === 0 ? (
         <Card><Empty icon={<LayoutTemplate />} title={tr("No templates")} text={tr("Prepare a VM (updates, software), shut it down, then convert it to a template to create identical VMs from it.")} /></Card>
       ) : (
@@ -80,11 +143,13 @@ export default function VirtualMachines() {
           {templates.map((vm) => <TemplateCard key={vm.name} vm={vm} onCreate={() => setCloning(vm)} />)}
         </div>
       ))}
-      {tab === "usb" && <USBPanel vms={data.vms} />}
-      {tab === "autostart" && <AutostartPanel vms={data.vms} />}
+      {tab === "usb" && <USBPanel vms={allVMs} />}
+      {tab === "autostart" && <AutostartPanel vms={allVMs} />}
       {tab === "backups" && <BackupsPanel />}
-      {tab === "pci" && advanced && <PCIPanel vms={data.vms} />}
-      {creating && <CreateVM bridges={data.bridges ?? []} onClose={() => setCreating(false)} />}
+      {tab === "pci" && advanced && <PCIPanel vms={allVMs} />}
+      {creating && <CreateVM bridges={bridges} onClose={() => setCreating(false)} />}
+      {creatingCT && <CreateContainer bridges={lx?.bridges ?? bridges} onClose={() => setCreatingCT(false)} onImport={() => { setCreatingCT(false); setImporting(true); }} />}
+      {importing && <ImportContainer onClose={() => setImporting(false)} />}
       {console && <Console name={console} onClose={() => setConsole(null)} />}
       {editing && <EditVM vm={editing} onClose={() => setEditing(null)} />}
       {snaps && <Snapshots vm={snaps} onClose={() => setSnaps(null)} />}

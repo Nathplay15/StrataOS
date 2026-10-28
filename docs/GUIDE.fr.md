@@ -163,6 +163,23 @@ Chaque VM peut prendre des **Snapshots** (avec sa mémoire si elle tourne) et ê
 
 Le **passthrough PCI** (activez « Avancé ») donne un périphérique entier, comme une carte graphique, à une VM. C'est réservé aux utilisateurs expérimentés : un mauvais périphérique peut rendre le NAS injoignable.
 
+### Conteneurs (LXC)
+
+La même application fait tourner des **conteneurs LXC** : des systèmes Linux légers qui partagent le noyau du NAS. Installez-les depuis l'application (ou Réglages → Composants), puis **Créer → Conteneur (LXC)** : choisissez une image (Debian 12 et 13, Ubuntu LTS, Alpine, Fedora, Arch, Rocky… téléchargée depuis images.linuxcontainers.org et vérifiée avec sa signature GPG), un nom, un volume et les limites. Conteneurs et VM sont dans une seule liste ; le filtre au-dessus montre l'un ou l'autre.
+
+**Conteneur ou VM ?** Un conteneur démarre en une seconde et n'utilise presque pas de mémoire à lui, idéal pour des services Linux (un serveur web, Pi-hole, Home Assistant Core, une petite base de données, Docker). Prenez une VM pour Windows, un autre noyau, des modules du noyau, ou quand vous voulez l'isolation la plus forte.
+
+- **Non privilégié** (par défaut) : les utilisateurs du conteneur sont décalés vers les numéros 100000 et plus du NAS, son root n'est donc personne sur le NAS. Les conteneurs **privilégiés** utilisent les numéros du NAS tels quels : ce qui s'en échappe contrôle le NAS. Réservez-les aux logiciels qui ne marchent pas autrement ; le choix ne peut pas changer ensuite.
+- **Stockage** : sur un volume Btrfs, un sous-volume ; sur un dataset ZFS, un dataset ; ailleurs une **image disque** (un fichier ext4). Ces trois-là imposent la taille du disque. Un simple **dossier** marche partout mais sans limite de taille.
+- **Limites** : processeur (en cœurs), mémoire et swap s'appliquent tout de suite, même à un conteneur qui tourne ; le disque peut grandir plus tard. À l'intérieur, `free` et `top` montrent les limites.
+- **Réseau** : NAT (un réseau privé derrière le NAS, 10.0.3.0/24) ou un pont sur le réseau local (les mêmes ponts que les VM), en DHCP ou avec une adresse fixe. L'adresse s'affiche dans la liste. Les VLAN ne sont pas pris en charge (les VM non plus).
+- Les **dossiers partagés** se montent à l'intérieur (en lecture seule ou en lecture-écriture). Dans un conteneur non privilégié, leurs fichiers apparaissent comme « nobody » : dans l'onglet **Dossiers partagés**, gardez le numéro de certains comptes ou groupes StrataOS, puis créez dans le conteneur des utilisateurs avec le même numéro (`useradd -u 1001 alice`) pour lire et écrire leurs fichiers.
+- **Options** : *imbrication* et *keyctl* pour faire tourner Docker dedans, *FUSE*, *TUN* pour les logiciels VPN ; démarrage avec le NAS, dans l'ordre et avec un délai.
+- L'onglet **Console** ouvre un shell root dans le navigateur, ou la console du conteneur (son invite de connexion ; donnez un mot de passe root à la création). **Ressources** trace les graphiques processeur, mémoire, réseau et disque.
+- Les **snapshots** gardent le système de fichiers racine (pas la mémoire) ; on en restaure un conteneur arrêté. Sur ZFS, restaurer supprime les snapshots pris après. **Sauvegardes** écrit une archive `.tar.zst` dans un dossier partagé (depuis un snapshot si le conteneur tourne), et les tâches de sauvegarde peuvent inclure des conteneurs à côté des dossiers et des VM. **Importer une sauvegarde** (dans l'assistant de création) en restaure une sur ce NAS ou un autre, et ajoute aussi un dossier de conteneur trouvé sur un volume venu d'un autre NAS.
+
+Les conteneurs continuent de tourner pendant une mise à jour ou un redémarrage de StrataOS, et ceux marqués « démarrer avec le NAS » repartent après un redémarrage. Le composant Conteneurs ne peut pas être désinstallé tant qu'il reste des conteneurs.
+
 ## 16. Surveillance
 
 La page **Surveillance** enregistre des caméras réseau (RTSP ou MJPEG) avec l'enregistreur intégré.

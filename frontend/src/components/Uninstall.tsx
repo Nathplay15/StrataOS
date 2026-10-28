@@ -7,7 +7,7 @@ import { srv, tr } from "../lib/i18n";
 import { Badge, Button, Checkbox, ErrorBox, Modal, Notice, Spinner } from "./ui";
 
 /** Components that can be uninstalled (components.All in the backend). */
-export const uninstallable = ["zfs", "docker", "nut", "vms", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview"];
+export const uninstallable = ["zfs", "docker", "nut", "vms", "lxc", "rclone", "ftp", "directory", "antivirus", "ha", "vpn", "photos", "tailscale", "tunnel", "iscsi", "dlna", "nvr", "docpreview"];
 
 type Blocker = { message: string; force: boolean };
 type ComponentPlan = {
