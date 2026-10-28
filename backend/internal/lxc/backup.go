@@ -152,7 +152,9 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 	}
 	logf("Backing up %s (%s copy) to %s", name, consistency, filepath.Join(dir, file))
 
-	// container.json, readable from inside the user namespace.
+	// container.json, readable from inside the user namespace. The rename to
+	// rootfs/ applies to member names only (S: never to symbolic link targets
+	// such as ../lib/systemd/systemd).
 	stage, err := os.MkdirTemp(s.Storage.Base, ".export-")
 	if err != nil {
 		return "", 0, err
@@ -174,7 +176,7 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 	}
 	argv := append(usernsArgs(s), "tar", "--create", "--format=posix")
 	argv = append(argv, tarCommon...)
-	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,`, "--exclude=./dev/*", "--exclude=./lost+found", ".")
+	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,S`, "--exclude=./dev/*", "--exclude=./lost+found", ".")
 	cmd := command(ctx, argv)
 	cmd.Stdout = out
 	errb := &limitedText{max: 8 << 10}

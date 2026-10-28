@@ -111,7 +111,7 @@ c POST /api/lxc/$CT/start >/dev/null
 check "running again" "$(wait_state $CT running)" "running"
 check "file back to its snapshot content" "$(cexec $CT cat /root/marker)" "before"
 check "read-write mount after the restart" "$(asalice sh -c 'touch /mnt/photos/.lxc-rw && echo rw-ok')" "rw-ok"
-check "file written inside belongs to alice on the NAS" "$(vm "stat -c %U $P/.lxc-rw")" "$USER_NAME"
+check "file written inside belongs to alice on the NAS" "$(vm "sudo stat -c %U $P/.lxc-rw")" "$USER_NAME"
 vm "sudo rm -f $P/.lxc-rw"
 check "snapshot deleted" "$(c DELETE /api/lxc/$CT/snapshots/s1 >/dev/null; c GET /api/lxc/$CT/snapshots)" "[]"
 
