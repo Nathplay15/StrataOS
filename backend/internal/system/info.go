@@ -83,9 +83,7 @@ func GetInfo(version string) Info {
 			i.Load[k], _ = strconv.ParseFloat(f[k], 64)
 		}
 	}
-	if l, err := os.Readlink("/etc/localtime"); err == nil {
-		i.Timezone = strings.TrimPrefix(l, "/usr/share/zoneinfo/")
-	}
+	i.Timezone = CurrentTimezone()
 	i.Vendor = readTrim("/sys/class/dmi/id/sys_vendor")
 	i.Product = readTrim("/sys/class/dmi/id/product_name")
 	i.Temps = Temps()
@@ -400,6 +398,26 @@ func SetHostname(h string) error {
 		lines = append([]string{"127.0.1.1\t" + h}, lines...)
 	}
 	return sys.WriteFileAtomic("/etc/hosts", []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// CurrentTimezone returns the IANA name of the system timezone from the
+// /etc/localtime symlink, or "" when it is not a link into zoneinfo.
+func CurrentTimezone() string {
+	l, err := os.Readlink("/etc/localtime")
+	if err != nil {
+		return ""
+	}
+	return timezoneFromLink(l)
+}
+
+// timezoneFromLink keeps what follows the last "zoneinfo/": the link may be
+// absolute or relative ("../usr/share/zoneinfo/Europe/Paris").
+func timezoneFromLink(l string) string {
+	i := strings.LastIndex(l, "zoneinfo/")
+	if i < 0 {
+		return ""
+	}
+	return strings.TrimPrefix(l[i+len("zoneinfo/"):], "posix/")
 }
 
 func Timezones() []string {

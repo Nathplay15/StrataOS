@@ -48,9 +48,7 @@ func (s *Server) currentConfig(withSecrets bool) (confbackup.Config, confbackup.
 	src := confbackup.Source{Now: time.Now(), Linux: map[string]confbackup.LinuxUser{}, SMB: map[string]string{}}
 	host, _ := hostname()
 	src.System = &confbackup.System{Hostname: host}
-	if l, err := os.Readlink("/etc/localtime"); err == nil {
-		src.System.Timezone = strings.TrimPrefix(l, "/usr/share/zoneinfo/")
-	}
+	src.System.Timezone = system.CurrentTimezone()
 
 	var local []string
 	s.store.Read(func(st *store.State) {
