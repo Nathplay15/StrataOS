@@ -25,3 +25,28 @@ func TestSmartWarnings(t *testing.T) {
 		}
 	}
 }
+
+func TestSmartWarningsNVMeSpare(t *testing.T) {
+	cases := []struct {
+		name               string
+		crit, spare, thres int
+		want               bool
+	}{
+		{"spare equal to threshold (Patriot P300)", 0, 10, 10, false},
+		{"spare above threshold", 0, 100, 10, false},
+		{"spare below threshold", 0, 9, 10, true},
+		{"critical warning bit 0", 1, 100, 10, true},
+		{"no threshold reported", 0, 0, 0, false},
+		{"other critical bit only", 4, 100, 10, false},
+	}
+	for _, c := range cases {
+		info := &SmartInfo{nvmeLog: nvmeHealth{present: true, CriticalWarning: c.crit, AvailableSpare: c.spare, SpareThreshold: c.thres}}
+		w := strings.Join(SmartWarnings(info), "|")
+		if got := strings.Contains(w, "spare cells exhausted"); got != c.want {
+			t.Errorf("%s: spare warning %v, want %v (%s)", c.name, got, c.want, w)
+		}
+		if got := strings.Contains(w, "NVMe critical warning"); got != (c.crit&^1 != 0) {
+			t.Errorf("%s: critical warning text %v (%s)", c.name, got, w)
+		}
+	}
+}

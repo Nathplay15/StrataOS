@@ -213,7 +213,9 @@ func SmartWarnings(info *SmartInfo) []string {
 		}
 	}
 	if n := info.nvmeLog; n.present {
-		if n.CriticalWarning != 0 {
+		// Bit 0 of critical_warning is "spare below threshold", reported
+		// below with the percentage; the other bits get the raw code.
+		if other := n.CriticalWarning &^ 1; other != 0 {
 			w = append(w, fmt.Sprintf("NVMe critical warning (code %d)", n.CriticalWarning))
 		}
 		if n.MediaErrors > 0 {
@@ -222,7 +224,9 @@ func SmartWarnings(info *SmartInfo) []string {
 		if n.PercentageUsed >= 90 {
 			w = append(w, fmt.Sprintf("SSD wear at %d%%", n.PercentageUsed))
 		}
-		if n.SpareThreshold > 0 && n.AvailableSpare <= n.SpareThreshold {
+		// The spec only warns when the spare falls BELOW the threshold: many
+		// drives ship with spare == threshold (e.g. 10 / 10) and are fine.
+		if n.CriticalWarning&1 != 0 || (n.SpareThreshold > 0 && n.AvailableSpare < n.SpareThreshold) {
 			w = append(w, fmt.Sprintf("spare cells exhausted (%d%%)", n.AvailableSpare))
 		}
 	}
