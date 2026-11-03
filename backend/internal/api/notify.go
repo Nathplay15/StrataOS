@@ -35,6 +35,8 @@ type alert struct {
 	Key string `json:"-"`
 	// Subject of the notification ("" = Alert).
 	Subject string `json:"-"`
+	// Replace opens the disk replacement wizard on this problem.
+	Replace *storage.ReplaceSel `json:"replace,omitempty"`
 }
 
 func (a alert) dedupKey() string {
@@ -156,7 +158,8 @@ func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volu
 	for _, r := range raids {
 		switch r.Health {
 		case "degraded", "failed":
-			out = append(out, alert{Level: "error", Message: fmt.Sprintf("RAID array %s (%s) %s", r.Label, r.Name, map[string]string{"degraded": "is degraded", "failed": "has failed"}[r.Health])})
+			out = append(out, alert{Level: "error", Message: fmt.Sprintf("RAID array %s (%s) %s", r.Label, r.Name, map[string]string{"degraded": "is degraded", "failed": "has failed"}[r.Health]),
+				Replace: &storage.ReplaceSel{Group: "raid:" + r.Name}})
 		case "rebuilding":
 			// The dashboard shows the progress; notifications come from the progress tracker.
 			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("RAID array %s is rebuilding (%.1f%%)", r.Label, r.SyncProgress), Key: "progress:" + raidOpKey(r)})
@@ -167,7 +170,7 @@ func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volu
 	}
 	for _, p := range pools {
 		if p.Health != "ONLINE" {
-			out = append(out, alert{Level: "error", Message: fmt.Sprintf("ZFS pool %s is %s", p.Name, p.Health)})
+			out = append(out, alert{Level: "error", Message: fmt.Sprintf("ZFS pool %s is %s", p.Name, p.Health), Replace: &storage.ReplaceSel{Group: "zfs:" + p.Name}})
 		}
 	}
 	for _, v := range vols {
@@ -214,12 +217,12 @@ func (s *Server) healthWatcher() {
 				s.recordSmart(d, info) // h_health.go: history and trend alerts
 			}
 			if info.Passed != nil && !*info.Passed {
-				weak = append(weak, alert{Level: "error", Message: fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial), Subject: "Failing disk"})
+				weak = append(weak, alert{Level: "error", Message: fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial), Subject: "Failing disk", Replace: &storage.ReplaceSel{Disk: d.Path}})
 				continue
 			}
 			if len(info.Warnings) > 0 {
 				msg := fmt.Sprintf("Disk %s (%s %s) is getting weak: %s. Check your backups and plan its replacement", d.Path, d.Model, d.Serial, strings.Join(info.Warnings, ", "))
-				weak = append(weak, alert{Level: "warning", Message: msg, Key: weakDiskKey(d.Path, d.Serial, info.Warnings), Subject: "Disk weakening"})
+				weak = append(weak, alert{Level: "warning", Message: msg, Key: weakDiskKey(d.Path, d.Serial, info.Warnings), Subject: "Disk weakening", Replace: &storage.ReplaceSel{Disk: d.Path}})
 			}
 		}
 		s.diskAlerts.Store(&weak)

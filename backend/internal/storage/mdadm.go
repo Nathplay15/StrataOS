@@ -34,6 +34,7 @@ type RaidArray struct {
 	FailedDevices int          `json:"failedDevices"`
 	SpareDevices  int          `json:"spareDevices"`
 	ChunkSize     string       `json:"chunkSize,omitempty"`
+	UsedDevSize   int64        `json:"usedDevSize,omitempty"` // bytes of each member holding data
 	Members       []RaidMember `json:"members"`
 	SyncAction    string       `json:"syncAction,omitempty"` // resync | recovery | reshape | check
 	SyncProgress  float64      `json:"syncProgress,omitempty"`
@@ -141,6 +142,10 @@ func fillDetail(a *RaidArray) {
 				name = after
 			}
 			a.Label = name
+		case "Used Dev Size":
+			if n, err := strconv.ParseInt(strings.Fields(v)[0], 10, 64); err == nil {
+				a.UsedDevSize = n * 1024
+			}
 		case "Raid Devices":
 			a.RaidDevices, _ = strconv.Atoi(v)
 		case "Active Devices":

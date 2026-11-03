@@ -519,3 +519,10 @@ func (b *BurnIn) Run(ctx context.Context, rep *store.BurnInReport) {
 	}
 	rep.Finished = time.Now()
 }
+
+// SmartShortTest runs a SMART short self-test on dev and waits for its result:
+// the quick check of a replacement disk before it receives data.
+func SmartShortTest(ctx context.Context, dev string, logf func(string, ...any)) store.BurnInStep {
+	b := NewBurnIn(BurnInOpts{Device: dev, ShortTest: true}, "", "", logf, func(float64) {})
+	return b.smartTest(ctx, "short")
+}
