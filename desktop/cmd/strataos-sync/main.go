@@ -80,6 +80,7 @@ Commands (headless):
             folder (--encrypt makes an empty NAS folder encrypted; the passphrase may also come
             from STRATAOS_SYNC_PASSPHRASE)
   recovery-key ID  prints the recovery key of an encrypted folder
+  passphrase ID --passphrase-file FILE  gives an encrypted folder a new passphrase
   remove    ID
   list      the synchronized folders
   status    the state of each folder
@@ -228,6 +229,26 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 			return err
 		}
 		fmt.Println(k)
+		return nil
+
+	case "passphrase":
+		passFile := fs.String("passphrase-file", "", "file holding the new passphrase")
+		_ = fs.Parse(args)
+		if fs.NArg() != 1 || *passFile == "" {
+			return errors.New("passphrase ID --passphrase-file FILE")
+		}
+		b, err := os.ReadFile(*passFile)
+		if err != nil {
+			return err
+		}
+		if err := a.Start(ctx); err != nil {
+			return err
+		}
+		defer a.Stop()
+		if err := a.ChangePassphrase(ctx, fs.Arg(0), strings.TrimRight(string(b), "\r\n")); err != nil {
+			return err
+		}
+		fmt.Println("passphrase changed")
 		return nil
 
 	case "remove":

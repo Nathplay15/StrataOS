@@ -351,6 +351,8 @@ export interface FileEntry {
   mode: string;
   modTime: string;
   link: boolean;
+  /** An end-to-end encrypted sync folder (contents readable only by the desktop app). */
+  encrypted?: boolean;
 }
 
 export interface Service {
