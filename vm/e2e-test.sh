@@ -38,7 +38,7 @@ check "first admin can use sudo" "$(vm "id $ADMIN_USER")" "(sudo)"
 check "setup cannot run twice" "$(c POST /api/setup -d '{"username":"x","password":"xxxxxxxxx"}')" "already"
 check "bad password rejected" "$(curl -s -X POST -H 'X-Strata: 1' $B/api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"wrong\"}")" "invalid"
 check "cross-origin write rejected" "$(curl -s -b "$J" -X POST -H 'Origin: http://evil.test' $B/api/groups -d '{"name":"x"}')" "cross-origin"
-check "disks detected" "$(c GET /api/storage/disks | py 'print(sum(1 for x in d if x["usage"]=="free"))')" "9"
+check "disks detected" "$(c GET /api/storage/disks | py 'print(sum(1 for x in d if x["usage"]=="free" and not x["serial"].startswith("STRATA-VD-1")))')" "9"
 
 section "Storage"
 # Kernel names (/dev/sdX) change with the number of disks and between boots: use serials.
