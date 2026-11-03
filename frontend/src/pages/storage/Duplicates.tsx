@@ -86,12 +86,12 @@ export default function Duplicates() {
       <div className="space-y-5">
         <Card title={tr("Search")} actions={<Button variant="primary" icon={<Search size={15} />} disabled={!roots.length} loading={start.isPending || !!job} onClick={() => start.mutate()}>{tr("Search duplicates")}</Button>}>
           <div className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-3">
               {(targets.data ?? []).map((t) => (
                 <Checkbox key={t.path} checked={roots.includes(t.path)} onChange={(v) => setRoots(v ? [...roots, t.path] : roots.filter((r) => r !== t.path))}
                   label={<span>{t.label} <span className="text-muted text-[12px]">· {kindLabel(t.kind)}</span></span>} />
               ))}
-            </div>
+            </div></div>
             {roots.filter((r) => !targets.data?.some((t) => t.path === r)).map((r) => (
               <div key={r} className="flex items-center gap-2 text-[13px]"><span className="mono">{r}</span><Button size="sm" variant="ghost" icon={<X size={14} />} onClick={() => setRoots(roots.filter((x) => x !== r))} /></div>
             ))}

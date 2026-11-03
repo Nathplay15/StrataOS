@@ -68,7 +68,7 @@ export default function Hardware() {
     <div>
       {header}
       <ErrorBox error={save.error} />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={<span className="flex items-center gap-2"><Thermometer size={16} />{tr("Temperatures")}</span>}>
           <div className="space-y-2 text-[13px]">
             <div className="flex justify-between"><span className="flex items-center gap-2"><Cpu size={14} />{tr("Processor")}</span><b>{data.cpuTemp != null ? `${data.cpuTemp.toFixed(0)} °C` : "—"}</b></div>
@@ -95,7 +95,7 @@ export default function Hardware() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2" title={<span className="flex items-center gap-2"><Fan size={16} />{tr("Fan control")}</span>}
+        <Card className="@3xl:col-span-2" title={<span className="flex items-center gap-2"><Fan size={16} />{tr("Fan control")}</span>}
           actions={canDrive && <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
           {data.notice === "terramaster" ? (
             <Notice tone="warn">{tr("This TerraMaster NAS uses an ITE IT8613E controller that the standard Linux it87 driver does not support. Fan control needs the out-of-tree it87 driver (github.com/frankcrawford/it87), which StrataOS does not install. Until then the BIOS keeps driving the fans, which is safe.")}</Notice>
@@ -131,7 +131,7 @@ export default function Hardware() {
           )}
         </Card>
 
-        <Card className="lg:col-span-2" title={<span className="flex items-center gap-2"><Lightbulb size={16} />{tr("Front-panel lights")}</span>}>
+        <Card className="@3xl:col-span-2" title={<span className="flex items-center gap-2"><Lightbulb size={16} />{tr("Front-panel lights")}</span>}>
           {data.leds.length === 0 ? <div className="text-muted text-[13px]">{tr("Not supported on this hardware: the kernel exposes no LED.")}</div> : (
             <div className="space-y-2">
               {data.leds.map((l) => (
@@ -149,7 +149,7 @@ export default function Hardware() {
             </div>
           )}
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }

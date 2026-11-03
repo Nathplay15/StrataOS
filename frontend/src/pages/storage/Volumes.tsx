@@ -142,7 +142,7 @@ function BtrfsPanel({ v }: { v: Volume }) {
         <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={() => setAddDev([])}>{tr("Add a disk")}</Button>
         <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} onClick={() => setConvert(data.dataProfile)}>{tr("Convert RAID")}</Button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
         <div>
           <div className="mb-2 text-[12.5px] font-medium text-muted">{tr("Disks (")}{data.devices.length})</div>
           <div className="space-y-1.5">
@@ -176,7 +176,7 @@ function BtrfsPanel({ v }: { v: Volume }) {
             ))}
           </div>
         </div>
-      </div>
+      </div></div>
       {snaps.length > 0 && (
         <div>
           <div className="mb-2 text-[12.5px] font-medium text-muted">{tr("Snapshots (")}{snaps.length}{tr(") — accessible read-only in .snapshots/")}</div>

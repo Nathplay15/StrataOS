@@ -121,7 +121,7 @@ export default function Disks() {
       <PageHeader title={tr("Disks")} subtitle={tr("Detected physical disks and their health status")} icon={<HardDrive size={20} />} />
       <ErrorBox error={error} />
       {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<HardDrive />} title={tr("No disks detected")} /> : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
           {data.map((d) => {
             const [ul, ut] = usageLabel[d.usage ?? ""] ?? [d.usage ?? "?", "neutral"];
             const kind = d.kind === "virtual" ? tr("Virtual") : kindLabel[d.kind ?? ""] ?? d.kind;
@@ -185,7 +185,7 @@ export default function Disks() {
               </Card>
             );
           })}
-        </div>
+        </div></div>
       )}
       <SmartModal disk={smart} onClose={() => setSmart(null)} />
       <BurnInModal disk={burn} data={burnIns.data} onClose={() => setBurn(null)} />

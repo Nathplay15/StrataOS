@@ -169,10 +169,10 @@ export default function Fleet() {
       </>} />
       <ErrorBox error={error} />
       {isLoading ? <Spinner /> : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
           {data?.map((r) => <NASCard key={r.id} r={r} selected={sel.includes(r.id)} onSelect={manageable.includes(r) ? (v) => setSel(v ? [...sel, r.id] : sel.filter((x) => x !== r.id)) : undefined}
             onRemove={r.id === "local" ? undefined : async () => { if (await confirm({ title: tr("Remove {0} from the console?", r.name), text: tr("This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access)."), danger: true })) remove.mutate(r.id); }} />)}
-        </div>
+        </div></div>
       )}
       {data && data.length === 1 && <div className="mt-4"><Card><Empty icon={<Network />} title={tr("Add your other NAS")} text={tr("On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.")} /></Card></div>}
 

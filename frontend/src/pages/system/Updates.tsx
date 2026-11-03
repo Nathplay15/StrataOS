@@ -66,10 +66,10 @@ export default function Updates() {
       </>} />
       <StrataCard />
       <RPiKernelCard />
-      <div className="mb-5 grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="mb-5 grid gap-5 @3xl:grid-cols-2">
         <ChannelCard />
         <AutoUpdatesCard />
-      </div>
+      </div></div>
       <ErrorBox error={error} />
       <Card pad={false} title={data ? tr("{0} update(s) available{1}", data.length, security ? tr(" including {0} security", security) : "") : undefined}>
         {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<CheckCircle2 />} title={tr("The system is up to date")} text={tr("Click \"Search\" to refresh the package list.")} /> : (

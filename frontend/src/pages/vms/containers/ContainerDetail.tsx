@@ -96,7 +96,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
 
 function Summary({ c }: { c: Container }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
       <Card title={tr("Container")}>
         <Row k={tr("Image")}>{c.image.distro} {c.image.release} ({c.image.arch}){c.image.build && <span className="text-muted"> · {tr("build {0}", c.image.build)}</span>}</Row>
         <Row k={tr("Created")}>{dateTime(c.created)}</Row>
@@ -112,7 +112,7 @@ function Summary({ c }: { c: Container }) {
         <Row k={tr("IP address")}><span className="mono">{c.ips.join(", ") || "—"}</span></Row>
         <Row k={tr("Shared folders")}>{(c.mounts ?? []).map((m) => `${m.share} → ${m.target}${m.readOnly ? ` (${tr("read-only")})` : ""}`).join(", ") || "—"}</Row>
       </Card>
-    </div>
+    </div></div>
   );
 }
 
@@ -159,14 +159,14 @@ function Resources({ c }: { c: Container }) {
   return (
     <div className="space-y-4">
       {c.state !== "running" && <Notice>{tr("The graphs fill in while the container runs.")}</Notice>}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
         <Card title={tr("CPU")}><AreaChart series={[{ label: tr("CPU (% of one core)"), color: "var(--accent)", values: hist.map((x) => x.cpu) }]} max={cpuMax} format={(v) => `${v.toFixed(0)} %`} /></Card>
         <Card title={tr("Memory")}><AreaChart series={[{ label: tr("Used"), color: "var(--ok)", values: hist.map((x) => x.mem) }]} max={s?.memoryMax || undefined} format={(v) => bytes(v)} />
           {s && <div className="text-muted mt-2 text-[12px]">{tr("Limit {0} · swap {1} of {2} · {3} processes", s.memoryMax ? bytes(s.memoryMax) : tr("none"), bytes(s.swap), s.swapMax ? bytes(s.swapMax) : tr("no limit"), s.pids)}</div>}</Card>
         <Card title={tr("Network")}><AreaChart series={[{ label: tr("Received"), color: "var(--accent)", values: hist.map((x) => x.rx) }, { label: tr("Sent"), color: "var(--warn)", values: hist.map((x) => x.tx) }]} format={rate} /></Card>
         <Card title={tr("Disk")}><AreaChart series={[{ label: tr("Read"), color: "var(--accent)", values: hist.map((x) => x.rd) }, { label: tr("Written"), color: "var(--danger)", values: hist.map((x) => x.wr) }]} format={rate} />
           {s && <div className="text-muted mt-2 text-[12px]">{tr("Root file system: {0} used{1}", bytes(s.diskUsed), s.diskLimit ? ` / ${bytes(s.diskLimit)}` : "")}</div>}</Card>
-      </div>
+      </div></div>
       <Limits c={c} />
     </div>
   );

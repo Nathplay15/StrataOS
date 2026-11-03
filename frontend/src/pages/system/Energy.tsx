@@ -43,14 +43,14 @@ export default function Energy() {
     <div>
       {header}
       <ErrorBox error={save.error} />
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="@container"><div className="mb-5 grid gap-4 @xl:grid-cols-2 @3xl:grid-cols-4">
         <Card><div className="flex items-center gap-3"><Zap size={20} className="text-accent" /><div><div className="text-muted text-[12px]">{tr("Consumption")}</div><div className="text-[18px] font-semibold">{data.watts ? `${Math.round(data.watts)} W` : "—"}</div>{!data.watts && <div className="text-muted text-[11.5px]">{tr("Measured by a compatible UPS")}</div>}</div></div></Card>
         <Card><div className="flex items-center gap-3"><Moon size={20} className="text-accent" /><div><div className="text-muted text-[12px]">{tr("Disks in standby")}</div><div className="text-[18px] font-semibold">{data.disks.length ? `${asleep} / ${data.disks.length}` : "—"}</div></div></div></Card>
         <Card><div className="flex items-center gap-3"><Cpu size={20} className="text-accent" /><div><div className="text-muted text-[12px]">{tr("Processor")}</div><div className="text-[15px] font-semibold">{data.governor ? govLabel(data.governor) : "—"}</div></div></div></Card>
         <Card><div className="flex items-center gap-3"><Power size={20} className="text-accent" /><div><div className="text-muted text-[12px]">{tr("Next shutdown")}</div><div className="text-[14px] font-semibold">{data.nextShutdown ? dateTime(data.nextShutdown) : "—"}</div>{data.nextWake && <div className="text-muted text-[11.5px]">{tr("Restart {0}", dateTime(data.nextWake))}</div>}</div></div></Card>
-      </div>
+      </div></div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={<span className="flex items-center gap-2"><HardDrive size={16} />{tr("Disk standby")}</span>} actions={data.disks.length > 0 && data.hdparm && <Button size="sm" loading={standby.isPending} onClick={() => standby.mutate()}>{tr("Spin down now")}</Button>}>
           <div className="space-y-4">
             <Field label={tr("Spin down inactive hard disks after")} hint={tr("SSDs and USB disks are not affected. A disk wakes up within a few seconds on first access.")}>
@@ -129,7 +129,7 @@ export default function Energy() {
             </div>
           </div>
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }

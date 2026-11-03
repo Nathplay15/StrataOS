@@ -296,9 +296,9 @@ function Library({ onPlayed, stats }: { onPlayed: () => void; stats?: { songs: n
     body = !albums.data ? loading : !albums.data.items.length ? <div className="text-[13px] text-muted">{tr("No album in the library yet.")}</div> : albumGrid(albums.data.items);
   } else if (tab === "artists") {
     body = !artists.data ? loading : (
-      <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="@container"><div className="grid gap-1 @xl:grid-cols-2 @3xl:grid-cols-3">
         {artists.data.items.map((a) => <button key={a.id} className="truncate rounded-lg px-3 py-2 text-left text-[13px] hover:bg-panel-2" onClick={() => { setArtist(a); setTab("albums"); }}>{a.name} <span className="text-muted">· {a.album_count ?? 0}</span></button>)}
-      </div>
+      </div></div>
     );
   } else {
     body = !playlists.data ? loading : !playlists.data.items.length ? <div className="text-[13px] text-muted">{tr("No playlist.")}</div> : (

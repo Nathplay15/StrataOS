@@ -166,7 +166,7 @@ export default function HighAvailability() {
       {header}
       <ErrorBox error={pair.error || prepare.error} />
       <div className="mb-5"><Notice>{tr("At least two StrataOS NAS on the same local network are required. Prepare the secondary first to get a pairing code, then enter it on the primary; if its volumes have different names, specify the mapping. More secondaries can be added later.")}</Notice></div>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={<span className="flex items-center gap-2"><Server size={16} className="text-accent" />{tr("This NAS will be the primary")}</span>}>
           <div className="space-y-4">
             <Field label={tr("Secondary NAS address")}><Input className="mono" value={f.peerHost} onChange={(e) => setF({ ...f, peerHost: e.target.value.trim() })} placeholder="192.168.1.21" /></Field>
@@ -199,7 +199,7 @@ export default function HighAvailability() {
             )}
           </div>
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }

@@ -80,10 +80,10 @@ export default function VirtualMachines() {
       <div>
         {header()}
         <ErrorBox error={error} />
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
           <Card><Empty icon={<Plug />} title={tr("Virtualization is not installed")} text={tr("Installs QEMU/KVM, libvirt and the UEFI firmware (OVMF).")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button>} /></Card>
           <Card><Empty icon={<Box />} title={tr("Containers (LXC) are not installed")} text={tr("Installs LXC: light Linux systems sharing the NAS's kernel, ready in seconds.")} action={<Button variant="primary" loading={installLXC.isPending} onClick={() => installLXC.mutate()}>{tr("Install")}</Button>} /></Card>
-        </div>
+        </div></div>
       </div>
     );
   }

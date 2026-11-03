@@ -178,7 +178,7 @@ export default function CloudSync() {
       {!data.tasks.length ? (
         <Card><Empty icon={<CloudCog />} title={tr("No syncs")} text={tr("Keep a NAS folder in sync with a cloud service, in one direction or both.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Create a sync")}</Button>} /></Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
           {data.tasks.map((t) => {
             const last = t.history[0];
             const failedBisync = t.direction === "bisync" && last?.status === "failed" && last.message.includes("Resynchroniser");
@@ -215,7 +215,7 @@ export default function CloudSync() {
               </Card>
             );
           })}
-        </div>
+        </div></div>
       )}
       {edit !== undefined && sources.data && <Editor initial={edit} providers={data.providers} sources={sources.data} onClose={() => setEdit(undefined)} />}
       {hist && <HistoryModal b={data.tasks.find((x) => x.id === hist.id) ?? hist} onClose={() => setHist(null)} />}

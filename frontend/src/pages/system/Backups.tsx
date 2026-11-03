@@ -459,7 +459,7 @@ export default function Backups() {
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card><Empty icon={<DatabaseBackup />} title={tr("No backups")} text={tr("RAID protects against a disk failure, not against deletion, ransomware or fire. Keep at least one copy elsewhere: USB disk, another NAS or the cloud.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Create a backup")}</Button>} /></Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
           {data.map((b) => {
             const last = b.history[0];
             return (
@@ -496,7 +496,7 @@ export default function Backups() {
               </Card>
             );
           })}
-        </div>
+        </div></div>
       )}
       <TimeMachineCard volumes={sources.data?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")) ?? []} />
       <VaultsCard sources={sources.data} />

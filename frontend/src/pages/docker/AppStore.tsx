@@ -177,7 +177,7 @@ export default function AppStore() {
         {isLoading ? <Spinner /> : nothing ? (
           <p className="text-muted">{cat === MY_APPS && !q ? tr("No app installed yet.") : tr("No app matches your search.")}</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="@container"><div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4">
             {custom.map((c) => (
               <Card key={"custom-" + c.stack} pad={false} className="flex flex-col">
                 <div className="flex flex-1 gap-4 p-5">
@@ -213,7 +213,7 @@ export default function AppStore() {
                 </Card>
               );
             })}
-          </div>
+          </div></div>
         )}
       </DockerGuard>
       {install && <InstallModal app={install} linked={data?.linked?.[install.id] ?? {}} onClose={() => setInstall(null)} />}
