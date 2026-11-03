@@ -568,6 +568,9 @@ func write(c Config, mgr string) error {
 		for _, b := range c.Bonds {
 			dns = append(dns, b.DNS...)
 		}
+		for _, br := range c.Bridges {
+			dns = append(dns, br.DNS...)
+		}
 		if len(dns) > 0 {
 			var b strings.Builder
 			b.WriteString("# Managed by StrataOS\n")

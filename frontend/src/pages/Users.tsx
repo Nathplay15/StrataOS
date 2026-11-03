@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Edit3, FingerprintPattern, Plus, Shield, ShieldOff, Trash2, UserPlus, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
@@ -7,6 +7,7 @@ import type { Group, Me, User, UserQuota } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
+import { useIntent } from "../lib/intent";
 import { AdminDevices } from "../components/AdminDevices";
 
 type Form = { source?: string; username: string; fullName: string; email: string; role: "admin" | "user"; password: string; groups: string[]; ssh: boolean; docker: boolean; disabled: boolean };
@@ -123,6 +124,13 @@ export default function Users({ me }: { me: Me }) {
   const [editUser, setEditUser] = useState<User | null | undefined>(undefined);
   const [editGroup, setEditGroup] = useState<Group | null | undefined>(undefined);
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
+  // Opened from the global search: edit that user once the list is there.
+  const [wanted, setWanted] = useState<string | null>(null);
+  useIntent("users", (i) => { setTab("users"); setWanted(i.name); });
+  useEffect(() => {
+    const u = wanted && users.data?.find((x) => x.username === wanted);
+    if (u) { setEditUser(u); setWanted(null); }
+  }, [wanted, users.data]);
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
   const delUser = useAction((p: { name: string; home: boolean }) => api.del(`/api/users/${encodeURIComponent(p.name)}${p.home ? "?removeHome=1" : ""}`), { success: tr("User deleted") });
   const reset2fa = useAction((n: string) => api.post(`/api/users/${encodeURIComponent(n)}/2fa/reset`), { success: tr("Two-factor authentication reset") });

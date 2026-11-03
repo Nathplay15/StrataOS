@@ -24,7 +24,7 @@ function CertificatesCard() {
   const label = { "self-signed": tr("Self-signed"), custom: tr("Imported"), letsencrypt: "Let's Encrypt" };
   const readFile = (f: File | undefined, k: "cert" | "key") => f?.text().then((t) => setImp((p) => ({ cert: "", key: "", ...p, [k]: t })));
   return (
-    <Card title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="xl:col-span-2" actions={<>
+    <Card id="settings-https" title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="xl:col-span-2" actions={<>
       <Button size="sm" onClick={() => setImp({ cert: "", key: "" })}>{tr("Import a certificate")}</Button>
       <Button size="sm" onClick={() => setAcme({ domain: data?.acmeDomain ?? "", email: data?.acmeEmail ?? "" })}>{tr("Let's Encrypt")}</Button>
     </>}>
@@ -85,7 +85,7 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
     a.click();
   };
   return (
-    <Card title={<span className="flex items-center gap-2"><Activity size={16} />{tr("Monitoring (Prometheus, Grafana)")}</span>}>
+    <Card id="settings-monitoring" title={<span className="flex items-center gap-2"><Activity size={16} />{tr("Monitoring (Prometheus, Grafana)")}</span>}>
       <div className="space-y-4">
         <Switch checked={enabled || !!token} onChange={(v) => toggle.mutate(v)} label={tr("Publish metrics")} hint={tr("CPU, memory, network, disks, volumes, RAID/ZFS/SMART health, backups, UPS, security, in Prometheus format at {0}", url)} />
         {token && (
@@ -136,7 +136,7 @@ export default function SettingsPage() {
       <PageHeader title={tr("Settings")} subtitle={tr("General NAS configuration")} icon={<Cog size={20} />} actions={<Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>} />
       <ErrorBox error={error} />
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card title={<span className="flex items-center gap-2"><Share2 size={16} /> {" "}{tr("File sharing (SMB)")}</span>}>
+        <Card id="settings-smb" title={<span className="flex items-center gap-2"><Share2 size={16} /> {" "}{tr("File sharing (SMB)")}</span>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Workgroup")}><Input value={s.workgroup} onChange={(e) => set("workgroup", e.target.value)} /></Field>
             <Field label={tr("Server description")}><Input value={s.serverString} onChange={(e) => set("serverString", e.target.value)} /></Field>
@@ -148,11 +148,11 @@ export default function SettingsPage() {
             <Field label={tr("Empty the recycle bin after (days)")} hint={tr("Files deleted via SMB, purged every night at 3:30 AM. 0 = never.")}><Input type="number" min={0} value={s.trashDays} onChange={(e) => set("trashDays", Math.max(0, +e.target.value))} /></Field>
           </div>
         </Card>
-        <Card title={<span className="flex items-center gap-2"><Shield size={16} /> {" "}{tr("Security")}</span>}>
+        <Card id="settings-security" title={<span className="flex items-center gap-2"><Shield size={16} /> {" "}{tr("Security")}</span>}>
           <Field label={tr("Session duration (hours)")}><Input type="number" min={1} max={720} value={s.sessionHours} onChange={(e) => set("sessionHours", +e.target.value)} /></Field>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The interface is available over HTTPS on port 7443 (self-signed certificate generated on first boot). Do not expose it directly to the Internet: use a VPN.")}</p>
         </Card>
-        <Card title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test")}</Button>}>
+        <Card id="settings-notifications" title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test")}</Button>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TelegramFields s={s} set={set} />
             <Field label={tr("Push notifications (ntfy)")} className="sm:col-span-2" hint={tr("Install the ntfy app (Android, iPhone) and subscribe to this topic. A long, unguessable name protects your alerts on the public ntfy.sh server.")}>
@@ -198,7 +198,7 @@ export default function SettingsPage() {
           <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.")}</p>
         </Card>
         <MetricsCard enabled={!!data?.metricsToken} />
-        <Card title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
+        <Card id="settings-time" title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">
             <Field label={tr("Time zone")} className="flex-1">
               <Select value={zone} onChange={(e) => setZone(e.target.value)}>{tz.data?.map((z) => <option key={z}>{z}</option>)}</Select>
@@ -211,7 +211,7 @@ export default function SettingsPage() {
         <CertificatesCard />
         <ConfigBackupCard />
         <OfficeSettingsCard />
-        <Card title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="xl:col-span-2">
+        <Card id="settings-components" title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="xl:col-span-2">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">

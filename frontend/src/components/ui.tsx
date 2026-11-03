@@ -71,9 +71,9 @@ export function PageHeader({ title, subtitle, icon, actions }: { title: string; 
   );
 }
 
-export function Card({ title, actions, children, className, pad = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
+export function Card({ id, title, actions, children, className, pad = true }: { id?: string; title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={cx("card overflow-hidden", className)}>
+    <section id={id} className={cx("card overflow-hidden scroll-mt-4", className)}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
           <h2 className="font-semibold text-[14px]">{title}</h2>

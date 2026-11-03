@@ -38,3 +38,34 @@ func TestValidDesktopIcons(t *testing.T) {
 		}
 	}
 }
+
+func TestValidDesktopWidgets(t *testing.T) {
+	for _, w := range [][]string{nil, {}, {"status", "resources", "storage", "apps"}, {"temps", "ups", "notifications"}} {
+		if err := validDesktopWidgets(w); err != nil {
+			t.Errorf("%v: %v", w, err)
+		}
+	}
+	for _, w := range [][]string{{"status", "status"}, {"nope"}, {""}, {"Status"}} {
+		if validDesktopWidgets(w) == nil {
+			t.Errorf("%v accepted", w)
+		}
+	}
+}
+
+func TestValidAppearance(t *testing.T) {
+	ok := [][2]string{{"", ""}, {"aurora", "#4f6bff"}, {"strata", ""}, {"", "#000000"}}
+	for _, c := range ok {
+		if err := validAppearance(c[0], c[1], false); err != nil {
+			t.Errorf("%v: %v", c, err)
+		}
+	}
+	if err := validAppearance("custom", "", true); err != nil {
+		t.Error(err)
+	}
+	bad := [][2]string{{"custom", ""}, {"../x", ""}, {"", "red"}, {"", "#FFF"}, {"", "#4F6BFF"}, {"", "#12345g"}, {"", "#1234567"}}
+	for _, c := range bad {
+		if validAppearance(c[0], c[1], false) == nil {
+			t.Errorf("%v accepted", c)
+		}
+	}
+}

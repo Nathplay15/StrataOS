@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, CheckCircle2, ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LogOut, Monitor as MonitorIcon, Moon, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone, XCircle } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LayoutPanelLeft, LogOut, Monitor as MonitorIcon, Moon, Palette, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone, XCircle } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
-import type { AppStoreData, Me, Overview, Sample, SystemInfo } from "../lib/types";
-import { bytes, cx, duration, pct, rate } from "../lib/format";
-import { Progress, useUI } from "../components/ui";
+import type { AppStoreData, Me, Overview } from "../lib/types";
+import { cx } from "../lib/format";
+import { useUI } from "../components/ui";
 import { JobsMenu, PasswordModal, useTheme } from "../components/Layout";
 import { TwoFactorModal } from "../components/TwoFactor";
 import { PasskeysModal } from "../components/Passkeys";
@@ -19,34 +19,13 @@ import { CELL_H, CELL_W, GRID_PAD, cellAt, gridSize, layoutIcons, moveIcon, type
 import { OpenPath } from "./context";
 import { tr, locale, srv } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
-
-/* ---------- Wallpapers (pure CSS, no download) ---------- */
-
-const wallpapers: Record<string, { label: string; css: string }> = {
-  aurora: { label: tr("Dawn"), css: "radial-gradient(1200px 700px at 15% 10%, #3b4cca 0%, transparent 60%), radial-gradient(900px 600px at 85% 30%, #0e7490 0%, transparent 55%), radial-gradient(1000px 800px at 60% 100%, #7c3aed 0%, transparent 60%), #0b1022" },
-  dusk: { label: tr("Dusk"), css: "radial-gradient(1100px 700px at 80% 0%, #f97316 0%, transparent 55%), radial-gradient(1000px 700px at 10% 90%, #be185d 0%, transparent 55%), linear-gradient(160deg, #1e1b4b, #0f172a)" },
-  ocean: { label: tr("Ocean"), css: "radial-gradient(1200px 800px at 50% -10%, #38bdf8 0%, transparent 55%), radial-gradient(900px 700px at 0% 100%, #0f766e 0%, transparent 60%), linear-gradient(180deg, #0c4a6e, #082f49)" },
-  forest: { label: tr("Forest"), css: "radial-gradient(1000px 700px at 20% 20%, #16a34a 0%, transparent 55%), radial-gradient(900px 700px at 90% 80%, #0f766e 0%, transparent 55%), linear-gradient(160deg, #052e16, #022c22)" },
-  graphite: { label: tr("Graphite"), css: "radial-gradient(1000px 700px at 70% 20%, #334155 0%, transparent 60%), linear-gradient(160deg, #111827, #030712)" },
-};
-
-function usePref(key: string, def: string): [string, (v: string) => void] {
-  const [v, setV] = useState(() => {
-    try {
-      return localStorage.getItem(key) ?? def;
-    } catch {
-      return def;
-    }
-  });
-  return [v, (x: string) => {
-    setV(x);
-    try {
-      localStorage.setItem(key, x);
-    } catch {
-      /* storage unavailable */
-    }
-  }];
-}
+import { GlobalSearch } from "../components/GlobalSearch";
+import { AppearanceModal } from "../components/Appearance";
+import { openAccountDialog, useAccountDialog } from "../lib/intent";
+import { useAccent, usePrefs, useSavePrefs } from "../lib/appearance";
+import { WidgetPanel, WidgetsModal } from "./widgets";
+import { shownWidgets } from "./widgetList";
+import { DEFAULT_WALLPAPER, WALLPAPERS, legacyWallpaper, wallpaperCSS } from "./wallpapers";
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -156,9 +135,17 @@ function UserMenu({ me }: { me: Me }) {
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const [look, setLook] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useOutside(ref, () => setOpen(false));
   const { confirm } = useUI();
+  useAccountDialog((d) => {
+    if (d === "appearance") setLook(true);
+    else if (d === "password") setPw(true);
+    else if (d === "2fa") setTfa(true);
+    else if (d === "passkeys") setPasskeys(true);
+    else if (d === "devices") setMobile(true);
+  });
   const qc = useQueryClient();
   const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-panel-2";
   const power = async (action: "reboot" | "poweroff") => {
@@ -174,6 +161,7 @@ function UserMenu({ me }: { me: Me }) {
       {open && (
         <div className="card absolute right-0 top-11 z-[9999] w-60 p-1.5 text-[13px]">
           <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")} · {me.username}</div>
+          <button className={item} onClick={() => { setOpen(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>
           <button className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
           <button className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
           <button className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
@@ -194,6 +182,7 @@ function UserMenu({ me }: { me: Me }) {
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
+      <AppearanceModal open={look} onClose={() => setLook(false)} />
     </div>
   );
 }
@@ -221,6 +210,7 @@ function Taskbar({ me, apps, alerts }: { me: Me; apps: AppDef[]; alerts: Overvie
           );
         })}
       </div>
+      <GlobalSearch me={me} dark openPage={(p) => { if (!wm.openPath(p)) wm.open("overview"); }} />
       <div className="[&_button]:text-white/80 [&_button:hover]:text-white"><JobsMenu /></div>
       <Alerts alerts={alerts} />
       <TrayBtn title={tr("Theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</TrayBtn>
@@ -231,71 +221,6 @@ function Taskbar({ me, apps, alerts }: { me: Me; apps: AppDef[]; alerts: Overvie
       <UserMenu me={me} />
       {launcher && <Launcher apps={apps} onClose={() => setLauncher(false)} />}
     </header>
-  );
-}
-
-/* ---------- Widgets ---------- */
-
-function Widget({ title, children, onClick }: { title: string; children: ReactNode; onClick?: () => void }) {
-  return (
-    <section className={cx("rounded-2xl border border-white/10 bg-black/30 p-4 text-white shadow-xl backdrop-blur-xl", onClick && "cursor-pointer transition hover:bg-black/40")} onClick={onClick}>
-      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-white/60">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Bar({ value, label, sub }: { value: number; label: string; sub: string }) {
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-[12px]"><span>{label}</span><span className="text-white/70">{sub}</span></div>
-      <Progress value={value} className="!border-white/10 !bg-white/10" />
-    </div>
-  );
-}
-
-function Widgets({ me, ov }: { me: Me; ov?: Overview }) {
-  const wm = useWM()!;
-  const stats = useQuery({ queryKey: ["stats"], queryFn: () => api.get<{ history: Sample[] }>("/api/system/stats"), refetchInterval: 3000 });
-  const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info"), refetchInterval: 60000 });
-  const last = stats.data?.history.at(-1);
-  const errors = ov?.alerts.filter((a) => a.level === "error").length ?? 0;
-  const healthy = ov && ov.alerts.length === 0;
-  return (
-    <aside className="absolute right-4 top-4 z-[1] hidden w-72 space-y-3 xl:block">
-      <Widget title={tr("System status")} onClick={() => wm.open("overview")}>
-        <div className="flex items-center gap-3">
-          <div className={cx("flex h-11 w-11 items-center justify-center rounded-full", healthy ? "bg-ok/25 text-ok" : errors ? "bg-danger/25 text-danger" : "bg-warn/25 text-warn")}>
-            {healthy ? <CheckCircle2 size={22} /> : <AlertTriangle size={22} />}
-          </div>
-          <div className="min-w-0">
-            <div className="font-semibold">{!ov ? "…" : healthy ? tr("Healthy") : errors ? tr("Attention required") : tr("Warning")}</div>
-            <div className="truncate text-[12px] text-white/70">{srv(ov?.alerts[0]?.message) || (info.data ? tr("{0} · active since {1}", info.data.hostname, duration(info.data.uptime)) : "")}</div>
-          </div>
-        </div>
-      </Widget>
-      {last && (
-        <Widget title={tr("Resources")} onClick={me.role === "admin" ? () => wm.open("monitor") : undefined}>
-          <div className="space-y-3">
-            <Bar value={last.cpu} label={tr("Processor")} sub={`${last.cpu.toFixed(0)} %`} />
-            <Bar value={pct(last.memUsed, last.memTotal)} label={tr("Memory")} sub={`${bytes(last.memUsed)} / ${bytes(last.memTotal)}`} />
-            <div className="flex justify-between text-[12px] text-white/80"><span>↓ {rate(last.netRx)}</span><span>↑ {rate(last.netTx)}</span></div>
-          </div>
-        </Widget>
-      )}
-      {ov && ov.volumes.length > 0 && (
-        <Widget title={tr("Storage")} onClick={me.role === "admin" ? () => wm.open("storage", "volumes") : undefined}>
-          <div className="space-y-3">
-            {ov.volumes.slice(0, 4).map((v) => <Bar key={v.name} value={pct(v.used, v.total)} label={v.name} sub={tr("{0} free", bytes(v.free))} />)}
-          </div>
-        </Widget>
-      )}
-      {ov && me.role === "admin" && (
-        <Widget title={tr("Applications")} onClick={() => wm.open("docker", "containers")}>
-          <div className="text-[13px]"><b className="text-[20px]">{ov.containers.running}</b> <span className="text-white/70">/ {ov.containers.total} {" "}{tr("active containers")}</span></div>
-        </Widget>
-      )}
-    </aside>
   );
 }
 
@@ -382,7 +307,13 @@ function useSize(ref: React.RefObject<HTMLElement | null>) {
 
 function DesktopInner({ me }: { me: Me }) {
   const wm = useWM()!;
-  const [wall, setWall] = usePref("strata-wallpaper", "aurora");
+  const prefs = usePrefs();
+  const savePrefs = useSavePrefs();
+  useAccent();
+  const wall = prefs.data?.wallpaper || legacyWallpaper() || DEFAULT_WALLPAPER;
+  const setWall = (wallpaper: string) => savePrefs({ wallpaper }).catch(() => {});
+  const [widgetsOpen, setWidgetsOpen] = useState(false);
+  useAccountDialog((d) => d === "widgets" && setWidgetsOpen(true));
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const apps = APPS.filter((a) => !a.admin || me.role === "admin");
   const ov = useQuery({ queryKey: ["overview"], queryFn: () => api.get<Overview>("/api/system/overview"), refetchInterval: 15000 });
@@ -404,16 +335,12 @@ function DesktopInner({ me }: { me: Me }) {
   }, [store.data]);
 
   // Icon positions, saved on the NAS per user (grid coordinates).
-  const qc = useQueryClient();
-  const prefs = useQuery({ queryKey: ["desktop-prefs"], queryFn: () => api.get<{ icons: Layout }>("/api/me/desktop"), staleTime: Infinity });
-  const saveLayout = (icons: Layout) => {
-    qc.setQueryData(["desktop-prefs"], { icons });
-    api.put("/api/me/desktop", { icons }).catch(() => qc.invalidateQueries({ queryKey: ["desktop-prefs"] }));
-  };
+  const saveLayout = (icons: Layout) => savePrefs({ icons }).catch(() => {});
   const mainRef = useRef<HTMLElement>(null);
   const size = useSize(mainRef);
   // The widgets column (xl screens) keeps its place on the right.
-  const { cols, rows } = gridSize(size.w - (window.innerWidth >= 1280 ? 304 : 0), size.h);
+  const panel = prefs.data && shownWidgets(prefs.data.widgets, me.role === "admin").length > 0;
+  const { cols, rows } = gridSize(size.w - (panel && window.innerWidth >= 1280 ? 304 : 0), size.h);
   const ids = useMemo(() => [...apps.map((a) => a.id), ...webApps.map((w) => w.id)], [apps, webApps]);
   const saved = prefs.data?.icons ?? NO_LAYOUT;
   const layout = useMemo(() => layoutIcons(ids, saved, cols, rows), [ids, saved, cols, rows]);
@@ -437,7 +364,7 @@ function DesktopInner({ me }: { me: Me }) {
   const iconProps = (id: string) => ({ cell: layout[id] ?? ([0, 0] as Cell), onDragEnd: (x: number, y: number) => drop(id, x, y) });
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: (wallpapers[wall] ?? wallpapers.aurora).css }} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}>
+    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: wallpaperCSS(wall, prefs.data?.customWallpaper) }} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}>
       <Taskbar me={me} apps={apps} alerts={ov.data?.alerts ?? []} />
       <main ref={mainRef} className="relative flex-1" onMouseDown={() => setMenu(null)}>
         {/* Icons wait for the saved layout, so they do not jump once it arrives. */}
@@ -456,7 +383,7 @@ function DesktopInner({ me }: { me: Me }) {
             </DesktopIcon>
           ))}
         </div>
-        <Widgets me={me} ov={ov.data} />
+        <WidgetPanel me={me} ov={ov.data} onCustomize={() => setWidgetsOpen(true)} />
         {wm.windows.map((w) => {
           const a = appById(w.app);
           return a ? <Window key={w.app} win={w} app={a}><AppContent app={a} win={w} me={me} /></Window> : null;
@@ -468,16 +395,19 @@ function DesktopInner({ me }: { me: Me }) {
       {menu && (
         <div className="card fixed z-[9999] w-56 p-1.5 text-[13px]" style={{ left: Math.min(menu.x, window.innerWidth - 240), top: Math.min(menu.y, window.innerHeight - 320) }} onMouseLeave={() => setMenu(null)}>
           <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-muted"><ImageIcon size={14} /> {" "}{tr("Wallpaper")}</div>
-          {Object.entries(wallpapers).map(([k, w]) => (
+          {Object.entries(WALLPAPERS).map(([k, w]) => (
             <button key={k} onClick={() => { setWall(k); setMenu(null); }} className={cx("flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2", wall === k && "text-accent")}>
               <span className="h-4 w-6 rounded" style={{ background: w.css }} /> {w.label}
             </button>
           ))}
           <div className="my-1 border-t border-line" />
+          <button onClick={() => { openAccountDialog("appearance"); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><Palette size={14} /> {" "}{tr("Appearance…")}</button>
+          <button onClick={() => { setWidgetsOpen(true); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><LayoutPanelLeft size={14} /> {" "}{tr("Customize widgets")}</button>
           <button onClick={() => { saveLayout({}); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><LayoutGrid size={14} /> {" "}{tr("Rearrange icons")}</button>
           <button onClick={() => setUIMode("classic")} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><MonitorIcon size={14} /> {" "}{tr("Classic interface")}</button>
         </div>
       )}
+      <WidgetsModal me={me} open={widgetsOpen} onClose={() => setWidgetsOpen(false)} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { bytes, cx, dateTime } from "../../../lib/format";
 import type { Group, Me, Share, User } from "../../../lib/types";
 import { Button, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, Select, Spinner, Switch } from "../../../components/ui";
 import { tr } from "../../../lib/i18n";
+import { QuickBridge } from "../../../components/QuickBridge";
 import type { LXCFeatures, LXCImage, LXCImportable, LXCLocation, LXCMount, LXCNetwork } from "./types";
 import { backendLabel } from "./ContainerCard";
 
@@ -47,7 +48,8 @@ export function NetworkFields({ n, set, bridges }: { n: LXCNetwork; set: (n: LXC
           <Field label={tr("MAC address")} hint={tr("Empty: generated")}><Input className="mono" value={n.mac} onChange={(e) => set({ ...n, mac: e.target.value })} placeholder="00:16:3e:…" /></Field>
         </>
       )}
-      {bridges.length === 0 && n.mode !== "none" && <div className="sm:col-span-2"><Notice>{tr("For the container to appear directly on your local network, create a bridge in Control Panel → Network.")}</Notice></div>}
+      {/* Rendered even once a bridge shows up: it holds the trial confirmation. */}
+      {n.mode !== "none" && <QuickBridge what="container" className="sm:col-span-2" onCreated={(b) => set({ ...n, mode: "bridge", bridge: b })} />}
     </div>
   );
 }

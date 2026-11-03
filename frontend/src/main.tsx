@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { initI18n } from "./lib/i18n";
+import { applySavedAccent } from "./lib/appearance";
 
 // Apply the saved theme before the first paint (loading screens included).
 try {
@@ -9,6 +10,7 @@ try {
 } catch {
   document.documentElement.dataset.theme = "dark";
 }
+applySavedAccent();
 
 // Opened from the "new address" link after a network change: confirm it, then clean the URL.
 const netToken = new URLSearchParams(location.search).get("netconfirm");

@@ -32,6 +32,12 @@ Conseil : activez tout de suite les **notifications** (Paramètres → Notificat
 
 Paramètres → **Écran console** désactive cet écran (« Écran StrataOS sur l'affichage du NAS »), ou seulement les codes de récupération (« Codes de récupération administrateur depuis l'écran »).
 
+### Trouver et personnaliser le bureau
+
+**Recherche** : le champ de recherche en haut de l'écran (ou **Ctrl+K**, **⌘K** sur Mac, ou **/** quand vous n'êtes pas en train d'écrire) trouve les applications, les pages du Panneau de configuration, les réglages, les dossiers partagés et les fichiers ; les administrateurs y trouvent aussi les machines virtuelles, les conteneurs et les utilisateurs. Les résultats sont regroupés ; les flèches pour se déplacer, Entrée pour ouvrir (un fichier s'ouvre dans Fichiers, une VM dans ses réglages, un utilisateur dans sa fiche), Échap pour fermer. Les noms marchent dans votre langue et en anglais. La recherche de fichiers parcourt les dossiers partagés que vous pouvez lire et ne montre que les premiers résultats : pour une recherche complète, utilisez celle de Fichiers.
+
+**Personnaliser** : menu du compte → **Apparence** permet de choisir le fond d'écran du mode bureau (quelques fonds fournis, ou votre propre image : toute image est réduite à 3840 × 2160 et gardée en JPEG de 5 Mo au plus, sur le NAS, pour votre compte seulement) et la **couleur d'accent** de toute l'interface (boutons, liens, sélections), un peu ajustée dans les thèmes clair et sombre pour que le texte reste lisible. En mode bureau, clic droit sur le bureau → **Personnaliser les widgets** (ou le bouton qui apparaît sous les widgets) pour choisir les widgets à droite de l'écran et leur ordre : état du système, ressources, débit réseau, stockage, notifications, et pour les administrateurs applications, conteneurs Docker, machines virtuelles et conteneurs, onduleur, dernières sauvegardes et températures des disques. Les widgets ne s'affichent que sur les grands écrans et ne se mettent à jour que lorsqu'ils sont visibles. Ces choix sont enregistrés sur le NAS et vous suivent d'un navigateur à l'autre.
+
 ## 3. Le stockage
 
 Le stockage s'organise en couches : **disques → grappe RAID ou pool → volume → dossiers partagés**.
@@ -170,6 +176,8 @@ Les **machines virtuelles** (KVM) s'installent en un clic. « Créer une VM » p
 Chaque VM peut prendre des **Snapshots** (avec sa mémoire si elle tourne) et être **clonée**. Préparez une VM une fois, puis « Convertir en modèle » pour créer des VM identiques à partir d'elle (onglet Modèles). L'onglet **Périphériques USB** donne un périphérique USB (clé Zigbee, onduleur, clé de licence…) à une VM ; il revient après avoir été débranché. **Ordre de démarrage** choisit les VM qui démarrent avec le NAS, dans quel ordre et avec quel délai. **Sauvegardes** liste les VM sauvegardées par vos tâches de sauvegarde et en restaure une comme nouvelle VM.
 
 Le **passthrough PCI** (activez « Avancé ») donne un périphérique entier, comme une carte graphique, à une VM. C'est réservé aux utilisateurs expérimentés : un mauvais périphérique peut rendre le NAS injoignable.
+
+**Pont réseau en un clic** : pour qu'une VM ou un conteneur apparaisse directement sur votre réseau local (avec sa propre adresse donnée par votre box), le NAS a besoin d'un pont. S'il n'y en a pas, les assistants de création (et l'onglet Réseau d'un conteneur) proposent **Créer un pont sur eth0** (le nom de l'interface principale du NAS). StrataOS crée alors un pont `br0`, y branche l'interface et déplace l'adresse du NAS sur le pont : en DHCP, le pont garde l'adresse MAC de l'interface, donc votre box donne la même adresse ; une adresse fixe, sa passerelle et ses serveurs DNS sont recopiés. Le réseau est coupé quelques secondes, et le changement est appliqué **à l'essai**, comme dans Panneau de configuration → Réseau : si la page ne retrouve pas le NAS dans les 2 minutes, l'ancienne configuration revient toute seule. Une fois confirmé, l'assistant sélectionne le nouveau pont. Les autres cas (plusieurs interfaces, agrégats, VLAN, NetworkManager) se règlent dans Panneau de configuration → Réseau.
 
 ### Conteneurs (LXC)
 

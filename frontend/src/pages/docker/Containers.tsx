@@ -8,6 +8,7 @@ import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { Terminal } from "../../components/Terminal";
 import { tr, locale } from "../../lib/i18n";
+import { useIntent } from "../../lib/intent";
 import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
 
 export function DockerGuard({ children }: { children: React.ReactNode }) {
@@ -182,6 +183,7 @@ export default function Containers() {
   const [inspect, setInspect] = useState<string | null>(null);
   const [create, setCreate] = useState(false);
   const [filter, setFilter] = useState("");
+  useIntent("docker", (i) => setFilter(i.name));
   const { data, isLoading, error } = useQuery({ queryKey: ["containers"], queryFn: () => api.get<Container[]>("/api/docker/containers"), refetchInterval: 5000 });
   const stats = useQuery({ queryKey: ["container-stats"], queryFn: () => api.get<Record<string, ContainerStats>>("/api/docker/stats"), refetchInterval: 5000 });
   const act = useAction((p: { id: string; action: string }) => api.post(`/api/docker/containers/${p.id}/${p.action}`));

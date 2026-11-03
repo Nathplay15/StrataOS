@@ -47,6 +47,11 @@ func (s *Server) searchRoots(r *http.Request, t target) []target {
 // searchTarget walks t for names containing q (lower case), skipping hidden
 // entries and recycle bins. visited counts entries across roots.
 func searchTarget(ctx context.Context, t target, q string, out *[]fileEntry, visited *int) error {
+	return searchTargetN(ctx, t, q, out, visited, maxSearchResults)
+}
+
+// searchTargetN is searchTarget stopping at max results.
+func searchTargetN(ctx context.Context, t target, q string, out *[]fileEntry, visited *int, max int) error {
 	rt, err := t.open()
 	if err != nil {
 		return err
@@ -60,7 +65,7 @@ func searchTarget(ctx context.Context, t target, q string, out *[]fileEntry, vis
 			return ctx.Err()
 		}
 		*visited++
-		if *visited > maxSearchVisited || len(*out) >= maxSearchResults {
+		if *visited > maxSearchVisited || len(*out) >= max {
 			return fs.SkipAll
 		}
 		if p == t.rel {
@@ -144,14 +149,22 @@ func (s *Server) fileMoreRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		// limit: the global search of the interface only shows a few results.
+		limit := qInt(r, "limit", maxSearchResults)
+		if limit < 1 || limit > maxSearchResults {
+			limit = maxSearchResults
+		}
 		out := []fileEntry{}
 		visited := 0
 		for _, root := range s.searchRoots(r, t) {
-			if err := searchTarget(r.Context(), root, q, &out, &visited); err != nil && !errors.Is(err, fs.SkipAll) {
+			if err := searchTargetN(r.Context(), root, q, &out, &visited, limit); err != nil && !errors.Is(err, fs.SkipAll) {
 				return nil, err
 			}
+			if len(out) >= limit {
+				break
+			}
 		}
-		return map[string]any{"path": t.abs, "entries": out, "truncated": len(out) >= maxSearchResults || visited > maxSearchVisited}, nil
+		return map[string]any{"path": t.abs, "entries": out, "truncated": len(out) >= limit || visited > maxSearchVisited}, nil
 	})
 
 	// Copy or move items into a folder, possibly on another share or volume.

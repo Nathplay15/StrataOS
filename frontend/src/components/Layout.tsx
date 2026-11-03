@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -16,6 +16,10 @@ import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, Progress, useUI } from "./ui";
 import { tr, srv } from "../lib/i18n";
 import { LangSwitch } from "./LangSwitch";
+import { GlobalSearch } from "./GlobalSearch";
+import { AppearanceModal } from "./Appearance";
+import { useAccountDialog } from "../lib/intent";
+import { useAccent } from "../lib/appearance";
 
 type NavItem = { to: string; label: string; icon: ReactNode; admin?: boolean };
 
@@ -195,6 +199,15 @@ export function Layout({ me }: { me: Me }) {
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const [look, setLook] = useState(false);
+  useAccent();
+  useAccountDialog((d) => {
+    if (d === "appearance") setLook(true);
+    else if (d === "password") setPwModal(true);
+    else if (d === "2fa") setTfa(true);
+    else if (d === "passkeys") setPasskeys(true);
+    else if (d === "devices") setMobile(true);
+  });
   const loc = useLocation();
   const nav_ = useNavigate();
   const qc = useQueryClient();
@@ -258,7 +271,7 @@ export function Layout({ me }: { me: Me }) {
           <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileNav(true)} aria-label={tr("Menu")}>
             {mobileNav ? <X size={18} /> : <Menu size={18} />}
           </button>
-          <div className="flex-1" />
+          <div className="flex flex-1 justify-start lg:justify-center"><GlobalSearch me={me} openPage={(p) => nav_(p)} /></div>
           <JobsMenu />
           <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-panel-2 hover:text-fg" title={tr("Theme")}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
@@ -274,6 +287,7 @@ export function Layout({ me }: { me: Me }) {
                 <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
                 <div className="card absolute right-0 top-11 z-40 w-56 p-1.5 text-[13px]">
                   <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")}</div>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
@@ -305,6 +319,7 @@ export function Layout({ me }: { me: Me }) {
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
+      <AppearanceModal open={look} onClose={() => setLook(false)} />
     </div>
   );
 }
