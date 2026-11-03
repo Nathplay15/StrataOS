@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Edit3, Lock, Monitor, Plus, Share2, Trash2, Unlock, User as UserIcon, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
-import type { Group, Perm, Share, User } from "../lib/types";
+import type { Group, Me, Perm, Share, User } from "../lib/types";
 import { bytes, cx } from "../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
+
+// The Linux group every StrataOS user belongs to (accounts.BaseGroup).
+const ALL_USERS = "@strata";
 
 const empty: Share = { name: "", path: "", description: "", smb: true, nfs: false, guest: false, browseable: true, recycleBin: true, timeMachine: false, permissions: {}, nfsClients: "", nfsOptions: "" };
 
@@ -32,7 +35,7 @@ function DomainPerms({ perms, local, setPerm }: { perms: Record<string, Perm>; l
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search for a domain user or group…")} />
           {results.map((n) => (
             <button key={n} type="button" onClick={() => { setPerm(n, "ro"); setQ(""); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-panel-2">
-              {n.startsWith("@") ? <UsersIcon size={14} className="text-accent" /> : <UserIcon size={14} className="text-muted" />}{n}<span className="text-muted ml-auto text-[11.5px]">ajouter</span>
+              {n.startsWith("@") ? <UsersIcon size={14} className="text-accent" /> : <UserIcon size={14} className="text-muted" />}{n}<span className="text-muted ml-auto text-[11.5px]">{tr("add")}</span>
             </button>
           ))}
         </div>
@@ -78,6 +81,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
   const locations = useQuery({ queryKey: ["locations"], queryFn: () => api.get<{ path: string; label: string; free: number }[]>("/api/storage/locations") });
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me"), enabled: !editing });
   const [base, setBase] = useState(() => (initial?.path ? "" : ""));
   const [pass, setPass] = useState({ a: "", b: "" });
   const [recovery, setRecovery] = useState("");
@@ -86,6 +90,26 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
     onDone: (r) => { const k = (r as { recoveryKey?: string } | null)?.recoveryKey; if (k) setRecovery(k); else onClose(); },
   });
   const passOK = !s.encrypted || editing || (pass.a.length >= 8 && pass.a === pass.b);
+  // A new share: the only volume is preselected, and its creator can write
+  // while the other users keep reading it (without any permission everyone,
+  // the creator included, only reads). Both stay editable before creating.
+  const defaulted = useRef({ base: false, perms: false });
+  useEffect(() => {
+    if (editing) return;
+    const locs = locations.data;
+    if (!defaulted.current.base && locs) {
+      defaulted.current.base = true;
+      if (locs.length === 1 && !base) {
+        setBase(locs[0].path);
+        setS((p) => ({ ...p, path: `${locs[0].path}/${p.name || "share"}` }));
+      }
+    }
+    const who = me.data?.username;
+    if (!defaulted.current.perms && who) {
+      defaulted.current.perms = true;
+      setS((p) => (Object.keys(p.permissions).length ? p : { ...p, permissions: { [who]: "rw", [ALL_USERS]: "ro" } }));
+    }
+  }, [editing, locations.data, me.data, base]);
   if (recovery) {
     return (
       <Modal open onClose={onClose} title={tr("Recovery key of the encrypted folder")} footer={<Button variant="primary" onClick={onClose}>{tr("I have noted it")}</Button>}>
@@ -102,7 +126,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
 
   const pickBase = (b: string) => {
     setBase(b);
-    if (b) set("path", `${b}/${s.name || "partage"}`);
+    if (b) set("path", `${b}/${s.name || "share"}`);
   };
 
   return (
@@ -119,7 +143,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
           <Field label={tr("Location")} hint={locations.data?.length === 0 ? tr("First create a volume or a ZFS pool.") : undefined}>
             <Select value={base} onChange={(e) => pickBase(e.target.value)}>
               <option value="">{tr("Choose a volume…")}</option>
-              {locations.data?.map((l) => <option key={l.path} value={l.path}>{l.label} — {bytes(l.free)} libres</option>)}
+              {locations.data?.map((l) => <option key={l.path} value={l.path}>{l.label} — {tr("{0} free", bytes(l.free))}</option>)}
             </Select>
           </Field>
         )}
@@ -168,15 +192,19 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
                     <PermPicker value={s.permissions[u.username]} onChange={(p) => setPerm(u.username, p)} />
                   </div>
                 ))}
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <span className="flex items-center gap-2"><UsersIcon size={15} className="text-accent" />{tr("All StrataOS users")}</span>
+                  <PermPicker value={s.permissions[ALL_USERS]} onChange={(p) => setPerm(ALL_USERS, p)} />
+                </div>
                 {groups.data?.map((g) => (
                   <div key={g.name} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <span className="flex items-center gap-2"><UsersIcon size={15} className="text-accent" />@{g.name}<span className="text-muted text-[12px]">{tr("group ·")}{" "}{g.members.length} membre(s)</span></span>
+                    <span className="flex items-center gap-2"><UsersIcon size={15} className="text-accent" />@{g.name}<span className="text-muted text-[12px]">{tr("group ·")}{" "}{tr("{0} member(s)", g.members.length)}</span></span>
                     <PermPicker value={s.permissions["@" + g.name]} onChange={(p) => setPerm("@" + g.name, p)} />
                   </div>
                 ))}
               </div>
             )}
-            <DomainPerms perms={s.permissions} local={new Set([...(users.data ?? []).map((u) => u.username), ...(groups.data ?? []).map((g) => "@" + g.name)])} setPerm={setPerm} />
+            <DomainPerms perms={s.permissions} local={new Set([ALL_USERS, ...(users.data ?? []).map((u) => u.username), ...(groups.data ?? []).map((g) => "@" + g.name)])} setPerm={setPerm} />
             {Object.keys(s.permissions).length === 0 && <div className="mt-2"><Notice>{tr("Without explicit permission, all StrataOS users have read-only access.")}</Notice></div>}
           </div>
         )}
@@ -238,7 +266,7 @@ export default function Shares() {
                     </div>
                   )}
                   <div className="mt-3 text-[12px] text-muted">
-                    {Object.entries(s.permissions).length === 0 ? tr("Read-only for all users") : Object.entries(s.permissions).map(([k, v]) => `${k} (${v})`).join(", ")}
+                    {Object.entries(s.permissions).length === 0 ? tr("Read-only for all users") : Object.entries(s.permissions).map(([k, v]) => `${k === ALL_USERS ? tr("All StrataOS users") : k} (${v})`).join(", ")}
                   </div>
                   {s.smb && <div className="mono mt-3 rounded-lg bg-panel-2 px-2.5 py-1.5 text-[11.5px] text-muted">\\{host}\{s.name}</div>}
                 </div>
