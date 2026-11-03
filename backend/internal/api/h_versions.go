@@ -124,6 +124,7 @@ func (s *Server) versionRoutes() {
 // versionLinksLoop keeps the Windows "Previous Versions" links in step with
 // the snapshots (created and deleted by schedules or by hand).
 func (s *Server) versionLinksLoop() {
+	own := map[string]bool{} // shares showing the snapshots of their own sub-volume
 	for {
 		time.Sleep(2 * time.Minute)
 		seen := map[string]bool{}
@@ -135,11 +136,23 @@ func (s *Server) versionLinksLoop() {
 				}
 			}
 		})
+		changed := false
 		for _, p := range paths {
-			if mp := storage.ShadowMount(p); mp != "" && !seen[mp] {
+			mp := storage.ShadowMount(p)
+			if mp != "" && !seen[mp] {
 				seen[mp] = true
 				_ = storage.SyncVersionLinks(mp)
 			}
+			// smb.conf points such a share to its own links: rewrite it
+			// when the first snapshot of the sub-volume appears or the last goes.
+			has := mp != "" && storage.ShareVersionsDir(mp, p) != ""
+			if has != own[p] {
+				own[p] = has
+				changed = true
+			}
+		}
+		if changed {
+			_ = s.applyShares()
 		}
 	}
 }

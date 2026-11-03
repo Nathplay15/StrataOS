@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strataos/internal/antivirus"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"strataos/internal/shares"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/sys"
 )
 
 type scheduleView struct {
@@ -76,6 +78,9 @@ func (s *Server) schedulerLoop() {
 		}
 		if tick.Hour() == 3 && tick.Minute() == 30 {
 			go s.purgeRecycleBins()
+		}
+		if s.restoreTestDue(tick) {
+			_, _ = s.runRestoreTests("", "")
 		}
 	}
 }
@@ -224,7 +229,25 @@ func (s *Server) scheduleRoutes() {
 				disks = append(disks, opt{Kind: "disks", Value: d.Path, Label: fmt.Sprintf("%s (%s)", d.Path, firstNonEmpty(d.Model, d.Name))})
 			}
 		}
-		return map[string]any{"snapshot": snap, "scrub": scrub, "disks": disks}, nil
+		thin := storage.ThinLVs()
+		for _, t := range thin {
+			snap = append(snap, opt{Kind: "lvm", Value: t.VG + "/" + t.LV, Label: "LVM thin " + t.VG + "/" + t.LV})
+		}
+		// Shared folders, as the snapshot target that holds each one.
+		shares := []shareTarget{}
+		var list []store.Share
+		s.store.Read(func(st *store.State) {
+			for _, sh := range st.Shares {
+				list = append(list, *sh)
+			}
+		})
+		for _, sh := range list {
+			if t, ok := s.shareSnapshotTarget(sh.Path, vols, thin); ok {
+				t.Share = sh.Name
+				shares = append(shares, t)
+			}
+		}
+		return map[string]any{"snapshot": snap, "scrub": scrub, "disks": disks, "shares": shares}, nil
 	})
 
 	save := func(r *http.Request, id string) (any, error) {
@@ -338,6 +361,53 @@ func (s *Server) scheduleRoutes() {
 		s.audit(r, "schedules", fmt.Sprintf("Created %d recommended maintenance tasks", created))
 		return map[string]int{"created": created}, nil
 	})
+}
+
+// shareTarget is the snapshot target of a shared folder.
+type shareTarget struct {
+	Share     string `json:"share"`
+	Kind      string `json:"kind"`
+	Value     string `json:"value"`
+	Subvolume string `json:"subvolume,omitempty"`
+	// Whole: the folder is not a volume of its own, the whole volume is snapshotted.
+	Whole bool `json:"whole,omitempty"`
+}
+
+// shareSnapshotTarget finds what to snapshot for a shared folder: its Btrfs
+// sub-volume or volume, its ZFS dataset, its LVM thin volume.
+func (s *Server) shareSnapshotTarget(p string, vols []store.Volume, thin []storage.ThinLV) (shareTarget, bool) {
+	for _, v := range vols {
+		if p != v.MountPoint && !strings.HasPrefix(p, v.MountPoint+"/") {
+			continue
+		}
+		t := shareTarget{Kind: "btrfs", Value: v.ID, Whole: true}
+		if rel := strings.TrimPrefix(p, v.MountPoint+"/"); p != v.MountPoint && storage.IsMountpoint(v.MountPoint) {
+			if info, err := storage.BtrfsDetail(v.MountPoint); err == nil {
+				for _, sv := range info.Subvolumes {
+					if !sv.Snapshot && sv.Path == rel {
+						t.Subvolume, t.Whole = rel, false
+					}
+				}
+			}
+		} else if p == v.MountPoint {
+			t.Whole = false
+		}
+		return t, true
+	}
+	if storage.ZFSAvailable() {
+		if out, err := sys.Run("findmnt", "-n", "-o", "FSTYPE,SOURCE", "-T", p); err == nil {
+			if f := strings.Fields(out); len(f) == 2 && f[0] == "zfs" {
+				mp := storage.MountOf(p)
+				return shareTarget{Kind: "zfs", Value: f[1], Whole: mp != p}, true
+			}
+		}
+	}
+	for _, t := range thin {
+		if t.MountPoint != "" && (p == t.MountPoint || strings.HasPrefix(p, t.MountPoint+"/")) {
+			return shareTarget{Kind: "lvm", Value: t.VG + "/" + t.LV, Whole: p != t.MountPoint}, true
+		}
+	}
+	return shareTarget{}, false
 }
 
 // purgeRecycleBins empties network recycle bins older than Settings.TrashDays (daily).

@@ -384,7 +384,13 @@ func Apply(st *store.State) error {
 			fmt.Fprintf(&b, "   veto files = /%s/\n   hide files = /%s/\n", strings.Join(veto, "/"), strings.Join(veto, "/"))
 		}
 		if shadow != "" {
-			fmt.Fprintf(&b, "   shadow:mountpoint = %s\n   shadow:basedir = %s\n   shadow:snapdir = %s/%s\n   shadow:sort = desc\n   shadow:crossmountpoints = yes\n", shadow, shadow, shadow, storage.VersionsDirName)
+			// A sub-volume snapshotted on its own shows its snapshots, the
+			// others those of the whole volume.
+			basedir, snapdir := shadow, shadow+"/"+storage.VersionsDirName
+			if d := storage.ShareVersionsDir(shadow, sh.Path); d != "" {
+				basedir, snapdir = sh.Path, d
+			}
+			fmt.Fprintf(&b, "   shadow:mountpoint = %s\n   shadow:basedir = %s\n   shadow:snapdir = %s\n   shadow:sort = desc\n   shadow:crossmountpoints = yes\n", shadow, basedir, snapdir)
 		}
 	}
 	if sys.Has("smbd") || dirExists("/etc/samba") {

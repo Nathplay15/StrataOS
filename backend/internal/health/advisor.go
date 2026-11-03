@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"strataos/internal/protect"
 	"strataos/internal/store"
 )
 
@@ -38,6 +39,13 @@ type Facts struct {
 	RansomOn bool
 
 	Backups []BackupFact
+
+	// Rule321 is where the copies stand (nil: unknown); RestoreFailed lists
+	// the backups whose last restore test failed; RestoreTestOff: the monthly
+	// tests are turned off while some backup could be tested.
+	Rule321        *protect.Rule321
+	RestoreFailed  []string
+	RestoreTestOff bool
 
 	RestoreSupported bool
 	RestoreWhy       string
@@ -171,6 +179,18 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 			add("backup-old", "medium", sub("Backups that have not succeeded for a while: {0}", list(old)),
 				"The last success is older than twice the task interval. Check that the task is enabled and that its destination is reachable.", "", "/backup")
 		}
+		if r := f.Rule321; r != nil && !r.OK {
+			add("backup-321", "medium", sub("Backups do not follow the 3-2-1 rule: {0} copies, {1} media, {2} off-site", r.Copies, r.Media, r.Offsite),
+				"Keep 3 copies of your data (the original counts), on 2 different media (the NAS and a USB disk, another NAS or the cloud), 1 of them off-site so that theft, fire or ransomware cannot reach all of them. Backup shows where you stand and helps add an off-site copy.", "", "/backup")
+		}
+	}
+	if len(f.RestoreFailed) > 0 {
+		add("restore-test-failed", "high", sub("Restore test failed: {0}", list(f.RestoreFailed)),
+			"A sample of files could not be restored intact from these backups: they may not save you when needed. Open the task to see why, run the backup again, then the restore test.", "", "/backup")
+	}
+	if f.RestoreTestOff {
+		add("restore-test-off", "low", "Monthly restore tests are off",
+			"A backup that cannot be restored is worth nothing, and nobody finds out until the day it is needed. Turn the monthly restore test back on in Backup.", "", "/backup")
 	}
 	if !f.RestoreSupported {
 		add("restore-points", "low", "System restore points are unavailable",

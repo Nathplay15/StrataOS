@@ -1,6 +1,7 @@
 package health
 
 import (
+	"strataos/internal/protect"
 	"strings"
 	"testing"
 	"time"
@@ -278,5 +279,26 @@ End-Date: 2026-10-30  03:01:00
 	}
 	if n := AptInstalled(log, since.AddDate(0, -1, 0)); n != 4 {
 		t.Errorf("month: %d", n)
+	}
+}
+
+func TestAdviseDataProtection(t *testing.T) {
+	f := baseFacts()
+	r := protect.Assess([]protect.Copy{{Name: "usb", Media: protect.MediaUSB, Healthy: true}})
+	f.Rule321 = &r
+	f.RestoreFailed = []string{"nightly"}
+	f.RestoreTestOff = true
+	items := Advise(f, nil)
+	if got := ids(items); got != "restore-test-failed,backup-321,restore-test-off" {
+		t.Fatalf("items %s", got)
+	}
+	if !strings.Contains(items[1].Title, "2 copies, 2 media, 0 off-site") {
+		t.Errorf("title %q", items[1].Title)
+	}
+	ok := protect.Assess([]protect.Copy{{Media: protect.MediaUSB, Healthy: true}, {Media: protect.MediaCloud, Offsite: true, Healthy: true}})
+	f = baseFacts()
+	f.Rule321 = &ok
+	if items := Advise(f, nil); len(items) != 0 {
+		t.Errorf("3-2-1 met: %s", ids(items))
 	}
 }
