@@ -93,6 +93,25 @@ CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript
 - **Security advisor**: `health.Advise(Facts, ignored)` is pure (tests build `Facts` by hand); `advisorFacts` reads the state, `sshd -T`, `timedatectl`, apt, SMART cache and Docker. `GET /api/security/advisor` (last run, `State.Advisor.Last`), `POST /api/security/advisor/run`, `POST /api/security/advisor/fix/{id}` (`smb-proto`, `ssh-root`, `security-updates`, `guard`, `ransomware`, `ntp`), `PUT /api/security/advisor/ignore` `{id, ignored}` (`State.Advisor.Ignored`). The scheduler runs it daily at 7:30 and notifies a lower score or a new high item (`health.AdvisorNews`).
 - **Report** (`api/report.go`, `healthReport`): `Settings.Report` = `weekly` | `monthly` | `off` (`""` follows the older `MonthlyReport`); `POST /api/settings/report` `{period}` sends one now. Lines are server texts translated by `i18n.Lines`, which keeps a leading `• ` or emoji marker.
 
+## Data protection (restore, 3-2-1, restore tests)
+
+`internal/protect` holds the pure logic (tested): snapshot retention (`Policy`, `Keep`, `Expired`: last N, N days, newest of each of the last N hours/days/ISO weeks/months, a union of rules; the newest is always kept), the 3-2-1 assessment (`Assess` over `Copy` values with their medium `nas`/`usb`/`remote`/`cloud`), restore previews (`Compare`: new, same, overwrite, conflict = the file there is newer than the backup) and restore test samples. `internal/restore` reads the sources and copies: a `Source` (Btrfs/ZFS snapshots of a mount point `snap:<mp>`, LVM thin snapshots `lvm:<vg>/<lv>` mounted read-only under `/run/strata/lvsnap` while browsed, restic backups and local rsync copies `backup:<id>`, cloud uploads `cloud:<id>`) lists points, folders and files by their **original absolute path**, stages a selection locally (restic `restore --verify` / `rclone copy` into `<volume>/.strata-restore-*`), and `Apply` copies through `os.Root` with a conflict policy (`overwrite`, `skip`, `rename`), keeping owners, modes and dates. `scheduler.Retention` / `Expire` apply the calendar retention to snapshot tasks (without calendar rules, `KeepCount`/`KeepDays` keep their pre-0.10 meaning: both must hold).
+
+| Request | Does |
+|---|---|
+| `GET /api/restore/sources?path=` | Sources (optionally those holding a path) |
+| `GET /api/restore/points?source=` | Points in time, with their root folders |
+| `GET /api/restore/browse?source=&point=&path=` | Children of a folder (no path: the roots) |
+| `POST /api/restore/preview` `{source, point, paths, mode: inplace\|folder, target}` | Counts, overwrites and conflicts (200 listed), `configFile` found |
+| `POST /api/restore/run` `{…, policy}` | Job; in place with `overwrite`, a `pre-restore-` snapshot first (Btrfs/ZFS, 5 kept) |
+| `GET /api/restore/download?source=&point=&path=` | A file, or a folder as a zip (not for cloud folders) |
+| `POST /api/restore/config` `{path}` | A restored `strataos-config-*.json`, parsed for `/api/config/preview` |
+| `GET/PUT /api/protection` | 3-2-1 assessment, USB volumes, restore test results; `restoreTestOff` |
+| `POST /api/protection/restore-test` `{id}` | Restore test of one source (`backup:<id>`, `cloud:<id>`) or all |
+| `GET /api/schedules/{id}/snapshots` | Snapshots of a task and whether retention keeps them |
+
+State: `Schedule.KeepHourly/KeepDaily/KeepWeekly/KeepMonthly`, `TargetKind` `lvm` (`vg/lv`); `BackupTask.Offsite` (a local destination kept off site), `BackupTask.RestoreTest` and `CloudSync.RestoreTest` (`store.RestoreTest`); `State.Protection` (`RestoreTestOff`, `LastRestoreTest`). Restore tests run at 5:20 on the 1st (or once more than 35 days passed), in `/var/tmp/strata-restore-test-*`, 12 files / 128 MB per backup; a file is "verified" when the original has the same size and date and the same SHA-256. `GET /api/schedules/targets` also returns `shares` (the snapshot target of each shared folder). SMB previous versions: `.strata-versions/<base>/` holds the `@GMT` links of a Btrfs sub-volume snapshotted on its own, and a share on that sub-volume points `shadow:basedir/snapdir` there (`storage.ShareVersionsDir`); `versionLinksLoop` rewrites smb.conf when that changes. End-to-end test: `vm/e2e.d/32-restore.sh`.
+
 ## Desktop, search and appearance
 
 - **Per-user preferences** (`api/h_desktop.go`, `frontend/src/lib/appearance.ts`): `GET/PUT /api/me/desktop` carries `icons` (desktop icon cells, `User.Desktop`), `widgets` (ids of the desktop side panel in order, `User.DesktopWidgets`; `null` = the defaults, `[]` hides the panel), `wallpaper` (`User.Wallpaper`: a built-in id of `desktop/wallpapers.ts`, or `custom`) and `accent` (`User.Accent`, `#rrggbb`, `""` = default). A PUT only changes the fields it sends. Widget and wallpaper ids are listed on both sides (`desktopWidgets`/`builtinWallpapers` in Go, `desktop/widgetList.ts`, `desktop/wallpapers.ts`).
