@@ -50,6 +50,7 @@ func (s *Server) storageRoutes() {
 			if info, err := storage.SmartIfAwake(d.Path); err == nil {
 				v.Temperature, v.Healthy, v.PowerOnHours, v.Standby = info.Temperature, info.Passed, info.PowerOnHours, info.Standby
 				v.Warnings = info.Warnings
+				s.recordSmart(d, info)
 				// A sleeping disk keeps the verdict of its last reading, as the alerts do.
 				if e, ok := smartCache.Load(d.Path); ok && info.Standby {
 					last := e.(smartEntry).info
@@ -62,7 +63,11 @@ func (s *Server) storageRoutes() {
 	})
 	s.admin("GET /api/storage/block", func(r *http.Request) (any, error) { return storage.ListBlock() })
 	s.admin("GET /api/storage/disks/smart", func(r *http.Request) (any, error) {
-		return storage.Smart(r.URL.Query().Get("device"))
+		info, err := storage.Smart(r.URL.Query().Get("device"))
+		if err == nil {
+			s.recordSmartPath(info.Device, info)
+		}
+		return info, err
 	})
 	s.admin("POST /api/storage/disks/smart-test", func(r *http.Request) (any, error) {
 		var req struct{ Device, Type string }

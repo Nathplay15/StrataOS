@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 //go:embed texts.json
@@ -108,7 +109,8 @@ func t(rs []rule, text string, depth int) string {
 	return text
 }
 
-// Lines translates a multi-line text line by line, keeping "• " bullets.
+// Lines translates a multi-line text line by line, keeping a leading
+// marker: "• " bullets, or an emoji and a space (report headings).
 func Lines(lang, text string) string {
 	if lang == "" {
 		lang = "en"
@@ -116,11 +118,22 @@ func Lines(lang, text string) string {
 	rs := load(lang)
 	l := strings.Split(text, "\n")
 	for i, x := range l {
-		if rest, ok := strings.CutPrefix(x, "• "); ok {
-			l[i] = "• " + t(rs, rest, 0)
-		} else {
-			l[i] = t(rs, x, 0)
-		}
+		mark, rest := marker(x)
+		l[i] = mark + t(rs, rest, 0)
 	}
 	return strings.Join(l, "\n")
+}
+
+// marker splits a leading "• " or symbol (emoji) followed by a space.
+func marker(line string) (string, string) {
+	head, rest, ok := strings.Cut(line, " ")
+	if !ok || head == "" || len(head) > 8 {
+		return "", line
+	}
+	for _, r := range head {
+		if r != '•' && !unicode.Is(unicode.So, r) && r != '\uFE0F' {
+			return "", line
+		}
+	}
+	return head + " ", rest
 }

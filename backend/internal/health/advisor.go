@@ -144,7 +144,7 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 			sev = "high"
 		}
 		add("guard", sev, "Address blocking is off",
-			"Without it, an attacker can try passwords endlessly. The fix blocks an address after 10 failed sign-ins in 10 minutes (never the local network).", "guard", "/system/guard")
+			"Without it, an attacker can try passwords endlessly. The fix blocks an address for an hour after 5 failed sign-ins in 10 minutes, never the local network.", "guard", "/system/guard")
 	}
 	if !f.RansomOn && f.HasSMBShares {
 		add("ransomware", "medium", "Ransomware protection is off",

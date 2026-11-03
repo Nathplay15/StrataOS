@@ -18,6 +18,7 @@ import (
 
 	"strataos/internal/certs"
 	"strataos/internal/docker"
+	"strataos/internal/health"
 	"strataos/internal/jobs"
 	"strataos/internal/network"
 	"strataos/internal/store"
@@ -54,6 +55,8 @@ type Server struct {
 	httpPort string
 	// diskAlerts: failing or weakening disks found by the last health check.
 	diskAlerts atomic.Pointer[[]alert]
+	// hist: SMART, SSD cache and volume usage history (h_health.go).
+	hist *health.Store
 }
 
 type Config struct {
@@ -75,6 +78,7 @@ func New(c Config) *Server {
 	if s.httpPort == "" {
 		s.httpPort = "7070"
 	}
+	s.hist = health.NewStore(filepath.Join(c.DataDir, "health"))
 	s.jobs.OnFinish = func(j jobs.Snapshot) {
 		level := "info"
 		msg := j.Title + ": finished"
@@ -252,6 +256,7 @@ func (s *Server) routes() {
 	s.restoreRoutes()
 	s.updateRoutes()
 	s.reportRoutes()
+	s.healthRoutes()
 	s.linkRoutes()
 	s.albumRoutes()
 	s.energyRoutes()
