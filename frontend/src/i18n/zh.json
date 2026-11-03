@@ -3581,5 +3581,6 @@
  "· modified": "· 已修改",
  "· stack": "· 堆栈",
  "← Back": "← 返回",
- "≈ {0} usable": "≈ {0} 可用"
+ "≈ {0} usable": "≈ {0} 可用",
+ "One reading so far ({0}): the graphs fill in day after day.": "目前只有一个读数（{0}）：图表会逐日填充。"
 }

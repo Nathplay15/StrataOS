@@ -393,7 +393,13 @@ function DesktopInner({ me }: { me: Me }) {
         </div>
       </main>
       {menu && (
-        <div className="card fixed z-[9999] w-56 p-1.5 text-[13px]" style={{ left: Math.min(menu.x, window.innerWidth - 240), top: Math.min(menu.y, window.innerHeight - 320) }} onMouseLeave={() => setMenu(null)}>
+        <div
+          className="card fixed z-[9999] w-56 p-1.5 text-[13px]"
+          style={{ left: Math.min(menu.x, window.innerWidth - 240), top: menu.y }}
+          // Kept on screen with its real height, which grows with the wallpaper list.
+          ref={(el) => { if (el) el.style.top = Math.max(8, Math.min(menu.y, window.innerHeight - el.offsetHeight - 8)) + "px"; }}
+          onMouseLeave={() => setMenu(null)}
+        >
           <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-muted"><ImageIcon size={14} /> {" "}{tr("Wallpaper")}</div>
           {Object.entries(WALLPAPERS).map(([k, w]) => (
             <button key={k} onClick={() => { setWall(k); setMenu(null); }} className={cx("flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2", wall === k && "text-accent")}>

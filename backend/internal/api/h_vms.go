@@ -6,8 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -30,14 +28,7 @@ func (s *Server) vmRoutes() {
 		s.decorateVMs(list)
 		out["vms"] = list
 		out["stats"] = vms.Stats()
-		var bridges []string
-		entries, _ := os.ReadDir("/sys/class/net")
-		for _, e := range entries {
-			if _, err := os.Stat("/sys/class/net/" + e.Name() + "/bridge"); err == nil && !strings.HasPrefix(e.Name(), "virbr") && !strings.HasPrefix(e.Name(), "docker") && !strings.HasPrefix(e.Name(), "br-") {
-				bridges = append(bridges, e.Name())
-			}
-		}
-		out["bridges"] = bridges
+		out["bridges"] = hostBridges()
 		return out, nil
 	})
 

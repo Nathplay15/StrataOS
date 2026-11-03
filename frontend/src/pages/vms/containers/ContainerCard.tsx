@@ -37,7 +37,7 @@ export function ContainerCard({ c, onOpen, onConsole }: { c: Container; onOpen: 
         <button type="button" className="flex min-w-0 items-center gap-3 text-left" onClick={() => onOpen()}>
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ok/10 text-ok"><Box size={22} /></div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 font-semibold">{c.name}<Badge tone="accent">{tr("Container")}</Badge></div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">{c.name}<Badge tone="accent">{tr("Container")}</Badge></div>
             <div className="text-muted truncate text-[12px]">
               {c.image.distro} {c.image.release}{c.privileged ? ` · ${tr("privileged")}` : ""}{c.autostart && ` · ${tr("auto-start #{0}", c.autostartOrder ?? 0)}`}{c.snapshots > 0 && ` · ${tr("{0} snapshot(s)", c.snapshots)}`}
             </div>
@@ -45,12 +45,12 @@ export function ContainerCard({ c, onOpen, onConsole }: { c: Container; onOpen: 
         </button>
         <Badge tone={c.missing ? "danger" : tone} dot>{c.missing ? tr("Storage missing") : label}</Badge>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-[12.5px] sm:grid-cols-4">
+      <div className="@container mt-4"><div className="grid grid-cols-2 gap-3 text-[12.5px] @md:grid-cols-4">
         <div><div className="text-muted flex items-center gap-1"><Cpu size={12} />{tr("CPU")}</div><b>{c.cpus ? tr("{0} core(s)", c.cpus) : tr("No limit")}</b></div>
         <div><div className="text-muted">{tr("Memory")}</div><b>{memLabel(c.memoryMb)}</b>{running && c.memoryBytes ? <span className="text-muted"> ({bytes(c.memoryBytes)})</span> : null}</div>
         <div><div className="text-muted flex items-center gap-1"><HardDrive size={12} />{tr("Disk")}</div><b>{c.storage.sizeGb ? tr("{0} GB", c.storage.sizeGb) : "—"}</b> <span className="text-muted">{backendLabel[c.storage.backend]}</span></div>
         <div><div className="text-muted">{tr("IP address")}</div><b className="mono">{c.ips[0] ?? (running ? "…" : "—")}</b></div>
-      </div>
+      </div></div>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
         {!running && <Button size="sm" variant="primary" icon={<Play size={14} />} disabled={c.missing} loading={act.isPending} onClick={() => act.mutate("start")}>{tr("Start")}</Button>}
         {running && <Button size="sm" variant="primary" icon={<TerminalSquare size={14} />} onClick={onConsole}>{tr("Console")}</Button>}

@@ -154,10 +154,11 @@ export default function VirtualMachines() {
             // overflow-visible: the Create menu must not be cut by the card.
             <Card className="!overflow-visible"><Empty icon={<Monitor />} {...emptyText} action={createMenu("empty")} /></Card>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
+            // Columns follow the width of the page (a desktop window can be narrow on a wide screen).
+            <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
               {shownVMs.map((vm) => <VMCard key={`vm-${vm.name}`} {...cardProps(vm)} />)}
               {shownCTs.map((c) => <ContainerCard key={`ct-${c.name}`} c={c} onOpen={(t) => setDetail({ name: c.name, tab: (t as DetailTab) ?? "summary" })} onConsole={() => setDetail({ name: c.name, tab: "console" })} />)}
-            </div>
+            </div></div>
           )}
         </>
       )}
@@ -165,9 +166,9 @@ export default function VirtualMachines() {
       {tab === "templates" && (templates.length === 0 ? (
         <Card><Empty icon={<LayoutTemplate />} title={tr("No templates")} text={tr("Prepare a VM (updates, software), shut it down, then convert it to a template to create identical VMs from it.")} /></Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="@container"><div className="grid gap-4 @3xl:grid-cols-2">
           {templates.map((vm) => <TemplateCard key={vm.name} vm={vm} onCreate={() => setCloning(vm)} />)}
-        </div>
+        </div></div>
       ))}
       {tab === "usb" && <USBPanel vms={allVMs} />}
       {tab === "autostart" && <AutostartPanel vms={allVMs} />}
@@ -238,12 +239,12 @@ function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog }: { v
         </div>
         <Badge tone={tone} dot>{label}</Badge>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-[12.5px] sm:grid-cols-4">
+      <div className="@container mt-4"><div className="grid grid-cols-2 gap-3 text-[12.5px] @md:grid-cols-4">
         <div><div className="text-muted flex items-center gap-1"><Cpu size={12} />vCPU</div><b>{vm.vcpus}</b></div>
         <div><div className="text-muted">{tr("Memory")}</div><b>{vm.memoryMb >= 1024 ? tr("{0} GiB", (vm.memoryMb / 1024).toFixed(1)) : tr("{0} MiB", vm.memoryMb)}</b>{running && mem ? <span className="text-muted"> ({bytes(mem * 1024)})</span> : null}</div>
         <div><div className="text-muted flex items-center gap-1"><HardDrive size={12} />{tr("Disk")}</div><b>{disk?.size ? bytes(disk.size) : "—"}</b></div>
         <div><div className="text-muted">{tr("IP address")}</div><b className="mono">{ip ?? (running ? "…" : "—")}</b></div>
-      </div>
+      </div></div>
       {cd && <div className="text-muted mt-3 flex items-center gap-1.5 truncate text-[12px]"><Disc3 size={13} />{cd.source.split("/").pop()}</div>}
       {(vm.usb.length > 0 || vm.pci.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-1.5">

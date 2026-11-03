@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Box, Container as ContainerIcon, File, Folder, Loader2, Monitor, Palette, Search, Settings, Share2, User as UserIcon, LayoutPanelLeft, KeyRound, ShieldCheck, FingerprintPattern, TabletSmartphone } from "lucide-react";
 import type { Container, FileEntry, Me, Share, User } from "../lib/types";
@@ -254,7 +255,9 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
   };
 
   let i = -1;
-  return (
+  // In a portal: the desktop's top bar has a backdrop blur, which would make it
+  // the containing block of this fixed overlay and squash it to the bar's height.
+  return createPortal(
     <div className="fixed inset-0 z-[10000] flex justify-center bg-black/40 px-4 pt-[10vh] text-fg" onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={tr("Search")} className="card flex max-h-[70vh] w-[640px] max-w-full flex-col overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-line px-4">
@@ -307,6 +310,7 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

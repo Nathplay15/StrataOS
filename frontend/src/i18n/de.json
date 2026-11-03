@@ -3581,5 +3581,6 @@
  "· modified": "· geändert",
  "· stack": "· Stack",
  "← Back": "← Zurück",
- "≈ {0} usable": "≈ {0} nutzbar"
+ "≈ {0} usable": "≈ {0} nutzbar",
+ "One reading so far ({0}): the graphs fill in day after day.": "Bisher nur ein Messwert ({0}): Die Diagramme füllen sich Tag für Tag."
 }

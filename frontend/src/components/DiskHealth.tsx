@@ -120,7 +120,9 @@ export function SmartHistory({ device }: { device: string }) {
     <div className="space-y-5">
       <Tabs tabs={ranges.map((r) => ({ id: r.id, label: r.label }))} value={range} onChange={setRange} />
       {pts.length === 0 ? <div className="text-muted text-[13px]">{tr("No reading in this period.")}</div> : <>
-        <div className="text-[12px] text-muted">{tr("{0} readings from {1} to {2}", pts.length, day(first.t), day(last.t))}</div>
+        <div className="text-[12px] text-muted">{pts.length === 1
+          ? tr("One reading so far ({0}): the graphs fill in day after day.", day(first.t))
+          : tr("{0} readings from {1} to {2}", pts.length, day(first.t), day(last.t))}</div>
         {worse.length > 0 && (
           <div className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-[13px] text-warn">
             <b>{tr("Getting worse:")}</b>{" "}{worse.map((c) => tr("{0} {1} → {2}", c.label.toLowerCase(), first[c.key] as number, last[c.key] as number)).join(", ")}
