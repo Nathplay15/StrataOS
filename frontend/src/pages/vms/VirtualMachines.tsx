@@ -44,7 +44,8 @@ export default function VirtualMachines() {
   const [creating, setCreating] = useState(false);
   const [creatingCT, setCreatingCT] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [menu, setMenu] = useState(false);
+  // Which "Create" menu is open: the header one or the one of the empty state.
+  const [menu, setMenu] = useState<"header" | "empty" | null>(null);
   const [console, setConsole] = useState<string | null>(null);
   const [editing, setEditing] = useState<VM | null>(null);
   const [snaps, setSnaps] = useState<VM | null>(null);
@@ -95,17 +96,23 @@ export default function VirtualMachines() {
   const cardProps = (vm: VM) => ({ vm, mem: data?.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm) });
   const shownVMs = kind === "lxc" ? [] : machines;
   const shownCTs = kind === "vm" ? [] : containers;
-  const createMenu = (
+  const ctText = { title: tr("No containers"), text: tr("A container is a light Linux system sharing the NAS's kernel: Debian, Ubuntu, Alpine… ready in seconds.") };
+  const vmText = { title: tr("No virtual machines"), text: tr("Start from a cloud image (ready in a minute), an ISO dropped into a shared folder, or import a disk from another hypervisor.") };
+  const emptyText = kind === "lxc" || (kind === "all" && !vmOK) ? ctText : kind === "vm" || !lxcOK ? vmText : {
+    title: tr("No virtual machines or containers"),
+    text: tr("Create a virtual machine (any operating system: cloud image, ISO or a disk imported from another hypervisor) or a container (a light Linux system sharing the NAS's kernel, ready in seconds)."),
+  };
+  const createMenu = (where: "header" | "empty") => (
     <div className="relative">
-      <Button variant="primary" icon={<Plus size={15} />} onClick={() => setMenu(!menu)}>{tr("Create")}<ChevronDown size={14} className="ml-1" /></Button>
-      {menu && (
+      <Button variant="primary" icon={<Plus size={15} />} onClick={() => setMenu(menu === where ? null : where)}>{tr("Create")}<ChevronDown size={14} className="ml-1" /></Button>
+      {menu === where && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
-          <div className="card absolute right-0 z-50 mt-1 w-64 overflow-hidden p-1">
-            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(false); if (vmOK) setCreating(true); else install.mutate(); }}>
+          <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
+          <div className={cx("card absolute z-50 mt-1 w-64 overflow-hidden p-1 text-left", where === "header" ? "right-0" : "left-1/2 -translate-x-1/2")}>
+            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); if (vmOK) setCreating(true); else install.mutate(); }}>
               <Monitor size={17} className="mt-0.5 text-accent" /><span><span className="block text-[13px] font-medium">{tr("Virtual machine")}</span><span className="text-muted block text-[11.5px]">{vmOK ? tr("Any operating system, its own kernel") : tr("Install virtualization first")}</span></span>
             </button>
-            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(false); if (lxcOK) setCreatingCT(true); else installLXC.mutate(); }}>
+            <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); if (lxcOK) setCreatingCT(true); else installLXC.mutate(); }}>
               <Box size={17} className="mt-0.5 text-ok" /><span><span className="block text-[13px] font-medium">{tr("Container (LXC)")}</span><span className="text-muted block text-[11.5px]">{lxcOK ? tr("A light Linux system, ready in seconds") : tr("Install LXC first")}</span></span>
             </button>
           </div>
@@ -116,7 +123,7 @@ export default function VirtualMachines() {
 
   return (
     <div>
-      {header(<div className="flex items-center gap-4">{vmOK && <Switch checked={advanced} onChange={(v) => { setAdvanced(v); if (!v && tab === "pci") setTab("vms"); }} label={tr("Advanced")} />}{createMenu}</div>)}
+      {header(<div className="flex items-center gap-4">{vmOK && <Switch checked={advanced} onChange={(v) => { setAdvanced(v); if (!v && tab === "pci") setTab("vms"); }} label={tr("Advanced")} />}{createMenu("header")}</div>)}
       <ErrorBox error={error} />
       {vmOK && data && !data.kvm && <div className="mb-4"><Notice tone="warn">{tr("Hardware acceleration (/dev/kvm) is unavailable: enable virtualization (VT-x / AMD-V) in the BIOS. VMs will run very slowly.")}</Notice></div>}
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
@@ -131,7 +138,8 @@ export default function VirtualMachines() {
             </div>
           )}
           {shownVMs.length + shownCTs.length === 0 ? (
-            <Card><Empty icon={<Monitor />} title={kind === "lxc" ? tr("No containers") : tr("No virtual machines")} text={kind === "lxc" ? tr("A container is a light Linux system sharing the NAS's kernel: Debian, Ubuntu, Alpine… ready in seconds.") : tr("Start from a cloud image (ready in a minute), an ISO dropped into a shared folder, or import a disk from another hypervisor.")} action={createMenu} /></Card>
+            // overflow-visible: the Create menu must not be cut by the card.
+            <Card className="!overflow-visible"><Empty icon={<Monitor />} {...emptyText} action={createMenu("empty")} /></Card>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {shownVMs.map((vm) => <VMCard key={`vm-${vm.name}`} {...cardProps(vm)} />)}
