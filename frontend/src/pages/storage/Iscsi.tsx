@@ -209,7 +209,7 @@ function CreateTarget({ data, onClose }: { data: Data; onClose: () => void }) {
       {step > 0 && <Button onClick={() => setStep(step - 1)}>{tr("Back")}</Button>}
       <Button onClick={onClose}>{tr("Cancel")}</Button>
       {step < steps.length - 1
-        ? <Button variant="primary" disabled={!okStep || (step === 0 && !b)} onClick={next}>{tr("Next")}</Button>
+        ? <Button variant="primary" disabled={!okStep || (step === 0 && !b)} onClick={next}>{tr("Next step")}</Button>
         : <Button variant="primary" loading={create.isPending} onClick={() => create.mutate()}>{tr("Create")}</Button>}
     </>}>
       <div className="mb-5 flex flex-wrap gap-2">

@@ -65,7 +65,7 @@ function CreateWizard({ cl, onClose }: { cl: ClusterData; onClose: () => void })
     <Modal open onClose={onClose} wide title={tr("Create a Ceph cluster")} footer={<>
       <Button onClick={onClose}>{tr("Close")}</Button>
       {step === 0 && <Button variant="primary" loading={create.isPending} disabled={!c.name || !c.publicNet} onClick={() => create.mutate()}>{tr("Create the cluster of NAS")}</Button>}
-      {step === 1 && <Button variant="primary" disabled={(n < 3 && !test) || missing.length > 0} onClick={() => setStep(2)}>{tr("Next")}</Button>}
+      {step === 1 && <Button variant="primary" disabled={(n < 3 && !test) || missing.length > 0} onClick={() => setStep(2)}>{tr("Next step")}</Button>}
       {step === 2 && <><Button onClick={() => setStep(1)}>{tr("Back")}</Button><Button variant="danger" loading={boot.isPending} disabled={!chosen || (!pools.rbd && !pools.cephfs)} onClick={start}>{tr("Create Ceph")}</Button></>}
     </>}>
       <div className="mb-5 flex gap-2 text-[12.5px]">

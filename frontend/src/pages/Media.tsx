@@ -206,7 +206,7 @@ function MusicPlayer() {
               <div className="flex items-center gap-1">
                 <IconButton title={tr("Previous")} onClick={() => cmd.mutate("api/player/previous")}><SkipBack size={18} /></IconButton>
                 <IconButton title={p?.state === "play" ? tr("Pause") : tr("Play")} onClick={() => cmd.mutate(p?.state === "play" ? "api/player/pause" : "api/player/play")}>{p?.state === "play" ? <Pause size={20} /> : <Play size={20} />}</IconButton>
-                <IconButton title={tr("Next")} onClick={() => cmd.mutate("api/player/next")}><SkipForward size={18} /></IconButton>
+                <IconButton title={tr("Next track")} onClick={() => cmd.mutate("api/player/next")}><SkipForward size={18} /></IconButton>
                 {p && <><Volume2 size={15} className="ml-4 text-muted" /><input type="range" className="w-36" min={0} max={100} defaultValue={p.volume} key={`v${p.volume}`} onMouseUp={(e) => cmd.mutate(`api/player/volume${q({ volume: (e.target as HTMLInputElement).value })}`)} title={tr("Volume of all speakers")} /></>}
               </div>
             </div>

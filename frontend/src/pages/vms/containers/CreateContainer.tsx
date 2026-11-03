@@ -186,7 +186,7 @@ export function CreateContainer({ bridges, onClose, onImport }: { bridges: strin
         <div className="flex-1" />
         <Button onClick={onClose}>{tr("Cancel")}</Button>
         {i < steps.length - 1
-          ? <Button variant="primary" disabled={!canNext} onClick={() => setStep(steps[i + 1].id)}>{tr("Next")}</Button>
+          ? <Button variant="primary" disabled={!canNext} onClick={() => setStep(steps[i + 1].id)}>{tr("Next step")}</Button>
           : <Button variant="primary" disabled={!nameOk || !f.location} loading={create.isPending} onClick={() => create.mutate()}>{f.start ? tr("Create and start") : tr("Create")}</Button>}
       </>
     }>
