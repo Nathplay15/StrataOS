@@ -8,6 +8,7 @@ import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
 import { PasskeysModal } from "./Passkeys";
+import { TwoFactorPrompt } from "./TwoFactorPrompt";
 import { MobileDevicesModal } from "./MobileDevices";
 import { api } from "../lib/api";
 import { useJobs } from "../lib/jobs";
@@ -320,6 +321,7 @@ export function Layout({ me }: { me: Me }) {
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
       <AppearanceModal open={look} onClose={() => setLook(false)} />
+      <TwoFactorPrompt me={me} />
     </div>
   );
 }

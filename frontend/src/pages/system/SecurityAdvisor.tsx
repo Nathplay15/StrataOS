@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { AppLink } from "../../components/AppLink";
+import { revealElement } from "../../lib/intent";
 import { Ring } from "../../components/charts";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
@@ -63,7 +64,7 @@ export default function SecurityAdvisor() {
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         {it.fix && !it.ignored && <Button size="sm" variant="primary" icon={<Wrench size={13} />} loading={fix.isPending && fix.variables === it.fix} onClick={() => doFix(it)}>{tr("Fix")}</Button>}
-        {it.link && <AppLink to={it.link}><Button size="sm" variant="ghost" icon={<ExternalLink size={13} />}>{tr("Open the setting")}</Button></AppLink>}
+        {it.link && <span onClick={() => { const h = it.link!.split("#")[1]; if (h) revealElement(h); }}><AppLink to={it.link.split("#")[0]}><Button size="sm" variant="ghost" icon={<ExternalLink size={13} />}>{tr("Open the setting")}</Button></AppLink></span>}
         <Button size="sm" variant="ghost" icon={it.ignored ? <Eye size={13} /> : <EyeOff size={13} />} onClick={() => ignore.mutate({ id: it.id, ignored: !it.ignored })}>
           {it.ignored ? tr("Watch again") : tr("Ignore")}
         </Button>

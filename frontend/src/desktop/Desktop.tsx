@@ -9,6 +9,7 @@ import { useUI } from "../components/ui";
 import { JobsMenu, PasswordModal, useTheme } from "../components/Layout";
 import { TwoFactorModal } from "../components/TwoFactor";
 import { PasskeysModal } from "../components/Passkeys";
+import { TwoFactorPrompt } from "../components/TwoFactorPrompt";
 import { MobileDevicesModal } from "../components/MobileDevices";
 import { APPS, AppIcon, appById, type AppDef } from "./apps";
 import { AppContent } from "./AppContent";
@@ -428,6 +429,7 @@ export function Desktop({ me }: { me: Me }) {
     <WindowManager>
       <WithOpenPath>
         <DesktopInner me={me} />
+        <TwoFactorPrompt me={me} />
       </WithOpenPath>
     </WindowManager>
   );

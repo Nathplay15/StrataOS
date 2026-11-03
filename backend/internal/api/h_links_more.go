@@ -286,6 +286,9 @@ func (s *Server) linkUpload(w http.ResponseWriter, r *http.Request) {
 		if len(log) > 0 {
 			s.linkReceived(&l, t.abs, guest, log, received)
 		}
+		// Read a little of the rest so the browser gets the answer rather
+		// than a reset connection; larger bodies are cut off.
+		_, _ = io.Copy(io.Discard, io.LimitReader(r.Body, 16<<20))
 		writeErr(w, err)
 	}
 	for parts := 0; ; parts++ {

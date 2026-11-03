@@ -10,6 +10,8 @@ import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
 import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
 import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
+import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
+import { revealElement } from "../../lib/intent";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
 
@@ -129,6 +131,8 @@ export default function SettingsPage() {
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
   const [uninstall, setUninstall] = useState("");
   const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report", { period: (s && reportPeriod(s)) || "weekly" }), { success: (r) => r.warning ?? tr("Report sent") });
+  // Opened from the security advisor: /system/settings#settings-2fa.
+  useEffect(() => { if (location.hash.length > 1) revealElement(location.hash.slice(1)); }, []);
   if (isLoading || !s) return <Spinner />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS({ ...s, [k]: v });
   return (
@@ -152,6 +156,7 @@ export default function SettingsPage() {
           <Field label={tr("Session duration (hours)")}><Input type="number" min={1} max={720} value={s.sessionHours} onChange={(e) => set("sessionHours", +e.target.value)} /></Field>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The interface is available over HTTPS on port 7443 (self-signed certificate generated on first boot). Do not expose it directly to the Internet: use a VPN.")}</p>
         </Card>
+        <AdminTwoFactorPolicy />
         <Card id="settings-notifications" title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test")}</Button>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TelegramFields s={s} set={set} />

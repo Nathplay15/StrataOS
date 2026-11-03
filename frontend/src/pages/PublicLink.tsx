@@ -9,7 +9,10 @@ import { LangSwitch } from "../components/LangSwitch";
 import { srv, tr } from "../lib/i18n";
 import logo from "../logo.svg";
 
-type Info = { name: string; dir: boolean; album?: boolean; download: boolean; upload: boolean; password: boolean; unlocked: boolean; owner: string; size?: number; expires?: string; downloadsLeft?: number };
+type Info = {
+  name: string; dir: boolean; album?: boolean; download: boolean; upload: boolean; password: boolean; unlocked: boolean; owner: string; size?: number; expires?: string; downloadsLeft?: number;
+  title?: string; message?: string; askGuest?: "" | "optional" | "required"; maxFileBytes?: number; uploadLeft?: number;
+};
 type Entry = { name: string; path: string; dir: boolean; size: number; modTime: string };
 type Photo = { path: string; name: string; date: number; size: number; video?: boolean };
 
@@ -44,7 +47,9 @@ function Viewer({ id, photos, index, onIndex, onClose }: { id: string; photos: P
   );
 }
 
-function DropZone({ id }: { id: string }) {
+function DropZone({ id, info }: { id: string; info: Info }) {
+  const [guest, setGuest] = useState({ name: "", email: "" });
+  const needGuest = info.askGuest === "required" && (!guest.name.trim() || !guest.email.trim());
   const [up, setUp] = useState<{ pct: number } | null>(null);
   const [done, setDone] = useState<string[]>([]);
   const [err, setErr] = useState("");
@@ -53,7 +58,12 @@ function DropZone({ id }: { id: string }) {
   const send = (files: FileList | File[]) => {
     const list = Array.from(files);
     if (!list.length) return;
+    if (needGuest) { setErr(tr("Enter your name and email address first.")); return; }
+    const big = info.maxFileBytes ? list.find((f) => f.size > info.maxFileBytes!) : undefined;
+    if (big) { setErr(tr("\"{0}\" is larger than {1}, the limit of this link.", big.name, bytes(info.maxFileBytes!))); return; }
     const fd = new FormData();
+    // Guest fields before the files: the NAS reads them first.
+    if (info.askGuest) { fd.append("name", guest.name); fd.append("email", guest.email); }
     list.forEach((f) => fd.append("file", f, f.name));
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/s/${id}/upload`);
@@ -63,7 +73,7 @@ function DropZone({ id }: { id: string }) {
       setUp(null);
       const r = JSON.parse(xhr.responseText || "{}");
       if (xhr.status >= 300) setErr(srv(r.error) || tr("Send failed"));
-      else { setErr(""); setDone((d) => [...(r.names ?? []), ...d]); qc.invalidateQueries({ queryKey: ["pub-files"] }); }
+      else { setErr(""); setDone((d) => [...(r.names ?? []), ...d]); qc.invalidateQueries({ queryKey: ["pub-files"] }); qc.invalidateQueries({ queryKey: ["pub-info"] }); }
     };
     xhr.onerror = () => { setUp(null); setErr(tr("Send failed")); };
     setUp({ pct: 0 });
@@ -71,11 +81,19 @@ function DropZone({ id }: { id: string }) {
   };
   return (
     <Card>
+      {info.message && <p className="mb-4 whitespace-pre-line text-[13.5px]">{info.message}</p>}
+      {info.askGuest && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <Input value={guest.name} maxLength={80} autoComplete="name" onChange={(e) => setGuest({ ...guest, name: e.target.value })} placeholder={info.askGuest === "required" ? tr("Your name") : tr("Your name (optional)")} />
+          <Input type="email" value={guest.email} maxLength={254} autoComplete="email" onChange={(e) => setGuest({ ...guest, email: e.target.value })} placeholder={info.askGuest === "required" ? tr("Your email address") : tr("Your email address (optional)")} />
+        </div>
+      )}
       <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); send(e.dataTransfer.files); }}
         className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center ${drag ? "border-accent bg-accent-soft" : "border-line"}`}>
         <Inbox size={32} className="text-accent" />
         <div className="font-medium">{tr("Drop your files here")}</div>
-        <div className="text-muted text-[13px]">{tr("They are added to the shared folder, without replacing any existing file.")}</div>
+        <div className="text-muted text-[13px]">{info.download ? tr("They are added to the shared folder, without replacing any existing file.") : tr("Only the owner of this link will see them.")}</div>
+        {(info.maxFileBytes || info.uploadLeft !== undefined) && <div className="text-muted text-[12px]">{[info.maxFileBytes ? tr("Up to {0} per file", bytes(info.maxFileBytes)) : "", info.uploadLeft !== undefined ? tr("{0} left", bytes(info.uploadLeft)) : ""].filter(Boolean).join(" · ")}</div>}
         <label className="cursor-pointer"><span className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-[13px] font-medium text-white"><Upload size={15} />{tr("Choose files")}</span><input type="file" multiple hidden onChange={(e) => { if (e.target.files) send(e.target.files); e.target.value = ""; }} /></label>
         {up && <div className="w-full max-w-sm"><Progress value={up.pct} /><div className="mt-1 text-muted text-[12px]">{up.pct.toFixed(0)} %</div></div>}
         {err && <div className="text-danger text-[13px]">{err}</div>}
@@ -152,7 +170,7 @@ export default function PublicLink({ id }: { id: string }) {
   const [pw, setPw] = useState("");
   const [pwErr, setPwErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (info?.name) document.title = info.name; }, [info?.name]);
+  useEffect(() => { if (info?.name) document.title = info.title || info.name; }, [info?.name, info?.title]);
 
   const unlock = async () => {
     setBusy(true);
@@ -185,7 +203,7 @@ export default function PublicLink({ id }: { id: string }) {
   } else {
     body = (
       <div className="space-y-4">
-        {info.upload && <DropZone id={id} />}
+        {info.upload && <DropZone id={id} info={info} />}
         {info.download && (info.album ? <AlbumView id={id} /> : info.dir ? <FolderView id={id} info={info} /> : (
           <Card>
             <div className="flex flex-col items-center gap-3 py-6 text-center">
@@ -205,7 +223,7 @@ export default function PublicLink({ id }: { id: string }) {
       <header className="flex items-center gap-3 border-b border-line px-5 py-3">
         <img src={logo} alt="" className="h-7 w-7" />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{info?.name ?? "StrataOS"}</div>
+          <div className="truncate font-semibold">{info?.title || info?.name || "StrataOS"}</div>
           {info && <div className="text-muted text-[12px]">{tr("Shared by {0}", info.owner)}{info.expires ? ` · ${tr("until {0}", dateTime(info.expires))}` : ""}{info.downloadsLeft !== undefined ? ` · ${tr("{0} download(s) remaining", info.downloadsLeft)}` : ""}</div>}
         </div>
         <LangSwitch className="flex items-center gap-1.5 text-muted text-[12.5px]" />
