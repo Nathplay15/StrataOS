@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"os"
 	"slices"
 	"time"
 
@@ -225,6 +226,7 @@ func (s *Server) userRoutes() {
 		}
 		s.sessions.dropUser(name)
 		go s.vpnUserGone(name)
+		_ = os.Remove(s.wallpaperPath(name))
 		if source != "" {
 			// Only the StrataOS profile goes away; the directory account stays.
 			s.audit(r, "users", "Removed directory user "+name)

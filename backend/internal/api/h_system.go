@@ -158,22 +158,7 @@ func (s *Server) systemRoutes() {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		var physical []string
-		for _, i := range system.GetNetwork().Interfaces {
-			if i.Kind == "physical" && !strings.HasPrefix(i.Name, "bond") {
-				physical = append(physical, i.Name)
-			}
-		}
-		// Bond members are enslaved and may not show as physical any more: keep them valid.
-		var prev network.Config
-		s.store.Read(func(st *store.State) {
-			if st.Network != nil {
-				prev = *st.Network
-			}
-		})
-		for _, b := range prev.Bonds {
-			physical = append(physical, b.Members...)
-		}
+		prev, physical := s.netConfigAndLinks()
 		if err := network.Validate(&req.Config, physical); err != nil {
 			return nil, badRequest(err.Error())
 		}

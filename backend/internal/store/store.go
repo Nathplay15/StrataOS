@@ -41,6 +41,14 @@ type User struct {
 	// Desktop: where the user placed the icons of the desktop mode, icon id
 	// → [column, row] of the grid. Absent icons go to the first free cell.
 	Desktop map[string][2]int `json:"desktop,omitempty"`
+	// DesktopWidgets: ids of the widgets of the desktop mode's side panel, in
+	// order; nil = the default set (an empty list hides the panel).
+	DesktopWidgets *[]string `json:"desktopWidgets,omitempty"`
+	// Wallpaper of the desktop mode: a built-in id, or "custom" for the image
+	// uploaded by the user (DataDir/wallpapers); "" = the default one.
+	Wallpaper string `json:"wallpaper,omitempty"`
+	// Accent colour of the interface, "#rrggbb"; "" = the default blue.
+	Accent string `json:"accent,omitempty"`
 }
 
 type Share struct {
