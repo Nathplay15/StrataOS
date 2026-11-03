@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AppWindow, ArrowDownToLine, Check, Edit3, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
+import { AppWindow, ArrowDownToLine, Check, Edit3, ExternalLink, Library, Plus, Search, Trash2 } from "lucide-react";
 import { AppLink } from "../../components/AppLink";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
@@ -11,6 +11,7 @@ import { DockerGuard } from "./Containers";
 import { tr } from "../../lib/i18n";
 import { AppUninstallModal } from "../../components/Uninstall";
 import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
+import { CommunityCards, CommunityInstallModal, CommunityUpdateModal, SourcesModal, useCommunity, type CommunityApp, type CommunityInstalled } from "./Community";
 
 function randomSecret(length = 18) {
   const a = new Uint8Array(length);
@@ -129,6 +130,7 @@ export function CustomMetaModal({ stack, initial, onClose }: { stack: string; in
 }
 
 const MY_APPS = "__mine";
+const COMMUNITY = "__community";
 
 export default function AppStore() {
   const { data, isLoading } = useQuery({ queryKey: ["apps"], queryFn: () => api.get<AppStoreData>("/api/apps") });
@@ -137,12 +139,17 @@ export default function AppStore() {
   const [install, setInstall] = useState<App | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<CustomAppEntry | null>(null);
+  const community = useCommunity();
+  const [communityInstall, setCommunityInstall] = useState<CommunityApp | null>(null);
+  const [communityUpdate, setCommunityUpdate] = useState<CommunityInstalled | null>(null);
+  const [sources, setSources] = useState(false);
   // Catalog texts are English in Go and translated here (custom apps keep their own text).
   const cats = useMemo(() => [...new Set((data?.apps ?? []).map((a) => a.category))].sort((a, b) => tr(a).localeCompare(tr(b))), [data]);
   const q = search.toLowerCase();
   const match = (s: string) => !q || s.toLowerCase().includes(q);
   const custom = (data?.custom ?? []).filter((c) => (cat === "" || cat === MY_APPS) && match(c.name + (c.description ?? "")));
-  const apps = (data?.apps ?? []).filter((a) => (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match([a.name, a.description, a.category, tr(a.description), tr(a.category)].join(" ")));
+  const showCommunity = cat === "" || cat === MY_APPS || cat === COMMUNITY;
+  const apps = (data?.apps ?? []).filter((a) => cat !== COMMUNITY && (cat === "" || a.category === cat || (cat === MY_APPS && !!data?.installed[a.id])) && match([a.name, a.description, a.category, tr(a.description), tr(a.category)].join(" ")));
   const [removing, setRemoving] = useState<{ stack: string; name: string } | null>(null);
   const updates = useDockerUpdates();
   const update = useApplyUpdate();
@@ -160,11 +167,13 @@ export default function AppStore() {
   const chip = (id: string, label: string) => (
     <button key={id} onClick={() => setCat(id)} className={cx("rounded-full border px-3 py-1 text-[12.5px] transition", cat === id ? "border-accent bg-accent text-white" : "border-line bg-panel text-muted hover:text-fg")}>{label}</button>
   );
-  const nothing = !isLoading && custom.length === 0 && apps.length === 0;
+  const communityCount = showCommunity ? (community.data?.installed.length ?? 0) + (cat === MY_APPS ? 0 : community.data?.apps.length ?? 0) : 0;
+  const nothing = !isLoading && custom.length === 0 && apps.length === 0 && communityCount === 0;
   return (
     <div>
       <PageHeader title={tr("App Center")} subtitle={tr("Install self-hosted applications in one click")} icon={<AppWindow size={20} />} actions={<>
         <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><Input className="!w-60 !pl-9" placeholder={tr("Search for an app…")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <Button icon={<Library size={15} />} onClick={() => setSources(true)}>{tr("Community catalogs")}</Button>
         <Button icon={<Plus size={15} />} onClick={() => setAdding(true)}>{tr("Add a custom app")}</Button>
       </>} />
       <DockerGuard>
@@ -172,6 +181,7 @@ export default function AppStore() {
         <div className="mb-5 flex flex-wrap gap-1.5">
           {chip("", tr("All"))}
           {chip(MY_APPS, tr("My apps"))}
+          {(community.data?.sources.length ?? 0) > 0 && chip(COMMUNITY, tr("Community"))}
           {cats.map((c) => chip(c, tr(c)))}
         </div>
         {isLoading ? <Spinner /> : nothing ? (
@@ -213,12 +223,16 @@ export default function AppStore() {
                 </Card>
               );
             })}
+            {showCommunity && <CommunityCards data={community.data} filter={match} mineOnly={cat === MY_APPS} onInstall={setCommunityInstall} onUpdate={setCommunityUpdate} onRemove={(stack, name) => setRemoving({ stack, name })} />}
           </div>
         )}
       </DockerGuard>
       {install && <InstallModal app={install} linked={data?.linked?.[install.id] ?? {}} onClose={() => setInstall(null)} />}
       {adding && <CustomAppModal onClose={() => setAdding(false)} />}
       {removing && <AppUninstallModal stack={removing.stack} name={removing.name} onClose={() => setRemoving(null)} />}
+      {communityInstall && <CommunityInstallModal app={communityInstall} onClose={() => setCommunityInstall(null)} />}
+      {communityUpdate && <CommunityUpdateModal inst={communityUpdate} onClose={() => setCommunityUpdate(null)} />}
+      {sources && <SourcesModal onClose={() => setSources(false)} />}
       {editing && <CustomMetaModal stack={editing.stack} initial={editing} onClose={() => setEditing(null)} />}
     </div>
   );

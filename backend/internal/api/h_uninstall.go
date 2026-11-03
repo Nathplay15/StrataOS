@@ -606,6 +606,8 @@ func (s *Server) appPlan(ctx context.Context, stack string) (*appPlan, error) {
 		p.Name = a.Name
 	} else if st.Custom != nil {
 		p.Name = st.Custom.Name
+	} else if m := readCommunity(stack); m != nil {
+		p.Name = m.Name
 	}
 	binds, images, _ := docker.StackMounts(ctx, stack)
 	others := map[string][]string{}
