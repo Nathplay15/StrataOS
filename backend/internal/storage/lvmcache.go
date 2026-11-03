@@ -137,6 +137,12 @@ func LVCache(vg, lv string) *CacheInfo {
 				c.Device = pvByUUID(uuid)
 			}
 		}
+		if c.Device == "" {
+			// A cache made outside StrataOS has no tag: ask LVM where the
+			// cache data lives.
+			all, _ := lvmReport("lvs", "lv_name,vg_name,pool_lv,devices", "-a")
+			c.Device = cacheDataDevice(all, vg, lv)
+		}
 		return c
 	}
 	return nil
@@ -183,4 +189,37 @@ func RemoveManagedVG(vg string) error {
 		}
 	}
 	return nil
+}
+
+// cacheDataDevice finds the device holding the cache data of vg/lv in an
+// "lvs -a -o lv_name,vg_name,pool_lv,devices" report: the hidden
+// <pool>_cdata volume of a cache pool, or the cache volume itself.
+func cacheDataDevice(rows []map[string]string, vg, lv string) string {
+	bare := func(n string) string { return strings.Trim(n, "[]") }
+	pool := ""
+	for _, r := range rows {
+		if r["vg_name"] == vg && bare(r["lv_name"]) == lv {
+			pool = bare(r["pool_lv"])
+		}
+	}
+	if pool == "" {
+		return ""
+	}
+	first := func(devices string) string {
+		d, _, _ := strings.Cut(strings.Split(devices, ",")[0], "(")
+		if !strings.HasPrefix(d, "/dev/") {
+			return ""
+		}
+		return d
+	}
+	for _, name := range []string{pool + "_cdata", pool} {
+		for _, r := range rows {
+			if r["vg_name"] == vg && bare(r["lv_name"]) == name {
+				if d := first(r["devices"]); d != "" {
+					return d
+				}
+			}
+		}
+	}
+	return ""
 }

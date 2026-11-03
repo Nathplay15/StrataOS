@@ -39,6 +39,7 @@ const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
 const HardwarePage = lazy(() => import("../pages/system/Hardware"));
 const GuardPage = lazy(() => import("../pages/system/Guard"));
+const SecurityAdvisorPage = lazy(() => import("../pages/system/SecurityAdvisor"));
 const FleetPage = lazy(() => import("../pages/Fleet"));
 const HelpPage = lazy(() => import("../pages/Help"));
 const VirtualMachines = lazy(() => import("../pages/vms/VirtualMachines"));
@@ -108,6 +109,7 @@ export const APPS: AppDef[] = [
       { id: "schedules", label: tr("Scheduled tasks"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
       { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
       { id: "guard", label: tr("Address blocking"), icon: <ShieldBan size={16} />, component: page(GuardPage), path: "/system/guard" },
+      { id: "security", label: tr("Security advisor"), icon: <ShieldCheck size={16} />, component: page(SecurityAdvisorPage), path: "/system/security" },
       { id: "network", label: tr("Network"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
       { id: "remote", label: tr("Remote access"), icon: <Waypoints size={16} />, component: page(RemotePage), path: "/system/remote" },
       { id: "ha", label: tr("High availability"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },

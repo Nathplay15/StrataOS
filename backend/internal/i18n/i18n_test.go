@@ -18,6 +18,9 @@ func TestTranslate(t *testing.T) {
 	if got := Lines("fr", "Storage\n• data: 1.0 GB used of 2.0 TB (50%)"); got != "Stockage\n• data : 1.0 Go utilisés sur 2.0 To (50 %)" {
 		t.Errorf("Lines = %q", got)
 	}
+	if got := Lines("fr", "💾 Storage\n+ Storage"); got != "💾 Stockage\n+ Storage" {
+		t.Errorf("emoji heading: %q", got)
+	}
 	if got := Lines("de", "Monthly report of nas"); got == "Monthly report of nas" {
 		t.Errorf("German report subject not translated: %q", got)
 	}

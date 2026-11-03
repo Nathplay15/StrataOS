@@ -307,6 +307,11 @@ func (s *Server) systemRoutes() {
 		default:
 			return nil, badRequest("invalid SMB protocol")
 		}
+		switch req.Report {
+		case "", "off", "weekly", "monthly":
+		default:
+			return nil, badRequest("invalid report period")
+		}
 		err := s.store.Update(func(st *store.State) error {
 			if req.SMTPPassword == "********" {
 				req.SMTPPassword = st.Settings.SMTPPassword

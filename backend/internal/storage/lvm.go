@@ -40,11 +40,11 @@ type LV struct {
 	Cache    *CacheInfo `json:"cache,omitempty"`
 }
 
-func lvmReport(cmd string, fields string) ([]map[string]string, error) {
+func lvmReport(cmd string, fields string, extra ...string) ([]map[string]string, error) {
 	if !sys.Has(cmd) {
 		return nil, nil
 	}
-	out, err := sys.Run(cmd, "--reportformat", "json", "--units", "b", "--nosuffix", "-o", fields)
+	out, err := sys.Run(cmd, append([]string{"--reportformat", "json", "--units", "b", "--nosuffix", "-o", fields}, extra...)...)
 	if err != nil {
 		return nil, err
 	}

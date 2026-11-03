@@ -211,6 +211,7 @@ func (s *Server) healthWatcher() {
 			}
 			if !info.Standby {
 				smartCache.Store(d.Path, smartEntry{info: *info, model: d.Model, serial: d.Serial})
+				s.recordSmart(d, info) // h_health.go: history and trend alerts
 			}
 			if info.Passed != nil && !*info.Passed {
 				weak = append(weak, alert{Level: "error", Message: fmt.Sprintf("Disk %s (%s %s) fails its SMART health check: replace it", d.Path, d.Model, d.Serial), Subject: "Failing disk"})
@@ -222,6 +223,7 @@ func (s *Server) healthWatcher() {
 			}
 		}
 		s.diskAlerts.Store(&weak)
+		s.recordHealthHistory(vols)
 		var fresh []alert
 		fresh, known = freshAlerts(known, s.alerts(raids, pools, vols))
 		for _, a := range fresh {

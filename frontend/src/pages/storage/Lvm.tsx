@@ -7,6 +7,7 @@ import type { VG } from "../../lib/types";
 import { bytes, parseSize, pct } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, useUI } from "../../components/ui";
 import { DiskPicker } from "../../components/DiskPicker";
+import { CacheWear, useSsdWear } from "../../components/DiskHealth";
 import { tr } from "../../lib/i18n";
 
 function CreateVG({ onClose }: { onClose: () => void }) {
@@ -70,6 +71,7 @@ export default function Lvm() {
   const addCache = useAction((c: { vg: string; lv: string; device: string; mode: string }) => api.post(`/api/storage/lvm/${c.vg}/lv/${c.lv}/cache`, { device: c.device, mode: c.mode }));
   const delCache = useAction((c: { vg: string; lv: string }) => api.del(`/api/storage/lvm/${c.vg}/lv/${c.lv}/cache`));
   const { data, isLoading, error } = useQuery({ queryKey: ["lvm"], queryFn: () => api.get<VG[]>("/api/storage/lvm") });
+  const wear = useSsdWear();
   const delVG = useAction((n: string) => api.del(`/api/storage/lvm/${n}`), { success: tr("Group deleted") });
   const delLV = useAction((p: { vg: string; lv: string }) => api.del(`/api/storage/lvm/${p.vg}/lv/${p.lv}`), { success: tr("Logical volume deleted") });
   const ext = useAction((p: { vg: string; devices: string[] }) => api.post(`/api/storage/lvm/${p.vg}/extend`, { devices: p.devices }), { success: tr("Volume group extended") });
@@ -111,6 +113,11 @@ export default function Lvm() {
                                 {lv.cache.readHits + lv.cache.readMisses > 0 && <span>{tr("{0} % of reads served by the SSD", Math.round((lv.cache.readHits * 100) / (lv.cache.readHits + lv.cache.readMisses)))}</span>}
                               </div>
                             )}
+                            {lv.cache && (() => {
+                              const name = `${vg.name}/${lv.name}`;
+                              const w = wear.data?.find((x) => x.caches.some((c) => c.kind === "lvm" && c.name === name));
+                              return w && <CacheWear w={w} cache={w.caches.find((c) => c.kind === "lvm" && c.name === name)} />;
+                            })()}
                           </td>
                           <td>{bytes(lv.size)}</td><td>{lv.type}</td><td>{lv.fsType || <span className="text-muted">vide</span>}</td>
                           <td className="text-right whitespace-nowrap">

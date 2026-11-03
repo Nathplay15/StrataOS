@@ -5,7 +5,8 @@ import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Disk, SmartInfo } from "../../lib/types";
 import { bytes } from "../../lib/format";
-import { useUI, Badge, Button, Card, Empty, ErrorBox, Modal, Notice, PageHeader, Spinner } from "../../components/ui";
+import { useUI, Badge, Button, Card, Empty, ErrorBox, Modal, Notice, PageHeader, Spinner, Tabs } from "../../components/ui";
+import { SmartHistory, useSsdWear, WearLine } from "../../components/DiskHealth";
 import { tr, locale, srv } from "../../lib/i18n";
 import { BurnInBadge, BurnInModal, useBurnIns } from "./BurnIn";
 
@@ -44,12 +45,14 @@ function SmartModal({ disk, onClose }: { disk: Disk | null; onClose: () => void 
     enabled: !!disk,
   });
   const test = useAction((type: string) => api.post("/api/storage/disks/smart-test", { device: disk!.path, type }), { success: tr("SMART test started") });
+  const [tab, setTab] = useState<"now" | "history">("now");
   return (
-    <Modal open={!!disk} onClose={onClose} title={tr("SMART — {0}", disk?.model || disk?.path)} wide footer={<>
+    <Modal open={!!disk} onClose={() => { setTab("now"); onClose(); }} title={tr("SMART — {0}", disk?.model || disk?.path)} wide footer={<>
       <Button onClick={() => test.mutate("short")} loading={test.isPending}>{tr("Short test")}</Button>
       <Button onClick={() => test.mutate("long")} loading={test.isPending}>{tr("Extended test")}</Button>
     </>}>
-      {isLoading ? <Spinner /> : error ? <ErrorBox error={error} /> : data && (
+      <Tabs tabs={[{ id: "now", label: tr("Current values") }, { id: "history", label: tr("History") }]} value={tab} onChange={setTab} />
+      {tab === "history" && disk ? <SmartHistory device={disk.path} /> : isLoading ? <Spinner /> : error ? <ErrorBox error={error} /> : data && (
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-4">
             {[
@@ -101,6 +104,7 @@ export default function Disks() {
   const [smart, setSmart] = useState<Disk | null>(null);
   const [burn, setBurn] = useState<Disk | null>(null);
   const burnIns = useBurnIns();
+  const wear = useSsdWear();
   const wipe = useAction((d: string) => api.post("/api/storage/disks/wipe", { device: d }), { success: tr("Disk wiped") });
 
   const doWipe = async (d: Disk) => {
@@ -155,6 +159,10 @@ export default function Disks() {
                   {d.healthy === true && warnings.length > 0 && (
                     <div className="mt-3 text-[12.5px] text-warn">{tr("Signs of wear: {0}. Check your backups and plan its replacement.", warnings.join(", "))}</div>
                   )}
+                  {(() => {
+                    const w = wear.data?.find((x) => x.device === d.path);
+                    return w && <WearLine w={w} />;
+                  })()}
                   {inUse && <div className="mt-3 text-[12px] text-muted">{tr("In use — wipe and burn-in test unavailable. {0}", inUse)}</div>}
                   {d.children && d.children.length > 0 && (
                     <div className="mt-3 space-y-1 border-t border-line pt-3">

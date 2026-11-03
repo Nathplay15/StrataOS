@@ -51,6 +51,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/system/directory", label: tr("Domain / LDAP"), icon: <BookUser size={17} />, admin: true },
       { to: "/system/antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={17} />, admin: true },
       { to: "/system/guard", label: tr("Address blocking"), icon: <ShieldBan size={17} />, admin: true },
+      { to: "/system/security", label: tr("Security advisor"), icon: <ShieldCheck size={17} />, admin: true },
     ],
   },
   {

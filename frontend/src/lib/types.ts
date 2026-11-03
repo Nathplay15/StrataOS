@@ -410,6 +410,8 @@ export interface Settings {
   telegramToken?: string;
   telegramChatId?: string;
   monthlyReport?: boolean;
+  /** Health report: weekly | monthly | off ("" follows monthlyReport). */
+  report?: string;
   metricsToken?: string;
   notifyLang?: string;
   ntfyUrl?: string;
