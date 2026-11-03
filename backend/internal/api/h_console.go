@@ -339,7 +339,7 @@ func (s *Server) recoveryAdmins() []recoveryAdmin {
 	s.store.Read(func(st *store.State) {
 		for _, u := range st.Users {
 			if u.Role == "admin" && u.Source == "" && !u.Disabled {
-				out = append(out, recoveryAdmin{Username: u.Username, FullName: u.FullName, TwoFactor: u.TOTPSecret != ""})
+				out = append(out, recoveryAdmin{Username: u.Username, FullName: u.FullName, TwoFactor: u.TOTPSecret != "" || len(u.Passkeys) > 0})
 			}
 		}
 	})
@@ -383,7 +383,14 @@ func (s *Server) consoleRoutes() {
 		}
 		prev := s.consoleSettings()
 		next := store.Console{Off: !req.Enabled, Decided: true, NoRecovery: !req.Recovery}
-		if err := s.store.Update(func(st *store.State) error { st.Console = next; return nil }); err != nil {
+		if err := s.store.Update(func(st *store.State) error {
+			if next.NoRecovery && !prev.NoRecovery && st.TwoFactor.Require && enabledAdmins(st) < 2 {
+				// Never lock out the last administrator (h_access.go).
+				return badRequest("two-factor authentication is required for administrators: recovery codes are the way back for a single administrator who loses their phone or passkey")
+			}
+			st.Console = next
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 		if next.NoRecovery {
@@ -488,11 +495,14 @@ func (s *Server) consoleRoutes() {
 			if req.RemoveTwoFactor {
 				_ = s.store.Update(func(st *store.State) error {
 					if u := st.User(req.Username); u != nil {
+						// Passkeys too: with two-factor required, a lost
+						// passkey would otherwise still block the password.
 						u.TOTPSecret, u.TOTPPending, u.TOTPLast, u.RecoveryCodes = "", "", 0, nil
+						u.Passkeys = nil
 					}
 					return nil
 				})
-				msg += " (two-factor authentication removed)"
+				msg += " (two-factor authentication and passkeys removed)"
 			}
 			s.sessions.dropUser(req.Username)
 		}

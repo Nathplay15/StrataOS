@@ -545,7 +545,8 @@ func (s *Server) passkeyRoutes() {
 		return nil, err
 	})
 
-	// Deleting the last passkey is fine: the password stays.
+	// Deleting the last passkey is fine (the password stays), unless the
+	// policy requires a second factor of administrators (h_access.go).
 	s.user("DELETE /api/me/passkeys/{id}", func(r *http.Request) (any, error) {
 		var name string
 		err := s.store.Update(func(st *store.State) error {
@@ -558,6 +559,9 @@ func (s *Server) passkeyRoutes() {
 				return notFound("passkey not found")
 			}
 			name = k.Name
+			if err := keepsSecondFactor(st, u, u.TOTPSecret != "", len(u.Passkeys)-1); err != nil {
+				return err
+			}
 			u.Passkeys = slices.DeleteFunc(u.Passkeys, func(p store.Passkey) bool { return p.ID == r.PathValue("id") })
 			return nil
 		})

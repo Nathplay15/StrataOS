@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"strataos/internal/gate"
 	"strataos/internal/proxy"
 	"strataos/internal/store"
 	"strataos/internal/sys"
@@ -261,10 +262,11 @@ func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 		}
 		// Reject sessions of users disabled or deleted since login, and the
 		// web sessions of a mobile device revoked since.
-		var ok bool
+		var ok, setup bool
 		s.store.Read(func(st *store.State) {
 			u := st.User(ss.User)
 			ok = u != nil && !u.Disabled && (ss.Device == "" || u.MobileDevice(ss.Device) != nil)
+			setup = ok && setupOnly(st, u, time.Now())
 		})
 		if !ok {
 			s.sessions.delete(c.Value)
@@ -273,6 +275,11 @@ func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 		}
 		if adminOnly && ss.Role != "admin" {
 			writeErr(w, errForbidden)
+			return
+		}
+		// Two-factor required (h_access.go): only its setup until done.
+		if setup && !gate.SetupAllowed(r.Pattern) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": errSetupFirst, "twoFactorSetup": true})
 			return
 		}
 		if ss.Device != "" && deviceDenied(r.URL.Path) && r.URL.Path != "/api/logout" {

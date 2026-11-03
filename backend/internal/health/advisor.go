@@ -96,7 +96,7 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 
 	if len(f.AdminsNo2FA) > 0 {
 		add("admin-2fa", "high", sub("Administrators without two-factor authentication: {0}", list(f.AdminsNo2FA)),
-			"A stolen or guessed password is enough to take over the NAS. Each administrator should turn on two-factor authentication or add a passkey from the account menu (top right).", "", "/users")
+			"A stolen or guessed password is enough to take over the NAS. Each administrator should turn on two-factor authentication or add a passkey from the account menu (top right).", "", "/system/settings#settings-2fa")
 	}
 	if f.SSHActive && f.SSHRootLogin == "yes" {
 		add("ssh-root", "high", "SSH accepts the root account with a password",
