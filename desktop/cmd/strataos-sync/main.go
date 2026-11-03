@@ -76,6 +76,10 @@ Commands (headless):
   pair      --server URL (--code CODE | --user NAME --password-file FILE [--otp CODE]) [--fingerprint FP | --trust] [--name NAME]
             or --link 'strataos://pair?…' (copied from the NAS web interface)
   add       --local DIR --remote /srv/strata/VOLUME/SHARE[/SUBFOLDER] [--exclude sub1,sub2]
+            [--encrypt] [--passphrase-file FILE | --recovery-key-file FILE]: end-to-end encrypted
+            folder (--encrypt makes an empty NAS folder encrypted; the passphrase may also come
+            from STRATAOS_SYNC_PASSPHRASE)
+  recovery-key ID  prints the recovery key of an encrypted folder
   remove    ID
   list      the synchronized folders
   status    the state of each folder
@@ -174,14 +178,37 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 		local := fs.String("local", "", "local folder")
 		remote := fs.String("remote", "", "NAS folder")
 		exclude := fs.String("exclude", "", "subfolders left out, comma-separated")
+		encrypt := fs.Bool("encrypt", false, "make the (empty) NAS folder end-to-end encrypted")
+		passFile := fs.String("passphrase-file", "", "file holding the passphrase of the encrypted folder")
+		recFile := fs.String("recovery-key-file", "", "file holding the recovery key of the encrypted folder")
 		_ = fs.Parse(args)
+		opt := app.PairOptions{Encrypt: *encrypt, Passphrase: os.Getenv("STRATAOS_SYNC_PASSPHRASE")}
+		if *passFile != "" {
+			b, err := os.ReadFile(*passFile)
+			if err != nil {
+				return err
+			}
+			opt.Passphrase = strings.TrimRight(string(b), "\r\n")
+		}
+		if *recFile != "" {
+			b, err := os.ReadFile(*recFile)
+			if err != nil {
+				return err
+			}
+			opt.RecoveryKey = string(b)
+		}
 		if err := a.Start(ctx); err != nil {
 			return err
 		}
 		defer a.Stop()
-		p, err := a.AddPair(*local, *remote)
+		p, err := a.AddPair(*local, *remote, opt)
 		if err != nil {
 			return err
+		}
+		if p.Encrypted && *encrypt {
+			k, _ := a.RecoveryKey(p.ID)
+			fmt.Fprintln(os.Stderr, "Recovery key (keep it safe, it opens the folder without the passphrase):")
+			fmt.Fprintln(os.Stderr, k)
 		}
 		if *exclude != "" {
 			if err := a.UpdatePair(p.ID, nil, strings.Split(*exclude, ",")); err != nil {
@@ -189,6 +216,18 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 			}
 		}
 		fmt.Println(p.ID)
+		return nil
+
+	case "recovery-key":
+		_ = fs.Parse(args)
+		if fs.NArg() != 1 {
+			return errors.New("recovery-key ID (see list)")
+		}
+		k, err := a.RecoveryKey(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		fmt.Println(k)
 		return nil
 
 	case "remove":
@@ -203,6 +242,9 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 			paused := ""
 			if p.Paused {
 				paused = " (paused)"
+			}
+			if p.Encrypted {
+				paused += " (end-to-end encrypted)"
 			}
 			fmt.Printf("%s  %s  <->  %s%s\n", p.ID, p.Local, p.Remote, paused)
 		}

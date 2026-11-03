@@ -299,6 +299,8 @@ type DirEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 	Dir  bool   `json:"dir"`
+	// Encrypted: an end-to-end encrypted folder.
+	Encrypted bool `json:"encrypted,omitempty"`
 }
 
 // List lists a NAS folder (for choosing folders).

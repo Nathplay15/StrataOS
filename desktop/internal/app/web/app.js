@@ -93,11 +93,12 @@ function renderStatus() {
 function renderFolders() {
   const pairs = state.config.pairs || [];
   $("pairs").innerHTML = pairs.map((p) => `<div class="card">
-      <div class="pair-title"><span class="mono">${esc(p.local)}</span> <span class="arrow">⇄</span> <span class="mono">${esc(p.remote)}</span>${p.paused ? ` <span class="badge">${esc(t("state.paused"))}</span>` : ""}</div>
+      <div class="pair-title"><span class="mono">${esc(p.local)}</span> <span class="arrow">⇄</span> <span class="mono">${esc(p.remote)}</span>${p.encrypted ? ` <span class="badge ok">🔒 ${esc(t("folders.encrypted"))}</span>` : ""}${p.paused ? ` <span class="badge">${esc(t("state.paused"))}</span>` : ""}</div>
       <label><span>${esc(t("folders.exclude"))}</span><textarea rows="2" data-exclude="${esc(p.id)}" spellcheck="false">${esc((p.exclude || []).join("\n"))}</textarea></label>
       <div class="row">
         <button data-open="${esc(p.id)}">${esc(t("action.openfolder"))}</button>
         <button data-save-ex="${esc(p.id)}">${esc(t("folders.saveexclude"))}</button>
+        ${p.encrypted ? `<button data-recovery="${esc(p.id)}">${esc(t("folders.recovery"))}</button><button data-pass="${esc(p.id)}">${esc(t("folders.changepass"))}</button>` : ""}
         <button data-toggle="${esc(p.id)}" data-paused="${p.paused ? 1 : 0}">${esc(t(p.paused ? "action.resume" : "action.pause"))}</button>
         <button class="danger" data-remove="${esc(p.id)}">${esc(t("folders.remove"))}</button>
       </div></div>`).join("");
@@ -172,6 +173,21 @@ document.body.addEventListener("click", (e) => {
     const ex = document.querySelector(`[data-exclude="${d.saveEx}"]`).value.split("\n");
     run(e.target, () => api("PUT", "/api/pairs/" + d.saveEx, { exclude: ex }));
   }
+  if (d.recovery) run(e.target, async () => {
+    const r = await api("GET", "/api/pairs/" + d.recovery + "/recovery");
+    const p = (state.config.pairs || []).find((x) => x.id === d.recovery);
+    showRecovery(p ? p.remote : "", r.recoveryKey);
+  });
+  if (d.pass) {
+    const pass = prompt(t("folders.newpass"));
+    if (pass) run(e.target, async () => { await api("POST", "/api/pairs/" + d.pass + "/passphrase", { passphrase: pass }); alert(t("folders.passchanged")); });
+  }
+  if (d.saveRec) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([$("recovery").dataset.text], { type: "text/plain" }));
+    a.download = "StrataOS-recovery-key.txt";
+    a.click();
+  }
   if (d.remove && confirm(t("folders.removeconfirm"))) run(e.target, () => api("DELETE", "/api/pairs/" + d.remove));
   if (d.found) { $("p-url").value = d.found; $("found").innerHTML = ""; }
   if (d.dir !== undefined && e.target.closest("#remote-browser")) browse(d.dir);
@@ -194,7 +210,7 @@ async function browse(p) {
     const up = p.split("/").slice(0, -1).join("/");
     box.innerHTML = `<div class="row" style="cursor:default"><span class="mono grow">${esc(p)}</span><button data-pick="${esc(p)}" class="primary">${esc(t("folders.choosethis"))}</button></div>`
       + `<div data-dir="${esc(list.isShare ? "" : up)}">⬆ ..</div>`
-      + list.dirs.map((d) => `<div data-dir="${esc(d.path)}">📁 ${esc(d.name)}</div>`).join("");
+      + list.dirs.map((d) => `<div data-dir="${esc(d.path)}">${d.encrypted ? "🔒" : "📁"} ${esc(d.name)}${d.encrypted ? ` <span class="muted small">${esc(t("folders.encryptedbrowse"))}</span>` : ""}</div>`).join("");
   } catch (e) { box.innerHTML = `<div class="notice error">${esc(e.message)}</div>`; }
 }
 
@@ -208,10 +224,45 @@ $("browse-local").onclick = (e) => run(e.target, async () => {
   const r = await api("POST", "/api/pick-folder");
   if (r.path) $("local").value = r.path;
 });
+// End-to-end encryption: a new encrypted folder (passphrase twice), or
+// an encrypted NAS folder to unlock (passphrase or recovery key).
+let unlocking = false;
+function e2eForm() {
+  const on = $("e2e-on").checked || unlocking;
+  $("e2e-box").hidden = !on;
+  $("e2e-pass2-row").hidden = unlocking;
+  $("e2e-rec-row").hidden = !unlocking;
+}
+$("e2e-on").onchange = e2eForm;
+$("remote").addEventListener("input", () => { unlocking = false; e2eForm(); });
+
+function showRecovery(remote, key) {
+  const box = $("recovery");
+  const text = t("folders.recoverytext", remote) + "\n\n" + key + "\n";
+  box.dataset.text = text;
+  box.innerHTML = `<p>${esc(t("folders.recoverytext", remote))}</p><p class="mono" style="user-select:all;font-size:1.1em">${esc(key)}</p><button data-save-rec="1">${esc(t("folders.recoverysave"))}</button>`;
+  box.hidden = false;
+  setTab("folders");
+}
+
 $("add-pair").onclick = (e) => run(e.target, async () => {
-  await api("POST", "/api/pairs", { local: $("local").value, remote: $("remote").value });
-  $("local").value = $("remote").value = "";
-  setTab("status");
+  const encrypt = $("e2e-on").checked && !unlocking;
+  if (encrypt && $("e2e-pass").value !== $("e2e-pass2").value) throw new Error(t("folders.passmismatch"));
+  const remote = $("remote").value;
+  const body = { local: $("local").value, remote, encrypt };
+  if (encrypt || unlocking) { body.passphrase = $("e2e-pass").value; body.recoveryKey = unlocking ? $("e2e-rec").value : ""; }
+  const r = await api("POST", "/api/pairs", body);
+  if (r.locked) {
+    unlocking = true;
+    e2eForm();
+    throw new Error(r.message);
+  }
+  unlocking = false;
+  $("e2e-on").checked = false;
+  $("local").value = $("remote").value = $("e2e-pass").value = $("e2e-pass2").value = $("e2e-rec").value = "";
+  e2eForm();
+  if (r.recoveryKey) showRecovery(remote, r.recoveryKey);
+  else setTab("status");
 });
 
 document.querySelectorAll("input[name=method]").forEach((r) => r.addEventListener("change", () => {

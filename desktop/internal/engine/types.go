@@ -22,6 +22,9 @@ type Pair struct {
 	Remote  string   `json:"remote"`            // absolute NAS folder (/srv/strata/…)
 	Exclude []string `json:"exclude,omitempty"` // subfolders not synchronized (slash paths below the pair)
 	Paused  bool     `json:"paused,omitempty"`
+	// Encrypted: end-to-end encrypted folder (its key is in the settings,
+	// the engine gets it through E2ERemote).
+	Encrypted bool `json:"encrypted,omitempty"`
 }
 
 // RemoteEntry is a file or folder of the NAS (MTime in Unix milliseconds).
