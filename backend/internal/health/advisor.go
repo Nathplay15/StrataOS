@@ -148,7 +148,7 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 	}
 	if !f.RansomOn && f.HasSMBShares {
 		add("ransomware", "medium", "Ransomware protection is off",
-			"It spots mass renames and deletions over SMB and blocks the account before everything is encrypted. The fix turns it on with the default threshold.", "ransomware", "/system/antivirus")
+			"It spots mass renames and deletions over SMB and alerts you (it can also block the account) before everything is encrypted. The fix turns it on with the default threshold.", "ransomware", "/system/antivirus")
 	}
 	if len(f.Backups) == 0 {
 		add("backup-none", "high", "No backup task",

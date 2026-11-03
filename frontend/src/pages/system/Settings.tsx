@@ -111,6 +111,9 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
 // Components whose key is not self-explanatory.
 const componentLabel: Record<string, string> = { lxc: tr("Containers (LXC)"), docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)") };
 
+// Period of the health report; before 0.9.1 only the monthly switch existed.
+const reportPeriod = (s: Settings) => (s.report === "weekly" || s.report === "monthly" ? s.report : s.report === "off" ? "" : s.monthlyReport ? "monthly" : "");
+
 export default function SettingsPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/api/settings") });
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info") });
@@ -125,7 +128,7 @@ export default function SettingsPage() {
   const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Time zone updated") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
   const [uninstall, setUninstall] = useState("");
-  const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report"), { success: (r) => r.warning ?? tr("Report sent") });
+  const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report", { period: (s && reportPeriod(s)) || "weekly" }), { success: (r) => r.warning ?? tr("Report sent") });
   if (isLoading || !s) return <Spinner />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS({ ...s, [k]: v });
   return (
@@ -174,7 +177,7 @@ export default function SettingsPage() {
             <Field label={tr("SMTP password")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
-            <Field label={tr("Notification language")} hint={tr("Alerts and monthly report, on all channels")}>
+            <Field label={tr("Notification language")} hint={tr("Alerts and health report, on all channels")}>
               <Select value={s.notifyLang || "en"} onChange={(e) => set("notifyLang", e.target.value)}>
                 {languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </Select>
@@ -182,8 +185,14 @@ export default function SettingsPage() {
           </div>
           <NotifyDelivery s={s} set={set} />
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line p-4">
-            <div className="flex-1"><Switch checked={!!s.monthlyReport} onChange={(v) => set("monthlyReport", v)} label={tr("Monthly report")} hint={tr("On the 1st of each month at 8 AM: space, disk health, backups, antivirus, updates")} /></div>
-            <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Send now")}</Button>
+            <Field label={tr("Health report")} className="flex-1" hint={tr("Disk health and trends, space and growth, backups, updates, security score, notable events. Weekly: Monday at 8 AM; monthly: the 1st at 8 AM.")}>
+              <Select value={reportPeriod(s) || "off"} onChange={(e) => setS({ ...s, report: e.target.value, monthlyReport: e.target.value === "monthly" })}>
+                <option value="off">{tr("Off")}</option>
+                <option value="weekly">{tr("Weekly")}</option>
+                <option value="monthly">{tr("Monthly")}</option>
+              </Select>
+            </Field>
+            <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Send a test report now")}</Button>
           </div>
           {report.data && <pre className="mono mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[12px]">{report.data.report}</pre>}
           <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.")}</p>
@@ -284,7 +293,7 @@ function NotifyDelivery({ s, set }: { s: Settings; set: <K extends keyof Setting
           </div>
         )}
       </div>
-      <p className="text-[12px] text-muted">{tr("The Test button and the monthly report ignore levels and quiet hours, but not a disabled channel.")}</p>
+      <p className="text-[12px] text-muted">{tr("The Test button and the health report ignore levels and quiet hours, but not a disabled channel.")}</p>
     </div>
   );
 }

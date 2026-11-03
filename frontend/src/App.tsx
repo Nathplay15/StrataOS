@@ -54,6 +54,7 @@ const LinksPage = lazy(() => import("./pages/Links"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const HardwarePage = lazy(() => import("./pages/system/Hardware"));
 const GuardPage = lazy(() => import("./pages/system/Guard"));
+const SecurityAdvisorPage = lazy(() => import("./pages/system/SecurityAdvisor"));
 const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
@@ -137,6 +138,7 @@ function Root() {
             <Route path="system/energy" element={A(<EnergyPage />)} />
             <Route path="system/hardware" element={A(<HardwarePage />)} />
             <Route path="system/guard" element={A(<GuardPage />)} />
+            <Route path="system/security" element={A(<SecurityAdvisorPage />)} />
             <Route path="fleet" element={A(<FleetPage />)} />
             <Route path="help" element={<HelpPage />} />
             <Route path="vms" element={A(<VirtualMachines />)} />
