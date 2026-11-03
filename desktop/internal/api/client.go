@@ -122,6 +122,9 @@ func (c *Client) req(ctx context.Context, method, p string, q url.Values, body i
 		r.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	r.Header.Set("User-Agent", c.Agent)
+	if id, ok := ctx.Value(e2eCtx{}).(string); ok && id != "" {
+		r.Header.Set("X-Strata-E2E", id)
+	}
 	return r, nil
 }
 
