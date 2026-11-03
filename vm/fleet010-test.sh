@@ -127,13 +127,17 @@ check "copy defined on A, stopped" "$(virsh A domstate tvm2 | head -1)" "shut of
 check "no snapshot left on B" "$(B ssh 'ls /srv/strata/volume1/vms/tvm/ | grep -c strata-backup || true')" "0"
 
 section "Cancel and move refused while running"
-R=$(api $PA POST /api/fleet/transfers -d '{"from":"local","to":"'$MB'","kind":"vm","name":"tvm2","newName":"tvm3","mode":"stop","storage":"/srv/strata/volume1/vms","bridges":{"br0":"brx"}}')
+# tvm on B has no operating system: it never answers the shutdown request, so the
+# export waits for it and the transfer can be cancelled meanwhile.
+R=$(api $PA POST /api/fleet/transfers -d '{"from":"'$MB'","to":"local","kind":"vm","name":"tvm","newName":"tvm3","mode":"stop","storage":"/srv/strata/volume1/vms","bridges":{"brx":"br0"}}')
 ID=$(echo "$R" | py 'print(d["id"])')
-sleep 2
+sleep 8
+check "export job waits on B" "$(api $PB GET /api/jobs | py 'print([j["status"] for j in d if j["title"].startswith("Preparing the copy of VM tvm")])')" "running"
 check "cancel" "$(api $PA POST /api/fleet/transfers/$ID/cancel)" '"ok":true'
 check "cancelled" "$(xfer "$R" 60)" "cancelled"
 sleep 3
-check "nothing left on either NAS" "$(staging A) $(staging B) $(virsh B list --all --name | grep -c tvm3 || true)" "0 0 0"
+check "nothing left on either NAS" "$(staging A) $(staging B) $(virsh A list --all --name | grep -c tvm3 || true)" "0 0 0"
+check "source untouched" "$(virsh B domstate tvm | head -1)" "running"
 check "move must stop" "$(api $PA POST /api/fleet/transfers -d '{"from":"local","to":"'$MB'","kind":"vm","name":"tvm2","newName":"tvm4","mode":"snapshot","move":true,"storage":"/srv/strata/volume1/vms","bridges":{"br0":"brx"}}')" "A move stops the source first"
 
 if [ -z "${NO_LXC:-}" ]; then
