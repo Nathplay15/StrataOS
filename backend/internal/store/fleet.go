@@ -43,3 +43,33 @@ type FleetUpdateItem struct {
 	Started  *time.Time `json:"started,omitempty"`
 	Finished *time.Time `json:"finished,omitempty"`
 }
+
+// FleetTransfer is a VM or container copied (or moved) from one NAS of the
+// console to another. From and To are FleetMember IDs, or "local".
+type FleetTransfer struct {
+	ID       string            `json:"id"`
+	Kind     string            `json:"kind"` // vm | lxc
+	Name     string            `json:"name"`
+	NewName  string            `json:"newName"`
+	From     string            `json:"from"`
+	To       string            `json:"to"`
+	FromName string            `json:"fromName"`
+	ToName   string            `json:"toName"`
+	Mode     string            `json:"mode"` // stop | snapshot
+	Move     bool              `json:"move,omitempty"`
+	Storage  string            `json:"storage"`           // folder (VM) or volume (container) on the destination
+	Bridges  map[string]string `json:"bridges,omitempty"` // source bridge → destination bridge ("nat": containers only)
+	Start    bool              `json:"start,omitempty"`
+	User     string            `json:"user"`
+	// Status: running | success | failed | cancelled. A failed transfer
+	// keeps its files on both NAS and can resume.
+	Status   string     `json:"status"`
+	Stage    string     `json:"stage"` // export | transfer | verify | restore | finish
+	Progress float64    `json:"progress"`
+	Bytes    int64      `json:"bytes"`
+	Total    int64      `json:"total"`
+	Job      string     `json:"job,omitempty"` // console job
+	Error    string     `json:"error,omitempty"`
+	Started  time.Time  `json:"started"`
+	Finished *time.Time `json:"finished,omitempty"`
+}

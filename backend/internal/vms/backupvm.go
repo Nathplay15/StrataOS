@@ -215,6 +215,14 @@ type RestoreReq struct {
 	Name    string `json:"name"`    // name of the restored VM
 	Storage string `json:"storage"` // folder that will hold it
 	Start   bool   `json:"start"`
+	// Copies brought from another NAS (fleet transfers): NewIdentity gives
+	// the VM a new UUID and MAC addresses even under its own name (the
+	// original still exists elsewhere), Bridges maps the bridges of its
+	// network cards, MoveFiles moves the disk copies out of the folder
+	// instead of converting them again (they are flattened qcow2 already).
+	NewIdentity bool              `json:"-"`
+	Bridges     map[string]string `json:"-"`
+	MoveFiles   bool              `json:"-"`
 }
 
 // RestoreVM defines a new VM from a backup folder: disks copied into
@@ -239,7 +247,7 @@ func RestoreVM(ctx context.Context, dir string, r RestoreReq, p Progress) error 
 	if err != nil {
 		return err
 	}
-	keep := r.Name == man.Name
+	keep := r.Name == man.Name && !r.NewIdentity
 	if keep {
 		if _, err := virsh("dominfo", man.UUID); err == nil {
 			keep = false
@@ -268,6 +276,10 @@ func RestoreVM(ctx context.Context, dir string, r RestoreReq, p Progress) error 
 		}
 		dst := filepath.Join(vdir, fmt.Sprintf("disk%d.qcow2", i))
 		p.log("Restoring disk %s", d.Target)
+		if r.MoveFiles && os.Rename(filepath.Join(dir, d.File), dst) == nil {
+			o.Disks[d.Source] = dst
+			continue
+		}
 		if err := convertImage(ctx, filepath.Join(dir, d.File), "qcow2", dst, false, p.scaled(float64(i)*95/float64(len(man.Disks)), float64(i+1)*95/float64(len(man.Disks)))); err != nil {
 			return err
 		}
@@ -288,6 +300,11 @@ func RestoreVM(ctx context.Context, dir string, r RestoreReq, p Progress) error 
 	out, err := rewriteClone(string(doc), o)
 	if err != nil {
 		return err
+	}
+	if len(r.Bridges) > 0 {
+		if out, err = rewriteDomain(out, Rewrite{Bridges: r.Bridges}); err != nil {
+			return err
+		}
 	}
 	if err := defineXML(out); err != nil {
 		if o.NVRAM != "" {

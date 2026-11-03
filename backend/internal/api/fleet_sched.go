@@ -28,6 +28,11 @@ func fleetAllowed(m store.FleetManager, perm string) error {
 			return nil
 		}
 		return forbidden("this NAS does not allow the console to restart it")
+	case "vms":
+		if m.AllowVMs {
+			return nil
+		}
+		return forbidden("this NAS does not allow the console to copy virtual machines and containers")
 	}
 	return forbidden("action not allowed")
 }
