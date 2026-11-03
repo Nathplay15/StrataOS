@@ -38,11 +38,16 @@ export interface BlockDevice {
   system?: boolean;
   usage?: string;
   usedBy?: string;
+  /** What uses the disk right now (not a leftover signature): mounted | swap | raid | lvm | zfs | holder. */
+  activeUse?: string;
+  activeBy?: string;
 }
 
 export interface Disk extends BlockDevice {
   temperature: number;
+  /** The overall SMART test passes (no failure); early signs of wear are in warnings. */
   healthy: boolean | null;
+  warnings?: string[];
   powerOnHours: number;
   standby?: boolean;
 }

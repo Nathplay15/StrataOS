@@ -1,0 +1,5 @@
+[
+  ["{0} est utilisé par le groupe de volumes LVM {1} ; retirez-le d'abord", "{0} is used by the LVM volume group {1}; remove it first"],
+  ["{0} appartient au pool ZFS importé {1} ; retirez-le d'abord", "{0} belongs to the imported ZFS pool {1}; remove it first"],
+  ["{0} est en cours d'utilisation ({1})", "{0} is in use ({1})"]
+]

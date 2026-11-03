@@ -99,7 +99,7 @@ export function Stat({ label, value, sub, icon, tone = "accent" }: { label: stri
   );
 }
 
-export function Badge({ tone = "neutral", children, dot }: { tone?: "neutral" | "ok" | "warn" | "danger" | "accent"; children: ReactNode; dot?: boolean }) {
+export function Badge({ tone = "neutral", children, dot, title }: { tone?: "neutral" | "ok" | "warn" | "danger" | "accent"; children: ReactNode; dot?: boolean; title?: string }) {
   const tones = {
     neutral: "bg-panel-2 text-muted border-line",
     ok: "bg-ok/10 text-ok border-ok/20",
@@ -108,7 +108,7 @@ export function Badge({ tone = "neutral", children, dot }: { tone?: "neutral" | 
     accent: "bg-accent-soft text-accent border-accent/20",
   };
   return (
-    <span className={cx("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium whitespace-nowrap", tones[tone])}>
+    <span title={title} className={cx("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium whitespace-nowrap", tones[tone])}>
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
       {children}
     </span>

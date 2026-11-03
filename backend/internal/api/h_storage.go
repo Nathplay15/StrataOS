@@ -37,16 +37,24 @@ func (s *Server) storageRoutes() {
 		}
 		type diskView struct {
 			storage.BlockDevice
-			Temperature  int   `json:"temperature"`
-			Healthy      *bool `json:"healthy"`
-			PowerOnHours int   `json:"powerOnHours"`
-			Standby      bool  `json:"standby,omitempty"`
+			Temperature int   `json:"temperature"`
+			Healthy     *bool `json:"healthy"` // overall SMART test passed (no failure)
+			// Warnings: early signs of wear, the same list as the "getting weak" alert.
+			Warnings     []string `json:"warnings,omitempty"`
+			PowerOnHours int      `json:"powerOnHours"`
+			Standby      bool     `json:"standby,omitempty"`
 		}
 		out := make([]diskView, 0, len(disks))
 		for _, d := range disks {
 			v := diskView{BlockDevice: d}
 			if info, err := storage.SmartIfAwake(d.Path); err == nil {
 				v.Temperature, v.Healthy, v.PowerOnHours, v.Standby = info.Temperature, info.Passed, info.PowerOnHours, info.Standby
+				v.Warnings = info.Warnings
+				// A sleeping disk keeps the verdict of its last reading, as the alerts do.
+				if e, ok := smartCache.Load(d.Path); ok && info.Standby {
+					last := e.(smartEntry).info
+					v.Healthy, v.Warnings = last.Passed, last.Warnings
+				}
 			}
 			out = append(out, v)
 		}

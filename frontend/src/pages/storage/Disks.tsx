@@ -21,7 +21,21 @@ const usageLabel: Record<string, [string, "neutral" | "ok" | "warn" | "danger" |
   ceph: ["Ceph", "accent"],
 };
 
-const kindLabel: Record<string, string> = { hdd: "HDD", ssd: "SSD", nvme: "NVMe", usb: "USB", virtual: "Virtuel" };
+const kindLabel: Record<string, string> = { hdd: "HDD", ssd: "SSD", nvme: "NVMe", usb: "USB" };
+
+// Why a disk cannot be wiped or tested right now (the backend refuses too).
+function activeUseText(d: Disk): string {
+  const by = d.activeBy ?? "";
+  switch (d.activeUse) {
+    case "raid": return tr("Member of {0}: remove it from the RAID first", by);
+    case "lvm": return tr("Used by the LVM volume group {0}: remove it from the group first", by);
+    case "zfs": return tr("Member of the imported ZFS pool {0}", by);
+    case "mounted": return tr("Mounted on {0}: unmount it first", by);
+    case "swap": return tr("Used as swap ({0})", by);
+    case "holder": return tr("Used by {0}", by);
+    default: return "";
+  }
+}
 
 function SmartModal({ disk, onClose }: { disk: Disk | null; onClose: () => void }) {
   const { data, isLoading, error } = useQuery({
@@ -106,6 +120,11 @@ export default function Disks() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {data.map((d) => {
             const [ul, ut] = usageLabel[d.usage ?? ""] ?? [d.usage ?? "?", "neutral"];
+            const kind = d.kind === "virtual" ? tr("Virtual") : kindLabel[d.kind ?? ""] ?? d.kind;
+            const inUse = activeUseText(d);
+            // The burn-in test (even read-only) only runs on a free disk.
+            const noBurnIn = inUse || (d.usage !== "free" ? tr("Only a free disk can be tested: wipe it first") : "");
+            const warnings = (d.warnings ?? []).map((w) => srv(w));
             return (
               <Card key={d.path} pad={false}>
                 <div className="p-5">
@@ -118,10 +137,11 @@ export default function Disks() {
                     <div className="text-right text-[15px] font-semibold">{bytes(d.size)}</div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-1.5">
-                    <Badge>{kindLabel[d.kind ?? ""] ?? d.kind}</Badge>
-                    {d.transport && <Badge>{d.transport.toUpperCase()}</Badge>}
+                    <Badge>{kind}</Badge>
+                    {d.transport && d.transport.toLowerCase() !== (d.kind ?? "").toLowerCase() && <Badge>{d.transport.toUpperCase()}</Badge>}
                     <Badge tone={ut}>{ul}{d.usedBy ? ` · ${d.usedBy}` : ""}</Badge>
-                    {d.healthy === true && <Badge tone="ok" dot>{tr("SMART OK")}</Badge>}
+                    {d.healthy === true && !warnings.length && <Badge tone="ok" dot>{tr("SMART OK")}</Badge>}
+                    {d.healthy === true && warnings.length > 0 && <Badge tone="warn" dot title={warnings.join(", ")}>{tr("SMART: warning")}</Badge>}
                     {d.healthy === false && <Badge tone="danger" dot>{tr("SMART failing")}</Badge>}
                     {burnIns.data?.running.some((r) => r.device === d.path) ? <Badge tone="accent" dot>{tr("Burn-in test running")}</Badge> : (() => {
                       const last = burnIns.data?.reports.find((r) => d.serial ? r.serial === d.serial : r.device === d.path);
@@ -132,6 +152,10 @@ export default function Disks() {
                     <span className="flex items-center gap-1.5"><Thermometer size={14} /> {d.standby ? tr("Standby") : d.temperature ? tr("{0} °C", d.temperature) : "—"}</span>
                     <span className="flex items-center gap-1.5"><Activity size={14} /> {d.powerOnHours ? tr("{0} h", d.powerOnHours.toLocaleString(locale)) : "—"}</span>
                   </div>
+                  {d.healthy === true && warnings.length > 0 && (
+                    <div className="mt-3 text-[12.5px] text-warn">{tr("Signs of wear: {0}. Check your backups and plan its replacement.", warnings.join(", "))}</div>
+                  )}
+                  {inUse && <div className="mt-3 text-[12px] text-muted">{tr("In use — wipe and burn-in test unavailable. {0}", inUse)}</div>}
                   {d.children && d.children.length > 0 && (
                     <div className="mt-3 space-y-1 border-t border-line pt-3">
                       {d.children.map((c) => (
@@ -145,9 +169,9 @@ export default function Disks() {
                 </div>
                 <div className="flex justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
                   <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>
-                  {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
+                  {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} disabled={!!noBurnIn} title={noBurnIn || undefined} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
                   {!d.system && d.usage !== "free" && d.usage !== "ceph" && (
-                    <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
+                    <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} disabled={!!inUse} title={inUse || undefined} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
                   )}
                 </div>
               </Card>

@@ -90,6 +90,11 @@ type BlockDevice struct {
 	System bool   `json:"system,omitempty"` // hosts the running OS
 	Usage  string `json:"usage,omitempty"`  // free | raid | lvm | zfs | btrfs | filesystem | partitioned | system | ceph
 	UsedBy string `json:"usedBy,omitempty"` // name of the array/pool/volume group using it
+	// ActiveUse tells why the disk cannot be wiped or tested right now
+	// (mounted | swap | raid | lvm | zfs | holder), ActiveBy names the user.
+	// Unlike Usage, a leftover signature of an old array does not count.
+	ActiveUse string `json:"activeUse,omitempty"`
+	ActiveBy  string `json:"activeBy,omitempty"`
 }
 
 func convert(d lsblkDev) BlockDevice {
@@ -153,9 +158,88 @@ func ListDisks() ([]BlockDevice, error) {
 			continue
 		}
 		classify(&d)
+		d.ActiveUse, d.ActiveBy = activeUse(d, sysHolders, zpoolImported, swapDevices())
 		disks = append(disks, d)
 	}
 	return disks, nil
+}
+
+func sysHolders(name string) []string {
+	h, _ := os.ReadDir("/sys/class/block/" + name + "/holders")
+	out := make([]string, 0, len(h))
+	for _, e := range h {
+		out = append(out, e.Name())
+	}
+	return out
+}
+
+// zpoolImported: the ZFS module lists each imported pool under /proc.
+func zpoolImported(pool string) bool {
+	if pool == "" || strings.Contains(pool, "/") {
+		return false
+	}
+	_, err := os.Stat("/proc/spl/kstat/zfs/" + pool)
+	return err == nil
+}
+
+func swapDevices() map[string]bool {
+	m := map[string]bool{}
+	data, _ := os.ReadFile("/proc/swaps")
+	for _, l := range strings.Split(string(data), "\n")[1:] {
+		if f := strings.Fields(l); len(f) > 0 {
+			m[f[0]] = true
+		}
+	}
+	return m
+}
+
+// activeUse finds what currently uses a disk or one of its partitions:
+// a mount, swap, an assembled md array, an active LVM volume (dm-cache
+// included), an imported ZFS pool or another device-mapper holder.
+func activeUse(d BlockDevice, holders func(string) []string, zfsImported func(string) bool, swaps map[string]bool) (string, string) {
+	devs := append([]BlockDevice{d}, d.Children...)
+	for _, b := range devs {
+		if swaps[b.Path] {
+			return "swap", b.Name
+		}
+		for _, m := range b.Mountpoints {
+			if m == "[SWAP]" {
+				return "swap", b.Name
+			}
+			return "mounted", m
+		}
+	}
+	var kind, by string
+	walk(d, func(b BlockDevice) {
+		if kind != "" || b.Path == d.Path {
+			return
+		}
+		switch {
+		case strings.HasPrefix(b.Type, "raid"):
+			kind, by = "raid", b.Name
+		case b.Type == "lvm":
+			kind, by = "lvm", b.Name
+		case len(b.Mountpoints) > 0:
+			kind, by = "mounted", b.Mountpoints[0]
+		}
+	})
+	if kind == "lvm" && d.Usage == "lvm" && d.UsedBy != "" {
+		by = d.UsedBy // the volume group says more than one of its LVs
+	}
+	if kind != "" {
+		return kind, by
+	}
+	for _, b := range devs {
+		if b.FSType == "zfs_member" && zfsImported(b.Label) {
+			return "zfs", b.Label
+		}
+	}
+	for _, b := range devs {
+		if h := holders(b.Name); len(h) > 0 {
+			return "holder", h[0]
+		}
+	}
+	return "", ""
 }
 
 func classify(d *BlockDevice) {
@@ -340,10 +424,18 @@ func Wipe(path string) error {
 		if mounted {
 			return fmt.Errorf("%s has mounted filesystems", path)
 		}
+		switch d.ActiveUse {
+		case "":
+		case "raid":
+			return fmt.Errorf("%s is an active member of %s; remove it first", path, d.ActiveBy)
+		case "lvm":
+			return fmt.Errorf("%s is used by the LVM volume group %s; remove it first", path, d.ActiveBy)
+		case "zfs":
+			return fmt.Errorf("%s belongs to the imported ZFS pool %s; remove it first", path, d.ActiveBy)
+		default:
+			return fmt.Errorf("%s is in use (%s)", path, d.ActiveBy)
+		}
 		for _, c := range d.Children {
-			if strings.HasPrefix(c.Type, "raid") || c.Type == "lvm" {
-				return fmt.Errorf("%s is an active member of %s; remove it first", path, c.Name)
-			}
 			_, _ = sys.Run("wipefs", "-a", c.Path)
 		}
 	}
