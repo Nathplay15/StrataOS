@@ -15,6 +15,7 @@ import { AppContent } from "./AppContent";
 import { Window } from "./Window";
 import { TASKBAR, WindowManager, useWM } from "./wm";
 import { setUIMode } from "./mode";
+import { CELL_H, CELL_W, GRID_PAD, cellAt, gridSize, layoutIcons, moveIcon, type Cell, type Layout } from "./layout";
 import { OpenPath } from "./context";
 import { tr, locale, srv } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
@@ -302,13 +303,81 @@ function Widgets({ me, ov }: { me: Me; ov?: Overview }) {
 
 interface WebApp { id: string; name: string; icon: string; url: string }
 
-function DesktopIcon({ label, onOpen, children }: { label: string; onOpen: () => void; children: ReactNode }) {
+/** One cell of the icon grid: fixed size, icon centered, label on two lines at most. */
+function DesktopIcon({ label, cell, onOpen, onDragEnd, children }: {
+  label: string;
+  cell: Cell;
+  onOpen: () => void;
+  onDragEnd: (x: number, y: number) => void;
+  children: ReactNode;
+}) {
+  const drag = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
+  const moved = useRef(false); // the click that ends a drag must not open the app
+  const [offset, setOffset] = useState<[number, number] | null>(null);
   return (
-    <button onClick={onOpen} className="group flex w-[92px] flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center outline-none transition hover:bg-white/10 focus-visible:bg-white/15">
-      <div className="transition group-hover:scale-105 group-active:scale-95">{children}</div>
-      <span className="line-clamp-2 w-full break-words hyphens-auto text-[12px] leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{label}</span>
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+        moved.current = false;
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d || d.id !== e.pointerId) return;
+        const dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (!d.moved && Math.hypot(dx, dy) < 6) return;
+        if (!d.moved) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        d.moved = true;
+        setOffset([dx, dy]);
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current;
+        drag.current = null;
+        setOffset(null);
+        if (d?.moved) {
+          moved.current = true;
+          onDragEnd(e.clientX, e.clientY);
+        }
+      }}
+      onPointerCancel={() => { drag.current = null; setOffset(null); }}
+      onClick={() => {
+        if (moved.current) {
+          moved.current = false;
+          return;
+        }
+        onOpen();
+      }}
+      className={cx(
+        "group absolute flex touch-none select-none flex-col items-center rounded-xl px-1 pt-2 text-center outline-none transition-colors hover:bg-white/10 focus-visible:bg-white/15",
+        offset && "z-10 bg-white/10",
+      )}
+      style={{
+        left: GRID_PAD + cell[0] * CELL_W, top: GRID_PAD + cell[1] * CELL_H, width: CELL_W - 4, height: CELL_H - 4,
+        transform: offset ? `translate(${offset[0]}px, ${offset[1]}px)` : undefined,
+      }}
+    >
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center transition group-hover:scale-105 group-active:scale-95">{children}</div>
+      <span className="mt-1.5 line-clamp-2 w-full break-words text-[12px] leading-[15px] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{label}</span>
     </button>
   );
+}
+
+const NO_LAYOUT: Layout = {};
+
+/** Size of an element, followed when it changes. */
+function useSize(ref: React.RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight - TASKBAR });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return size;
 }
 
 function DesktopInner({ me }: { me: Me }) {
@@ -334,18 +403,52 @@ function DesktopInner({ me }: { me: Me }) {
     ];
   }, [store.data]);
 
+  // Icon positions, saved on the NAS per user (grid coordinates).
+  const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ["desktop-prefs"], queryFn: () => api.get<{ icons: Layout }>("/api/me/desktop"), staleTime: Infinity });
+  const saveLayout = (icons: Layout) => {
+    qc.setQueryData(["desktop-prefs"], { icons });
+    api.put("/api/me/desktop", { icons }).catch(() => qc.invalidateQueries({ queryKey: ["desktop-prefs"] }));
+  };
+  const mainRef = useRef<HTMLElement>(null);
+  const size = useSize(mainRef);
+  // The widgets column (xl screens) keeps its place on the right.
+  const { cols, rows } = gridSize(size.w - (window.innerWidth >= 1280 ? 304 : 0), size.h);
+  const ids = useMemo(() => [...apps.map((a) => a.id), ...webApps.map((w) => w.id)], [apps, webApps]);
+  const saved = prefs.data?.icons ?? NO_LAYOUT;
+  const layout = useMemo(() => layoutIcons(ids, saved, cols, rows), [ids, saved, cols, rows]);
+  const drop = (id: string, x: number, y: number) => {
+    const r = mainRef.current?.getBoundingClientRect();
+    if (!r || !prefs.data) return;
+    const to = cellAt(x - r.left, y - r.top, cols, rows);
+    const next = moveIcon(layout, id, to);
+    // Keep the saved places of icons hidden by a smaller screen; record the others as shown.
+    const merged: Layout = {};
+    const taken = new Set<string>();
+    for (const k of ids) {
+      const changed = next[k] !== layout[k];
+      const c = changed || !saved[k] ? next[k] : saved[k];
+      if (!c || taken.has(c.join())) continue;
+      merged[k] = c;
+      taken.add(c.join());
+    }
+    saveLayout(merged);
+  };
+  const iconProps = (id: string) => ({ cell: layout[id] ?? ([0, 0] as Cell), onDragEnd: (x: number, y: number) => drop(id, x, y) });
+
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: (wallpapers[wall] ?? wallpapers.aurora).css }} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}>
       <Taskbar me={me} apps={apps} alerts={ov.data?.alerts ?? []} />
-      <main className="relative flex-1" onMouseDown={() => setMenu(null)}>
-        <div className="absolute inset-0 flex flex-col flex-wrap content-start gap-1 p-3">
+      <main ref={mainRef} className="relative flex-1" onMouseDown={() => setMenu(null)}>
+        {/* Icons wait for the saved layout, so they do not jump once it arrives. */}
+        <div className={cx("absolute inset-0", prefs.isLoading && "invisible")}>
           {apps.map((a) => (
-            <DesktopIcon key={a.id} label={a.title} onOpen={() => wm.open(a.id)}>
+            <DesktopIcon key={a.id} label={a.title} onOpen={() => wm.open(a.id)} {...iconProps(a.id)}>
               <AppIcon app={a} size={56} />
             </DesktopIcon>
           ))}
           {webApps.map((w) => (
-            <DesktopIcon key={w.id} label={w.name} onOpen={() => window.open(w.url, "_blank", "noopener")}>
+            <DesktopIcon key={w.id} label={w.name} onOpen={() => window.open(w.url, "_blank", "noopener")} {...iconProps(w.id)}>
               <div className="relative flex h-14 w-14 items-center justify-center rounded-[15px] bg-white/90 p-2 shadow-lg">
                 {w.icon ? <img src={w.icon} alt="" referrerPolicy="no-referrer" className="h-full w-full object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <span className="text-[22px] font-semibold text-slate-700">{w.name[0]?.toUpperCase()}</span>}
                 <ExternalLink size={12} className="absolute -bottom-1 -right-1 rounded bg-black/60 p-0.5 text-white" />
@@ -363,7 +466,7 @@ function DesktopInner({ me }: { me: Me }) {
         </div>
       </main>
       {menu && (
-        <div className="card fixed z-[9999] w-56 p-1.5 text-[13px]" style={{ left: Math.min(menu.x, window.innerWidth - 240), top: Math.min(menu.y, window.innerHeight - 280) }} onMouseLeave={() => setMenu(null)}>
+        <div className="card fixed z-[9999] w-56 p-1.5 text-[13px]" style={{ left: Math.min(menu.x, window.innerWidth - 240), top: Math.min(menu.y, window.innerHeight - 320) }} onMouseLeave={() => setMenu(null)}>
           <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-muted"><ImageIcon size={14} /> {" "}{tr("Wallpaper")}</div>
           {Object.entries(wallpapers).map(([k, w]) => (
             <button key={k} onClick={() => { setWall(k); setMenu(null); }} className={cx("flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2", wall === k && "text-accent")}>
@@ -371,6 +474,7 @@ function DesktopInner({ me }: { me: Me }) {
             </button>
           ))}
           <div className="my-1 border-t border-line" />
+          <button onClick={() => { saveLayout({}); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><LayoutGrid size={14} /> {" "}{tr("Rearrange icons")}</button>
           <button onClick={() => setUIMode("classic")} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><MonitorIcon size={14} /> {" "}{tr("Classic interface")}</button>
         </div>
       )}

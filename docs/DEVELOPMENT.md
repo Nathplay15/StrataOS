@@ -20,7 +20,7 @@ StrataOS/
 │   │   ├── i18n/       Translation of notifications and reports
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
-├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode)
+├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode; icon positions per user in `User.Desktop`, `GET/PUT /api/me/desktop`; grid logic tested by `node --experimental-strip-types frontend/scripts/desktop-layout-test.ts`)
 ├── docs/               User guide and FAQ (English and French), hardware, this file
 ├── android/            Android app (Kotlin, Jetpack Compose), see below
 ├── desktop/            Desktop sync app (Go, its own module), see below

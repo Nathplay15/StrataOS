@@ -18,6 +18,8 @@ const edges: { e: Edge; cls: string; cursor: string }[] = [
   { e: "se", cls: "right-0 bottom-0 h-3 w-3", cursor: "nwse-resize" },
 ];
 
+const GUARD_MS = 400;
+
 /** A desktop window: drag by the title bar, resize from any edge, double-click to maximize. */
 export function Window({ win, app, children }: { win: Win; app: AppDef; children: ReactNode }) {
   const wm = useWM()!;
@@ -26,6 +28,17 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
   const [snap, setSnap] = useState<"max" | "left" | "right" | null>(null);
   const focused = wm.focused === win.app;
   const g = live ?? win;
+
+  // Just after opening, the second click of a double-click on a desktop icon
+  // (or a launcher entry) would land inside the new window: swallow it.
+  const [guard, setGuard] = useState(() => Date.now() - win.openedAt < GUARD_MS);
+  useEffect(() => {
+    const left = GUARD_MS - (Date.now() - win.openedAt);
+    if (left <= 0) return;
+    setGuard(true);
+    const t = setTimeout(() => setGuard(false), left);
+    return () => clearTimeout(t);
+  }, [win.openedAt]);
 
   // Keep windows reachable when the browser window shrinks.
   useEffect(() => {
@@ -115,6 +128,7 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
         {/* While dragging, an overlay keeps iframes/terminals from swallowing pointer events. */}
         {live && <div className="absolute inset-0" />}
       </div>
+      {guard && <div className="absolute inset-0 z-20 select-none" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onDoubleClick={(e) => e.preventDefault()} />}
       {!win.maximized && edges.map((x) => <div key={x.e} className={cx("absolute z-10", x.cls)} style={{ cursor: x.cursor }} onPointerDown={start(x.e)} />)}
     </div>
     </>

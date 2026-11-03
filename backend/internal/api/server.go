@@ -222,6 +222,7 @@ func (s *Server) routes() {
 	s.systemRoutes()
 	s.storageRoutes()
 	s.userRoutes()
+	s.desktopRoutes()
 	s.shareRoutes()
 	s.dockerRoutes()
 	s.customAppRoutes()

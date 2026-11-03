@@ -9,6 +9,8 @@ export interface Win extends Geometry {
   z: number;
   minimized: boolean;
   maximized: boolean;
+  /** When the window was last opened (from an icon, the menu…): see Window's click guard. */
+  openedAt: number;
 }
 
 interface WM {
@@ -80,14 +82,14 @@ export function WindowManager({ children }: { children: ReactNode }) {
       const z = Math.max(zRef.current, ...ws.map((w) => w.z)) + 1;
       zRef.current = z;
       const existing = ws.find((w) => w.app === app);
-      if (existing) return ws.map((w) => (w.app === app ? { ...w, z, minimized: false, section: section ?? w.section } : w));
+      if (existing) return ws.map((w) => (w.app === app ? { ...w, z, minimized: false, section: section ?? w.section, openedAt: Date.now() } : w));
       const a = { w: window.innerWidth, h: window.innerHeight - TASKBAR };
       const n = ws.length;
       const saved = store.get(app);
       const g = clamp(saved ?? { w: def.size[0], h: def.size[1], x: Math.max(16, (a.w - def.size[0]) / 2 + n * 28 - 60), y: Math.max(12, (a.h - def.size[1]) / 2 + n * 24 - 40) }, a);
       // Small screens: open maximized.
       const maximized = a.w < 1100 || a.h < 640;
-      return [...ws, { app, section, ...g, z, minimized: false, maximized }];
+      return [...ws, { app, section, ...g, z, minimized: false, maximized, openedAt: Date.now() }];
     });
   }, []);
 
