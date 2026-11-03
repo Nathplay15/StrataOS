@@ -57,7 +57,19 @@ Le RAID ne remplace pas une sauvegarde : il protège d'une panne de disque, pas 
 
 **Testez les nouveaux disques** : avant d'y mettre des données, lancez un **Test de burn-in** (Stockage → Disques, sur un disque libre). Il enchaîne un test SMART court, un test de surface de chaque bloc et un test SMART étendu, puis compare les compteurs de secteurs avant et après. Choisissez « Lecture seule (non destructif) », ou « Test d'écriture (efface le disque) » pour la vérification la plus poussée. Les deux modes demandent un disque libre : un disque utilisé (membre d'un RAID, LVM, pool ZFS importé, monté) ne peut être ni testé ni effacé, et sa carte indique pourquoi. Un test complet d'un gros disque dure un jour ou plus ; le résultat vous est notifié.
 
-Pour remplacer un disque en panne : Stockage → RAID (ou ZFS), « Remplacer », choisissez le nouveau disque ; la reconstruction démarre seule. Vous recevez une notification au début de la reconstruction et une à la fin, pas une à chaque étape.
+### Remplacer un disque
+
+Quand un disque montre des signes d'usure (secteurs réalloués, erreurs) ou tombe en panne, cliquez sur **Remplacer** sur sa carte dans Stockage → Disques. Le même assistant s'ouvre depuis l'avertissement SMART, depuis le conseiller de sécurité, depuis l'alerte d'une grappe dégradée sur le tableau de bord, et depuis les pages RAID et ZFS (« Remplacer le disque manquant »).
+
+1. **Situation** : quelle grappe RAID, quel pool ZFS ou quel groupe LVM utilise le disque, ce qu'il contient, combien de disques peuvent encore lâcher, l'état SMART des autres disques et la date de la dernière sauvegarde réussie.
+2. **Méthode** :
+   - **Ajouter d'abord le nouveau disque** (conseillé, si l'ancien disque marche encore et qu'il reste une baie ou un port libre) : les données de l'ancien disque sont copiées sur le nouveau pendant que l'ancien reste en service, donc les données restent protégées (`mdadm --replace`, `zpool replace`, ou `pvmove` pour un groupe LVM). L'ancien disque est ensuite retiré.
+   - **Le disque en panne est déjà enlevé** : les données manquantes sont reconstruites sur le nouveau disque à partir des autres.
+3. **Nouveau disque** : StrataOS liste les disques assez grands et inutilisés, propose d'abord un autotest SMART de 2 minutes (lancez avant un test d'endurance pour un contrôle complet), et n'efface le disque choisi qu'après que vous avez tapé son nom.
+
+Le remplacement se déroule ensuite en arrière-plan, avec sa progression et le temps restant (« Reconstruction 42 % », les mêmes mots sur les pages RAID et ZFS). Vous pouvez fermer la fenêtre ou recharger la page : un bandeau le montre sur les pages de stockage, et il continue même après un redémarrage de StrataOS. À la fin, vous êtes prévenu, et l'assistant indique quel disque retirer : son **numéro de série** (imprimé sur son étiquette) et son modèle. Si `ledctl` (paquet `ledmon`) est installé et que votre boîtier le permet, le voyant de sa baie clignote.
+
+StrataOS refuse, en expliquant pourquoi, quand le remplacement mettrait les données en danger : pas de redondance (RAID 0 ou JBOD), trop de disques manquants, un autre disque de la grappe lui aussi en panne (sauvegardez et remplacez d'abord celui-là), une grappe déjà dégradée (reconstruisez d'abord le disque manquant), une reconstruction déjà en cours, un nouveau disque trop petit ou utilisé. Les volumes Btrfs, les disques Ceph et le disque système ne passent pas par l'assistant : il indique où aller. Vous recevez une notification au début d'une reconstruction et une à la fin, pas une à chaque étape.
 
 **iSCSI** (Stockage → iSCSI) fournit des disques réseau à des serveurs VMware, Proxmox, Hyper-V, Windows ou Linux. « Créer une cible », ajoutez un ou plusieurs **LUN** (fichier image sur un volume, volume logique LVM ou volume ZFS), puis indiquez les **initiateurs autorisés** : personne ne peut se connecter tant que la liste est vide. Activez l'**authentification CHAP** si le réseau de stockage n'est pas isolé, et ne laissez jamais deux ordinateurs écrire sur le même LUN sans système de fichiers en cluster.
 
