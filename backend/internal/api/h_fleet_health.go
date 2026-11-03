@@ -28,10 +28,11 @@ var fleetHere struct {
 }
 
 // fleetHealthHere is this NAS's health report.
-func (s *Server) fleetHealthHere() fleetHealth {
+func (s *Server) fleetHealthHere(fresh bool) fleetHealth {
 	fleetHere.Lock()
 	defer fleetHere.Unlock()
-	if time.Since(fleetHere.at) < 30*time.Second {
+	// fresh (Refresh in a console) still reuses a report of the last 5 s.
+	if age := time.Since(fleetHere.at); age < 5*time.Second || (!fresh && age < 30*time.Second) {
 		return fleetHere.h
 	}
 	h := fleetHealth{Version: s.version, UptimeDays: uptimeDays(), At: time.Now()}
@@ -187,9 +188,13 @@ var fleetDash struct {
 }
 
 // fleetHealthOf asks a NAS for its health (or its summary when it is older).
-func fleetHealthOf(ctx context.Context, m store.FleetMember) (*fleetHealth, error) {
+func fleetHealthOf(ctx context.Context, m store.FleetMember, fresh bool) (*fleetHealth, error) {
 	var h fleetHealth
-	err := fleetCall(ctx, m, http.MethodGet, "/api/fleet/peer/health", nil, &h)
+	path := "/api/fleet/peer/health"
+	if fresh {
+		path += "?fresh=1"
+	}
+	err := fleetCall(ctx, m, http.MethodGet, path, nil, &h)
 	var pe *peerError
 	if errors.As(err, &pe) && (pe.Status == http.StatusNotFound || pe.Status == http.StatusMethodNotAllowed) {
 		var sum map[string]any
@@ -206,7 +211,7 @@ func fleetHealthOf(ctx context.Context, m store.FleetMember) (*fleetHealth, erro
 
 // fleetHealthRefresh asks every NAS for its health; a refresh already
 // running is waited for instead of starting another.
-func (s *Server) fleetHealthRefresh(ctx context.Context) {
+func (s *Server) fleetHealthRefresh(ctx context.Context, fresh bool) {
 	fleetDash.Lock()
 	if fleetDash.refreshing {
 		done := fleetDash.done
@@ -233,7 +238,7 @@ func (s *Server) fleetHealthRefresh(ctx context.Context) {
 			c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			row := fleetHealthRow{ID: m.ID, Name: m.Name, Host: m.Host, Checked: time.Now()}
-			h, err := fleetHealthOf(c, m)
+			h, err := fleetHealthOf(c, m, fresh)
 			if err != nil {
 				var pe *peerError
 				if errors.As(err, &pe) {
@@ -278,7 +283,7 @@ func (s *Server) fleetHealthLoop() {
 		due := time.Since(fleetDash.at) >= every
 		fleetDash.Unlock()
 		if n > 0 && due {
-			s.fleetHealthRefresh(context.Background())
+			s.fleetHealthRefresh(context.Background(), false)
 		}
 		time.Sleep(30 * time.Second)
 	}
@@ -293,8 +298,8 @@ type fleetDashboard struct {
 
 // fleetDashboardView assembles the dashboard: this NAS first, then the
 // members in the console's order.
-func (s *Server) fleetDashboardView() fleetDashboard {
-	local := s.fleetHealthHere()
+func (s *Server) fleetDashboardView(fresh bool) fleetDashboard {
+	local := s.fleetHealthHere(fresh)
 	rows := []fleetHealthRow{{ID: "local", Name: local.Hostname, Online: true, Health: &local, Checked: local.At, Seen: local.At}}
 	var members []store.FleetMember
 	s.store.Read(func(st *store.State) { members = slices.Clone(st.Fleet.Members) })
@@ -329,7 +334,7 @@ func (s *Server) fleetDashboardView() fleetDashboard {
 
 func (s *Server) fleetHealthRoutes() {
 	s.fleetPeer("GET /api/fleet/peer/health", "", false, func(r *http.Request, m store.FleetManager) (any, error) {
-		h := s.fleetHealthHere()
+		h := s.fleetHealthHere(r.URL.Query().Get("fresh") == "1")
 		acc := accessOf(m)
 		h.Access = &acc
 		return h, nil
@@ -343,20 +348,17 @@ func (s *Server) fleetHealthRoutes() {
 		case never:
 			// First look: wait a little for the first reports.
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-			s.fleetHealthRefresh(ctx)
+			s.fleetHealthRefresh(ctx, false)
 			cancel()
 		case stale:
-			go s.fleetHealthRefresh(context.Background())
+			go s.fleetHealthRefresh(context.Background(), false)
 		}
-		return s.fleetDashboardView(), nil
+		return s.fleetDashboardView(false), nil
 	})
 	s.admin("POST /api/fleet/health/refresh", func(r *http.Request) (any, error) {
-		fleetHere.Lock()
-		fleetHere.at = time.Time{}
-		fleetHere.Unlock()
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		s.fleetHealthRefresh(ctx)
-		return s.fleetDashboardView(), nil
+		s.fleetHealthRefresh(ctx, true)
+		return s.fleetDashboardView(true), nil
 	})
 }

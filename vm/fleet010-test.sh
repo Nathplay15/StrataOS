@@ -68,7 +68,7 @@ done
 
 section "Console and permissions"
 CODE=$(api $PB POST /api/fleet/code | py 'print(d["code"])')
-check "B added to the console of A" "$(api $PA POST /api/fleet -d "{\"host\":\"10.96.0.2\",\"code\":\"$CODE\"}")" '"name":"fb"'
+check "B added to the console of A" "$(api $PA POST /api/fleet -d "{\"host\":\"10.96.0.2\",\"code\":\"$CODE\"}")" '"name":"nas-7260"'
 MB=$(api $PA GET /api/fleet | py 'print([r["id"] for r in d if r["id"]!="local"][0])')
 MGR=$(api $PB GET /api/fleet/managers | py 'print(d[0]["id"])')
 check "VM copies off by default" "$(api $PB GET /api/fleet/managers | py 'print(d[0].get("allowVms", False))')" "False"
@@ -79,8 +79,8 @@ check "chunk route needs the token" "$(A ssh "curl -sk -H 'Authorization: Bearer
 section "Fleet health dashboard"
 H=$(api $PA GET /api/fleet/health)
 check "two NAS, both online" "$(echo "$H" | py 'print(d["totals"]["total"], d["totals"]["online"])')" "2 2"
-check "health of B reported" "$(echo "$H" | py 'r=[r for r in d["rows"] if r["id"]!="local"][0]; h=r["health"]; print(r["online"], h["hostname"], h["version"]!="", h["disks"]["total"]>0, len(h["space"]["volumes"]), "backups" in h, "temps" in h, h["access"]["vms"])')" "True fb True True 1 True True False"
-check "local row first" "$(echo "$H" | py 'print(d["rows"][0]["id"], d["rows"][0]["name"])')" "local fa"
+check "health of B reported" "$(echo "$H" | py 'r=[r for r in d["rows"] if r["id"]!="local"][0]; h=r["health"]; print(r["online"], h["hostname"], h["version"]!="", h["disks"]["total"]>0, len(h["space"]["volumes"]), "backups" in h, "temps" in h, h["access"]["vms"])')" "True nas-7260 True True 1 True True False"
+check "local row first" "$(echo "$H" | py 'print(d["rows"][0]["id"], d["rows"][0]["name"])')" "local nas-7250"
 check "levels and reasons" "$(echo "$H" | py 'print(all(r["level"] in ("ok","info","warning","critical") and isinstance(r["reasons"], list) for r in d["rows"]))')" "True"
 # B's volume almost full: B needs attention.
 B ssh 'sudo fallocate -l $(( $(df -B1 --output=avail /srv/strata/volume1 | tail -1) * 96 / 100 )) /srv/strata/volume1/filler'
@@ -100,7 +100,7 @@ check "VM on A" "$(job $PA "$(api $PA POST /api/vms -d '{"name":"tvm","os":"othe
 A ssh 'sudo qemu-io -f qcow2 -c "write -P 0x5a 0 8M" -c "write -P 0xa5 512M 4M" /srv/strata/volume1/vms/tvm/*.qcow2 >/dev/null && echo written'
 SUM_A=$(A ssh 'f=$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1); sudo qemu-img convert -O raw "$f" /tmp/a.raw && md5sum </tmp/a.raw && rm /tmp/a.raw')
 api $PA POST /api/vms/tvm/start >/dev/null
-check "inventory of B through the link" "$(api $PA GET "/api/fleet/xfer/inventory?nas=$MB" | py 'print(d["name"], d["libvirt"], "brx" in d["bridges"], [v["path"] for v in d["volumes"]])')" "fb True True ['/srv/strata/volume1']"
+check "inventory of B through the link" "$(api $PA GET "/api/fleet/xfer/inventory?nas=$MB" | py 'print(d["name"], d["libvirt"], "brx" in d["bridges"], [v["path"] for v in d["volumes"]])')" "nas-7260 True True ['/srv/strata/volume1']"
 PLAN='{"from":"local","to":"'$MB'","kind":"vm","name":"tvm","mode":"stop","storage":"/srv/strata/volume1/vms","start":true}'
 check "plan: missing bridge asked" "$(api $PA POST /api/fleet/transfers/plan -d "$PLAN" | py 'print([(i.get("bridge"), i["text"]) for i in d["issues"]])')" "('br0', 'The bridge br0 does not exist on the destination NAS"
 check "refused without the mapping" "$(api $PA POST /api/fleet/transfers -d "$PLAN")" "does not exist"
