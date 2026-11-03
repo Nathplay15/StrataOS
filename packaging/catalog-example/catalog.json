@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "StrataOS example catalog",
+  "description": "A small catalog showing the community catalog format. Not maintained for real use.",
+  "maintainer": "StrataOS contributors",
+  "homepage": "https://github.com/Nathplay15/StrataOS/tree/main/packaging/catalog-example",
+  "apps": [
+    {
+      "id": "whoami",
+      "name": "Whoami",
+      "version": "1.10.4",
+      "maintainer": "StrataOS contributors",
+      "description": "Tiny web server that prints information about the request. Handy to test the App Center.",
+      "category": "Development",
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/traefik.svg",
+      "homepage": "https://github.com/traefik/whoami",
+      "webPort": "WEB_PORT",
+      "vars": [
+        { "key": "WEB_PORT", "label": "Web port", "default": "8099", "type": "port" }
+      ],
+      "compose": "services:\n  whoami:\n    image: traefik/whoami:v1.10.4\n    restart: unless-stopped\n    ports:\n      - \"${WEB_PORT}:80\"\n"
+    },
+    {
+      "id": "it-tools",
+      "name": "IT Tools",
+      "version": "2024.10.22",
+      "maintainer": "StrataOS contributors",
+      "description": "Collection of handy online tools for developers (encoders, converters, generators).",
+      "category": "Development",
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/it-tools.svg",
+      "homepage": "https://github.com/CorentinTh/it-tools",
+      "webPort": "WEB_PORT",
+      "vars": [
+        { "key": "WEB_PORT", "label": "Web port", "default": "8098", "type": "port" }
+      ],
+      "compose": "services:\n  it-tools:\n    image: corentinth/it-tools:2024.10.22-7ca5933\n    restart: unless-stopped\n    ports:\n      - \"${WEB_PORT}:80\"\n"
+    },
+    {
+      "id": "filebrowser-quantum",
+      "name": "FileBrowser Quantum",
+      "version": "0.7.0",
+      "maintainer": "StrataOS contributors",
+      "description": "Web file manager for a folder of your NAS, with its own accounts.",
+      "category": "Files",
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/filebrowser.svg",
+      "homepage": "https://github.com/gtsteffaniak/filebrowser",
+      "webPort": "WEB_PORT",
+      "vars": [
+        { "key": "WEB_PORT", "label": "Web port", "default": "8097", "type": "port" },
+        { "key": "FILES_DIR", "label": "Folder to expose", "default": "/srv/strata", "type": "path" },
+        { "key": "DATA_DIR", "label": "Data folder", "default": "/srv/strata/apps/filebrowser-quantum", "type": "path" }
+      ],
+      "compose": "services:\n  filebrowser:\n    image: gtstef/filebrowser:0.7.0-beta\n    restart: unless-stopped\n    ports:\n      - \"${WEB_PORT}:80\"\n    volumes:\n      - ${FILES_DIR}:/srv\n      - ${DATA_DIR}:/home/filebrowser/data\n"
+    },
+    {
+      "id": "dozzle-community",
+      "name": "Dozzle (community)",
+      "version": "8.5.0",
+      "maintainer": "StrataOS contributors",
+      "description": "Live logs of your containers. Reads the Docker socket: it sees and controls every container, so it needs an explicit approval.",
+      "category": "Monitoring",
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/dozzle.svg",
+      "homepage": "https://dozzle.dev",
+      "webPort": "WEB_PORT",
+      "vars": [
+        { "key": "WEB_PORT", "label": "Web port", "default": "8096", "type": "port" }
+      ],
+      "compose": "services:\n  dozzle:\n    image: amir20/dozzle:v8.5.0\n    restart: unless-stopped\n    ports:\n      - \"${WEB_PORT}:8080\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n"
+    }
+  ]
+}

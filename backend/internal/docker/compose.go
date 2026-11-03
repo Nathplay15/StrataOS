@@ -280,3 +280,12 @@ func StackImages(ctx context.Context, name string) string {
 func PruneDanglingImages(ctx context.Context) {
 	_, _ = sys.RunCtx(ctx, "docker", "image", "prune", "-f")
 }
+
+// StackConfigJSON is the stack as compose itself reads it (interpolated and
+// normalized), to check what it grants with the real parser.
+func StackConfigJSON(ctx context.Context, name string) (string, error) {
+	if err := ValidStack(name); err != nil {
+		return "", err
+	}
+	return compose(ctx, name, nil, "config", "--format", "json")
+}
