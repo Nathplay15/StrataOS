@@ -17,6 +17,7 @@ StrataOS/
 │   │   ├── scheduler/  Scheduled tasks (snapshots and retention, scrubs, SMART…)
 │   │   ├── cluster/    Cluster of NAS: members, their addresses, authenticated peer calls
 │   │   ├── ceph/       Ceph: ceph.conf and keys, daemons of the node, status parsing, CephFS/RBD clients
+│   │   ├── health/     SMART/SSD cache/volume history, trends, wear estimates, security advisor checks (pure, tested)
 │   │   ├── i18n/       Translation of notifications and reports
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
@@ -82,6 +83,15 @@ Details in [vm/README.md](../vm/README.md).
 `vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
+
+## Health history, security advisor, report
+
+`internal/health` holds the logic, `api/h_health.go` gathers the facts and sends the notifications:
+
+- **History** (`health.Store`, files under `/var/lib/strata/health/`: `disks/<serial>.json`, `caches/<name>.json`, `volumes.json`): a point an hour at most, hourly for 7 days then the last point of each day, 731 days kept. SMART readings (`storage.SmartInfo.Sample()`: counters 5/197/198/199, NVMe media errors, temperature, power-on hours, SSD wear from NVMe `percentage_used` or SATA attributes 177/202/231/233, spare, bytes written) are recorded by `recordSmart` wherever the NAS already reads SMART (health watcher every 5 minutes, disk list, SMART dialog); sleeping disks are skipped. `health.Trends` compares each reading with a per-disk baseline saved in the same file, so a counter increase or an SSD wear step (80 %, 90 %) is notified once. LVM cache counters (`lvs` cache fields; the cache device is found by the StrataOS tag or, for caches made elsewhere, by the `_cdata` sub-volume) and the L2ARC counters of `arcstats` are recorded hourly by the health watcher, as is volume usage (report growth).
+- **Wear** (`health.WearOf`, `health.CacheAdvice`): the endurance is estimated as written × 100 / percentage used; the write rate is taken over up to 30 days of history (3 days minimum). `GET /api/storage/ssd-wear` (SSD/NVMe disks and the LVM/ZFS caches on them), `GET /api/storage/disks/history?device=`.
+- **Security advisor**: `health.Advise(Facts, ignored)` is pure (tests build `Facts` by hand); `advisorFacts` reads the state, `sshd -T`, `timedatectl`, apt, SMART cache and Docker. `GET /api/security/advisor` (last run, `State.Advisor.Last`), `POST /api/security/advisor/run`, `POST /api/security/advisor/fix/{id}` (`smb-proto`, `ssh-root`, `security-updates`, `guard`, `ransomware`, `ntp`), `PUT /api/security/advisor/ignore` `{id, ignored}` (`State.Advisor.Ignored`). The scheduler runs it daily at 7:30 and notifies a lower score or a new high item (`health.AdvisorNews`).
+- **Report** (`api/report.go`, `healthReport`): `Settings.Report` = `weekly` | `monthly` | `off` (`""` follows the older `MonthlyReport`); `POST /api/settings/report` `{period}` sends one now. Lines are server texts translated by `i18n.Lines`, which keeps a leading `• ` or emoji marker.
 
 ## Cluster of NAS and Ceph
 

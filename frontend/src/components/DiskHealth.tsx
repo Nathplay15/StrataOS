@@ -137,7 +137,7 @@ export function SmartHistory({ device }: { device: string }) {
         {has("tp") && (
           <div>
             <div className="mb-1 text-[12.5px] font-medium">{tr("Temperature")}</div>
-            <AreaChart height={90} series={[{ label: tr("°C"), color: "var(--accent)", values: vals("tp") }]} format={(v) => tr("{0} °C", v.toFixed(0))} />
+            <AreaChart height={90} series={[{ label: "°C", color: "var(--accent)", values: vals("tp") }]} format={(v) => tr("{0} °C", v.toFixed(0))} />
             <div className="mt-1 text-[11.5px] text-muted">{tr("Min {0} °C, max {1} °C", Math.min(...vals("tp")), Math.max(...vals("tp")))}</div>
           </div>
         )}
