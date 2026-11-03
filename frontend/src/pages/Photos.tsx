@@ -222,7 +222,7 @@ export default function Photos({ me }: { me: Me }) {
       <div className="flex rounded-lg border border-line p-0.5 text-[13px]">
         {(["all", "albums"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{t === "all" ? tr("Timeline") : tr("Albums")}</button>)}
       </div>
-      {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="pl-8" placeholder={tr("Search for a folder or file")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
+      {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="!pl-8" placeholder={tr("Search for a folder or file")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
     </div>
   );
 

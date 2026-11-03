@@ -4,7 +4,7 @@ import { AlertTriangle, Check, FileInput, Plus, RefreshCw, Search, Trash2 } from
 import { api } from "../../../lib/api";
 import { useAction } from "../../../lib/hooks";
 import { bytes, cx, dateTime } from "../../../lib/format";
-import type { Group, Share, User } from "../../../lib/types";
+import type { Group, Me, Share, User } from "../../../lib/types";
 import { Button, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, Select, Spinner, Switch } from "../../../components/ui";
 import { tr } from "../../../lib/i18n";
 import type { LXCFeatures, LXCImage, LXCImportable, LXCLocation, LXCMount, LXCNetwork } from "./types";
@@ -40,8 +40,9 @@ export function NetworkFields({ n, set, bridges }: { n: LXCNetwork; set: (n: LXC
       </Field>
       {n.mode !== "none" && (
         <>
-          <Field label={tr("Static address (optional)")} hint={tr("e.g. 192.168.1.50/24; empty: DHCP")}><Input value={n.address ?? ""} onChange={(e) => set({ ...n, address: e.target.value })} placeholder="DHCP" /></Field>
-          <Field label={tr("Gateway")}><Input value={n.gateway ?? ""} disabled={!n.address} onChange={(e) => set({ ...n, gateway: e.target.value })} /></Field>
+          {/* lxc-net's NAT network is 10.0.3.0/24 (packaging/scripts/install-lxc.sh); a bridge is on the local network. */}
+          <Field label={tr("Static address (optional)")} hint={n.mode === "nat" ? tr("e.g. 10.0.3.50/24 (NAT network 10.0.3.0/24); empty: DHCP") : tr("e.g. 192.168.1.50/24; empty: DHCP")}><Input value={n.address ?? ""} onChange={(e) => set({ ...n, address: e.target.value })} placeholder="DHCP" /></Field>
+          <Field label={tr("Gateway")}><Input value={n.gateway ?? ""} disabled={!n.address} placeholder={n.mode === "nat" ? "10.0.3.1" : undefined} onChange={(e) => set({ ...n, gateway: e.target.value })} /></Field>
           <Field label={tr("DNS servers")}><Input value={dns} disabled={!n.address} placeholder="1.1.1.1 9.9.9.9" onChange={(e) => { setDns(e.target.value); set({ ...n, dns: e.target.value.split(/[\s,]+/).filter(Boolean) }); }} /></Field>
           <Field label={tr("MAC address")} hint={tr("Empty: generated")}><Input className="mono" value={n.mac} onChange={(e) => set({ ...n, mac: e.target.value })} placeholder="00:16:3e:…" /></Field>
         </>
@@ -58,8 +59,30 @@ export function MountFields({ mounts, set, mapUsers, setMapUsers, mapGroups, set
   const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/api/users") });
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<Group[]>("/api/groups") });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me") });
   const [add, setAdd] = useState("");
   const toggle = (list: string[], v: string, on: boolean) => (on ? [...list, v] : list.filter((x) => x !== v));
+  // Without a mapped account, the container's root only sees "nobody" files
+  // and gets "Permission denied": suggest the accounts allowed on the shares.
+  const unmapped = !privileged && mounts.length > 0 && mapUsers.length === 0 && mapGroups.length === 0;
+  const suggest = (ms: LXCMount[]) => {
+    const known = new Set((users.data ?? []).map((u) => u.username));
+    const knownGroups = new Set((groups.data ?? []).filter((g) => !g.system).map((g) => g.name));
+    const u = new Set<string>(), g = new Set<string>();
+    for (const m of ms) {
+      for (const [who, p] of Object.entries(shares.data?.find((s) => s.name === m.share)?.permissions ?? {})) {
+        if (p !== "rw" && p !== "ro") continue;
+        if (who.startsWith("@")) { if (knownGroups.has(who.slice(1))) g.add(who.slice(1)); } else if (known.has(who)) u.add(who);
+      }
+    }
+    if (!u.size && !g.size && me.data && known.has(me.data.username)) u.add(me.data.username);
+    return { users: [...u], groups: [...g] };
+  };
+  const applySuggestion = (ms: LXCMount[]) => {
+    const sg = suggest(ms);
+    setMapUsers(sg.users);
+    setMapGroups(sg.groups);
+  };
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -78,7 +101,12 @@ export function MountFields({ mounts, set, mapUsers, setMapUsers, mapGroups, set
               {shares.data?.filter((s) => !mounts.some((m) => m.share === s.name)).map((s) => <option key={s.name} value={s.name}>{s.name} ({s.path})</option>)}
             </Select>
           </Field>
-          <Button icon={<Plus size={14} />} disabled={!add} onClick={() => { set([...mounts, { share: add, target: `/mnt/${add.toLowerCase().replace(/\s+/g, "-")}`, readOnly: false }]); setAdd(""); }}>{tr("Add")}</Button>
+          <Button icon={<Plus size={14} />} disabled={!add} onClick={() => {
+            const next = [...mounts, { share: add, target: `/mnt/${add.toLowerCase().replace(/\s+/g, "-")}`, readOnly: false }];
+            set(next);
+            setAdd("");
+            if (!privileged && mapUsers.length === 0 && mapGroups.length === 0) applySuggestion(next);
+          }}>{tr("Add")}</Button>
         </div>
       </div>
       {privileged ? (
@@ -86,17 +114,23 @@ export function MountFields({ mounts, set, mapUsers, setMapUsers, mapGroups, set
       ) : (
         <div className="space-y-3 rounded-xl border border-line p-4">
           <div className="text-[13px] font-medium">{tr("Owners of the mounted files")}</div>
+          {unmapped && (
+            <Notice tone="warn">
+              {tr("No NAS account is kept: inside the container, even root gets \"Permission denied\" on the mounted folders.")}{" "}
+              <button type="button" className="font-medium text-accent underline" onClick={() => applySuggestion(mounts)}>{tr("Keep the accounts allowed on these shares")}</button>
+            </Notice>
+          )}
           <div className="text-muted text-[12.5px]">{tr("In an unprivileged container, user n is user 100000+n of the NAS: the files of the shared folders appear as \"nobody\" and the container's root cannot change them. Keep the number of the StrataOS accounts and groups chosen here: inside, create users with the same number (e.g. useradd -u 1001) to read and write their files.")}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <div className="mb-1.5 text-[12px] font-medium text-muted">{tr("Users")}</div>
-              <div className="max-h-40 space-y-1 overflow-y-auto">
+              <div className="flex max-h-40 flex-col items-start gap-1.5 overflow-y-auto">
                 {users.data?.map((u) => <Checkbox key={u.username} checked={mapUsers.includes(u.username)} onChange={(v) => setMapUsers(toggle(mapUsers, u.username, v))} label={u.username} />)}
               </div>
             </div>
             <div>
               <div className="mb-1.5 text-[12px] font-medium text-muted">{tr("Groups")}</div>
-              <div className="max-h-40 space-y-1 overflow-y-auto">
+              <div className="flex max-h-40 flex-col items-start gap-1.5 overflow-y-auto">
                 {groups.data?.filter((g) => !g.system).map((g) => <Checkbox key={g.name} checked={mapGroups.includes(g.name)} onChange={(v) => setMapGroups(toggle(mapGroups, g.name, v))} label={<span>{g.name} <span className="text-muted text-[11px]">({g.gid})</span></span>} />)}
               </div>
             </div>
@@ -202,7 +236,7 @@ export function CreateContainer({ bridges, onClose, onImport }: { bridges: strin
       {step === "image" && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1"><Search size={14} className="text-muted absolute left-2.5 top-2.5" /><Input className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Search a distribution (Alpine, Fedora, Rocky…)")} /></div>
+            <div className="relative flex-1"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" /><Input className="!pl-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Search a distribution (Alpine, Fedora, Rocky…)")} /></div>
             <IconButton title={tr("Refresh the list")} onClick={() => setRefresh((r) => r + 1)}><RefreshCw size={15} /></IconButton>
           </div>
           <ErrorBox error={images.error} />

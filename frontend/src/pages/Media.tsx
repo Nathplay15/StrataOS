@@ -309,7 +309,7 @@ function Library({ onPlayed, stats }: { onPlayed: () => void; stats?: { songs: n
   }
   return (
     <Card title={<span className="flex items-center gap-2"><Music size={16} className="text-accent" />{tr("Library")}{stats && <span className="text-[12px] font-normal text-muted">{tr("{0} songs · {1} albums · {2} artists", stats.songs, stats.albums, stats.artists)}{stats.updating ? " · " + tr("scanning…") : ""}</span>}</span>}
-      actions={<div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><Input className="w-52 pl-8" placeholder={tr("Search")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}>
+      actions={<div className="relative"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" /><Input className="w-52 !pl-8" placeholder={tr("Search")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}>
       <ErrorBox error={albums.error || artists.error || playlists.error || found.error || play.error} />
       {!term && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
