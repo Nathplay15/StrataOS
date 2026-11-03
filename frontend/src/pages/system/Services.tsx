@@ -25,7 +25,7 @@ export default function Services() {
                     <td><Badge tone={s.active === "active" ? "ok" : s.active === "failed" ? "danger" : "neutral"} dot>{s.active} ({s.sub})</Badge></td>
                     <td>
                       {s.unit !== "strata.service" && ["enabled", "disabled"].includes(s.enabled) ? (
-                        <Switch checked={s.enabled === "enabled"} onChange={(v) => act.mutate({ unit: s.unit, action: v ? "enable" : "disable" })} />
+                        <Switch aria-label={tr("Enabled")} checked={s.enabled === "enabled"} onChange={(v) => act.mutate({ unit: s.unit, action: v ? "enable" : "disable" })} />
                       ) : <span className="text-muted text-[12.5px]">{s.enabled}</span>}
                     </td>
                     <td className="text-right whitespace-nowrap">

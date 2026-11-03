@@ -195,7 +195,7 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
                   <div className="font-medium">{l.name} <span className="text-muted font-normal">· {tr("imported from another StrataOS")}</span></div>
                   <div className="text-muted text-[12px]">{l.subnets.join(", ")} · <span className="mono">{l.address}</span>{l.endpoint ? <> · <span className="mono">{l.endpoint}</span></> : ""}{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.rx)} ↑${bytes(st.tx)}` : ""}</div>
                 </div>
-                <Switch checked={!l.disabled} onChange={() => toggleLink.mutate(l)} />
+                <Switch aria-label={tr("Enabled")} checked={!l.disabled} onChange={() => toggleLink.mutate(l)} />
                 <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", l.name), text: tr("The tunnel to this site will be cut."), danger: true })) delLink.mutate(l.id); }}><Trash2 size={15} /></IconButton>
               </div>
             );

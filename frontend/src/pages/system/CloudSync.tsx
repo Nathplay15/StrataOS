@@ -191,7 +191,7 @@ export default function CloudSync() {
                       <div className="flex items-center gap-2 font-semibold">{t.name}{t.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}</div>
                       <div className="text-muted text-[12px]">{pLabel(t.provider)} · {directions[t.direction].label}{t.mirror && t.direction !== "bisync" ? tr(" (mirror)") : ""}</div>
                     </div>
-                    <Switch checked={t.enabled} onChange={() => toggle.mutate(t)} />
+                    <Switch aria-label={tr("Enabled")} checked={t.enabled} onChange={() => toggle.mutate(t)} />
                   </div>
                   <div className="mt-3 space-y-1 text-[12.5px]">
                     <div className="truncate"><span className="text-muted">NAS </span><span className="mono">{t.localPath}</span></div>

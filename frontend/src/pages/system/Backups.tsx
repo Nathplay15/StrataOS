@@ -471,7 +471,7 @@ export default function Backups() {
                       <div className="flex items-center gap-2 font-semibold">{b.name}{b.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}</div>
                       <div className="text-muted text-[12px]">{kinds[cardOf(b)].label}{b.kind === "zfs" && b.sourceType ? ` · ${tr("pull")}` : ""}</div>
                     </div>
-                    <Switch checked={b.enabled} onChange={() => toggle.mutate(b)} />
+                    <Switch aria-label={tr("Enabled")} checked={b.enabled} onChange={() => toggle.mutate(b)} />
                   </div>
                   <div className="mt-3 space-y-1 text-[12.5px]">
                     <div className="truncate"><span className="text-muted">{tr("From")}{" "}</span><span className="mono">{srcLabel(b)}</span></div>

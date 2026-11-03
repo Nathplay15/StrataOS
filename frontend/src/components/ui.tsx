@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 import { cx } from "../lib/format";
@@ -193,38 +193,59 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
 
 /* ---------- Forms ---------- */
 
+// The label and hint of the enclosing Field, so that its Input / Select get
+// an accessible name and description even when the Field holds several controls.
+const FieldCtx = createContext<{ labelId: string; hintId?: string } | null>(null);
+
+function useFieldAria(p: { "aria-label"?: string; "aria-labelledby"?: string; "aria-describedby"?: string }) {
+  const f = useContext(FieldCtx);
+  if (!f) return {};
+  return {
+    "aria-labelledby": p["aria-labelledby"] ?? (p["aria-label"] ? undefined : f.labelId),
+    "aria-describedby": p["aria-describedby"] ?? f.hintId,
+  };
+}
+
 export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
+  const id = useId();
+  const ctx = { labelId: `${id}-label`, hintId: hint ? `${id}-hint` : undefined };
   return (
     <label className={cx("block", className)}>
-      <span className="mb-1.5 block text-[12.5px] font-medium text-muted">{label}</span>
-      {children}
-      {hint && <span className="mt-1 block text-[11.5px] text-muted">{hint}</span>}
+      <span id={ctx.labelId} className="mb-1.5 block text-[12.5px] font-medium text-muted">{label}</span>
+      <FieldCtx.Provider value={ctx}>{children}</FieldCtx.Provider>
+      {hint && <span id={ctx.hintId} className="mt-1 block text-[11.5px] text-muted">{hint}</span>}
     </label>
   );
 }
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cx("input", props.className)} />;
+  const aria = useFieldAria(props);
+  return <input {...props} {...aria} className={cx("input", props.className)} />;
 }
 
 export function Select({ children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const aria = useFieldAria(props);
   return (
-    <select {...props} className={cx("input appearance-none pr-8", props.className)} style={{ backgroundImage: "linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)", backgroundPosition: "calc(100% - 15px) 50%, calc(100% - 10px) 50%", backgroundSize: "5px 5px", backgroundRepeat: "no-repeat" }}>
+    <select {...props} {...aria} className={cx("input appearance-none pr-8", props.className)} style={{ backgroundImage: "linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)", backgroundPosition: "calc(100% - 15px) 50%, calc(100% - 10px) 50%", backgroundSize: "5px 5px", backgroundRepeat: "no-repeat" }}>
       {children}
     </select>
   );
 }
 
-export function Switch({ checked, onChange, label, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; hint?: ReactNode; disabled?: boolean }) {
+export function Switch({ checked, onChange, label, hint, disabled, "aria-label": ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; hint?: ReactNode; disabled?: boolean; "aria-label"?: string }) {
+  const id = useId();
+  const field = useContext(FieldCtx);
+  // Named by its own label, else by the enclosing Field's.
+  const labelledBy = ariaLabel ? undefined : label ? `${id}-label` : field?.labelId;
   return (
     <label className={cx("flex items-start gap-3 select-none", disabled ? "opacity-50" : "cursor-pointer")}>
-      <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition", checked ? "bg-accent" : "bg-line")}>
+      <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel} aria-labelledby={labelledBy} aria-describedby={hint ? `${id}-hint` : field?.hintId} disabled={disabled} onClick={() => onChange(!checked)} className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition", checked ? "bg-accent" : "bg-line")}>
         <span className={cx("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
       </button>
       {(label || hint) && (
         <span>
-          {label && <span className="block text-[13.5px]">{label}</span>}
-          {hint && <span className="block text-[12px] text-muted">{hint}</span>}
+          {label && <span id={`${id}-label`} className="block text-[13.5px]">{label}</span>}
+          {hint && <span id={`${id}-hint`} className="block text-[12px] text-muted">{hint}</span>}
         </span>
       )}
     </label>

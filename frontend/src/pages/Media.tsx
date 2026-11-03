@@ -218,7 +218,7 @@ function MusicPlayer() {
               {outputs.data.outputs.map((o) => (
                 <div key={o.id} className="space-y-1.5 rounded-lg border border-line px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <Switch checked={o.selected} onChange={(v) => setOut.mutate({ id: o.id, selected: v })} />
+                    <Switch aria-label={o.name} checked={o.selected} onChange={(v) => setOut.mutate({ id: o.id, selected: v })} />
                     <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{o.name}</span>
                     <Badge>{o.type}</Badge>
                   </div>

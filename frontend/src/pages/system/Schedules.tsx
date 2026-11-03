@@ -328,7 +328,7 @@ export default function Schedules() {
                         ) : <span className="text-muted">{tr("Never")}</span>}
                       </td>
                       <td className="whitespace-nowrap text-[12.5px] text-muted">{s.enabled && s.nextRun ? dateTime(s.nextRun) : "—"}</td>
-                      <td><Switch checked={s.enabled} onChange={() => toggle.mutate(s)} /></td>
+                      <td><Switch aria-label={tr("Active")} checked={s.enabled} onChange={() => toggle.mutate(s)} /></td>
                       <td className="text-right whitespace-nowrap">
                         <IconButton title={tr("Run now")} disabled={s.running} onClick={() => run.mutate(s.id)}><Play size={15} /></IconButton>
                         <IconButton title={tr("History")} onClick={() => setHist(s)}><History size={15} /></IconButton>
