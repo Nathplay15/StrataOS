@@ -3,13 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { ArchiveRestore, ArrowLeftRight, CheckCircle2, Cloud, Download, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RefreshCw, RotateCcw, Trash2, Vault as VaultIcon, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import type { BackupTask, ResticSnapshot } from "../../lib/types";
+import type { BackupTask } from "../../lib/types";
 import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { tr, srv } from "../../lib/i18n";
 import { TimeMachineCard } from "./TimeMachine";
 import { BackupVMPicker } from "./BackupVMs";
+import { ProtectionCard, RestoreTestBadge } from "./Protection";
+import { RestoreWizard } from "../../components/RestoreWizard";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -186,9 +188,9 @@ function LocalFolder({ value, onChange, sources, suffix }: { value: string; onCh
   );
 }
 
-function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sources: Sources; onClose: () => void }) {
+function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | null; preset?: Partial<BackupTask>; sources: Sources; onClose: () => void }) {
   const editing = !!initial;
-  const [b, setB] = useState<BackupTask>(initial ?? blank);
+  const [b, setB] = useState<BackupTask>(initial ?? { ...blank, ...preset });
   const [scheduled, setScheduled] = useState(!!(initial ?? blank).cron);
   const [plan, setPlan] = useState<Plan>(fromCron((initial ?? blank).cron || "0 1 * * *"));
   const [excludes, setExcludes] = useState((initial?.excludes ?? []).join("\n"));
@@ -341,6 +343,7 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
             >
               {b.destType === "local" && b.kind !== "zfs" ? <LocalFolder value={b.destPath} onChange={(v) => set({ destPath: v })} sources={sources} suffix={pull ? "other-nas" : "sauvegardes"} /> : <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />}
             </Field>}
+            {b.destType === "local" && !pull && <Switch checked={!!b.offsite} onChange={(v) => set({ offsite: v })} label={tr("Kept off-site")} hint={tr("A USB disk you take away from the NAS between backups: it then counts as the off-site copy of the 3-2-1 rule.")} />}
             {remote && <SSHKey />}
           </div>
         )}
@@ -392,37 +395,6 @@ function Editor({ initial, sources, onClose }: { initial: BackupTask | null; sou
   );
 }
 
-function RestoreModal({ b, onClose }: { b: BackupTask; onClose: () => void }) {
-  const { data, isLoading, error } = useQuery({ queryKey: ["restic-snapshots", b.id], queryFn: () => api.get<ResticSnapshot[]>(`/api/backups/${b.id}/snapshots`) });
-  const [snap, setSnap] = useState("");
-  const [include, setInclude] = useState("");
-  const base = b.sources[0]?.split("/").slice(0, 4).join("/") ?? "/srv/strata";
-  const [target, setTarget] = useState(`${base}/restauration-${new Date().toISOString().slice(0, 10)}`);
-  const restore = useAction(() => api.post(`/api/backups/${b.id}/restore`, { snapshot: snap, include, target }), { onDone: onClose });
-  return (
-    <Modal open onClose={onClose} title={tr("Restore \"{0}\"", b.name)} wide footer={<>
-      <Button onClick={onClose}>{tr("Cancel")}</Button>
-      <Button variant="primary" disabled={!snap || !target} loading={restore.isPending} onClick={() => restore.mutate()}>{tr("Restore")}</Button>
-    </>}>
-      <div className="space-y-4">
-        <ErrorBox error={error} />
-        {isLoading ? <Spinner label={tr("Reading repository…")} /> : !data?.length ? <Empty icon={<ArchiveRestore />} title={tr("No versions")} text={tr("Run the backup for the first time.")} /> : (
-          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-line p-1">
-            {data.map((s) => (
-              <button key={s.id} onClick={() => setSnap(s.id)} className={cx("flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px]", snap === s.id ? "bg-accent-soft text-accent" : "hover:bg-panel-2")}>
-                <span><b>{dateTime(s.time)}</b> <span className="text-muted">· {ago(s.time)}</span></span>
-                <span className="text-muted text-[12px]">{s.summary ? tr("{0} files · {1}", s.summary.total_files_processed, bytes(s.summary.total_bytes_processed)) : s.short_id}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <Field label={tr("Restore only (optional)")} hint={tr("Full path of a backed-up folder or file, e.g. {0}/2025", b.sources[0] ?? "")}><Input className="mono" value={include} onChange={(e) => setInclude(e.target.value)} /></Field>
-        <Field label={tr("Restore to")} hint={tr("Files are recreated under this folder with their original path; nothing is overwritten elsewhere.")}><Input className="mono" value={target} onChange={(e) => setTarget(e.target.value)} /></Field>
-      </div>
-    </Modal>
-  );
-}
-
 export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "history">; onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={tr("History — {0}", b.name)} wide>
@@ -443,7 +415,8 @@ export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "his
 export default function Backups() {
   const { confirm } = useUI();
   const [edit, setEdit] = useState<BackupTask | null | undefined>(undefined);
-  const [restore, setRestore] = useState<BackupTask | null>(null);
+  const [restore, setRestore] = useState<{ source?: string } | null>(null);
+  const [preset, setPreset] = useState<Partial<BackupTask> | undefined>(undefined);
   const [hist, setHist] = useState<BackupTask | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["backups"], queryFn: () => api.get<BackupTask[]>("/api/backups"), refetchInterval: 8000 });
   const sources = useQuery({ queryKey: ["backup-sources"], queryFn: () => api.get<Sources>("/api/backups/sources") });
@@ -454,7 +427,8 @@ export default function Backups() {
 
   return (
     <div>
-      <PageHeader title={tr("Backup")} subtitle={tr("Copies, versioned backups, replication and sync, to or from a disk, another NAS or the cloud")} icon={<DatabaseBackup size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => setEdit(null)}>{tr("New backup")}</Button>} />
+      <PageHeader title={tr("Backup")} subtitle={tr("Copies, versioned backups, replication and sync, to or from a disk, another NAS or the cloud")} icon={<DatabaseBackup size={20} />} actions={<><Button icon={<ArchiveRestore size={15} />} onClick={() => setRestore({})}>{tr("Restore…")}</Button><Button variant="primary" icon={<Plus size={15} />} disabled={!sources.data} onClick={() => { setPreset(undefined); setEdit(null); }}>{tr("New backup")}</Button></>} />
+      <ProtectionCard sources={sources.data?.folders.filter((f) => f.label.startsWith("Share")).map((f) => f.path) ?? []} onPreset={(b) => { setPreset(b); setEdit(null); }} />
       <ErrorBox error={error || sources.error} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card><Empty icon={<DatabaseBackup />} title={tr("No backups")} text={tr("RAID protects against a disk failure, not against deletion, ransomware or fire. Keep at least one copy elsewhere: USB disk, another NAS or the cloud.")} action={<Button variant="primary" disabled={!sources.data} onClick={() => setEdit(null)}>{tr("Create a backup")}</Button>} /></Card>
@@ -484,10 +458,11 @@ export default function Backups() {
                       <span className="min-w-0 break-words">{ago(last.started)} — {srv(last.message)}</span>
                     </button>
                   )}
+                  <RestoreTestBadge t={b.restoreTest} />
                 </div>
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
                   <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Run")}</Button>
-                  {b.kind === "restic" && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore(b)}>{tr("Restore")}</Button>}
+                  {(b.kind === "restic" || (b.kind === "rsync" && !b.sourceType && b.destType === "local")) && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore({ source: `backup:${b.id}` })}>{tr("Restore")}</Button>}
                   {b.kind === "sync" && b.synced && <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} disabled={b.running} onClick={async () => { if (await confirm({ title: tr("Resynchronise \"{0}\"?", b.name), text: tr("Both folders are merged again, as on the first run: nothing is deleted, and files deleted on one side since the last run come back.") })) resync.mutate(b.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(b)}><History size={15} /></IconButton>
                   <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(b)}><Edit3 size={15} /></IconButton>
@@ -500,8 +475,8 @@ export default function Backups() {
       )}
       <TimeMachineCard volumes={sources.data?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")) ?? []} />
       <VaultsCard sources={sources.data} />
-      {edit !== undefined && sources.data && <Editor initial={edit} sources={sources.data} onClose={() => setEdit(undefined)} />}
-      {restore && <RestoreModal b={restore} onClose={() => setRestore(null)} />}
+      {edit !== undefined && sources.data && <Editor initial={edit} preset={edit ? undefined : preset} sources={sources.data} onClose={() => setEdit(undefined)} />}
+      {restore && <RestoreWizard initialSource={restore.source} onClose={() => setRestore(null)} />}
       {hist && <HistoryModal b={data?.find((x) => x.id === hist.id) ?? hist} onClose={() => setHist(null)} />}
     </div>
   );

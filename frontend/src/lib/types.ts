@@ -437,12 +437,17 @@ export interface Schedule {
   avAction?: "report" | "quarantine";
   cron: string;
   enabled: boolean;
-  targetKind: "zfs" | "btrfs" | "mdadm" | "disks" | "stacks" | "path";
+  targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path";
   target: string;
   subvolume?: string;
   recursive?: boolean;
   keepCount?: number;
   keepDays?: number;
+  // Calendar retention: the newest snapshot of each of the last N hours, days, weeks, months.
+  keepHourly?: number;
+  keepDaily?: number;
+  keepWeekly?: number;
+  keepMonthly?: number;
   lockDays?: number;
   smartTest?: "short" | "long";
   createdAt?: string;
@@ -501,6 +506,9 @@ export interface BackupTask {
   // LXC containers backed up with the folders (lxc/<name>.tar.zst at the destination).
   containers?: string[];
   vmMode?: "" | "snapshot" | "suspend" | "shutdown";
+  // The destination is kept away from the NAS (USB disk taken home).
+  offsite?: boolean;
+  restoreTest?: { time: string; status: "success" | "failed"; files: number; verified: number; bytes: number; message: string };
 }
 
 export interface ResticSnapshot {

@@ -1,12 +1,14 @@
+import { createPortal } from "react-dom";
 import { useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Trash2, Upload } from "lucide-react";
+import { ArchiveRestore, ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
-import type { FileEntry, UserQuota } from "../lib/types";
+import type { FileEntry, Me, UserQuota } from "../lib/types";
 import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
 import { VersionsModal } from "../components/VersionsModal";
+import { RestoreWizard } from "../components/RestoreWizard";
 import { CastButton } from "../components/Cast";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Progress, Spinner, useUI } from "../components/ui";
 import { Workspace, tabFor, type OpenTab } from "../components/files/Workspace";
@@ -42,6 +44,10 @@ export default function Files() {
   const [rename, setRename] = useState<{ from: string; name: string } | null>(null);
   const [share, setShare] = useState<{ path: string; name: string; dir: boolean } | null>(null);
   const [versions, setVersions] = useState<{ path: string; name: string } | null>(null);
+  const [restoreAt, setRestoreAt] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; e: FileEntry } | null>(null);
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me"), staleTime: 60000 });
+  const admin = me.data?.role === "admin";
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [dirty, setDirtyMap] = useState<Record<string, boolean>>({});
@@ -236,7 +242,7 @@ export default function Files() {
               </thead>
               <tbody>
                 {entries.map((e) => (
-                  <tr key={e.path} onDoubleClick={() => open(e)}>
+                  <tr key={e.path} onDoubleClick={() => open(e)} onContextMenu={(ev) => { if (path === ROOT) return; ev.preventDefault(); ev.stopPropagation(); setMenu({ x: ev.clientX, y: ev.clientY, e }); }}>
                     <td><Checkbox checked={sel.includes(e.path)} onChange={(v) => setSel(v ? [...sel, e.path] : sel.filter((x) => x !== e.path))} /></td>
                     <td>
                       <button className="flex items-center gap-2.5 text-left" onClick={() => open(e)}>
@@ -263,6 +269,17 @@ export default function Files() {
       </Card>
 
       {versions && <VersionsModal path={versions.path} name={versions.name} onClose={() => setVersions(null)} />}
+      {restoreAt && <RestoreWizard initialPath={restoreAt} onClose={() => setRestoreAt(null)} />}
+      {menu && createPortal(
+        <div className="fixed inset-0 z-[1000]" onClick={() => setMenu(null)} onContextMenu={(ev) => { ev.preventDefault(); setMenu(null); }}>
+          <div className="card absolute min-w-52 p-1 text-[13px] shadow-lg" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 160) }} onClick={(ev) => ev.stopPropagation()}>
+            <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { open(menu.e); setMenu(null); }}>{menu.e.dir ? <FolderOpen size={14} /> : <Eye size={14} />}{tr("Open")}</button>
+            <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { download(menu.e.path); setMenu(null); }}><Download size={14} />{tr("Download")}</button>
+            {!menu.e.dir && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setVersions({ path: menu.e.path, name: menu.e.name }); setMenu(null); }}><History size={14} />{tr("Previous versions")}</button>}
+            {admin && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setRestoreAt(menu.e.path); setMenu(null); }}><ArchiveRestore size={14} />{tr("Previous versions / Restore…")}</button>}
+          </div>
+        </div>, document.body,
+      )}
       {share && <ShareLinkModal path={share.path} name={share.name} dir={share.dir} onClose={() => setShare(null)} />}
       <Modal open={mkdir !== null} onClose={() => setMkdir(null)} title={tr("New folder")} footer={<>
         <Button onClick={() => setMkdir(null)}>{tr("Cancel")}</Button>
