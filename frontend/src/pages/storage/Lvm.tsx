@@ -90,7 +90,8 @@ export default function Lvm() {
               <Button size="sm" variant="ghost" icon={<Expand size={14} />} onClick={() => setExtend(vg)}>{tr("Extend")}</Button>
               <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={async () => { if (await confirm({ title: tr("Delete {0}?", vg.name), text: tr("The group must be empty."), danger: true })) delVG.mutate(vg.name); }} />
             </>}>
-              <Progress value={pct(vg.size - vg.free, vg.size)} />
+              {/* Allocation, not fullness: a fully allocated group is normal. */}
+              <Progress value={pct(vg.size - vg.free, vg.size)} tone="accent" />
               <div className="mt-1.5 mb-4 flex justify-between text-[12px] text-muted"><span>{bytes(vg.size - vg.free)} {" "}{tr("allocated")}</span><span>{bytes(vg.free)} {" "}{tr("free on")}{" "}{bytes(vg.size)}</span></div>
               <div className="mb-3 flex flex-wrap gap-1.5">{vg.pvs.map((p) => <Badge key={p.name}>{p.name} · {bytes(p.size)}</Badge>)}</div>
               {vg.lvs.length > 0 && (

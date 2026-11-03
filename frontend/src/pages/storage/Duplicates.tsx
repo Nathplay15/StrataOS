@@ -109,7 +109,7 @@ export default function Duplicates() {
           </div>
         </Card>
 
-        {job && <Card><div className="mb-2 text-[13px]">{tr("Comparing files…")}</div><Progress value={job.progress} indeterminate={job.progress < 0} /></Card>}
+        {job && <Card><div className="mb-2 text-[13px]">{tr("Comparing files…")}</div><Progress value={job.progress} tone="accent" indeterminate={job.progress < 0} /></Card>}
 
         {data.isLoading ? <Spinner /> : !rep ? (!job && <Empty icon={<Copy />} title={tr("No search yet")} />) : <>
           <div className="grid gap-4 sm:grid-cols-3">

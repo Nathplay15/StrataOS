@@ -219,7 +219,7 @@ function Overview({ d }: { d: CephData }) {
             {st.degradedRatio > 0 && <div>{tr("Data missing copies: {0}%", (st.degradedRatio * 100).toFixed(1))}</div>}
             {st.misplacedRatio > 0 && <div>{tr("Data being moved: {0}%", (st.misplacedRatio * 100).toFixed(1))}</div>}
             {st.recoveringBps > 0 && <div>{tr("Copying at {0}", rate(st.recoveringBps))}</div>}
-            {st.progress.map((p) => <div key={p.message}><div className="text-muted text-[12px]">{p.message}</div><Progress value={p.progress * 100} /></div>)}
+            {st.progress.map((p) => <div key={p.message}><div className="text-muted text-[12px]">{p.message}</div><Progress value={p.progress * 100} tone="accent" /></div>)}
           </div>
         </Card>
       )}

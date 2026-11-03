@@ -258,8 +258,9 @@ export default function Volumes() {
             <Card key={v.id}>
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><Database size={20} /></div>
-                <div className="min-w-[180px] flex-1">
-                  <div className="flex items-center gap-2 font-semibold">{v.name} <Badge>{v.fsType}</Badge>{v.profile && <Badge tone="accent">{v.profile}</Badge>}{v.managedVg && <Badge tone="ok">{tr("SSD cache")}</Badge>} <Health value={v.health} /></div>
+                <div className="min-w-[240px] flex-1">
+                  {/* Badges wrap instead of running under the usage bar. */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">{v.name} <Badge>{v.fsType}</Badge>{v.profile && <Badge tone="accent">{v.profile}</Badge>}{v.managedVg && <Badge tone="ok">{tr("SSD cache")}</Badge>} <Health value={v.health} /></div>
                   <div className="text-muted text-[12px]">{v.mountPoint} · {v.devices.join(", ")}</div>
                 </div>
                 <div className="w-full max-w-sm sm:w-72">
