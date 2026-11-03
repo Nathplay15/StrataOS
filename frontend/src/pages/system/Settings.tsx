@@ -24,7 +24,7 @@ function CertificatesCard() {
   const label = { "self-signed": tr("Self-signed"), custom: tr("Imported"), letsencrypt: "Let's Encrypt" };
   const readFile = (f: File | undefined, k: "cert" | "key") => f?.text().then((t) => setImp((p) => ({ cert: "", key: "", ...p, [k]: t })));
   return (
-    <Card id="settings-https" title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="xl:col-span-2" actions={<>
+    <Card id="settings-https" title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="@4xl:col-span-2" actions={<>
       <Button size="sm" onClick={() => setImp({ cert: "", key: "" })}>{tr("Import a certificate")}</Button>
       <Button size="sm" onClick={() => setAcme({ domain: data?.acmeDomain ?? "", email: data?.acmeEmail ?? "" })}>{tr("Let's Encrypt")}</Button>
     </>}>
@@ -135,7 +135,7 @@ export default function SettingsPage() {
     <div>
       <PageHeader title={tr("Settings")} subtitle={tr("General NAS configuration")} icon={<Cog size={20} />} actions={<Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>} />
       <ErrorBox error={error} />
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @4xl:grid-cols-2">
         <Card id="settings-smb" title={<span className="flex items-center gap-2"><Share2 size={16} /> {" "}{tr("File sharing (SMB)")}</span>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Workgroup")}><Input value={s.workgroup} onChange={(e) => set("workgroup", e.target.value)} /></Field>
@@ -177,8 +177,9 @@ export default function SettingsPage() {
             <Field label={tr("SMTP password")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
-            <Field label={tr("Notification language")} hint={tr("Alerts and health report, on all channels")}>
-              <Select value={s.notifyLang || "en"} onChange={(e) => set("notifyLang", e.target.value)}>
+            <Field label={tr("Language of the messages sent by the NAS")} hint={tr("Alerts and health report, on all channels")}>
+              <Select value={s.notifyLang ?? ""} onChange={(e) => set("notifyLang", e.target.value)}>
+                <option value="">{tr("Automatic: {0} (language of the first administrator)", languages.find((l) => l.id === (s.notifyLangAuto || "en"))?.name ?? "English")}</option>
                 {languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </Select>
             </Field>
@@ -211,18 +212,18 @@ export default function SettingsPage() {
         <CertificatesCard />
         <ConfigBackupCard />
         <OfficeSettingsCard />
-        <Card id="settings-components" title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="xl:col-span-2">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <Card id="settings-components" title={<span className="flex items-center gap-2"><Wrench size={16} /> {" "}{tr("Components")}</span>} className="@4xl:col-span-2">
+          <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-5">
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">
                 <span className="font-medium capitalize">{componentLabel[k] ?? k}</span>
                 {v ? <span className="flex items-center gap-1.5"><Badge tone="ok" dot>{tr("Installed")}</Badge>{uninstallable.includes(k) && <Button size="sm" variant="ghost" className="text-danger" onClick={() => setUninstall(k)}>{tr("Uninstall")}</Button>}</span> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
               </div>
             ))}
-          </div>
+          </div></div>
           {uninstall && <ComponentUninstallModal id={uninstall} label={componentLabel[uninstall] ?? uninstall} onClose={() => setUninstall("")} />}
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }

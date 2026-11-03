@@ -75,9 +75,9 @@ export default function SecurityAdvisor() {
     <div>
       {header}
       <ErrorBox error={run.error || fix.error || ignore.error} />
-      <div className="mb-5 grid gap-5 md:grid-cols-[auto_1fr]">
+      <div className="@container"><div className="mb-5 grid gap-5 @2xl:grid-cols-[auto_1fr]">
         <Card>
-          <Ring value={r.score} size={110} label={tr("Security score")} sub={tr("Checked {0}", dateTime(r.time))} color={scoreColor(r.score)} />
+          <Ring value={r.score} text={`${r.score}/100`} size={110} label={tr("Security score")} sub={tr("Checked {0}", dateTime(r.time))} color={scoreColor(r.score)} />
         </Card>
         <Card>
           <div className="grid h-full grid-cols-2 gap-3 sm:grid-cols-4">
@@ -90,7 +90,7 @@ export default function SecurityAdvisor() {
           </div>
           <p className="mt-3 text-[12px] text-muted">{tr("The checks also run every day at 7:30 AM: you are notified when the score drops or a new important item appears.")}</p>
         </Card>
-      </div>
+      </div></div>
       {active.length === 0 ? (
         <Card><div className="flex items-center gap-2 text-ok"><ShieldCheck size={18} />{tr("Nothing to improve: every check passes.")}</div></Card>
       ) : (

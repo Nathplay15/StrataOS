@@ -34,15 +34,15 @@ export default function Dashboard({ me }: { me: Me }) {
         </div>
       )}
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="@container"><div className="mb-5 grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-4">
         <Stat label={tr("Disks")} value={o?.disks ?? "—"} sub={tr("{0} RAID · {1} ZFS pool", o?.raids ?? 0, o?.pools ?? 0)} icon={<HardDrive size={20} />} />
         <Stat label={tr("Shares")} value={o?.shares ?? "—"} sub={tr("{0} users", o?.users ?? 0)} icon={<Share2 size={20} />} tone="ok" />
         <Stat label={tr("Containers")} value={o ? `${o.containers.running}/${o.containers.total}` : "—"} sub={tr("running")} icon={<Container size={20} />} tone="accent" />
         <Stat label={tr("Max temperature")} value={hottest ? `${hottest.toFixed(0)} °C` : "—"} sub={i?.cpuModel} icon={<Thermometer size={20} />} tone={hottest > 80 ? "danger" : hottest > 65 ? "warn" : "ok"} />
-      </div>
+      </div></div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
-        <Card title={tr("Resources")} className="xl:col-span-1">
+      <div className="@container"><div className="grid gap-5 @4xl:grid-cols-3">
+        <Card title={tr("Resources")} className="@4xl:col-span-1">
           {!last ? (
             <Spinner />
           ) : (
@@ -52,7 +52,7 @@ export default function Dashboard({ me }: { me: Me }) {
             </div>
           )}
         </Card>
-        <Card title={tr("Network activity")} className="xl:col-span-2">
+        <Card title={tr("Network activity")} className="@4xl:col-span-2">
           <AreaChart
             height={150}
             format={rate}
@@ -62,7 +62,7 @@ export default function Dashboard({ me }: { me: Me }) {
             ]}
           />
         </Card>
-        <Card title={tr("Processor")} className="xl:col-span-2">
+        <Card title={tr("Processor")} className="@4xl:col-span-2">
           <AreaChart height={150} max={100} format={(v) => `${v.toFixed(0)} %`} series={[{ label: "CPU", color: "var(--accent)", values: h.map((s) => s.cpu) }]} />
         </Card>
         <Card title={tr("Disks (I/O)")}>
@@ -75,7 +75,7 @@ export default function Dashboard({ me }: { me: Me }) {
             ]}
           />
         </Card>
-      </div>
+      </div></div>
 
       <Card title={tr("Storage volumes")} className="mt-5" actions={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent text-[13px]">{tr("Manage")}</AppLink>}>
         {!o ? (
@@ -83,7 +83,7 @@ export default function Dashboard({ me }: { me: Me }) {
         ) : o.volumes.length === 0 ? (
           <Empty icon={<Database size={22} />} title={tr("No volumes")} text={tr("Create a RAID or a pool, then a volume to start storing data.")} action={me.role === "admin" && <AppLink to="/storage/volumes" className="text-accent">{tr("Create a volume →")}</AppLink>} />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
             {o.volumes.map((v) => {
               const p = pct(v.used, v.total);
               return (
@@ -106,13 +106,13 @@ export default function Dashboard({ me }: { me: Me }) {
                 </div>
               );
             })}
-          </div>
+          </div></div>
         )}
       </Card>
 
       {i && (
         <Card title={tr("System")} className="mt-5">
-          <dl className="grid gap-x-8 gap-y-3 text-[13px] sm:grid-cols-2 xl:grid-cols-4">
+          <div className="@container"><dl className="grid gap-x-8 gap-y-3 text-[13px] @xl:grid-cols-2 @4xl:grid-cols-4">
             {[
               [tr("Hardware"), [i.vendor, i.product].filter(Boolean).join(" ") || "—"],
               [tr("Processor"), i.cpuModel],
@@ -128,7 +128,7 @@ export default function Dashboard({ me }: { me: Me }) {
                 <dd className="truncate">{v}</dd>
               </div>
             ))}
-          </dl>
+          </dl></div>
           {i.temps.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
               {i.temps.slice(0, 12).map((t, k) => (

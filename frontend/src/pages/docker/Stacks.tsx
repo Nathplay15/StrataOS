@@ -78,7 +78,7 @@ export default function Stacks() {
         {isLoading ? <Spinner /> : !data?.length ? (
           <Card><Empty icon={<Package />} title={tr("No stacks")} text={tr("Paste a docker-compose.yaml file to deploy a complete application, or use the App Center.")} action={<Button variant="primary" onClick={() => setEdit(null)}>{tr("Create a stack")}</Button>} /></Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
             {data.map((s) => (
               <Card key={s.name} pad={false}>
                 <div className="p-5">
@@ -113,7 +113,7 @@ export default function Stacks() {
                 </div>
               </Card>
             ))}
-          </div>
+          </div></div>
         )}
       </DockerGuard>
       {edit !== undefined && <Editor name={edit} onClose={() => setEdit(undefined)} />}

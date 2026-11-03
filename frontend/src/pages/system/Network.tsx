@@ -31,7 +31,7 @@ const list = (s: string) => s.split(/[\s,]+/).map((x) => x.trim()).filter(Boolea
 
 function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="@container"><div className="grid gap-3 @xl:grid-cols-2 @3xl:grid-cols-4">
       <Field label={tr("Addressing")}>
         <Select value={ip.mode} onChange={(e) => onChange({ ...ip, mode: e.target.value as IP["mode"] })}>
           <option value="dhcp">{tr("DHCP (automatic)")}</option>
@@ -47,7 +47,7 @@ function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
       )}
       {ip.mode !== "none" && <Field label="DNS" hint={tr("optional, separated by spaces")}><Input className="mono" value={(ip.dns ?? []).join(" ")} onChange={(e) => onChange({ ...ip, dns: list(e.target.value) })} /></Field>}
       <Field label="MTU" hint={tr("empty = default, 9000 = jumbo frames")}><Input type="number" value={ip.mtu || ""} onChange={(e) => onChange({ ...ip, mtu: +e.target.value || 0 })} /></Field>
-    </div>
+    </div></div>
   );
 }
 

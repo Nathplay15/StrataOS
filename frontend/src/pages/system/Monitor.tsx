@@ -15,7 +15,7 @@ export default function Monitor() {
   return (
     <div>
       <PageHeader title={tr("Resource Monitor")} subtitle={tr("History of the last 6 minutes, refreshed every 2 seconds")} icon={<Activity size={20} />} />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={tr("Processor")}>
           <AreaChart height={170} max={100} format={(v) => `${v.toFixed(0)} %`} series={[{ label: tr("Usage"), color: "var(--accent)", values: h.map((s) => s.cpu) }]} />
         </Card>
@@ -50,7 +50,7 @@ export default function Monitor() {
             </div>
           )}
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }

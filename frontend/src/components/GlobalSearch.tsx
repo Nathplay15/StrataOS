@@ -134,12 +134,12 @@ export function GlobalSearch({ me, openPage, dark }: { me: Me; openPage: (path: 
         aria-label={tr("Search")}
         className={cx(
           "flex h-9 items-center gap-2 rounded-lg px-2.5 text-[13px] transition md:w-60",
-          dark ? "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white" : "border border-line bg-panel-2 text-muted hover:border-accent/50 hover:text-fg",
+          dark ? "bg-dk-hover text-dk-fg/70 hover:bg-dk-active hover:text-dk-fg" : "border border-line bg-panel-2 text-muted hover:border-accent/50 hover:text-fg",
         )}
       >
         <Search size={16} className="shrink-0" />
         <span className="hidden flex-1 text-left md:inline">{tr("Search…")}</span>
-        <kbd className={cx("hidden rounded px-1.5 text-[11px] md:inline", dark ? "bg-white/10" : "border border-line")}>{isMac ? "⌘K" : "Ctrl K"}</kbd>
+        <kbd className={cx("hidden rounded px-1.5 text-[11px] md:inline", dark ? "bg-dk-hover" : "border border-line")}>{isMac ? "⌘K" : "Ctrl K"}</kbd>
       </button>
       {open && <SearchPalette me={me} openPage={openPage} desktop={dark} onClose={() => setOpen(false)} />}
     </>

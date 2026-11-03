@@ -281,8 +281,10 @@ var errNoChannel = badRequest("no notification channel configured")
 // minimum levels and quiet hours, but not a disabled channel.
 func (s *Server) sendNotification(level, subject, msg string) ([]string, error) {
 	var set store.Settings
-	s.store.Read(func(st *store.State) { set = st.Settings })
-	subject, msg = i18n.Lines(set.NotifyLang, subject), i18n.Lines(set.NotifyLang, msg)
+	var lang string
+	s.store.Read(func(st *store.State) { set, lang = st.Settings, st.MessageLang() })
+	kind := notifKindOf(subject, msg) // from the English texts, before translation
+	subject, msg = i18n.Lines(lang, subject), i18n.Lines(lang, msg)
 	host, _ := hostname()
 	quiet := !quietAllows(set.QuietHours, level, time.Now())
 	ch := set.NotifyChannels
@@ -320,7 +322,7 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 			errs = append(errs, "ntfy: "+err.Error())
 		}
 	}
-	if ok, err := s.mobileNotify(level, subject, msg, use, ch.Mobile); ok { // mobile_push.go
+	if ok, err := s.mobileNotify(level, subject, msg, kind, use, ch.Mobile); ok { // mobile_push.go
 		sent = append(sent, "mobile")
 		if err != nil {
 			errs = append(errs, "mobile: "+err.Error())

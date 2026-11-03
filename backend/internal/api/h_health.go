@@ -433,11 +433,15 @@ func (s *Server) advisorFacts() health.Facts {
 		for _, b := range st.Backups {
 			if b.Enabled {
 				backup(b.Name, b.Cron, b.History)
+			} else {
+				f.DisabledBackups = append(f.DisabledBackups, b.Name)
 			}
 		}
 		for _, c := range st.Clouds {
 			if c.Enabled {
 				backup(c.Name, c.Cron, c.History)
+			} else {
+				f.DisabledBackups = append(f.DisabledBackups, c.Name)
 			}
 		}
 		f.NotifyConfigured = set.WebhookURL != "" || (set.TelegramToken != "" && set.TelegramChatID != "") || set.NtfyURL != "" || (set.SMTPHost != "" && set.NotifyEmail != "")

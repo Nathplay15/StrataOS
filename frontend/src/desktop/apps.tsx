@@ -153,6 +153,14 @@ export function appForPath(path: string): { app: AppDef; section?: string } | un
   return undefined;
 }
 
+/** Classic route of an app window (of its section for a suite). */
+export function pathOfApp(id: string, section?: string): string | undefined {
+  const app = appById(id);
+  if (!app) return undefined;
+  if (!app.sections) return app.path;
+  return (app.sections.find((s) => s.id === section) ?? app.sections[0]).path;
+}
+
 export function AppIcon({ app, size = 56 }: { app: AppDef; size?: number }) {
   const I = app.icon;
   return (

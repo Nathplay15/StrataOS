@@ -45,8 +45,11 @@ function useInView(ref: React.RefObject<HTMLElement | null>) {
 
 function Frame({ title, children, onClick }: { title: string; children: ReactNode; onClick?: () => void }) {
   return (
-    <section className={cx("rounded-2xl border border-white/10 bg-black/30 p-4 text-white shadow-xl backdrop-blur-xl", onClick && "cursor-pointer transition hover:bg-black/40")} onClick={onClick}>
-      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-white/60">{title}</h3>
+    <section aria-label={title} className={cx("rounded-2xl border border-dk-line bg-dk-glass p-4 text-dk-fg shadow-xl backdrop-blur-xl", onClick && "cursor-pointer transition hover:bg-dk-glass-hover")} onClick={onClick}>
+      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-dk-fg/60">
+        {/* The click on the whole card is for the mouse; the keyboard reaches this button. */}
+        {onClick ? <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }} className="rounded uppercase outline-none focus-visible:ring-2 focus-visible:ring-accent">{title}</button> : title}
+      </h3>
       {children}
     </section>
   );
@@ -55,13 +58,13 @@ function Frame({ title, children, onClick }: { title: string; children: ReactNod
 function Bar({ value, label, sub }: { value: number; label: string; sub: string }) {
   return (
     <div>
-      <div className="mb-1 flex justify-between gap-2 text-[12px]"><span className="truncate">{label}</span><span className="shrink-0 text-white/70">{sub}</span></div>
-      <Progress value={value} className="!border-white/10 !bg-white/10" />
+      <div className="mb-1 flex justify-between gap-2 text-[12px]"><span className="truncate">{label}</span><span className="shrink-0 text-dk-fg/70">{sub}</span></div>
+      <Progress value={value} className="!border-dk-line !bg-dk-hover" />
     </div>
   );
 }
 
-const Muted = ({ children }: { children: ReactNode }) => <div className="text-[12.5px] text-white/60">{children}</div>;
+const Muted = ({ children }: { children: ReactNode }) => <div className="text-[12.5px] text-dk-fg/60">{children}</div>;
 
 /** Loading, error and empty states shared by the widgets. */
 function State({ q, empty, children }: { q: { isLoading: boolean; error: unknown; data?: unknown }; empty?: string | false; children: () => ReactNode }) {
@@ -108,7 +111,7 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
             </div>
             <div className="min-w-0">
               <div className="font-semibold">{!ov ? "…" : healthy ? tr("Healthy") : errors ? tr("Attention required") : tr("Warning")}</div>
-              <div className="truncate text-[12px] text-white/70">{srv(ov?.alerts[0]?.message) || (info.data ? tr("{0} · active since {1}", info.data.hostname, duration(info.data.uptime)) : "")}</div>
+              <div className="truncate text-[12px] text-dk-fg/70">{srv(ov?.alerts[0]?.message) || (info.data ? tr("{0} · active since {1}", info.data.hostname, duration(info.data.uptime)) : "")}</div>
             </div>
           </div>
         </Frame>
@@ -121,7 +124,7 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
             <div className="space-y-3">
               <Bar value={last.cpu} label={tr("Processor")} sub={`${last.cpu.toFixed(0)} %`} />
               <Bar value={pct(last.memUsed, last.memTotal)} label={tr("Memory")} sub={`${bytes(last.memUsed)} / ${bytes(last.memTotal)}`} />
-              <div className="flex justify-between text-[12px] text-white/80"><span>↓ {rate(last.netRx)}</span><span>↑ {rate(last.netTx)}</span></div>
+              <div className="flex justify-between text-[12px] text-dk-fg/80"><span>↓ {rate(last.netRx)}</span><span>↑ {rate(last.netTx)}</span></div>
             </div>
           )}</State>
         </Frame>
@@ -132,9 +135,9 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
         <Frame title={WIDGET_LABELS.network} onClick={admin ? () => wm.open("monitor") : undefined}>
           <State q={stats} empty={h.length < 2 && tr("No data yet")}>{() => (
             <div>
-              <div className="flex justify-between text-[12.5px]"><span className="text-sky-300">↓ {rate(last?.netRx ?? 0)}</span><span className="text-emerald-300">↑ {rate(last?.netTx ?? 0)}</span></div>
-              <Spark values={h.map((s) => s.netRx)} colour="#7dd3fc" />
-              <Spark values={h.map((s) => s.netTx)} colour="#6ee7b7" />
+              <div className="flex justify-between text-[12.5px]"><span className="text-dk-rx">↓ {rate(last?.netRx ?? 0)}</span><span className="text-dk-tx">↑ {rate(last?.netTx ?? 0)}</span></div>
+              <Spark values={h.map((s) => s.netRx)} colour="var(--dk-rx)" />
+              <Spark values={h.map((s) => s.netTx)} colour="var(--dk-tx)" />
             </div>
           )}</State>
         </Frame>
@@ -153,7 +156,7 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
     case "apps":
       return (
         <Frame title={WIDGET_LABELS.apps} onClick={() => wm.open("docker", "containers")}>
-          <State q={ovQ}>{() => <div className="text-[13px]"><b className="text-[20px]">{ov!.containers.running}</b> <span className="text-white/70">/ {ov!.containers.total} {" "}{tr("active containers")}</span></div>}</State>
+          <State q={ovQ}>{() => <div className="text-[13px]"><b className="text-[20px]">{ov!.containers.running}</b> <span className="text-dk-fg/70">/ {ov!.containers.total} {" "}{tr("active containers")}</span></div>}</State>
         </Frame>
       );
     case "docker": {
@@ -163,9 +166,9 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
         <Frame title={WIDGET_LABELS.docker} onClick={() => wm.open("docker", "containers")}>
           <State q={docker} empty={list.length === 0 && tr("No containers")}>{() => (
             <div className="space-y-1.5 text-[12.5px]">
-              <div className="text-white/70">{tr("{0} running of {1}", running.length, list.length)}</div>
+              <div className="text-dk-fg/70">{tr("{0} running of {1}", running.length, list.length)}</div>
               {list.slice(0, 5).map((c) => (
-                <div key={c.Id} className="flex items-center gap-2"><span className={cx("h-2 w-2 shrink-0 rounded-full", c.State === "running" ? "bg-ok" : "bg-white/30")} /><span className="truncate">{(c.Names[0] ?? c.Id).replace(/^\//, "")}</span></div>
+                <div key={c.Id} className="flex items-center gap-2"><span className={cx("h-2 w-2 shrink-0 rounded-full", c.State === "running" ? "bg-ok" : "bg-dk-fg/30")} /><span className="truncate">{(c.Names[0] ?? c.Id).replace(/^\//, "")}</span></div>
               ))}
             </div>
           )}</State>
@@ -178,9 +181,9 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
         <Frame title={WIDGET_LABELS.vms} onClick={() => wm.open("vms")}>
           <State q={{ isLoading: vms.isLoading && lxc.isLoading, error: vms.error && lxc.error, data: vms.data ?? lxc.data }} empty={items.length === 0 && tr("No virtual machines or containers")}>{() => (
             <div className="space-y-1.5 text-[12.5px]">
-              <div className="text-white/70">{tr("{0} running of {1}", items.filter((x) => x.on).length, items.length)}</div>
+              <div className="text-dk-fg/70">{tr("{0} running of {1}", items.filter((x) => x.on).length, items.length)}</div>
               {items.slice(0, 5).map((x) => (
-                <div key={x.kind + x.name} className="flex items-center gap-2"><span className={cx("h-2 w-2 shrink-0 rounded-full", x.on ? "bg-ok" : "bg-white/30")} /><span className="truncate">{x.name}</span><span className="ml-auto text-[11px] text-white/50">{x.kind}</span></div>
+                <div key={x.kind + x.name} className="flex items-center gap-2"><span className={cx("h-2 w-2 shrink-0 rounded-full", x.on ? "bg-ok" : "bg-dk-fg/30")} /><span className="truncate">{x.name}</span><span className="ml-auto text-[11px] text-dk-fg/60">{x.kind}</span></div>
               ))}
             </div>
           )}</State>
@@ -212,9 +215,9 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
             <div className="space-y-1.5 text-[12.5px]">
               {list.slice(0, 4).map(({ b, run }) => (
                 <div key={b.id} className="flex items-center gap-2">
-                  {b.running ? <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" /> : run ? (run.status === "success" ? <CheckCircle2 size={13} className="shrink-0 text-ok" /> : <XCircle size={13} className="shrink-0 text-danger" />) : <span className="h-2 w-2 shrink-0 rounded-full bg-white/30" />}
+                  {b.running ? <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" /> : run ? (run.status === "success" ? <CheckCircle2 size={13} className="shrink-0 text-ok" /> : <XCircle size={13} className="shrink-0 text-danger" />) : <span className="h-2 w-2 shrink-0 rounded-full bg-dk-fg/30" />}
                   <span className="truncate">{b.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-white/60">{b.running ? tr("running") : run ? ago(run.started) : tr("never")}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-dk-fg/60">{b.running ? tr("running") : run ? ago(run.started) : tr("never")}</span>
                 </div>
               ))}
             </div>
@@ -230,8 +233,8 @@ function WidgetBody({ id, me, ov, live }: { id: WidgetId; me: Me; ov?: Overview;
             <div className="space-y-1.5 text-[12.5px]">
               {list.slice(0, 6).map((d) => (
                 <div key={d.name} className="flex items-center gap-2">
-                  <span className="truncate">{d.name}</span><span className="truncate text-[11px] text-white/50">{d.model}</span>
-                  <span className={cx("ml-auto shrink-0 font-medium tabular-nums", d.temperature >= 55 ? "text-danger" : d.temperature >= 45 ? "text-warn" : "text-white")}>{d.standby ? "—" : `${d.temperature} °C`}</span>
+                  <span className="truncate">{d.name}</span><span className="truncate text-[11px] text-dk-fg/60">{d.model}</span>
+                  <span className={cx("ml-auto shrink-0 font-medium tabular-nums", d.temperature >= 55 ? "text-danger" : d.temperature >= 45 ? "text-warn" : "text-dk-fg")}>{d.standby ? "—" : `${d.temperature} °C`}</span>
                 </div>
               ))}
             </div>
@@ -272,9 +275,9 @@ export function WidgetPanel({ me, ov, onCustomize }: { me: Me; ov?: Overview; on
   const ids = shownWidgets(prefs.data.widgets, me.role === "admin");
   if (ids.length === 0) return null;
   return (
-    <aside className="group/panel absolute bottom-4 right-4 top-4 z-[1] hidden w-72 space-y-3 overflow-y-auto pb-8 [scrollbar-width:none] xl:block">
+    <aside aria-label={tr("Widgets")} className="group/panel absolute bottom-4 right-4 top-4 z-[1] hidden w-72 space-y-3 overflow-y-auto pb-8 [scrollbar-width:none] xl:block">
       {ids.map((id) => <WidgetSlot key={id} id={id} me={me} ov={ov} />)}
-      <button type="button" onClick={onCustomize} className="mx-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] text-white/60 opacity-0 transition hover:bg-white/10 hover:text-white focus-visible:opacity-100 group-hover/panel:opacity-100">
+      <button type="button" onClick={onCustomize} className="mx-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] text-dk-fg/60 opacity-0 transition hover:bg-dk-hover hover:text-dk-fg focus-visible:opacity-100 group-hover/panel:opacity-100">
         <Settings2 size={14} /> {" "}{tr("Customize widgets")}
       </button>
     </aside>

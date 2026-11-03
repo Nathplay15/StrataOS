@@ -31,6 +31,11 @@ type mobileEvent struct {
 	Level   string    `json:"level"`
 	Subject string    `json:"subject"`
 	Message string    `json:"message"`
+	// Group, direct action and page of the web notification centre
+	// (notif_center.go), worked out from the English texts.
+	Kind   string `json:"kind,omitempty"`
+	Action string `json:"action,omitempty"`
+	Link   string `json:"link,omitempty"`
 }
 
 const maxMobileEvents = 200
@@ -60,14 +65,14 @@ func (s *Server) feedLoadLocked() {
 }
 
 // mobileFeedAdd records a notification for the app.
-func (s *Server) mobileFeedAdd(level, subject, msg string) mobileEvent {
+func (s *Server) mobileFeedAdd(level, subject, msg string, k notifKind) mobileEvent {
 	feed.mu.Lock()
 	defer feed.mu.Unlock()
 	s.feedLoadLocked()
 	if level == "" {
 		level = "info"
 	}
-	e := mobileEvent{ID: feed.Next, Time: time.Now(), Level: level, Subject: subject, Message: msg}
+	e := mobileEvent{ID: feed.Next, Time: time.Now(), Level: level, Subject: subject, Message: msg, Kind: k.Kind, Action: k.Action, Link: k.Link}
 	feed.Next++
 	feed.Events = append(feed.Events, e)
 	if len(feed.Events) > maxMobileEvents {
@@ -261,8 +266,8 @@ func (s *Server) pushMobile(targets []pushTarget, e mobileEvent) error {
 // mobileNotify is called by sendNotification: the event always goes to the
 // feed; use reports whether the mobile channel sends it (level, quiet hours).
 // Paired administrator phones make the channel configured, push or not.
-func (s *Server) mobileNotify(level, subject, msg string, use func(store.NotifyChannel) bool, ch store.NotifyChannel) (sent bool, err error) {
-	e := s.mobileFeedAdd(level, subject, msg)
+func (s *Server) mobileNotify(level, subject, msg string, k notifKind, use func(store.NotifyChannel) bool, ch store.NotifyChannel) (sent bool, err error) {
+	e := s.mobileFeedAdd(level, subject, msg, k)
 	targets, devices := s.mobilePushTargets()
 	if devices == 0 || !use(ch) {
 		return false, nil

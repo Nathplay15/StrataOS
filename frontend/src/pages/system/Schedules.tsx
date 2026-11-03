@@ -158,7 +158,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
       <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-4">
           {(Object.keys(typeInfo) as Schedule["type"][]).map((t) => (
             <button key={t} type="button" disabled={editing} onClick={() => set({ type: t })} className={cx("flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60", s.type === t ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
               {typeInfo[t].icon}
@@ -168,7 +168,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               </div>
             </button>
           ))}
-        </div>
+        </div></div>
 
         <Field label={tr("Name")}><Input value={s.name} onChange={(e) => { setNamed(true); set({ name: e.target.value }); }} /></Field>
 

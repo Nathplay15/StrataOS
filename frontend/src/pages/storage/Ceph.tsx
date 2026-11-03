@@ -207,12 +207,12 @@ function Overview({ d }: { d: CephData }) {
           <Switch checked={!!d.noout} onChange={async (v) => { if (!v || await confirm({ title: tr("Maintenance mode?"), text: tr("Ceph stops moving data when a disk or a NAS disappears, so you can restart NAS without starting a long copy. Turn it off when you are done.") })) maint.mutate(v); }} label={tr("Maintenance mode (noout)")} />
         </div>
       </Card>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="@container"><div className="grid gap-4 @xl:grid-cols-2 @3xl:grid-cols-4">
         <Stat label={tr("Capacity")} value={`${bytes(st.used)} / ${bytes(st.total)}`} sub={<Progress value={pct(st.used, st.total)} />} icon={<Database size={18} />} />
         <Stat label={tr("Disks (OSD)")} value={`${st.osdsUp} / ${st.osds}`} sub={tr("{0} in the cluster", st.osdsIn)} icon={<HardDrive size={18} />} tone={st.osdsUp < st.osds ? "warn" : "accent"} />
         <Stat label={tr("Monitors")} value={`${st.quorum.length} / ${st.mons}`} sub={tr("in quorum")} icon={<Server size={18} />} tone={st.quorum.length < st.mons ? "warn" : "accent"} />
         <Stat label={tr("Client traffic")} value={`↓ ${rate(st.readBps)}  ↑ ${rate(st.writeBps)}`} sub={tr("{0} reads/s · {1} writes/s", st.readOps, st.writeOps)} icon={<Activity size={18} />} />
-      </div>
+      </div></div>
       {recovering && (
         <Card title={tr("Recovery")}>
           <div className="space-y-2 text-[13px]">
@@ -223,7 +223,7 @@ function Overview({ d }: { d: CephData }) {
           </div>
         </Card>
       )}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={tr("Placement groups ({0})", st.pgs)}>
           <div className="space-y-1 text-[13px]">
             {st.pgStates.map((p) => <div key={p.state} className="flex justify-between gap-3"><span className={cx("mono", p.state === "active+clean" ? "text-ok" : "text-warn")}>{p.state}</span><span>{p.count}</span></div>)}
@@ -239,7 +239,7 @@ function Overview({ d }: { d: CephData }) {
             ))}
           </div>
         </Card>
-      </div>
+      </div></div>
     </div>
   );
 }
@@ -624,7 +624,7 @@ export default function Ceph() {
       <div>
         {header}
         <div className="space-y-5">
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
             <Card title={c.cluster ? tr("Cluster {0}", c.cluster.name) : tr("Create a Ceph cluster")} actions={c.cluster && <Button size="sm" variant="ghost" icon={<Unlink size={14} />} onClick={async () => { if (await confirm({ title: tr("Leave the cluster?"), text: tr("This NAS no longer takes part in the cluster."), danger: true })) leave.mutate(); }}>{tr("Leave")}</Button>}>
               <div className="space-y-3 text-[13px]">
                 {c.cluster ? <Members cl={c} /> : <div className="text-muted">{tr("Group 3 NAS or more: Ceph keeps copies of the data on different NAS, so that one can stop without interruption.")}</div>}
@@ -633,7 +633,7 @@ export default function Ceph() {
               </div>
             </Card>
             {!c.cluster && <JoinCard cl={c} />}
-          </div>
+          </div></div>
           <StorageTab d={data} />
         </div>
         {wizard && <CreateWizard cl={c} onClose={() => setWizard(false)} />}

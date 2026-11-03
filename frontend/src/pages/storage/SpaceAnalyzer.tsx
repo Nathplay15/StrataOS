@@ -84,12 +84,12 @@ export default function SpaceAnalyzer() {
             </Card>
           )}
           {data.isLoading ? <Spinner /> : !rep || !tree ? (!job && <Empty icon={<PieChart />} title={tr("Not analyzed yet")} text={tr("Start an analysis of {0}.", target?.label ?? path)} />) : <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="@container"><div className="grid gap-4 @xl:grid-cols-2 @3xl:grid-cols-4">
               <Stat label={tr("Space used")} value={bytes(rep.size)} sub={tr("{0} files", rep.files.toLocaleString(locale))} icon={<PieChart size={18} />} />
               <Stat label={tr("Folders")} value={rep.dirs.toLocaleString(locale)} icon={<Folder size={18} />} />
               <Stat label={tr("Not modified for a year")} value={bytes(rep.oldSize)} sub={tr("{0} files", rep.oldFiles.toLocaleString(locale))} icon={<Clock size={18} />} tone="warn" />
               <Stat label={tr("Unreadable entries")} value={rep.errors.toLocaleString(locale)} icon={<FileStack size={18} />} tone={rep.errors ? "warn" : "ok"} />
-            </div>
+            </div></div>
 
             <Card title={tr("Folders")}>
               <div className="mb-3 flex flex-wrap items-center gap-1 text-[13px]">
@@ -124,7 +124,7 @@ export default function SpaceAnalyzer() {
               <div className="mb-3 flex h-3 overflow-hidden rounded-full border border-line">
                 {(rep.types ?? []).map((t) => <div key={t.category} style={{ width: `${pct(t.size, rep.size)}%`, background: catColor[t.category] }} title={catLabel(t.category)} />)}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-4">
                 {(rep.types ?? []).map((t) => (
                   <div key={t.category} className="flex items-center gap-2 rounded-lg bg-panel-2 px-3 py-2 text-[13px]">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: catColor[t.category] }} />
@@ -132,15 +132,15 @@ export default function SpaceAnalyzer() {
                     <span className="text-right"><b>{bytes(t.size)}</b><span className="block text-muted text-[11.5px]">{tr("{0} files", t.files.toLocaleString(locale))}</span></span>
                   </div>
                 ))}
-              </div>
+              </div></div>
             </Card>
 
-            <div className="grid gap-5 xl:grid-cols-2">
+            <div className="@container"><div className="grid gap-5 @4xl:grid-cols-2">
               <Card title={tr("Largest files")}><FileTable files={rep.largest ?? []} root={rep.root} /></Card>
               <Card title={<span className="flex items-center gap-2">{tr("Large files not modified for over a year")} <Badge tone="warn">{bytes(rep.oldSize)}</Badge></span>}>
                 <FileTable files={rep.old ?? []} root={rep.root} />
               </Card>
-            </div>
+            </div></div>
             <Notice>{tr("Space is counted once per file (hard links included) and does not include snapshots. Other file systems mounted inside are left out.")}</Notice>
           </>}
         </div>

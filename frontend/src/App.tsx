@@ -9,8 +9,9 @@ import { Layout } from "./components/Layout";
 import { Login } from "./pages/Auth";
 import { Setup } from "./pages/Setup";
 import { Desktop } from "./desktop/Desktop";
+import { Splash } from "./components/Splash";
 import { useDesktopMode } from "./desktop/mode";
-import { tr } from "./lib/i18n";
+import { lang, tr } from "./lib/i18n";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Disks = lazy(() => import("./pages/storage/Disks"));
@@ -78,13 +79,18 @@ function Root() {
   useEffect(() => {
     if (meQ.data) setMe(meQ.data);
   }, [meQ.data]);
+  // Report the interface language: the first administrator's is the default
+  // language of the notifications and reports.
+  useEffect(() => {
+    if (meQ.data && meQ.data.lang !== lang) api.put("/api/me/lang", { lang }).catch(() => {});
+  }, [meQ.data]);
   useEffect(() => {
     const h = () => setMe(null);
     window.addEventListener("strata:unauthorized", h);
     return () => window.removeEventListener("strata:unauthorized", h);
   }, []);
 
-  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Spinner label={tr("Connecting to the NAS…")} />;
+  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Splash label={tr("Connecting to the NAS…")} />;
   if (setup.error) return <div className="p-10 text-center text-danger">{tr("Unable to reach the StrataOS server.")}</div>;
   const hostname = setup.data?.hostname ?? "NAS";
   if (setup.data?.needed && !me) return <Setup hostname={hostname} onDone={(m) => { setMe(m); qc.invalidateQueries(); }} />;

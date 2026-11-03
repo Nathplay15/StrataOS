@@ -308,7 +308,7 @@ export function ConfigBackupCard() {
     }
   });
   return (
-    <Card title={<span className="flex items-center gap-2"><ArchiveRestore size={16} /> {" "}{tr("Configuration backup")}</span>} className="xl:col-span-2" actions={<>
+    <Card title={<span className="flex items-center gap-2"><ArchiveRestore size={16} /> {" "}{tr("Configuration backup")}</span>} className="@4xl:col-span-2" actions={<>
       <Button size="sm" icon={<Download size={14} />} onClick={() => setExporting(true)}>{tr("Export")}</Button>
       <Button size="sm" icon={<Upload size={14} />} onClick={() => file.current?.click()}>{tr("Import")}</Button>
       <input ref={file} type="file" accept=".json,application/json" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />

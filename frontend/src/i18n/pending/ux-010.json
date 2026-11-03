@@ -1,0 +1,4 @@
+[
+  ["Aucune tâche de sauvegarde active", "No active backup task"],
+  ["Des tâches de sauvegarde existent mais elles sont toutes désactivées, donc rien n'est sauvegardé : {0}. Activez-en une dans Sauvegarde ou Synchronisation cloud.", "Backup tasks exist but they are all disabled, so nothing is backed up: {0}. Enable one in Backup or Cloud sync."]
+]

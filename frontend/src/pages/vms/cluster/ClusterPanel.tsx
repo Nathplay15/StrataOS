@@ -70,7 +70,7 @@ export function ClusterPanel({ data }: { data: ClusterData }) {
         {!data.quorum && <div className="mt-3"><Notice tone="warn">{tr("This NAS does not reach most of the cluster. VMs under high availability that run here are stopped after 30 seconds, so that the others can restart them safely.")}</Notice></div>}
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
         {data.members.map((m) => {
           const inv = m.inventory;
           const running = (inv?.vms ?? []).filter((v) => v.state === "running").length;
@@ -101,7 +101,7 @@ export function ClusterPanel({ data }: { data: ClusterData }) {
             </Card>
           );
         })}
-      </div>
+      </div></div>
 
       <Card>
         <div className="mb-3 font-semibold">{tr("All virtual machines and containers")}</div>

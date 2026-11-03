@@ -92,3 +92,30 @@ export function gridSize(w: number, h: number): { cols: number; rows: number } {
 export function cellAt(x: number, y: number, cols: number, rows: number): Cell {
   return [Math.min(cols - 1, Math.max(0, Math.floor((x - GRID_PAD) / CELL_W))), Math.min(rows - 1, Math.max(0, Math.floor((y - GRID_PAD) / CELL_H)))];
 }
+
+export type Direction = "left" | "right" | "up" | "down";
+
+/**
+ * The icon reached from id with an arrow key: the nearest one in that
+ * direction, preferring the same row (left/right) or column (up/down).
+ * Undefined at the edge.
+ */
+export function iconToward(layout: Layout, id: string, dir: Direction): string | undefined {
+  const from = layout[id];
+  if (!from) return undefined;
+  const horizontal = dir === "left" || dir === "right";
+  const sign = dir === "right" || dir === "down" ? 1 : -1;
+  let best: string | undefined;
+  let bestKey: [number, number] = [Infinity, Infinity];
+  for (const [k, c] of Object.entries(layout)) {
+    if (k === id) continue;
+    const along = (horizontal ? c[0] - from[0] : c[1] - from[1]) * sign;
+    const across = Math.abs(horizontal ? c[1] - from[1] : c[0] - from[0]);
+    if (along <= 0) continue;
+    if (across < bestKey[0] || (across === bestKey[0] && along < bestKey[1])) {
+      best = k;
+      bestKey = [across, along];
+    }
+  }
+  return best;
+}

@@ -19,7 +19,7 @@ export function OfficeSettingsCard() {
   const d = info.data;
   const set = (k: keyof Office, v: string | boolean) => setO({ ...o, [k]: v });
   return (
-    <Card title={<span className="flex items-center gap-2"><FileText size={16} /> {tr("Office documents (OnlyOffice)")}</span>} className="xl:col-span-2" actions={<>
+    <Card title={<span className="flex items-center gap-2"><FileText size={16} /> {tr("Office documents (OnlyOffice)")}</span>} className="@4xl:col-span-2" actions={<>
       {d && (d.ready ? <Badge tone="ok" dot>{tr("Ready")}</Badge> : <Badge>{tr("Off")}</Badge>)}
       <Button size="sm" loading={check.isPending} disabled={!d?.internalUrl} onClick={() => check.mutate()}>{tr("Test")}</Button>
       <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>

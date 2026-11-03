@@ -35,7 +35,7 @@ export default function Guard() {
     <div>
       {header}
       <ErrorBox error={save.error} />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="@container"><div className="grid gap-5 @3xl:grid-cols-2">
         <Card title={<span className="flex items-center gap-2"><Ban size={16} />{tr("Automatic blocking")}</span>}>
           <div className="space-y-4">
             <Switch checked={c.enabled} onChange={(v) => setC({ ...c, enabled: v })} label={tr("Block addresses that fail too often")} hint={tr("Web interface, WebDAV, share links, SSH/SFTP, SMB and FTP.")} />
@@ -72,7 +72,7 @@ export default function Guard() {
             {data.config.geo.enabled && data.geoRanges > 0 && <div className="text-muted text-[12px]">{tr("{0} address ranges loaded", data.geoRanges)}{data.config.geo.updated ? ` · ${dateTime(data.config.geo.updated)}` : ""}</div>}
           </div>
         </Card>
-      </div>
+      </div></div>
 
       <Card className="mt-5" title={tr("Blocked addresses")} actions={<div className="flex gap-2"><Input className="mono w-44" placeholder={tr("Address to block")} value={manual} onChange={(e) => setManual(e.target.value)} /><Button size="sm" disabled={!manual || !data.config.enabled} loading={block.isPending} onClick={() => block.mutate()}>{tr("Block for 1 year")}</Button></div>}>
         <ErrorBox error={block.error} />

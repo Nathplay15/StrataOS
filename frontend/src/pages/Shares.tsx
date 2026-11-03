@@ -234,7 +234,7 @@ export default function Shares() {
         isLoading ? <Spinner /> : !data?.length ? (
           <Card><Empty icon={<Share2 />} title={tr("No shares")} text={tr("Create a shared folder to access it from your computers, phones or TVs.")} action={<Button variant="primary" onClick={() => setEdit(null)}>{tr("Create a share")}</Button>} /></Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
             {data.map((s) => (
               <Card key={s.name} pad={false}>
                 <div className="p-5">
@@ -279,7 +279,7 @@ export default function Shares() {
                 </div>
               </Card>
             ))}
-          </div>
+          </div></div>
         )
       ) : (
         <Card pad={false}>

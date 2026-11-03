@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, CheckCircle2, ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LayoutPanelLeft, LogOut, Monitor as MonitorIcon, Moon, Palette, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone, XCircle } from "lucide-react";
+import { ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LayoutPanelLeft, LogOut, Monitor as MonitorIcon, Moon, Palette, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
 import type { AppStoreData, Me, Overview } from "../lib/types";
@@ -15,11 +15,15 @@ import { AppContent } from "./AppContent";
 import { Window } from "./Window";
 import { TASKBAR, WindowManager, useWM } from "./wm";
 import { setUIMode } from "./mode";
-import { CELL_H, CELL_W, GRID_PAD, cellAt, gridSize, layoutIcons, moveIcon, type Cell, type Layout } from "./layout";
+import { CELL_H, CELL_W, GRID_PAD, cellAt, gridSize, iconToward, layoutIcons, moveIcon, type Cell, type Direction, type Layout } from "./layout";
 import { OpenPath } from "./context";
-import { tr, locale, srv } from "../lib/i18n";
+import { tr, locale } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
 import { GlobalSearch } from "../components/GlobalSearch";
+import { Splash } from "../components/Splash";
+import { NotificationCenter } from "../components/NotificationCenter";
+import { focusFirstItem, menuKeys, useDismiss } from "../lib/a11y";
+import { WindowSwitcher } from "./WindowSwitcher";
 import { AppearanceModal } from "../components/Appearance";
 import { openAccountDialog, useAccountDialog } from "../lib/intent";
 import { useAccent, usePrefs, useSavePrefs } from "../lib/appearance";
@@ -36,13 +40,6 @@ function useClock() {
   return now;
 }
 
-function useOutside(ref: React.RefObject<HTMLElement | null>, onOut: () => void) {
-  useEffect(() => {
-    const h = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && onOut();
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [ref, onOut]);
-}
 
 /* ---------- Taskbar pieces ---------- */
 
@@ -50,7 +47,7 @@ function Launcher({ apps, onClose }: { apps: AppDef[]; onClose: () => void }) {
   const wm = useWM()!;
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  useOutside(ref, onClose);
+  useDismiss(ref, true, onClose);
   const entries = useMemo(() => {
     const out: { app: AppDef; section?: string; label: string; sub?: string }[] = [];
     for (const a of apps) {
@@ -65,10 +62,10 @@ function Launcher({ apps, onClose }: { apps: AppDef[]; onClose: () => void }) {
     onClose();
   };
   return (
-    <div ref={ref} className="absolute left-2 top-[52px] z-[9999] w-[560px] max-w-[calc(100vw-1rem)] rounded-2xl border border-white/10 bg-panel/90 p-5 shadow-2xl backdrop-blur-xl">
+    <div ref={ref} role="dialog" aria-label={tr("Main menu")} className="absolute left-2 top-[52px] z-[9999] w-[560px] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-panel/90 p-5 text-fg shadow-2xl backdrop-blur-xl">
       <div className="relative mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) go(hits[0].app.id, hits[0].section); if (e.key === "Escape") onClose(); }} placeholder={tr("Search for an app or setting…")} className="input !pl-9" />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) go(hits[0].app.id, hits[0].section); if (e.key === "Escape") onClose(); }} placeholder={tr("Search for an app or setting…")} aria-label={tr("Search for an app or setting…")} className="input !pl-9" />
       </div>
       {q ? (
         <div className="max-h-[360px] space-y-0.5 overflow-y-auto">
@@ -83,7 +80,7 @@ function Launcher({ apps, onClose }: { apps: AppDef[]; onClose: () => void }) {
       ) : (
         <div className="grid grid-cols-4 gap-2">
           {apps.map((a) => (
-            <button key={a.id} onClick={() => go(a.id)} className="flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center hover:bg-panel-2">
+            <button key={a.id} onClick={() => go(a.id)} className="flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center outline-none hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-accent">
               <AppIcon app={a} size={48} />
               <span className="text-[12px] leading-tight">{a.title}</span>
             </button>
@@ -94,36 +91,9 @@ function Launcher({ apps, onClose }: { apps: AppDef[]; onClose: () => void }) {
   );
 }
 
-function Alerts({ alerts }: { alerts: Overview["alerts"] }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useOutside(ref, () => setOpen(false));
-  return (
-    <div className="relative" ref={ref}>
-      <TrayBtn title={tr("Notifications")} onClick={() => setOpen(!open)}>
-        <Bell size={17} />
-        {alerts.length > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-danger" />}
-      </TrayBtn>
-      {open && (
-        <div className="card absolute right-0 top-11 z-[9999] w-[360px] p-2">
-          <div className="px-2 py-1.5 text-[12px] font-medium text-muted">{tr("Notifications")}</div>
-          {alerts.length === 0 ? (
-            <div className="flex items-center gap-2 px-2 py-4 text-[13px] text-ok"><CheckCircle2 size={16} /> {" "}{tr("Everything is working normally")}</div>
-          ) : alerts.map((a) => (
-            <div key={a.message} className="flex items-start gap-2 rounded-lg px-2 py-2 text-[13px]">
-              {a.level === "error" ? <XCircle size={16} className="mt-0.5 shrink-0 text-danger" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn" />}
-              {srv(a.message)}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TrayBtn({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
   return (
-    <button title={title} aria-label={title} onClick={onClick} className="relative flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition hover:bg-white/10 hover:text-white">
+    <button title={title} aria-label={title} onClick={onClick} className="relative flex h-9 w-9 items-center justify-center rounded-lg text-dk-fg/80 transition hover:bg-dk-hover hover:text-dk-fg">
       {children}
     </button>
   );
@@ -137,7 +107,8 @@ function UserMenu({ me }: { me: Me }) {
   const [mobile, setMobile] = useState(false);
   const [look, setLook] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useOutside(ref, () => setOpen(false));
+  const button = useRef<HTMLButtonElement>(null);
+  useDismiss(ref, open, () => { setOpen(false); button.current?.focus(); });
   const { confirm } = useUI();
   useAccountDialog((d) => {
     if (d === "appearance") setLook(true);
@@ -147,35 +118,35 @@ function UserMenu({ me }: { me: Me }) {
     else if (d === "devices") setMobile(true);
   });
   const qc = useQueryClient();
-  const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-panel-2";
+  const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left outline-none hover:bg-panel-2 focus-visible:bg-panel-2 focus-visible:ring-2 focus-visible:ring-accent/60";
   const power = async (action: "reboot" | "poweroff") => {
     setOpen(false);
     if (await confirm({ title: action === "reboot" ? tr("Restart the NAS?") : tr("Shut down the NAS?"), text: tr("Shares and applications will be interrupted."), danger: true, confirm: action === "reboot" ? tr("Restart") : tr("Shut down") })) await api.post(`/api/system/power/${action}`);
   };
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(!open)} className="flex h-9 items-center gap-2 rounded-lg pl-1 pr-2 text-white/90 hover:bg-white/10">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-[12px] font-semibold text-white">{me.username[0]?.toUpperCase()}</span>
+      <button ref={button} onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} aria-label={tr("Account menu of {0}", me.fullName || me.username)} className="flex h-9 items-center gap-2 rounded-lg pl-1 pr-2 text-dk-fg/90 hover:bg-dk-hover">
+        <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-[12px] font-semibold text-white">{me.username[0]?.toUpperCase()}</span>
         <span className="hidden text-[13px] md:inline">{me.fullName || me.username}</span>
       </button>
       {open && (
-        <div className="card absolute right-0 top-11 z-[9999] w-60 p-1.5 text-[13px]">
+        <div role="menu" aria-label={tr("Account")} ref={focusFirstItem} onKeyDown={menuKeys} className="card absolute right-0 top-11 z-[9999] w-60 p-1.5 text-[13px] text-fg">
           <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")} · {me.username}</div>
-          <button className={item} onClick={() => { setOpen(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>
-          <button className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
-          <button className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
-          <button className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
-          <button className={item} onClick={() => { setOpen(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
-          <button className={item} onClick={() => setUIMode("classic")}><MonitorIcon size={15} /> {" "}{tr("Classic interface")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
+          <button role="menuitem" className={item} onClick={() => setUIMode("classic")}><MonitorIcon size={15} /> {" "}{tr("Classic interface")}</button>
           {me.role === "admin" && (
             <>
-              <button className={item} onClick={() => power("reboot")}><RefreshCcw size={15} /> {" "}{tr("Restart")}</button>
-              <button className={item} onClick={() => power("poweroff")}><Power size={15} /> {" "}{tr("Shut down")}</button>
+              <button role="menuitem" className={item} onClick={() => power("reboot")}><RefreshCcw size={15} /> {" "}{tr("Restart")}</button>
+              <button role="menuitem" className={item} onClick={() => power("poweroff")}><Power size={15} /> {" "}{tr("Shut down")}</button>
             </>
           )}
           <LangSwitch className={item} />
           <div className="my-1 border-t border-line" />
-          <button className={cx(item, "text-danger")} onClick={async () => { await api.post("/api/logout").catch(() => {}); qc.clear(); window.location.href = "/"; }}><LogOut size={15} /> {" "}{tr("Sign out")}</button>
+          <button role="menuitem" className={cx(item, "text-danger")} onClick={async () => { await api.post("/api/logout").catch(() => {}); qc.clear(); window.location.href = "/"; }}><LogOut size={15} /> {" "}{tr("Sign out")}</button>
         </div>
       )}
       <PasswordModal open={pw} onClose={() => setPw(false)} />
@@ -192,35 +163,45 @@ function Taskbar({ me, apps, alerts }: { me: Me; apps: AppDef[]; alerts: Overvie
   const [launcher, setLauncher] = useState(false);
   const [theme, setTheme] = useTheme();
   const now = useClock();
+  const openPage = (p: string) => { if (!wm.openPath(p)) wm.open("overview"); };
   return (
-    <header className="relative z-[9000] flex shrink-0 items-center gap-1 border-b border-white/10 bg-black/35 px-2 text-white backdrop-blur-xl" style={{ height: TASKBAR }}>
-      <button onClick={() => setLauncher(!launcher)} className={cx("flex h-9 items-center gap-2 rounded-lg px-2.5 transition hover:bg-white/10", launcher && "bg-white/15")} title={tr("Main menu")}>
+    <nav id="strata-taskbar" aria-label={tr("Taskbar")} className="relative z-[9000] flex shrink-0 items-center gap-1 border-b border-dk-line bg-dk-bar px-2 text-dk-fg backdrop-blur-xl [&_button]:outline-none [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-accent" style={{ height: TASKBAR }}>
+      <button
+        onClick={() => setLauncher(!launcher)}
+        onMouseDown={(e) => launcher && e.stopPropagation()} // the menu's own outside click would reopen it
+        className={cx("flex h-9 items-center gap-2 rounded-lg px-2.5 transition hover:bg-dk-hover", launcher && "bg-dk-active")}
+        title={tr("Main menu")}
+        aria-label={tr("Main menu")}
+        aria-haspopup="dialog"
+        aria-expanded={launcher}
+      >
         <LayoutGrid size={18} />
       </button>
-      <div className="mx-1 h-6 w-px bg-white/15" />
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <div className="mx-1 h-6 w-px bg-dk-line-strong" aria-hidden />
+      <div role="toolbar" aria-label={tr("Open windows")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {wm.windows.map((w) => {
           const a = appById(w.app)!;
           const active = wm.focused === w.app && !w.minimized;
           return (
-            <button key={w.app} onClick={() => (active ? wm.minimize(w.app) : wm.focus(w.app))} className={cx("flex h-9 max-w-[200px] shrink-0 items-center gap-2 rounded-lg px-2.5 text-[12.5px] transition", active ? "bg-white/20" : "hover:bg-white/10", w.minimized && "opacity-60")} title={a.title}>
+            <button key={w.app} onClick={() => (active ? wm.minimize(w.app) : wm.focus(w.app))} aria-pressed={active} aria-label={w.minimized ? tr("{0} (collapsed)", a.title) : a.title} className={cx("flex h-9 max-w-[200px] shrink-0 items-center gap-2 rounded-lg px-2.5 text-[12.5px] transition", active ? "bg-dk-active" : "hover:bg-dk-hover", w.minimized && "opacity-60")} title={a.title}>
               <AppIcon app={a} size={20} />
               <span className="truncate">{a.title}</span>
             </button>
           );
         })}
       </div>
-      <GlobalSearch me={me} dark openPage={(p) => { if (!wm.openPath(p)) wm.open("overview"); }} />
-      <div className="[&_button]:text-white/80 [&_button:hover]:text-white"><JobsMenu /></div>
-      <Alerts alerts={alerts} />
-      <TrayBtn title={tr("Theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</TrayBtn>
-      <div className="hidden px-2 text-right leading-tight sm:block">
-        <div className="text-[13px] font-medium">{now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</div>
-        <div className="text-[10.5px] text-white/70">{now.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })}</div>
+      <GlobalSearch me={me} dark openPage={openPage} />
+      {/* Only the trigger takes the taskbar colours: its list is a themed card. */}
+      <div className="[&>div>button:first-child]:text-dk-fg/80 [&>div>button:first-child:hover]:bg-dk-hover [&>div>button:first-child:hover]:text-dk-fg"><JobsMenu /></div>
+      <NotificationCenter me={me} alerts={alerts} openPage={openPage} tray />
+      <TrayBtn title={theme === "dark" ? tr("Light theme") : tr("Dark theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</TrayBtn>
+      <div className="hidden px-2 text-right leading-tight sm:block" role="timer" aria-label={now.toLocaleString(locale, { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}>
+        <div className="text-[13px] font-medium" aria-hidden>{now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</div>
+        <div className="text-[10.5px] text-dk-fg/70" aria-hidden>{now.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })}</div>
       </div>
       <UserMenu me={me} />
       {launcher && <Launcher apps={apps} onClose={() => setLauncher(false)} />}
-    </header>
+    </nav>
   );
 }
 
@@ -229,11 +210,16 @@ function Taskbar({ me, apps, alerts }: { me: Me; apps: AppDef[]; alerts: Overvie
 interface WebApp { id: string; name: string; icon: string; url: string }
 
 /** One cell of the icon grid: fixed size, icon centered, label on two lines at most. */
-function DesktopIcon({ label, cell, onOpen, onDragEnd, children }: {
+function DesktopIcon({ id, label, cell, onOpen, onDragEnd, tabbable, onFocus, onArrow, children }: {
+  id: string;
   label: string;
   cell: Cell;
   onOpen: () => void;
   onDragEnd: (x: number, y: number) => void;
+  /** The icon reached by Tab (one per grid; arrows move between them). */
+  tabbable: boolean;
+  onFocus: () => void;
+  onArrow: (d: Direction) => void;
   children: ReactNode;
 }) {
   const drag = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
@@ -244,6 +230,16 @@ function DesktopIcon({ label, cell, onOpen, onDragEnd, children }: {
       type="button"
       title={label}
       aria-label={label}
+      data-icon={id}
+      tabIndex={tabbable ? 0 : -1}
+      onFocus={onFocus}
+      onKeyDown={(e) => {
+        const d = ({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" } as Record<string, Direction>)[e.key];
+        if (d && !e.altKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          onArrow(d);
+        }
+      }}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
@@ -276,7 +272,7 @@ function DesktopIcon({ label, cell, onOpen, onDragEnd, children }: {
         onOpen();
       }}
       className={cx(
-        "group absolute flex touch-none select-none flex-col items-center rounded-xl px-1 pt-2 text-center outline-none transition-colors hover:bg-white/10 focus-visible:bg-white/15",
+        "group absolute flex touch-none select-none flex-col items-center rounded-xl px-1 pt-2 text-center outline-none transition-colors hover:bg-white/10 focus-visible:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/80",
         offset && "z-10 bg-white/10",
       )}
       style={{
@@ -291,6 +287,7 @@ function DesktopIcon({ label, cell, onOpen, onDragEnd, children }: {
 }
 
 const NO_LAYOUT: Layout = {};
+const menuItem = "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left outline-none hover:bg-panel-2 focus-visible:bg-panel-2 focus-visible:ring-2 focus-visible:ring-accent/60";
 
 /** Size of an element, followed when it changes. */
 function useSize(ref: React.RefObject<HTMLElement | null>) {
@@ -315,6 +312,8 @@ function DesktopInner({ me }: { me: Me }) {
   const [widgetsOpen, setWidgetsOpen] = useState(false);
   useAccountDialog((d) => d === "widgets" && setWidgetsOpen(true));
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useDismiss(menuRef, !!menu, () => setMenu(null));
   const apps = APPS.filter((a) => !a.admin || me.role === "admin");
   const ov = useQuery({ queryKey: ["overview"], queryFn: () => api.get<Overview>("/api/system/overview"), refetchInterval: 15000 });
   const store = useQuery({ queryKey: ["apps"], queryFn: () => api.get<AppStoreData>("/api/apps"), enabled: me.role === "admin" });
@@ -361,21 +360,52 @@ function DesktopInner({ me }: { me: Me }) {
     }
     saveLayout(merged);
   };
-  const iconProps = (id: string) => ({ cell: layout[id] ?? ([0, 0] as Cell), onDragEnd: (x: number, y: number) => drop(id, x, y) });
+  // Keyboard: one icon takes the Tab stop, the arrows move between icons.
+  const [current, setCurrent] = useState<string | null>(null);
+  const tabStop = current && layout[current] ? current : ids[0];
+  const focusIcon = (id: string) => mainRef.current?.querySelector<HTMLElement>(`[data-icon="${CSS.escape(id)}"]`)?.focus();
+  const iconProps = (id: string) => ({
+    id,
+    cell: layout[id] ?? ([0, 0] as Cell),
+    onDragEnd: (x: number, y: number) => drop(id, x, y),
+    tabbable: id === tabStop,
+    onFocus: () => setCurrent(id),
+    onArrow: (d: Direction) => { const to = iconToward(layout, id, d); if (to) focusIcon(to); },
+  });
+
+  // Desktop shortcuts: Alt+Shift+T the taskbar, Alt+Shift+D the icons,
+  // Shift+F10 or the context menu key on the desktop opens its menu.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (e.code === "KeyT" || e.code === "KeyD")) {
+        e.preventDefault();
+        if (e.code === "KeyT") document.querySelector<HTMLElement>("#strata-taskbar button")?.focus();
+        else if (tabStop) focusIcon(tabStop);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  });
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: wallpaperCSS(wall, prefs.data?.customWallpaper) }} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}>
+    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: wallpaperCSS(wall, prefs.data?.customWallpaper) }} onContextMenu={(e) => {
+      e.preventDefault();
+      // From the keyboard (Shift+F10, menu key) the pointer position means nothing: open by the focused element.
+      const r = e.clientX || e.clientY ? null : (document.activeElement as HTMLElement | null)?.getBoundingClientRect();
+      setMenu(r ? { x: r.left + 8, y: r.bottom } : { x: e.clientX, y: e.clientY });
+    }}>
       <Taskbar me={me} apps={apps} alerts={ov.data?.alerts ?? []} />
       <main ref={mainRef} className="relative flex-1" onMouseDown={() => setMenu(null)}>
         {/* Icons wait for the saved layout, so they do not jump once it arrives. */}
-        <div className={cx("absolute inset-0", prefs.isLoading && "invisible")}>
+        <div role="group" aria-label={tr("Desktop icons")} aria-describedby="strata-desktop-keys" className={cx("absolute inset-0", prefs.isLoading && "invisible")}>
+          <p id="strata-desktop-keys" className="sr-only">{tr("Arrow keys move between the icons, Enter opens. Alt+Shift+T goes to the taskbar, Ctrl+` switches between windows.")}</p>
           {apps.map((a) => (
             <DesktopIcon key={a.id} label={a.title} onOpen={() => wm.open(a.id)} {...iconProps(a.id)}>
               <AppIcon app={a} size={56} />
             </DesktopIcon>
           ))}
           {webApps.map((w) => (
-            <DesktopIcon key={w.id} label={w.name} onOpen={() => window.open(w.url, "_blank", "noopener")} {...iconProps(w.id)}>
+            <DesktopIcon key={w.id} label={tr("{0} (opens in a new tab)", w.name)} onOpen={() => window.open(w.url, "_blank", "noopener")} {...iconProps(w.id)}>
               <div className="relative flex h-14 w-14 items-center justify-center rounded-[15px] bg-white/90 p-2 shadow-lg">
                 {w.icon ? <img src={w.icon} alt="" referrerPolicy="no-referrer" className="h-full w-full object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <span className="text-[22px] font-semibold text-slate-700">{w.name[0]?.toUpperCase()}</span>}
                 <ExternalLink size={12} className="absolute -bottom-1 -right-1 rounded bg-black/60 p-0.5 text-white" />
@@ -394,26 +424,36 @@ function DesktopInner({ me }: { me: Me }) {
       </main>
       {menu && (
         <div
-          className="card fixed z-[9999] w-56 p-1.5 text-[13px]"
+          role="menu"
+          aria-label={tr("Desktop")}
+          className="card fixed z-[9999] w-56 p-1.5 text-[13px] text-fg"
           style={{ left: Math.min(menu.x, window.innerWidth - 240), top: menu.y }}
           // Kept on screen with its real height, which grows with the wallpaper list.
-          ref={(el) => { if (el) el.style.top = Math.max(8, Math.min(menu.y, window.innerHeight - el.offsetHeight - 8)) + "px"; }}
+          ref={(el) => {
+            menuRef.current = el;
+            if (!el) return;
+            el.style.top = Math.max(8, Math.min(menu.y, window.innerHeight - el.offsetHeight - 8)) + "px";
+            if (!el.contains(document.activeElement)) focusFirstItem(el);
+          }}
+          onKeyDown={menuKeys}
           onMouseLeave={() => setMenu(null)}
         >
           <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-muted"><ImageIcon size={14} /> {" "}{tr("Wallpaper")}</div>
           {Object.entries(WALLPAPERS).map(([k, w]) => (
-            <button key={k} onClick={() => { setWall(k); setMenu(null); }} className={cx("flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2", wall === k && "text-accent")}>
-              <span className="h-4 w-6 rounded" style={{ background: w.css }} /> {w.label}
+            <button key={k} role="menuitemradio" aria-checked={wall === k} onClick={() => { setWall(k); setMenu(null); }} className={cx(menuItem, wall === k && "text-accent")}>
+              <span className="h-4 w-6 rounded" style={{ background: w.css }} aria-hidden /> {w.label}
             </button>
           ))}
           <div className="my-1 border-t border-line" />
-          <button onClick={() => { openAccountDialog("appearance"); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><Palette size={14} /> {" "}{tr("Appearance…")}</button>
-          <button onClick={() => { setWidgetsOpen(true); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><LayoutPanelLeft size={14} /> {" "}{tr("Customize widgets")}</button>
-          <button onClick={() => { saveLayout({}); setMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><LayoutGrid size={14} /> {" "}{tr("Rearrange icons")}</button>
-          <button onClick={() => setUIMode("classic")} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2"><MonitorIcon size={14} /> {" "}{tr("Classic interface")}</button>
+          <button onClick={() => { openAccountDialog("appearance"); setMenu(null); }} role="menuitem" className={menuItem}><Palette size={14} /> {" "}{tr("Appearance…")}</button>
+          <button onClick={() => { setWidgetsOpen(true); setMenu(null); }} role="menuitem" className={menuItem}><LayoutPanelLeft size={14} /> {" "}{tr("Customize widgets")}</button>
+          <button onClick={() => { saveLayout({}); setMenu(null); }} role="menuitem" className={menuItem}><LayoutGrid size={14} /> {" "}{tr("Rearrange icons")}</button>
+          <button onClick={() => setUIMode("classic")} role="menuitem" className={menuItem}><MonitorIcon size={14} /> {" "}{tr("Classic interface")}</button>
         </div>
       )}
       <WidgetsModal me={me} open={widgetsOpen} onClose={() => setWidgetsOpen(false)} />
+      <WindowSwitcher />
+      {prefs.isLoading && <Splash />}
     </div>
   );
 }
@@ -424,8 +464,9 @@ function WithOpenPath({ children }: { children: ReactNode }) {
 }
 
 export function Desktop({ me }: { me: Me }) {
+  const allowed = useCallback((a: AppDef) => !a.admin || me.role === "admin", [me.role]);
   return (
-    <WindowManager>
+    <WindowManager allowed={allowed}>
       <WithOpenPath>
         <DesktopInner me={me} />
       </WithOpenPath>
