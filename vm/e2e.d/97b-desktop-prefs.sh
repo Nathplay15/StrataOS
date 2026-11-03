@@ -26,7 +26,7 @@ check "SVG upload refused" "$(up "$TMP/w.svg" image/svg+xml)" "JPEG, PNG or GIF"
 head -c 6000000 /dev/zero >"$TMP/w.big"
 check "oversized upload refused" "$(up "$TMP/w.big" image/png)" "5 MB"
 check "PNG upload accepted" "$(up "$TMP/w.png" image/png; u GET /api/me/desktop | py 'print(d["wallpaper"], d.get("customWallpaper",0) > 0)')" "custom True"
-check "served as JPEG, nosniff" "$(curl -s -b "$J2" -D - -o "$TMP/w.out" "$B/api/me/wallpaper" | tr -d '\r' | grep -iE '^(content-type|x-content-type-options)' | sort | tr '\n' ' '; head -c 3 "$TMP/w.out" | od -An -tx1)" "content-type: image/jpeg x-content-type-options: nosniff  ff d8 ff"
+check "served as JPEG, nosniff" "$(curl -s -b "$J2" -D - -o "$TMP/w.out" "$B/api/me/wallpaper" | tr -d '\r' | tr 'A-Z' 'a-z' | grep -E '^(content-type|x-content-type-options)' | sort | tr '\n' ' '; head -c 3 "$TMP/w.out" | od -An -tx1)" "content-type: image/jpeg x-content-type-options: nosniff  ff d8 ff"
 check "other users do not see it" "$(curl -s -o /dev/null -w '%{http_code}' -b "$J" "$B/api/me/wallpaper")" "404"
 check "wallpaper removed" "$(u DELETE /api/me/wallpaper; u GET /api/me/desktop | py 'print(repr(d["wallpaper"]), "customWallpaper" in d)')" "'' False"
 u PUT /api/me/desktop -d '{"widgets":null,"accent":"","wallpaper":"","icons":{}}' >/dev/null

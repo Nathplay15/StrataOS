@@ -68,28 +68,38 @@ func normalizeWallpaper(data []byte) ([]byte, error) {
 }
 
 func (s *Server) wallpaperRoutes() {
-	s.user("PUT /api/me/wallpaper", func(r *http.Request) (any, error) {
+	// Raw: the JSON handlers cap bodies at 4 MB, under the 5 MB allowed here.
+	s.userRaw("PUT /api/me/wallpaper", func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(io.LimitReader(r.Body, maxWallpaperBytes+1))
 		if err != nil {
-			return nil, err
+			writeErr(w, err)
+			return
 		}
 		img, err := normalizeWallpaper(data)
 		if err != nil {
-			return nil, badRequest(err.Error())
+			writeErr(w, badRequest(err.Error()))
+			return
 		}
 		p := s.wallpaperPath(userOf(r))
 		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-			return nil, err
+			writeErr(w, err)
+			return
 		}
 		if err := sys.WriteFileAtomic(p, img, 0o600); err != nil {
-			return nil, err
+			writeErr(w, err)
+			return
 		}
-		return nil, s.store.Update(func(st *store.State) error {
+		err = s.store.Update(func(st *store.State) error {
 			if u := st.User(userOf(r)); u != nil {
 				u.Wallpaper = "custom"
 			}
 			return nil
 		})
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 
 	s.userRaw("GET /api/me/wallpaper", func(w http.ResponseWriter, r *http.Request) {
