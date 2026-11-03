@@ -97,8 +97,8 @@ check "older clients keep it" "$(api $PB PUT /api/fleet/managers/$MGR -d '{"allo
 A ssh 'sudo ip link add br0 type bridge && sudo ip link set br0 up && sudo mkdir -p /srv/strata/volume1/vms'
 B ssh 'sudo ip link add brx type bridge && sudo ip link set brx up'
 check "VM on A" "$(job $PA "$(api $PA POST /api/vms -d '{"name":"tvm","os":"other","vcpus":1,"memoryMb":256,"diskGb":1,"storage":"/srv/strata/volume1/vms","network":"br0"}')")" "success"
-A ssh 'sudo qemu-io -f qcow2 -c "write -P 0x5a 0 8M" -c "write -P 0xa5 512M 4M" /srv/strata/volume1/vms/tvm/*.qcow2 >/dev/null && echo written'
-SUM_A=$(A ssh 'f=$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1); sudo qemu-img convert -O raw "$f" /tmp/a.raw && md5sum </tmp/a.raw && rm /tmp/a.raw')
+A ssh "sudo sh -c 'qemu-io -f qcow2 -c \"write -P 0x5a 0 8M\" -c \"write -P 0xa5 512M 4M\" \$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1) >/dev/null'"
+SUM_A=$(A ssh "sudo sh -c 'qemu-img convert -U -O raw \$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1) /tmp/a.raw && md5sum </tmp/a.raw && rm /tmp/a.raw'")
 api $PA POST /api/vms/tvm/start >/dev/null
 check "inventory of B through the link" "$(api $PA GET "/api/fleet/xfer/inventory?nas=$MB" | py 'print(d["name"], d["libvirt"], "brx" in d["bridges"], [v["path"] for v in d["volumes"]])')" "nas-7260 True True ['/srv/strata/volume1']"
 PLAN='{"from":"local","to":"'$MB'","kind":"vm","name":"tvm","mode":"stop","storage":"/srv/strata/volume1/vms","start":true}'
@@ -112,7 +112,7 @@ check "running on B" "$(virsh B domstate tvm | head -1)" "running"
 check "bridge mapped on B" "$(virsh B domiflist tvm)" "brx"
 check "new MAC address" "$( [ "$(virsh A domiflist tvm | awk '/br0/{print $5}')" != "$(virsh B domiflist tvm | awk '/brx/{print $5}')" ] && echo different)" "different"
 check "source still running on A (copy)" "$(virsh A domstate tvm | head -1)" "running"
-SUM_B=$(B ssh 'f=$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1); sudo qemu-img convert -U -O raw "$f" /tmp/b.raw && md5sum </tmp/b.raw && rm /tmp/b.raw')
+SUM_B=$(B ssh "sudo sh -c 'qemu-img convert -U -O raw \$(ls /srv/strata/volume1/vms/tvm/*.qcow2 | head -1) /tmp/b.raw && md5sum </tmp/b.raw && rm /tmp/b.raw'")
 check "same disk content" "$SUM_B" "$SUM_A"
 check "temporary files removed" "$(staging A) $(staging B)" "0 0"
 check "jobs on both sides" "$(api $PB GET /api/jobs | py 'print([j["title"] for j in d if j["type"]=="fleet"])')" "Receiving VM tvm from"
