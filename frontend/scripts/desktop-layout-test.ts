@@ -13,3 +13,17 @@ eq(cellAt(12+96*2+10, 12+112+1, 4, 4), [2,1], "cellAt");
 const c = layoutIcons(["a","b"], {a:[9,0], b:[1,0]}, 2, 2);
 eq(c.b, [1,0], "clamped icon does not displace an in-grid one");
 console.log("done");
+
+// Widgets of the side panel.
+import { DEFAULT_WIDGETS, dropWidget, moveWidget, shownWidgets, toggleWidget } from "../src/desktop/widgetList.ts";
+eq(shownWidgets(null, true), DEFAULT_WIDGETS, "defaults");
+eq(shownWidgets(null, false), ["status", "resources", "storage"], "admin widgets hidden for users");
+eq(shownWidgets([], true), [], "empty list hides the panel");
+eq(shownWidgets(["temps", "nope", "temps", "network"], true), ["temps", "network"], "unknown and repeated ids dropped");
+eq(shownWidgets(["docker", "network"], false), ["network"], "forbidden ids dropped");
+eq(moveWidget(["status", "resources", "storage"], "storage", -1), ["status", "storage", "resources"], "move up");
+eq(moveWidget(["status", "resources"], "status", -1), ["status", "resources"], "clamped");
+eq(dropWidget(["status", "resources", "storage"], "status", "storage"), ["resources", "storage", "status"], "drop onto");
+eq(toggleWidget(["status"], "ups", true), ["status", "ups"], "add at the end");
+eq(toggleWidget(["status", "ups"], "status", false), ["ups"], "remove");
+console.log("widgets done");

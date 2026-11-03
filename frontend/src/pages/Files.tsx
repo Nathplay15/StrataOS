@@ -14,6 +14,7 @@ import { OpenWith } from "../components/files/common";
 import { fileKind, officeType, type OfficeStatus } from "../lib/filetypes";
 import { InWindow } from "../desktop/context";
 import { tr } from "../lib/i18n";
+import { useIntent } from "../lib/intent";
 
 const ROOT = "/srv/strata";
 
@@ -72,6 +73,11 @@ export default function Files() {
     const oo = officeType(office.data, e.name) && (kind === "other" || kind === "docx" || kind === "document" || (kind === "sheet" && !/\.(csv|tsv)$/i.test(e.name)));
     openTab(tabFor(e, oo ? "office" : kind));
   };
+  // Opened from the global search: show the folder, and the file in a tab.
+  useIntent("files", (i) => {
+    go(i.dir);
+    if (i.file) open(i.file);
+  });
   const closeTab = async (id: string) => {
     if (dirty[id] && !(await confirm({ title: tr("Close without saving?"), text: tr("Your changes to this file will be lost."), confirm: tr("Close"), danger: true }))) return;
     setTabs((l) => {

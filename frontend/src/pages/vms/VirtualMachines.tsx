@@ -6,6 +6,8 @@ import { useAction } from "../../lib/hooks";
 import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
+import { QuickBridge } from "../../components/QuickBridge";
+import { useIntent } from "../../lib/intent";
 import type { CloudImage, ImportInfo, VM, VMData } from "./types";
 import type { LXCData } from "./containers/types";
 import { ContainerCard } from "./containers/ContainerCard";
@@ -56,6 +58,17 @@ export default function VirtualMachines() {
   const [detail, setDetail] = useState<{ name: string; tab: DetailTab } | null>(null);
   const [advanced, setAdvanced] = useAdvanced();
   const clq = useClusterData();
+  // Opened from the global search: a container's page, or a VM's settings.
+  const [wantedVM, setWantedVM] = useState<string | null>(null);
+  useIntent("vms", (i) => {
+    setTab("vms");
+    if (i.kind === "lxc") setDetail({ name: i.name, tab: "summary" });
+    else setWantedVM(i.name);
+  });
+  useEffect(() => {
+    const vm = wantedVM && data?.vms.find((v) => v.name === wantedVM);
+    if (vm) { setDetail(null); setEditing(vm); setWantedVM(null); }
+  }, [wantedVM, data]);
   const inCluster = !!clq.data?.cluster && (clq.data?.members.length ?? 0) > 1;
 
   const header = (actions?: React.ReactNode) => <PageHeader title={tr("Virtual machines")} subtitle={tr("KVM machines and LXC containers, with in-browser console")} icon={<Monitor size={20} />} actions={actions} />;
@@ -380,7 +393,8 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
           </div>
         </div>
       )}
-      {bridges.length === 0 && <div className="mt-4"><Notice>{tr("For the VM to appear directly on your local network, create a bridge in Control Panel → Network.")}</Notice></div>}
+      {/* Rendered even once a bridge shows up: it holds the trial confirmation. */}
+      <QuickBridge what="vm" className="mt-4" onCreated={(b) => set({ network: b })} />
       {source !== "cloud" && f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
       <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Start the VM with the NAS")} /></div>
     </Modal>

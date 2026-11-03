@@ -96,3 +96,15 @@ export function srv(text: string | undefined | null, depth = 0): string {
   }
   return text;
 }
+
+let reverse: Map<string, string> | null = null;
+
+/** The English text behind a translated one (the text itself when unknown), for searching in both languages. */
+export function english(text: string): string {
+  if (lang === "en") return text;
+  if (!reverse) {
+    reverse = new Map();
+    for (const [en, t] of Object.entries(dict)) if (t && !reverse.has(t)) reverse.set(t, en);
+  }
+  return reverse.get(text) ?? text;
+}

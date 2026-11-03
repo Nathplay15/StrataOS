@@ -1,0 +1,21 @@
+[
+  ["l'image dépasse 5 Mo", "the image is larger than 5 MB"],
+  ["le fond d'écran doit être une image JPEG, PNG ou GIF", "the wallpaper must be a JPEG, PNG or GIF image"],
+  ["image illisible", "unreadable image"],
+  ["l'image est trop grande (8192 × 8192 pixels au maximum)", "the image is too large (8192 × 8192 pixels at most)"],
+  ["image vide", "empty image"],
+  ["aucun fond d'écran", "no wallpaper"],
+  ["widget inconnu {0}", "unknown widget {0}"],
+  ["le widget {0} figure deux fois", "widget {0} listed twice"],
+  ["fond d'écran inconnu {0}", "unknown wallpaper {0}"],
+  ["couleur d'accent invalide {0}", "invalid accent colour {0}"],
+  ["{0} est déjà un pont", "{0} is already a bridge"],
+  ["{0} est déjà un port du pont {1}", "{0} is already a port of bridge {1}"],
+  ["{0} fait partie de {1} : créez le pont sur {2}", "{0} is a member of {1}: create the bridge on {2}"],
+  ["aucun nom de pont libre", "no free bridge name"],
+  ["{0} n'a pas d'adresse IP : le NAS ne serait plus joignable par le pont", "{0} has no IP address: the NAS would not be reachable through the bridge"],
+  ["pas de route par défaut : l'interface réseau principale est inconnue", "no default route: the main network interface is unknown"],
+  ["NetworkManager gère cette machine : créez le pont dans NetworkManager", "NetworkManager manages this machine: create the bridge there"],
+  ["ici, le pont ne peut être créé que sur l'interface réseau principale ; pour les autres, passez par Panneau de configuration → Réseau", "the bridge can only be created on the main network interface here; use Control Panel → Network for the others"],
+  ["Pont {0} créé sur {1} (à l'essai)", "Bridge {0} created on {1} (on trial)"]
+]

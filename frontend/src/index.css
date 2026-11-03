@@ -135,3 +135,10 @@ body {
 .xterm {
   padding: 8px;
 }
+
+/* Element reached from the global search. */
+.search-flash {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  transition: outline-color 1.5s;
+}

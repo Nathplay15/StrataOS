@@ -52,7 +52,7 @@ function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
 }
 
 /** Watches a trial configuration: confirms it when the NAS answers, offers the new addresses otherwise. */
-export function TrialModal({ pending, newURLs, onClose }: { pending: Pending; newURLs: string[]; onClose: () => void }) {
+export function TrialModal({ pending, newURLs, onClose, onConfirmed }: { pending: Pending; newURLs: string[]; onClose: () => void; onConfirmed?: () => void }) {
   const qc = useQueryClient();
   const { toast } = useUI();
   const [left, setLeft] = useState(Math.round((new Date(pending.deadline).getTime() - Date.now()) / 1000));
@@ -75,6 +75,7 @@ export function TrialModal({ pending, newURLs, onClose }: { pending: Pending; ne
             setState("confirmed");
             toast(tr("New network configuration confirmed"));
             qc.invalidateQueries();
+            onConfirmed?.();
             return;
           }
           // 409: the NAS answers but the change is still settling — keep waiting.
