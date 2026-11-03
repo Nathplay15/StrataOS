@@ -10,7 +10,7 @@ import { Login } from "./pages/Auth";
 import { Setup } from "./pages/Setup";
 import { Desktop } from "./desktop/Desktop";
 import { useDesktopMode } from "./desktop/mode";
-import { tr } from "./lib/i18n";
+import { lang, tr } from "./lib/i18n";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Disks = lazy(() => import("./pages/storage/Disks"));
@@ -77,6 +77,11 @@ function Root() {
 
   useEffect(() => {
     if (meQ.data) setMe(meQ.data);
+  }, [meQ.data]);
+  // Report the interface language: the first administrator's is the default
+  // language of the notifications and reports.
+  useEffect(() => {
+    if (meQ.data && meQ.data.lang !== lang) api.put("/api/me/lang", { lang }).catch(() => {});
   }, [meQ.data]);
   useEffect(() => {
     const h = () => setMe(null);

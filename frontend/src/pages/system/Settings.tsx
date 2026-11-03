@@ -177,8 +177,9 @@ export default function SettingsPage() {
             <Field label={tr("SMTP password")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
-            <Field label={tr("Notification language")} hint={tr("Alerts and health report, on all channels")}>
-              <Select value={s.notifyLang || "en"} onChange={(e) => set("notifyLang", e.target.value)}>
+            <Field label={tr("Language of the messages sent by the NAS")} hint={tr("Alerts and health report, on all channels")}>
+              <Select value={s.notifyLang ?? ""} onChange={(e) => set("notifyLang", e.target.value)}>
+                <option value="">{tr("Automatic: {0} (language of the first administrator)", languages.find((l) => l.id === (s.notifyLangAuto || "en"))?.name ?? "English")}</option>
                 {languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </Select>
             </Field>

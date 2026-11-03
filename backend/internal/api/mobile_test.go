@@ -248,7 +248,7 @@ func TestMobileFeed(t *testing.T) {
 	feed = &mobileFeed{}
 	defer func() { feed = &mobileFeed{} }()
 	for i := range 5 {
-		s.mobileFeedAdd([]string{"info", "warning", "error", "", "info"}[i], "Subject", "msg")
+		s.mobileFeedAdd([]string{"info", "warning", "error", "", "info"}[i], "Subject", "msg", notifKind{})
 	}
 	ev, cur := s.mobileFeedSince(0, 50)
 	if len(ev) != 5 || cur != 5 || ev[3].Level != "info" {

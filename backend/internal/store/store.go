@@ -49,6 +49,14 @@ type User struct {
 	Wallpaper string `json:"wallpaper,omitempty"`
 	// Accent colour of the interface, "#rrggbb"; "" = the default blue.
 	Accent string `json:"accent,omitempty"`
+	// Lang: language of the interface last used by the user (reported by the
+	// browser); the first administrator's sets the language of the messages
+	// sent by the NAS while Settings.NotifyLang is "" (lang.go).
+	Lang string `json:"lang,omitempty"`
+	// Notification centre of the web interface: the last notification read
+	// and the last one cleared (ids of the notification feed).
+	NotifRead    int64 `json:"notifRead,omitempty"`
+	NotifCleared int64 `json:"notifCleared,omitempty"`
 }
 
 type Share struct {
@@ -145,7 +153,8 @@ type Settings struct {
 	QuietHours     QuietHours     `json:"quietHours"`
 	// MetricsToken enables /metrics (Prometheus) for clients sending it.
 	MetricsToken string `json:"metricsToken,omitempty"`
-	// NotifyLang is the language of notifications and reports ("" = en).
+	// NotifyLang is the language of notifications and reports ("" = the
+	// language of the first administrator, State.MessageLang).
 	NotifyLang string `json:"notifyLang,omitempty"`
 	// MonthlyReport sends a health report on the 1st of each month (before
 	// 0.9.1; Report replaces it once set).

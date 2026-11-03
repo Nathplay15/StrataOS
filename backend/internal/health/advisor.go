@@ -37,7 +37,10 @@ type Facts struct {
 	GuardOn  bool
 	RansomOn bool
 
-	Backups []BackupFact
+	Backups []BackupFact // enabled backup and cloud sync tasks
+	// DisabledBackups names the backup and cloud sync tasks that exist but
+	// are disabled.
+	DisabledBackups []string
 
 	RestoreSupported bool
 	RestoreWhy       string
@@ -150,7 +153,11 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 		add("ransomware", "medium", "Ransomware protection is off",
 			"It spots mass renames and deletions over SMB and alerts you (it can also block the account) before everything is encrypted. The fix turns it on with the default threshold.", "ransomware", "/system/antivirus")
 	}
-	if len(f.Backups) == 0 {
+	if len(f.Backups) == 0 && len(f.DisabledBackups) > 0 {
+		// Same id as below: ignoring one ignores the other.
+		add("backup-none", "high", "No active backup task",
+			sub("Backup tasks exist but they are all disabled, so nothing is backed up: {0}. Enable one in Backup or Cloud sync.", list(f.DisabledBackups)), "", "/backup")
+	} else if len(f.Backups) == 0 {
 		add("backup-none", "high", "No backup task",
 			"RAID and snapshots do not protect against theft, fire, ransomware or a mistake on the whole NAS. Back up to another disk, another NAS or the cloud.", "", "/backup")
 	} else {

@@ -45,6 +45,7 @@ type meResp struct {
 	FullName  string `json:"fullName"`
 	Role      string `json:"role"`
 	TwoFactor bool   `json:"twoFactor"`
+	Lang      string `json:"lang,omitempty"` // interface language last reported (PUT /api/me/lang)
 }
 
 func (s *Server) authRoutes() {
@@ -201,7 +202,7 @@ func (s *Server) authRoutes() {
 		var m meResp
 		s.store.Read(func(st *store.State) {
 			if u := st.User(userOf(r)); u != nil {
-				m = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""}
+				m = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != "", Lang: u.Lang}
 			}
 		})
 		return m, nil

@@ -46,7 +46,8 @@ export function AreaChart({ series, height = 120, max, format }: { series: { val
 }
 
 /** Circular gauge used on the dashboard. */
-export function Ring({ value, size = 92, label, sub, color = "var(--accent)" }: { value: number; size?: number; label: string; sub?: string; color?: string }) {
+/** A ring gauge of a percentage; text replaces the "NN%" shown inside (e.g. a score "41/100"). */
+export function Ring({ value, size = 92, label, sub, color = "var(--accent)", text }: { value: number; size?: number; label: string; sub?: string; color?: string; text?: string }) {
   const r = (size - 10) / 2;
   const c = 2 * Math.PI * r;
   const v = Math.max(0, Math.min(100, value));
@@ -57,7 +58,7 @@ export function Ring({ value, size = 92, label, sub, color = "var(--accent)" }: 
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c - (v / 100) * c} style={{ transition: "stroke-dashoffset .6s" }} />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center text-[17px] font-semibold">{Math.round(v)}%</div>
+        <div className="absolute inset-0 flex items-center justify-center text-[17px] font-semibold">{text ?? `${Math.round(v)}%`}</div>
       </div>
       <div className="text-[13px] font-medium">{label}</div>
       {sub && <div className="text-[11.5px] text-muted">{sub}</div>}

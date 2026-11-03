@@ -77,7 +77,7 @@ export default function SecurityAdvisor() {
       <ErrorBox error={run.error || fix.error || ignore.error} />
       <div className="mb-5 grid gap-5 md:grid-cols-[auto_1fr]">
         <Card>
-          <Ring value={r.score} size={110} label={tr("Security score")} sub={tr("Checked {0}", dateTime(r.time))} color={scoreColor(r.score)} />
+          <Ring value={r.score} text={`${r.score}/100`} size={110} label={tr("Security score")} sub={tr("Checked {0}", dateTime(r.time))} color={scoreColor(r.score)} />
         </Card>
         <Card>
           <div className="grid h-full grid-cols-2 gap-3 sm:grid-cols-4">

@@ -259,7 +259,13 @@ func (s *Server) systemRoutes() {
 				*p = "********"
 			}
 		}
-		return set, nil
+		// NotifyLangAuto: the language used while NotifyLang is "".
+		var auto string
+		s.store.Read(func(st *store.State) { auto = st.AdminLang() })
+		return struct {
+			store.Settings
+			NotifyLangAuto string `json:"notifyLangAuto"`
+		}{set, auto}, nil
 	})
 	s.admin("PUT /api/settings", func(r *http.Request) (any, error) {
 		var req store.Settings

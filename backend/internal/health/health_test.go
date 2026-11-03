@@ -237,6 +237,19 @@ func TestAdvise(t *testing.T) {
 	f2.Backups = nil
 	if items := Advise(f2, nil); ids(items) != "backup-none" || Score(items) != 80 {
 		t.Errorf("no backup: %s %d", ids(items), Score(items))
+	} else if items[0].Title != "No backup task" {
+		t.Errorf("no backup: %q", items[0].Title)
+	}
+	// Tasks exist but are all disabled: say so rather than "no backup task".
+	f2.DisabledBackups = []string{"usb", "cloud"}
+	items = Advise(f2, nil)
+	if ids(items) != "backup-none" || items[0].Title != "No active backup task" || !strings.Contains(items[0].Detail, "disabled") || !strings.Contains(items[0].Detail, "cloud, usb") {
+		t.Errorf("disabled backups: %+v", items)
+	}
+	// An enabled task: the disabled ones do not matter.
+	f2.Backups = baseFacts().Backups
+	if items := Advise(f2, nil); len(items) != 0 {
+		t.Errorf("one enabled backup: %s", ids(items))
 	}
 }
 

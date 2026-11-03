@@ -42,7 +42,7 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
 
   // Keep windows reachable when the browser window shrinks.
   useEffect(() => {
-    const h = () => wm.setGeometry(win.app, {});
+    const h = () => wm.setGeometry(win.app, {}, false);
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, [wm, win.app]);

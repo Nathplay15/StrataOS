@@ -3,6 +3,8 @@ export interface Me {
   fullName: string;
   role: "admin" | "user";
   twoFactor?: boolean;
+  /** Interface language last reported by a browser (PUT /api/me/lang). */
+  lang?: string;
 }
 
 export interface Job {
@@ -413,7 +415,10 @@ export interface Settings {
   /** Health report: weekly | monthly | off ("" follows monthlyReport). */
   report?: string;
   metricsToken?: string;
+  /** Language of the messages sent by the NAS; "" = notifyLangAuto (first administrator's). */
   notifyLang?: string;
+  /** Read only: the language used while notifyLang is "". */
+  notifyLangAuto?: string;
   ntfyUrl?: string;
   ntfyToken?: string;
   notifyChannels?: Partial<Record<NotifyChannelId, NotifyChannel>>;

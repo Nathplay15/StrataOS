@@ -304,7 +304,7 @@ func (s *Server) reportRoutes() {
 			return nil, err
 		}
 		var lang, period string
-		s.store.Read(func(st *store.State) { lang, period = st.Settings.NotifyLang, st.Settings.ReportPeriod() })
+		s.store.Read(func(st *store.State) { lang, period = st.MessageLang(), st.Settings.ReportPeriod() })
 		if req.Period == "weekly" || req.Period == "monthly" {
 			period = req.Period
 		}
