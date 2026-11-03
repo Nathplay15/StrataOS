@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,10 +24,11 @@ var desktopIconRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$`)
 // desktopPrefs is the body of GET/PUT /api/me/desktop. In a PUT, absent
 // fields keep their saved value.
 type desktopPrefs struct {
-	Icons     *map[string][2]int `json:"icons,omitempty"`
-	Widgets   *[]string          `json:"widgets"`
-	Wallpaper *string            `json:"wallpaper,omitempty"`
-	Accent    *string            `json:"accent,omitempty"`
+	Icons *map[string][2]int `json:"icons,omitempty"`
+	// Widgets: in a PUT, null goes back to the default widgets.
+	Widgets   json.RawMessage `json:"widgets,omitempty"`
+	Wallpaper *string         `json:"wallpaper,omitempty"`
+	Accent    *string         `json:"accent,omitempty"`
 	// Read only: an uploaded wallpaper exists, and its version (for caches).
 	CustomWallpaper int64 `json:"customWallpaper,omitempty"`
 }
@@ -100,9 +102,9 @@ func (s *Server) desktopRoutes() {
 				for k, v := range u.Desktop {
 					icons[k] = v
 				}
+				p.Widgets = json.RawMessage("null")
 				if u.DesktopWidgets != nil {
-					w := append([]string{}, (*u.DesktopWidgets)...)
-					p.Widgets = &w
+					p.Widgets, _ = json.Marshal(append([]string{}, (*u.DesktopWidgets)...))
 				}
 				wall, accent = u.Wallpaper, u.Accent
 			}
@@ -124,9 +126,15 @@ func (s *Server) desktopRoutes() {
 				return nil, badRequest(err.Error())
 			}
 		}
-		if req.Widgets != nil {
-			if err := validDesktopWidgets(*req.Widgets); err != nil {
-				return nil, badRequest(err.Error())
+		var widgets *[]string
+		if len(req.Widgets) > 0 {
+			if err := json.Unmarshal(req.Widgets, &widgets); err != nil {
+				return nil, badRequest("invalid widget list")
+			}
+			if widgets != nil {
+				if err := validDesktopWidgets(*widgets); err != nil {
+					return nil, badRequest(err.Error())
+				}
 			}
 		}
 		_, err := os.Stat(s.wallpaperPath(userOf(r)))
@@ -144,9 +152,11 @@ func (s *Server) desktopRoutes() {
 					u.Desktop = nil
 				}
 			}
-			if req.Widgets != nil {
-				w := append([]string{}, (*req.Widgets)...)
-				u.DesktopWidgets = &w
+			if len(req.Widgets) > 0 {
+				u.DesktopWidgets = widgets
+				if widgets != nil && *widgets == nil {
+					u.DesktopWidgets = &[]string{}
+				}
 			}
 			if req.Wallpaper != nil {
 				u.Wallpaper = *req.Wallpaper
