@@ -45,7 +45,7 @@ Le stockage s'organise en couches : **disques → grappe RAID ou pool → volume
 
 Le RAID ne remplace pas une sauvegarde : il protège d'une panne de disque, pas d'une suppression, d'un rançongiciel ou d'un incendie.
 
-**Testez les nouveaux disques** : avant d'y mettre des données, lancez un **Test de burn-in** (Stockage → Disques, sur un disque libre). Il enchaîne un test SMART court, un test de surface de chaque bloc et un test SMART étendu, puis compare les compteurs de secteurs avant et après. Choisissez « Lecture seule (non destructif) », ou « Test d'écriture (efface le disque) » pour la vérification la plus poussée. Un test complet d'un gros disque dure un jour ou plus ; le résultat vous est notifié.
+**Testez les nouveaux disques** : avant d'y mettre des données, lancez un **Test de burn-in** (Stockage → Disques, sur un disque libre). Il enchaîne un test SMART court, un test de surface de chaque bloc et un test SMART étendu, puis compare les compteurs de secteurs avant et après. Choisissez « Lecture seule (non destructif) », ou « Test d'écriture (efface le disque) » pour la vérification la plus poussée. Les deux modes demandent un disque libre : un disque utilisé (membre d'un RAID, LVM, pool ZFS importé, monté) ne peut être ni testé ni effacé, et sa carte indique pourquoi. Un test complet d'un gros disque dure un jour ou plus ; le résultat vous est notifié.
 
 Pour remplacer un disque en panne : Stockage → RAID (ou ZFS), « Remplacer », choisissez le nouveau disque ; la reconstruction démarre seule. Vous recevez une notification au début de la reconstruction et une à la fin, pas une à chaque étape.
 
@@ -59,7 +59,7 @@ Pour remplacer un disque en panne : Stockage → RAID (ou ZFS), « Remplacer »,
 ## 5. Utilisateurs et dossiers partagés
 
 1. **Utilisateurs** : créez un compte par personne, regroupez-les en **groupes** (ex. « famille », « compta »). Activez la double authentification pour les administrateurs.
-2. **Dossiers partagés** : créez un partage par usage (Documents, Photos, Médias…), sur le volume de votre choix, puis donnez les droits : lecture et écriture, lecture seule ou aucun accès, par utilisateur ou par groupe.
+2. **Dossiers partagés** : créez un partage par usage (Documents, Photos, Médias…), sur le volume de votre choix, puis donnez les droits : lecture et écriture, lecture seule ou aucun accès, par utilisateur ou par groupe. Par défaut, le compte qui crée le partage peut lire et écrire, et tous les autres utilisateurs peuvent lire.
 3. Options utiles : **corbeille réseau** (les fichiers supprimés sont gardés dans `.recycle`), **quota** du partage (passage en lecture seule une fois plein si vous le souhaitez), **chiffrement** (voir 12).
 
 ## 6. Accéder aux fichiers

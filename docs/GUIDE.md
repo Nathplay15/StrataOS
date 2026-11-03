@@ -45,7 +45,7 @@ Storage is built in layers: **disks → RAID array or pool → volume → shared
 
 RAID is not a backup: it protects you from a disk failure, not from an accidental deletion, ransomware or a fire.
 
-**Test new disks first**: before putting data on a new disk, run a **Burn-in test** (Storage → Disks, on a free disk). It chains a SMART short test, a surface test of every block and a SMART extended test, then compares the sector counters before and after. Choose "Read-only (non-destructive)", or "Write test (erases the disk)" for the most thorough check. A full test of a large disk takes a day or more; you are notified of the result.
+**Test new disks first**: before putting data on a new disk, run a **Burn-in test** (Storage → Disks, on a free disk). It chains a SMART short test, a surface test of every block and a SMART extended test, then compares the sector counters before and after. Choose "Read-only (non-destructive)", or "Write test (erases the disk)" for the most thorough check. Both modes need a free disk: a disk in use (RAID member, LVM, imported ZFS pool, mounted) cannot be tested or wiped, and its card says why. A full test of a large disk takes a day or more; you are notified of the result.
 
 To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the new disk; the rebuild starts by itself. You receive one notification when the rebuild starts and one when it ends, not one per step.
 
@@ -59,7 +59,7 @@ To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the ne
 ## 5. Users and shared folders
 
 1. **Users**: create one account per person and put them in **groups** (for example "family" or "accounting"). Turn on two-factor authentication for administrators.
-2. **Shared folders**: create one shared folder per purpose (Documents, Photos, Media…) on the volume of your choice, then set permissions per user or per group: read and write, read only, or no access.
+2. **Shared folders**: create one shared folder per purpose (Documents, Photos, Media…) on the volume of your choice, then set permissions per user or per group: read and write, read only, or no access. By default, the account that creates the folder can read and write and all other users can read.
 3. Useful options: **network recycle bin** (deleted files are kept in `.recycle`), a **quota** for the share (it can switch to read-only once full if you want), and **encryption** (see section 12).
 
 ## 6. Access your files
