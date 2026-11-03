@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -73,6 +74,7 @@ import io.github.nathplay15.strataos.sync.SyncScheduler
 import io.github.nathplay15.strataos.sync.SyncShare
 import io.github.nathplay15.strataos.sync.SyncWorker
 import io.github.nathplay15.strataos.sync.syncShares
+import io.github.nathplay15.strataos.ui.Loaded
 import io.github.nathplay15.strataos.ui.LoadedContent
 import io.github.nathplay15.strataos.ui.adminkit.AreaScreen
 import io.github.nathplay15.strataos.ui.adminkit.Confirm
@@ -458,8 +460,10 @@ fun NasFolderPicker(onCancel: () -> Unit, onPick: (String, Boolean) -> Unit) {
                                 ListItem(headlineContent = { Text("..") }, leadingContent = { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) },
                                     modifier = Modifier.clickable { if (path == share!!.path) { share = null; path = "" } else path = path.substringBeforeLast('/') })
                             }
+                            if (l?.encrypted == true) item { Text(stringResource(R.string.e2e_sync_unsupported), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp, 4.dp)) }
                             items(l?.entries.orEmpty().filter { it.dir }, key = { it.path }) { e ->
-                                ListItem(headlineContent = { Text(e.name) }, leadingContent = { Icon(Icons.Default.Folder, null) },
+                                ListItem(headlineContent = { Text(e.name) }, leadingContent = { Icon(if (e.encrypted) Icons.Default.Lock else Icons.Default.Folder, null) },
+                                    supportingContent = if (e.encrypted) ({ Text(stringResource(R.string.e2e_badge)) }) else null,
                                     modifier = Modifier.fillMaxWidth().clickable { path = e.path })
                             }
                         }
@@ -467,7 +471,8 @@ fun NasFolderPicker(onCancel: () -> Unit, onPick: (String, Boolean) -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(enabled = share != null, onClick = { onPick(path, share!!.writable) }) { Text(stringResource(R.string.choose_folder)) } },
+        // End-to-end encrypted folders: not supported on Android yet.
+        confirmButton = { TextButton(enabled = share != null && (list.state as? Loaded.Ok)?.value?.encrypted != true, onClick = { onPick(path, share!!.writable) }) { Text(stringResource(R.string.choose_folder)) } },
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } },
     )
 }

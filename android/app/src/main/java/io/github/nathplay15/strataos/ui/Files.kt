@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
@@ -83,7 +84,7 @@ fun kindOf(name: String): Kind = when (name.substringAfterLast('.', "").lowercas
 fun mimeOf(name: String): String =
     MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
 
-fun iconOf(e: FileEntry): ImageVector = if (e.dir) Icons.Default.Folder else when (kindOf(e.name)) {
+fun iconOf(e: FileEntry): ImageVector = if (e.dir && e.encrypted) Icons.Default.Lock else if (e.dir) Icons.Default.Folder else when (kindOf(e.name)) {
     Kind.IMAGE -> Icons.Default.Image
     Kind.VIDEO -> Icons.Default.Movie
     Kind.AUDIO -> Icons.Default.MusicNote
