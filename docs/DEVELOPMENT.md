@@ -20,7 +20,7 @@ StrataOS/
 │   │   ├── i18n/       Translation of notifications and reports
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
-├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode; icon positions per user in `User.Desktop`, `GET/PUT /api/me/desktop`; grid logic tested by `node --experimental-strip-types frontend/scripts/desktop-layout-test.ts`)
+├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode; see "Desktop, search and appearance" below)
 ├── docs/               User guide and FAQ (English and French), hardware, this file
 ├── android/            Android app (Kotlin, Jetpack Compose), see below
 ├── desktop/            Desktop sync app (Go, its own module), see below
@@ -82,6 +82,17 @@ Details in [vm/README.md](../vm/README.md).
 `vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
+
+## Desktop, search and appearance
+
+- **Per-user preferences** (`api/h_desktop.go`, `frontend/src/lib/appearance.ts`): `GET/PUT /api/me/desktop` carries `icons` (desktop icon cells, `User.Desktop`), `widgets` (ids of the desktop side panel in order, `User.DesktopWidgets`; `null` = the defaults, `[]` hides the panel), `wallpaper` (`User.Wallpaper`: a built-in id of `desktop/wallpapers.ts`, or `custom`) and `accent` (`User.Accent`, `#rrggbb`, `""` = default). A PUT only changes the fields it sends. Widget and wallpaper ids are listed on both sides (`desktopWidgets`/`builtinWallpapers` in Go, `desktop/widgetList.ts`, `desktop/wallpapers.ts`).
+- **Wallpaper image**: `PUT /api/me/wallpaper` (raw body, 5 MB at most; JPEG, PNG or GIF sniffed, dimensions checked before decoding, re-encoded as JPEG), `GET` (served as `image/jpeg` with `nosniff` and a sandboxing CSP), `DELETE`. Stored in `<DataDir>/wallpapers/<sha256(user)>.jpg`, removed with the user. The browser first scales any image it can read to 3840 × 2160 JPEG.
+- **Accent colour** (`lib/accent.ts`): fitted per theme (light: contrast ≥ 4.5 with white; dark: ≥ 4.5 with the panels and ≥ 3 for white button text) and written as CSS variables in a `<style id="strata-accent">`; the last one is remembered by the browser to avoid a flash at load.
+- **Widgets** (`desktop/widgets.tsx`): each widget polls only while on screen (IntersectionObserver) and the tab is visible; admin-only widgets are dropped for other users.
+- **Global search** (`components/GlobalSearch.tsx`, ranking in `lib/searchRank.ts`): apps, Control Panel sections and settings are matched in the browser on their translated and English names (`english()` in `lib/i18n.ts`) plus keywords; shared folders, files (`GET /api/files/search?limit=8`), VMs, LXC and Docker containers and users (admins) come from the NAS, each with a timeout. A result opens a page through `openPage(path)` (route or desktop window) and posts an intent (`lib/intent.ts`) that the page consumes: Files shows the folder and opens the file, VirtualMachines opens the container page or the VM settings, Containers filters on the name, Users opens the account form; settings cards are reached by their `id`.
+- **One-click bridge** (`api/h_bridge.go`, `network.PlanBridge`, `components/QuickBridge.tsx`): `GET /api/system/network/bridge-plan` reports the main link (default route), the bridge name and the IP configuration it would take over (the one StrataOS manages, else what the kernel reports: an IPv4 `dynamic` address means DHCP, otherwise the static addresses, gateway and DNS); `POST /api/system/network/quick-bridge {link}` applies it with `network.Apply` (2-minute trial, confirmed by the same `TrialModal` as Control Panel → Network, rolled back otherwise). Only the main link, never under NetworkManager.
+
+Unit tests: `go test ./internal/network ./internal/api` (bridge plan, prefs and wallpaper validation) and, with Node ≥ 22, `node --experimental-strip-types frontend/scripts/<name>.ts` for `desktop-layout-test` (icon grid and widget lists), `search-rank-test` and `accent-test`.
 
 ## Cluster of NAS and Ceph
 

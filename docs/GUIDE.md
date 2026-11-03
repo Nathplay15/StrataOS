@@ -32,6 +32,12 @@ Tip: turn on **notifications** right away (Settings → Notifications: email, Te
 
 Settings → **Console screen** turns this screen off ("StrataOS screen on the NAS display"), or only the recovery codes ("Administrator recovery codes from the screen").
 
+### Finding things and personalizing the desktop
+
+**Search**: the search box at the top of the screen (or **Ctrl+K**, **⌘K** on a Mac, or **/** when you are not typing) finds applications, Control Panel pages, settings, shared folders and files; administrators also find virtual machines, containers and users. Results come grouped; the arrow keys move, Enter opens (a file opens in Files, a VM in its settings, a user in their account form), Esc closes. Names work in your language and in English. The file search looks through the shared folders you can read and shows the first matches only: for a full search, use the search of Files.
+
+**Personalizing**: account menu → **Appearance** chooses the wallpaper of the desktop mode (a few built-in ones, or your own image: any picture is reduced to 3840 × 2160 and kept as a JPEG of 5 MB at most, on the NAS, for your account only) and the **accent colour** of the whole interface (buttons, links, selections), adjusted a little in the light and dark themes so text stays readable. In the desktop mode, right-click the desktop → **Customize widgets** (or the button that appears under the widgets) to choose the widgets on the right of the screen and their order: system status, resources, network throughput, storage, notifications, and for administrators applications, Docker containers, virtual machines and containers, UPS, last backups and disk temperatures. The widgets show on large screens only, and only refresh while they are visible. These choices are saved on the NAS and follow you from one browser to another.
+
 ## 3. Storage
 
 Storage is built in layers: **disks → RAID array or pool → volume → shared folders**.
@@ -165,6 +171,8 @@ To **uninstall** an app, use the bin button on its card ("Uninstall"). Its conta
 Each VM can take **Snapshots** (with its memory if it is running) and be **Cloned**. Prepare a VM once, then "Convert to template" to create identical VMs from it (Templates tab). The **USB devices** tab gives a USB device (Zigbee dongle, UPS, licence key…) to a VM; it comes back after being unplugged. **Start order** chooses which VMs start with the NAS, in which order and with which delay. **Backups** lists the VMs saved by your backup tasks and restores one as a new VM.
 
 **PCI passthrough** (turn on "Advanced") gives a whole device, such as a graphics card, to a VM. It is for experienced users: a wrong device can make the NAS unreachable.
+
+**Network bridge in one click**: for a VM or a container to appear directly on your local network (with its own address from your router), the NAS needs a bridge. When there is none, the creation wizards (and the Network tab of a container) offer **Create a bridge on eth0** (the name of the NAS's main interface). StrataOS then creates a bridge `br0`, plugs the interface into it and moves the NAS's address to the bridge: with DHCP the bridge keeps the interface's MAC address, so your router gives the same address; a fixed address, its gateway and DNS servers are copied. The network is cut for a few seconds, and the change is applied **on trial**, as in Control Panel → Network: if the page cannot reach the NAS again within 2 minutes, the previous configuration comes back by itself. Once confirmed, the wizard selects the new bridge. Other cases (several interfaces, bonds, VLANs, NetworkManager) are set in Control Panel → Network.
 
 ### Containers (LXC)
 
