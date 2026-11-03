@@ -8,7 +8,9 @@ export type Intent =
   | { page: "files"; dir: string; file?: import("./types").FileEntry }
   | { page: "vms"; kind: "vm" | "lxc"; name: string }
   | { page: "docker"; name: string }
-  | { page: "users"; name: string };
+  | { page: "users"; name: string }
+  // Opens the disk replacement wizard (Storage → Disks) on a disk or a degraded array.
+  | { page: "disks"; replace: { disk?: string; group?: string; member?: string } };
 
 const pending = new Map<Intent["page"], Intent>();
 

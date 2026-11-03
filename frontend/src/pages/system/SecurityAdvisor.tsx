@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Eye, EyeOff, RefreshCw, ShieldCheck, Wrench } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, RefreshCw, Replace, ShieldCheck, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { AppLink } from "../../components/AppLink";
+import { ReplaceLink } from "../storage/ReplaceDisk";
 import { Ring } from "../../components/charts";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
@@ -63,6 +64,11 @@ export default function SecurityAdvisor() {
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         {it.fix && !it.ignored && <Button size="sm" variant="primary" icon={<Wrench size={13} />} loading={fix.isPending && fix.variables === it.fix} onClick={() => doFix(it)}>{tr("Fix")}</Button>}
+        {(it.id === "disk-weak" || it.id === "disk-failing") && !it.ignored && (() => {
+          // The title lists the disks: open the wizard on the only one, or let the user choose.
+          const devs = srv(it.title).match(/\/dev\/[\w/-]+/g) ?? [];
+          return <ReplaceLink sel={devs.length === 1 ? { disk: devs[0] } : {}}><Button size="sm" variant="primary" icon={<Replace size={13} />}>{tr("Replace a disk")}</Button></ReplaceLink>;
+        })()}
         {it.link && <AppLink to={it.link}><Button size="sm" variant="ghost" icon={<ExternalLink size={13} />}>{tr("Open the setting")}</Button></AppLink>}
         <Button size="sm" variant="ghost" icon={it.ignored ? <Eye size={13} /> : <EyeOff size={13} />} onClick={() => ignore.mutate({ id: it.id, ignored: !it.ignored })}>
           {it.ignored ? tr("Watch again") : tr("Ignore")}

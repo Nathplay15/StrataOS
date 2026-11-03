@@ -1,13 +1,30 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layers, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Layers, Plus, Replace, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { RaidArray } from "../../lib/types";
-import { bytes, cx } from "../../lib/format";
+import { bytes, cx, duration } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, Input, Modal, Notice, PageHeader, Progress, Spinner, useUI } from "../../components/ui";
 import { DiskPicker, useCandidates } from "../../components/DiskPicker";
 import { tr } from "../../lib/i18n";
+import { ReplaceBanner, ReplaceWizard, type ReplaceSel } from "./ReplaceDisk";
+
+// Same words as the ZFS page and the replacement wizard: "Rebuilding x %".
+function syncLabel(a: RaidArray): string {
+  const act = (a.syncAction ?? "").split(" ")[0];
+  const waiting = (a.syncAction ?? "").includes("(");
+  const name = { recovery: tr("Rebuilding"), resync: tr("Resynchronizing"), check: tr("Checking"), repair: tr("Repairing"), reshape: tr("Reshaping") }[act] ?? act;
+  return waiting ? tr("{0} (waiting to start)", name) : `${name} ${(a.syncProgress ?? 0).toFixed(1)} %`;
+}
+
+/** Seconds left from the "finish=" value of /proc/mdstat (12.3min, 45sec…). */
+function mdFinish(s?: string): number {
+  const m = /^([0-9.]+)(\w+)$/.exec(s ?? "");
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  return m[2].startsWith("min") ? n * 60 : m[2].startsWith("h") ? n * 3600 : m[2].startsWith("d") ? n * 86400 : n;
+}
 
 const levels = [
   { id: "1", name: tr("RAID 1"), min: 2, desc: tr("Mirror: each disk holds a full copy. Tolerates n-1 failures."), cap: (_n: number, s: number) => s },
@@ -71,7 +88,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
-function ArrayCard({ a }: { a: RaidArray }) {
+function ArrayCard({ a, onReplace }: { a: RaidArray; onReplace: (s: ReplaceSel) => void }) {
   const { confirm } = useUI();
   const [addOpen, setAddOpen] = useState<null | "add" | "add-spare">(null);
   const [dev, setDev] = useState<string[]>([]);
@@ -88,6 +105,7 @@ function ArrayCard({ a }: { a: RaidArray }) {
       title={<span className="flex items-center gap-2.5">{a.label || a.name} <Badge>{a.level.toUpperCase()}</Badge> <Health value={a.health} /></span>}
       actions={<>
         <Button size="sm" variant="ghost" icon={<ShieldCheck size={14} />} onClick={() => act.mutate({ action: a.syncAction ? "idle" : "check" })}>{a.syncAction?.startsWith("check") ? tr("Stop verification") : tr("Check")}</Button>
+        {(a.health === "degraded" || a.failedDevices > 0) && <Button size="sm" variant="primary" icon={<Replace size={14} />} onClick={() => onReplace({ group: `raid:${a.name}` })}>{tr("Replace the missing disk")}</Button>}
         <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={() => setAddOpen("add")}>{tr("Add a disk")}</Button>
         <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={remove} />
       </>}
@@ -100,7 +118,7 @@ function ArrayCard({ a }: { a: RaidArray }) {
       </div>
       {a.syncAction && (
         <div className="mt-4 rounded-xl bg-panel-2 p-3">
-          <div className="mb-2 flex justify-between text-[12.5px]"><span className="capitalize">{a.syncAction}</span><span className="text-muted">{a.syncProgress?.toFixed(1)}{tr("% · remaining")}{" "}{a.syncFinish} · {a.syncSpeed}</span></div>
+          <div className="mb-2 flex justify-between text-[12.5px]"><span className="font-medium">{syncLabel(a)}</span><span className="text-muted">{mdFinish(a.syncFinish) > 0 ? tr("about {0} left", duration(mdFinish(a.syncFinish))) : ""}{a.syncSpeed ? ` · ${a.syncSpeed}` : ""}</span></div>
           <Progress value={a.syncProgress ?? 0} tone="accent" />
         </div>
       )}
@@ -116,6 +134,7 @@ function ArrayCard({ a }: { a: RaidArray }) {
                 <td className="text-right">
                   {m.device && (
                     <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="ghost" icon={<Replace size={13} />} onClick={() => onReplace({ group: `raid:${a.name}`, member: m.device })}>{tr("Replace")}</Button>
                       {!m.state.includes("faulty") && <Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Mark as failed?"), text: tr("{0} will be removed from service; the array will become degraded.", m.device), danger: true })) act.mutate({ action: "fail", device: m.device }); }}>{tr("Mark as failed")}</Button>}
                       <Button size="sm" variant="ghost" className="text-danger" onClick={async () => { if (await confirm({ title: tr("Remove the disk?"), text: tr("{0} will be removed from the array and its RAID metadata erased.", m.device), danger: true })) act.mutate({ action: "remove", device: m.device }); }}>{tr("Remove")}</Button>
                     </div>
@@ -148,15 +167,19 @@ function ArrayCard({ a }: { a: RaidArray }) {
 
 export default function Raid() {
   const [open, setOpen] = useState(false);
+  const [replace, setReplace] = useState<ReplaceSel | null>(null);
+  const [replaceId, setReplaceId] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["raid"], queryFn: () => api.get<RaidArray[]>("/api/storage/raid"), refetchInterval: 5000 });
   return (
     <div>
       <PageHeader title={tr("Software RAID")} subtitle={tr("mdadm arrays: RAID 0, 1, 4, 5, 6, 10 and JBOD")} icon={<Layers size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} onClick={() => setOpen(true)}>{tr("Create an array")}</Button>} />
       <ErrorBox error={error} />
+      <ReplaceBanner onOpen={setReplaceId} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card><Empty icon={<Layers />} title={tr("No RAID arrays")} text={tr("Group several disks for redundancy or performance. For ZFS or Btrfs (built-in RAID), use the ZFS or Volumes pages.")} action={<Button variant="primary" onClick={() => setOpen(true)}>{tr("Create an array")}</Button>} /></Card>
-      ) : <div className="space-y-5">{data.map((a) => <ArrayCard key={a.name} a={a} />)}</div>}
+      ) : <div className="space-y-5">{data.map((a) => <ArrayCard key={a.name} a={a} onReplace={setReplace} />)}</div>}
       {open && <CreateModal open={open} onClose={() => setOpen(false)} />}
+      <ReplaceWizard sel={replace} replacement={replaceId} onClose={() => { setReplace(null); setReplaceId(null); }} />
     </div>
   );
 }

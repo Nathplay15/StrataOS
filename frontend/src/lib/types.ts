@@ -155,6 +155,8 @@ export interface ZPool {
   status?: string;
   datasets?: ZDataset[];
   problems?: { device: string; state: string; was?: string }[];
+  /** Scrub or resilver running now. */
+  scan?: { kind: "scrub" | "resilver"; progress: number; eta?: number };
 }
 
 export interface VG {
@@ -254,7 +256,7 @@ export interface Overview {
   shares: number;
   containers: { running: number; total: number };
   volumes: { name: string; kind: string; mountPoint: string; total: number; used: number; free: number; health: string }[];
-  alerts: { level: "error" | "warning"; message: string }[];
+  alerts: { level: "error" | "warning"; message: string; replace?: { disk?: string; group?: string; member?: string } }[];
 }
 
 export interface Container {
