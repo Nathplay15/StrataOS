@@ -40,6 +40,8 @@ type SmartInfo struct {
 	// Standby: the disk is asleep and was left alone (no data read).
 	Standby bool `json:"standby,omitempty"`
 	nvmeLog nvmeHealth
+	// solidState: a SATA/SAS SSD (rotation rate 0).
+	solidState bool
 }
 
 type nvmeHealth struct {
@@ -48,7 +50,9 @@ type nvmeHealth struct {
 	SpareThreshold  int `json:"available_spare_threshold"`
 	PercentageUsed  int `json:"percentage_used"`
 	MediaErrors     int `json:"media_errors"`
-	present         bool
+	// Units of 1000 × 512 bytes (NVMe specification).
+	DataUnitsWritten int64 `json:"data_units_written"`
+	present          bool
 }
 
 type smartctlJSON struct {
@@ -76,7 +80,8 @@ type smartctlJSON struct {
 	PowerOnTime struct {
 		Hours int `json:"hours"`
 	} `json:"power_on_time"`
-	PowerCycleCount int `json:"power_cycle_count"`
+	PowerCycleCount int  `json:"power_cycle_count"`
+	RotationRate    *int `json:"rotation_rate"`
 	AtaAttrs        struct {
 		Table []struct {
 			ID         int    `json:"id"`
@@ -144,6 +149,7 @@ func smart(dev string, noWake bool) (*SmartInfo, error) {
 		Temperature: j.Temperature.Current, PowerOnHours: j.PowerOnTime.Hours, PowerCycles: j.PowerCycleCount,
 		Attributes: []SmartAttr{},
 	}
+	info.solidState = j.RotationRate != nil && *j.RotationRate == 0
 	if j.SmartStatus != nil {
 		p := j.SmartStatus.Passed
 		info.Passed = &p

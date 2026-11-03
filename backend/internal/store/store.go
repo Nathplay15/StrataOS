@@ -139,12 +139,17 @@ type Settings struct {
 	MetricsToken string `json:"metricsToken,omitempty"`
 	// NotifyLang is the language of notifications and reports ("" = en).
 	NotifyLang string `json:"notifyLang,omitempty"`
-	// MonthlyReport sends a health report on the 1st of each month.
-	MonthlyReport bool   `json:"monthlyReport,omitempty"`
-	SMBMinProto   string `json:"smbMinProtocol"`
-	TrashDays     int    `json:"trashDays"`
-	ACMEDomain    string `json:"acmeDomain"`
-	ACMEEmail     string `json:"acmeEmail"`
+	// MonthlyReport sends a health report on the 1st of each month (before
+	// 0.9.1; Report replaces it once set).
+	MonthlyReport bool `json:"monthlyReport,omitempty"`
+	// Report: health report sent by the notification channels: "weekly"
+	// (Monday 8 AM), "monthly" (1st of the month, 8 AM) or "off"; ""
+	// follows MonthlyReport.
+	Report      string `json:"report,omitempty"`
+	SMBMinProto string `json:"smbMinProtocol"`
+	TrashDays   int    `json:"trashDays"`
+	ACMEDomain  string `json:"acmeDomain"`
+	ACMEEmail   string `json:"acmeEmail"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).
@@ -545,6 +550,8 @@ type State struct {
 	Updates AutoUpdates `json:"updates,omitzero"`
 	// RPiKernel: switch of a Raspberry Pi to the Raspberry Pi kernels.
 	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
+	// Advisor: security advisor (ignored items, last run).
+	Advisor Advisor `json:"advisor,omitzero"`
 }
 
 const maxEvents = 2000

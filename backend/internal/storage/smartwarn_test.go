@@ -50,3 +50,26 @@ func TestSmartWarningsNVMeSpare(t *testing.T) {
 		}
 	}
 }
+
+func TestSmartSample(t *testing.T) {
+	hdd := &SmartInfo{Temperature: 38, PowerOnHours: 1200, Attributes: []SmartAttr{
+		{ID: 5, Raw: "24"}, {ID: 197, Raw: "0"}, {ID: 199, Raw: "3"}, {ID: 202, Name: "Data_Address_Mark_Errs", Value: 100},
+	}}
+	s := hdd.Sample()
+	if s.Reallocated == nil || *s.Reallocated != 24 || *s.Pending != 0 || *s.CRCErrors != 3 || s.Uncorrectable != nil {
+		t.Errorf("hdd sample: %+v", s)
+	}
+	if s.PercentUsed != nil {
+		t.Errorf("a hard disk has no wear: %d", *s.PercentUsed)
+	}
+	ssd := &SmartInfo{solidState: true, Attributes: []SmartAttr{{ID: 231, Name: "SSD_Life_Left", Value: 87}, {ID: 241, Name: "Total_LBAs_Written", Raw: "1000"}}}
+	s = ssd.Sample()
+	if s.PercentUsed == nil || *s.PercentUsed != 13 || *s.Written != 512000 {
+		t.Errorf("sata ssd sample: %+v", s)
+	}
+	nvme := &SmartInfo{Temperature: 45, nvmeLog: nvmeHealth{present: true, PercentageUsed: 13, AvailableSpare: 100, DataUnitsWritten: 2}}
+	s = nvme.Sample()
+	if *s.PercentUsed != 13 || *s.Spare != 100 || *s.Written != 1024000 || *s.MediaErrors != 0 || s.Reallocated != nil {
+		t.Errorf("nvme sample: %+v", s)
+	}
+}
