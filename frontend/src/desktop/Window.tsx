@@ -28,6 +28,14 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
   const [snap, setSnap] = useState<"max" | "left" | "right" | null>(null);
   const focused = wm.focused === win.app;
   const g = live ?? win;
+  const box = useRef<HTMLDivElement>(null);
+
+  // The window brought to the front (taskbar, Ctrl+`, a link) takes the
+  // keyboard focus, unless the focus is already inside it.
+  useEffect(() => {
+    const el = box.current;
+    if (focused && el && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
+  }, [focused]);
 
   // Just after opening, the second click of a double-click on a desktop icon
   // (or a launcher entry) would land inside the new window: swallow it.
@@ -97,10 +105,15 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
       />
     )}
     <div
+      ref={box}
+      role="dialog"
+      aria-labelledby={`win-title-${win.app}`}
+      inert={win.minimized}
+      tabIndex={-1}
       className={cx(
-        "absolute flex flex-col overflow-hidden border bg-bg transition-[box-shadow,opacity,transform] duration-150",
+        "absolute flex flex-col overflow-hidden border bg-bg text-fg outline-none transition-[box-shadow,opacity,transform] duration-150",
         win.maximized ? "rounded-none border-transparent" : "rounded-xl",
-        focused ? "border-white/15 shadow-[0_24px_70px_-12px_rgba(0,0,0,0.6)]" : "border-white/10 shadow-[0_12px_40px_-16px_rgba(0,0,0,0.5)]",
+        focused ? "border-dk-line-strong shadow-[var(--dk-win-shadow)]" : "border-dk-line shadow-[var(--dk-win-shadow-idle)]",
         win.minimized && "pointer-events-none scale-95 opacity-0",
       )}
       style={style}
@@ -113,9 +126,9 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
         onPointerDown={start("move")}
         onDoubleClick={() => wm.toggleMaximize(win.app)}
       >
-        <AppIcon app={app} size={22} />
-        <span className={cx("flex-1 truncate text-[13px] font-medium", !focused && "text-muted")}>{app.title}</span>
-        <div className="flex items-center gap-0.5" onPointerDown={(e) => e.stopPropagation()}>
+        <span aria-hidden><AppIcon app={app} size={22} /></span>
+        <span id={`win-title-${win.app}`} className={cx("flex-1 truncate text-[13px] font-medium", !focused && "text-muted")}>{app.title}</span>
+        <div role="group" aria-label={tr("Window controls")} className="flex items-center gap-0.5" onPointerDown={(e) => e.stopPropagation()}>
           <WinBtn title={tr("Collapse")} onClick={() => wm.minimize(win.app)}><Minus size={14} /></WinBtn>
           <WinBtn title={win.maximized ? tr("Restore") : tr("Expand")} onClick={() => wm.toggleMaximize(win.app)}>{win.maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</WinBtn>
           <WinBtn title={tr("Close")} danger onClick={() => wm.close(win.app)}><X size={15} /></WinBtn>
@@ -137,7 +150,7 @@ export function Window({ win, app, children }: { win: Win; app: AppDef; children
 
 function WinBtn({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: ReactNode }) {
   return (
-    <button title={title} aria-label={title} onClick={onClick} className={cx("flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:text-white", danger ? "hover:bg-danger" : "hover:bg-white/10 hover:text-fg")}>
+    <button type="button" title={title} aria-label={title} onClick={onClick} className={cx("flex h-7 w-7 items-center justify-center rounded-md text-muted outline-none transition focus-visible:ring-2 focus-visible:ring-accent", danger ? "hover:bg-danger hover:text-white" : "hover:bg-dk-hover hover:text-fg")}>
       {children}
     </button>
   );

@@ -11,7 +11,9 @@ import { PasskeysModal } from "./Passkeys";
 import { MobileDevicesModal } from "./MobileDevices";
 import { api } from "../lib/api";
 import { useJobs } from "../lib/jobs";
-import type { Me } from "../lib/types";
+import type { Me, Overview } from "../lib/types";
+import { NotificationCenter } from "./NotificationCenter";
+import { useDismiss } from "../lib/a11y";
 import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, Progress, useUI } from "./ui";
 import { tr, srv } from "../lib/i18n";
@@ -115,11 +117,7 @@ export function JobsMenu() {
   const [detail, setDetail] = useState<string | null>(null);
   const running = jobs.filter((j) => j.status === "running");
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const h = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+  useDismiss(ref, open && !detail, () => setOpen(false));
   const { data: job } = useQuery({
     queryKey: ["job", detail],
     queryFn: () => api.get<import("../lib/types").Job>(`/api/jobs/${detail}`),
@@ -128,7 +126,7 @@ export function JobsMenu() {
   });
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(!open)} className="relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-muted hover:bg-panel-2 hover:text-fg">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label={running.length ? tr("Tasks ({0} running)", running.length) : tr("Tasks")} className="relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-muted hover:bg-panel-2 hover:text-fg">
         {running.length > 0 ? <Loader2 size={17} className="animate-spin text-accent" /> : <ListChecks size={17} />}
         <span className="hidden text-[13px] sm:inline">{tr("Tasks")}</span>
         {running.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-white">{running.length}</span>}
@@ -214,6 +212,7 @@ export function Layout({ me }: { me: Me }) {
   const { confirm } = useUI();
   const { data: info } = useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ hostname: string; version: string }>("/api/setup"), staleTime: 60000 });
   useEffect(() => setMobileNav(false), [loc.pathname]);
+  const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: () => api.get<Overview>("/api/system/overview"), refetchInterval: 30000 });
 
   const logout = async () => {
     await api.post("/api/logout").catch(() => {});
@@ -273,6 +272,7 @@ export function Layout({ me }: { me: Me }) {
           </button>
           <div className="flex flex-1 justify-start lg:justify-center"><GlobalSearch me={me} openPage={(p) => nav_(p)} /></div>
           <JobsMenu />
+          <NotificationCenter me={me} alerts={overview?.alerts ?? []} openPage={(p) => nav_(p)} />
           <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-panel-2 hover:text-fg" title={tr("Theme")}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
@@ -283,7 +283,7 @@ export function Layout({ me }: { me: Me }) {
               <ChevronDown size={14} className="text-muted" />
             </button>
             {userMenu && (
-              <>
+              <div onKeyDown={(e) => e.key === "Escape" && setUserMenu(false)}>
                 <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
                 <div className="card absolute right-0 top-11 z-40 w-56 p-1.5 text-[13px]">
                   <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")}</div>
@@ -305,7 +305,7 @@ export function Layout({ me }: { me: Me }) {
                   <div className="my-1 border-t border-line" />
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-danger hover:bg-panel-2" onClick={logout}><LogOut size={15} /> {" "}{tr("Sign out")}</button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </header>

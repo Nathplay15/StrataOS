@@ -9,6 +9,7 @@ import { Layout } from "./components/Layout";
 import { Login } from "./pages/Auth";
 import { Setup } from "./pages/Setup";
 import { Desktop } from "./desktop/Desktop";
+import { Splash } from "./components/Splash";
 import { useDesktopMode } from "./desktop/mode";
 import { lang, tr } from "./lib/i18n";
 
@@ -89,7 +90,7 @@ function Root() {
     return () => window.removeEventListener("strata:unauthorized", h);
   }, []);
 
-  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Spinner label={tr("Connecting to the NAS…")} />;
+  if (setup.isLoading || (setup.data?.needed === false && meQ.isLoading)) return <Splash label={tr("Connecting to the NAS…")} />;
   if (setup.error) return <div className="p-10 text-center text-danger">{tr("Unable to reach the StrataOS server.")}</div>;
   const hostname = setup.data?.hostname ?? "NAS";
   if (setup.data?.needed && !me) return <Setup hostname={hostname} onDone={(m) => { setMe(m); qc.invalidateQueries(); }} />;

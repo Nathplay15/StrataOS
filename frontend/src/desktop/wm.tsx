@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { appById, appForPath } from "./apps";
+import { useNavigate } from "react-router-dom";
+import { appById, appForPath, pathOfApp, type AppDef } from "./apps";
 import { clamp, startGeometry, type Geometry, type SavedGeometry } from "./geometry";
 
 export type { Geometry } from "./geometry";
@@ -59,8 +60,9 @@ const store = {
 };
 
 
-export function WindowManager({ children }: { children: ReactNode }) {
+export function WindowManager({ children, allowed }: { children: ReactNode; allowed: (app: AppDef) => boolean }) {
   const [windows, setWindows] = useState<Win[]>([]);
+  const navigate = useNavigate();
   const zRef = useRef(10);
   const area = useCallback(() => ({ w: window.innerWidth, h: window.innerHeight - TASKBAR }), []);
 
@@ -113,8 +115,12 @@ export function WindowManager({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  // Restore the windows that were open before a reload (per browser tab).
+  // Restore the windows that were open before a reload (per browser tab),
+  // then open the page of the address (a bookmark, a link, a reload) on top.
+  const started = useRef(false);
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
     try {
       const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "[]") as { app: string; section?: string; minimized?: boolean; maximized?: boolean }[];
       for (const w of saved) open(w.app, w.section);
@@ -125,7 +131,9 @@ export function WindowManager({ children }: { children: ReactNode }) {
     } catch {
       /* nothing to restore */
     }
-  }, [open]);
+    const hit = location.pathname !== "/" ? appForPath(location.pathname.replace(/\/+$/, "")) : undefined;
+    if (hit && allowed(hit.app)) open(hit.app.id, hit.section);
+  }, [open, allowed]);
   useEffect(() => {
     try {
       const list = [...windows].sort((a, b) => a.z - b.z).map(({ app, section, minimized, maximized }) => ({ app, section, minimized, maximized }));
@@ -139,6 +147,14 @@ export function WindowManager({ children }: { children: ReactNode }) {
     const visible = windows.filter((w) => !w.minimized);
     return visible.length ? visible.reduce((a, b) => (a.z > b.z ? a : b)).app : undefined;
   }, [windows]);
+
+  // The address follows the focused window, so a reload or a bookmark opens
+  // it again; the bare desktop is "/".
+  const focusedWin = windows.find((w) => w.app === focused);
+  const here = focusedWin ? pathOfApp(focusedWin.app, focusedWin.section) : "/";
+  useEffect(() => {
+    if (here && location.pathname !== here) navigate(here, { replace: true });
+  }, [here, navigate]);
 
   const value = useMemo<WM>(() => ({ windows, focused, open, openPath, close, focus, minimize, toggleMaximize, setGeometry, setSection, area }), [windows, focused, open, openPath, close, focus, minimize, toggleMaximize, setGeometry, setSection, area]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

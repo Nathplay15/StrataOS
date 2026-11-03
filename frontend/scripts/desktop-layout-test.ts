@@ -27,3 +27,14 @@ eq(dropWidget(["status", "resources", "storage"], "status", "storage"), ["resour
 eq(toggleWidget(["status"], "ups", true), ["status", "ups"], "add at the end");
 eq(toggleWidget(["status", "ups"], "status", false), ["ups"], "remove");
 console.log("widgets done");
+
+// Keyboard moves between icons.
+import { iconToward } from "../src/desktop/layout.ts";
+const g = { a: [0, 0], b: [0, 1], c: [1, 0], d: [2, 2] } as Record<string, [number, number]>;
+eq(iconToward(g, "a", "down"), "b", "down the column");
+eq(iconToward(g, "a", "right"), "c", "same row first");
+eq(iconToward(g, "c", "right"), "d", "nearest row when the row ends");
+eq(iconToward(g, "a", "up"), undefined, "edge");
+eq(iconToward(g, "b", "up"), "a", "up");
+eq(iconToward(g, "d", "left"), "b", "left prefers the closest row");
+console.log("keys done");
