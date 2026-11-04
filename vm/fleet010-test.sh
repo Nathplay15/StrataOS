@@ -84,6 +84,8 @@ check "local row first" "$(echo "$H" | py 'print(d["rows"][0]["id"], d["rows"][0
 check "levels and reasons" "$(echo "$H" | py 'print(all(r["level"] in ("ok","info","warning","critical") and isinstance(r["reasons"], list) for r in d["rows"]))')" "True"
 # B's volume almost full: B needs attention.
 B ssh 'sudo fallocate -l $(( $(df -B1 --output=avail /srv/strata/volume1 | tail -1) * 98 / 100 )) /srv/strata/volume1/filler'
+check "B's volume filled" "$(B ssh 'df --output=pcent /srv/strata/volume1 | tail -1')" "%"
+sleep 6 # a NAS reuses a report of the last 5 s, even for Refresh
 H=$(api $PA POST /api/fleet/health/refresh)
 check "full volume on B: needs attention" "$(echo "$H" | py 'r=[r for r in d["rows"] if r["id"]!="local"][0]; print(r["level"], [x["text"] for x in r["reasons"] if x["kind"]=="space"], d["totals"]["attention"])')" "warning ['Volume volume1 is"
 check "fleet summary" "$(echo "$H" | py 'print(d["totals"]["attention"] >= 1, d["refreshed"] != "")')" "True True"
