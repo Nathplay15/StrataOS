@@ -327,6 +327,11 @@ type ImportReq struct {
 	Backend  string `json:"backend"`
 	SizeGB   int    `json:"sizeGb"`
 	Start    bool   `json:"start"`
+	// Bridge replaces the bridge of a bridged container ("nat": NAT
+	// instead); NewMAC gives it a new MAC address (a copy whose original
+	// still runs on another NAS).
+	Bridge string `json:"-"`
+	NewMAC bool   `json:"-"`
 }
 
 // ReadArchiveSpec reads container.json from a backup.
@@ -430,6 +435,16 @@ func Import(ctx context.Context, r ImportReq, logf func(string, ...any)) (err er
 		if s.IDMap, err = EnsureIDMap(s.IDMap.UIDs, s.IDMap.GIDs); err != nil {
 			return err
 		}
+	}
+	if s.Network.Mode == "bridge" && r.Bridge != "" {
+		if r.Bridge == "nat" {
+			s.Network.Mode, s.Network.Bridge = "nat", ""
+		} else {
+			s.Network.Bridge = r.Bridge
+		}
+	}
+	if r.NewMAC {
+		s.Network.MAC = NewMAC()
 	}
 	fitSpec(s, logf)
 	if err := s.Validate(); err != nil {

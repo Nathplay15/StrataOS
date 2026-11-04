@@ -74,10 +74,11 @@ type fleetPeerStatus struct {
 type fleetAccess struct {
 	Updates bool `json:"updates"`
 	Reboot  bool `json:"reboot"`
+	VMs     bool `json:"vms"`
 }
 
 func accessOf(m store.FleetManager) fleetAccess {
-	return fleetAccess{Updates: m.AllowUpdates, Reboot: m.AllowUpdates && m.AllowReboot}
+	return fleetAccess{Updates: m.AllowUpdates, Reboot: m.AllowUpdates && m.AllowReboot, VMs: m.AllowVMs}
 }
 
 // strataPolicy reads the installed and candidate versions of StrataOS.
@@ -234,33 +235,13 @@ func (s *Server) fleetManagerOf(r *http.Request) (store.FleetManager, bool) {
 func (s *Server) fleetPeer(pattern, perm string, action bool, h func(r *http.Request, m store.FleetManager) (any, error)) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-		m, ok := s.fleetManagerOf(r)
-		if !ok {
-			s.guardFail(clientIP(r), "console multi-NAS", "")
-			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "authentication required"})
-			return
-		}
-		key, limit := m.ID+":read", fleetReadsPerMin
+		kind, limit := "read", fleetReadsPerMin
 		if action {
-			key, limit = m.ID+":action", fleetActionsPerMin
+			kind, limit = "action", fleetActionsPerMin
 		}
-		if !fleetLimits.allow(key, limit, time.Minute, time.Now()) {
-			writeErr(w, &Error{Status: http.StatusTooManyRequests, Msg: "too many requests, try again later"})
+		m, ok := s.fleetPeerAuth(w, r, perm, kind, limit)
+		if !ok {
 			return
-		}
-		if err := fleetAllowed(m, perm); err != nil {
-			writeErr(w, err)
-			return
-		}
-		if time.Since(m.LastSeen) > time.Minute {
-			_ = s.store.Update(func(st *store.State) error {
-				for i := range st.Fleet.Managers {
-					if st.Fleet.Managers[i].ID == m.ID {
-						st.Fleet.Managers[i].LastSeen = time.Now()
-					}
-				}
-				return nil
-			})
 		}
 		v, err := h(r, m)
 		if err != nil {
@@ -272,6 +253,36 @@ func (s *Server) fleetPeer(pattern, perm string, action bool, h func(r *http.Req
 		}
 		writeJSON(w, http.StatusOK, v)
 	})
+}
+
+// fleetPeerAuth checks the console's token, its rate (limit calls of this
+// kind per minute) and its permission; it answers the error itself.
+func (s *Server) fleetPeerAuth(w http.ResponseWriter, r *http.Request, perm, kind string, limit int) (store.FleetManager, bool) {
+	m, ok := s.fleetManagerOf(r)
+	if !ok {
+		s.guardFail(clientIP(r), "console multi-NAS", "")
+		writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "authentication required"})
+		return m, false
+	}
+	if !fleetLimits.allow(m.ID+":"+kind, limit, time.Minute, time.Now()) {
+		writeErr(w, &Error{Status: http.StatusTooManyRequests, Msg: "too many requests, try again later"})
+		return m, false
+	}
+	if err := fleetAllowed(m, perm); err != nil {
+		writeErr(w, err)
+		return m, false
+	}
+	if time.Since(m.LastSeen) > time.Minute {
+		_ = s.store.Update(func(st *store.State) error {
+			for i := range st.Fleet.Managers {
+				if st.Fleet.Managers[i].ID == m.ID {
+					st.Fleet.Managers[i].LastSeen = time.Now()
+				}
+			}
+			return nil
+		})
+	}
+	return m, true
 }
 
 // fleetHA is how a NAS describes its high-availability pairing.
@@ -804,8 +815,9 @@ type fleetRunView struct {
 func (s *Server) fleetUpdateRoutes() {
 	s.admin("PUT /api/fleet/managers/{id}", func(r *http.Request) (any, error) {
 		var req struct {
-			AllowUpdates bool `json:"allowUpdates"`
-			AllowReboot  bool `json:"allowReboot"`
+			AllowUpdates bool  `json:"allowUpdates"`
+			AllowReboot  bool  `json:"allowReboot"`
+			AllowVMs     *bool `json:"allowVms"` // absent: unchanged (older clients)
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -817,6 +829,9 @@ func (s *Server) fleetUpdateRoutes() {
 				if m := &st.Fleet.Managers[i]; m.ID == r.PathValue("id") {
 					before = *m
 					m.AllowUpdates, m.AllowReboot = req.AllowUpdates, req.AllowReboot
+					if req.AllowVMs != nil {
+						m.AllowVMs = *req.AllowVMs
+					}
 					return nil
 				}
 			}
@@ -827,6 +842,9 @@ func (s *Server) fleetUpdateRoutes() {
 		}
 		if before.AllowUpdates != req.AllowUpdates {
 			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now install updates", false: "The console %s may no longer install updates"}[req.AllowUpdates], before.Name))
+		}
+		if req.AllowVMs != nil && before.AllowVMs != *req.AllowVMs {
+			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now copy virtual machines and containers to and from this NAS", false: "The console %s may no longer copy virtual machines and containers"}[*req.AllowVMs], before.Name))
 		}
 		if before.AllowReboot != req.AllowReboot {
 			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now restart this NAS after an update", false: "The console %s may no longer restart this NAS"}[req.AllowReboot], before.Name))

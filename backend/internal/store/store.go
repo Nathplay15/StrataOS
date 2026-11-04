@@ -333,6 +333,9 @@ type Fleet struct {
 	Managers []FleetManager `json:"managers,omitempty"`
 	// Updates: the grouped updates this console ran (newest last).
 	Updates []FleetUpdateRun `json:"updates,omitempty"`
+	// Transfers: VMs and containers copied or moved between NAS through
+	// this console (newest last).
+	Transfers []FleetTransfer `json:"transfers,omitempty"`
 }
 
 type FleetMember struct {
@@ -354,6 +357,9 @@ type FleetManager struct {
 	// restart this NAS when an update needs it (both off by default).
 	AllowUpdates bool `json:"allowUpdates,omitempty"`
 	AllowReboot  bool `json:"allowReboot,omitempty"`
+	// AllowVMs: the console may copy VMs and containers to and from this
+	// NAS (off by default).
+	AllowVMs bool `json:"allowVms,omitempty"`
 }
 
 // Vault receives the backups of other StrataOS NAS (restic REST protocol);

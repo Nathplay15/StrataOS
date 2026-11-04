@@ -4,7 +4,9 @@ import { AlertTriangle, CheckCircle2, Copy, Download, ExternalLink, KeyRound, Ne
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { ago, bytes, dateTime, pct } from "../lib/format";
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, useUI } from "../components/ui";
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
+import { FleetHealthBoard, type Dashboard } from "./fleet/FleetHealth";
+import { FleetTransfers } from "./fleet/FleetTransfers";
 import { srv, tr } from "../lib/i18n";
 
 type Vol = { name: string; total: number; used: number; health: string };
@@ -15,7 +17,7 @@ type Summary = {
   updates?: Updates; ha?: { role: string; peers: string[] }; access?: { updates: boolean; reboot: boolean };
 };
 type Row = { id: string; name: string; host: string; online: boolean; error?: string; summary?: Summary; haWith?: string[] };
-type Manager = { id: string; name: string; created: string; lastSeen?: string; allowUpdates?: boolean; allowReboot?: boolean };
+type Manager = { id: string; name: string; created: string; lastSeen?: string; allowUpdates?: boolean; allowReboot?: boolean; allowVms?: boolean };
 type Item = { member: string; name: string; host: string; ha?: string; state: string; progress: number; from?: string; target?: string; version?: string; note?: string; error?: string };
 type Run = {
   id: string; kind: "strata" | "system"; strategy: "parallel" | "rolling"; reboot?: boolean; dryRun?: boolean; cancel?: boolean; user: string; status: string;
@@ -149,7 +151,9 @@ export default function Fleet() {
   const remove = useAction((id: string) => api.del(`/api/fleet/${id}`), { success: tr("NAS removed from the console") });
   const mkCode = useAction(() => api.post<{ code: string }>("/api/fleet/code"), { onDone: (r) => setCode(r.code) });
   const revoke = useAction((id: string) => api.del(`/api/fleet/managers/${id}`), { success: tr("Access removed") });
-  const perms = useAction((m: Manager) => api.put(`/api/fleet/managers/${m.id}`, { allowUpdates: !!m.allowUpdates, allowReboot: !!m.allowReboot }), { success: tr("Permissions saved") });
+  const perms = useAction((m: Manager) => api.put(`/api/fleet/managers/${m.id}`, { allowUpdates: !!m.allowUpdates, allowReboot: !!m.allowReboot, allowVms: !!m.allowVms }), { success: tr("Permissions saved") });
+  const [tab, setTab] = useState<"health" | "nas" | "transfers">("health");
+  const health = useQuery({ queryKey: ["fleet-health"], queryFn: () => api.get<Dashboard>("/api/fleet/health"), refetchInterval: 30000 });
 
   const manageable = (data ?? []).filter((r) => r.id !== "local" && r.online && r.summary?.access?.updates);
   const selected = manageable.filter((r) => sel.includes(r.id));
@@ -167,13 +171,16 @@ export default function Fleet() {
         {manageable.length > 0 && <Button icon={<Download size={15} />} disabled={!selected.length || running} onClick={() => setUpd({ kind: "strata", strategy: "rolling", reboot: false, dryRun: false })}>{tr("Update selected ({0})", selected.length)}</Button>}
         <Button variant="primary" icon={<Plus size={15} />} onClick={() => setAdd({ host: "", code: "" })}>{tr("Add a NAS")}</Button>
       </>} />
-      <ErrorBox error={error} />
-      {isLoading ? <Spinner /> : (
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "health", label: tr("Health") }, { id: "nas", label: tr("NAS") }, { id: "transfers", label: tr("VM transfers") }]} />
+      {tab === "health" && <FleetHealthBoard onUpdate={(id) => { setSel([id]); setUpd({ kind: "strata", strategy: "rolling", reboot: false, dryRun: false }); }} />}
+      {tab === "transfers" && <FleetTransfers nas={health.data?.rows ?? []} />}
+      {tab === "nas" && <ErrorBox error={error} />}
+      {tab === "nas" && (isLoading ? <Spinner /> : (
         <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
           {data?.map((r) => <NASCard key={r.id} r={r} selected={sel.includes(r.id)} onSelect={manageable.includes(r) ? (v) => setSel(v ? [...sel, r.id] : sel.filter((x) => x !== r.id)) : undefined}
             onRemove={r.id === "local" ? undefined : async () => { if (await confirm({ title: tr("Remove {0} from the console?", r.name), text: tr("This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access)."), danger: true })) remove.mutate(r.id); }} />)}
         </div></div>
-      )}
+      ))}
       {data && data.length === 1 && <div className="mt-4"><Card><Empty icon={<Network />} title={tr("Add your other NAS")} text={tr("On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.")} /></Card></div>}
 
       {!!runs.data?.length && (
@@ -183,7 +190,7 @@ export default function Fleet() {
       )}
 
       <Card className="mt-6" title={<span className="flex items-center gap-2"><KeyRound size={16} />{tr("Authorized access to this NAS")}</span>} actions={<Button size="sm" loading={mkCode.isPending} onClick={() => mkCode.mutate()}>{tr("Authorization code")}</Button>}>
-        <p className="mb-3 text-muted text-[12.5px]">{tr("The NAS listed here can see the status of this NAS in their console. They can install its updates only if you allow it.")}</p>
+        <p className="mb-3 text-muted text-[12.5px]">{tr("The NAS listed here can see the status of this NAS in their console. They can install its updates, or copy virtual machines and containers, only if you allow it.")}</p>
         {code && <div className="mb-3 flex items-center gap-2"><code className="mono rounded-lg bg-panel-2 px-3 py-2 text-[18px] tracking-widest">{code}</code><Button size="sm" icon={<Copy size={14} />} onClick={() => { navigator.clipboard?.writeText(code); toast(tr("Code copied")); }}>{tr("Copy")}</Button><span className="text-muted text-[12px]">{tr("valid for 15 minutes, one time only")}</span></div>}
         {!managers.data?.length ? <div className="text-muted text-[13px]">{tr("No NAS has access to this one.")}</div> : (
           <table className="table"><tbody>
@@ -193,6 +200,7 @@ export default function Fleet() {
               <td className="space-y-2 py-2">
                 <Switch checked={!!m.allowUpdates} onChange={(v) => perms.mutate({ ...m, allowUpdates: v, allowReboot: v && !!m.allowReboot })} label={tr("Allow this console to install updates")} />
                 <Switch checked={!!m.allowUpdates && !!m.allowReboot} disabled={!m.allowUpdates} onChange={(v) => perms.mutate({ ...m, allowReboot: v })} label={tr("Allow it to restart this NAS when an update requires it")} />
+                <Switch checked={!!m.allowVms} onChange={(v) => perms.mutate({ ...m, allowVms: v })} label={tr("Allow it to copy virtual machines and containers to and from this NAS")} />
               </td>
               <td className="text-right"><Button size="sm" variant="ghost" onClick={() => revoke.mutate(m.id)}>{tr("Remove")}</Button></td>
             </tr>)}
