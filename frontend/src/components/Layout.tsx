@@ -16,7 +16,7 @@ import type { Me, Overview } from "../lib/types";
 import { NotificationCenter } from "./NotificationCenter";
 import { useDismiss } from "../lib/a11y";
 import { cx, ago } from "../lib/format";
-import { Button, Field, Input, Modal, Progress, useUI } from "./ui";
+import { Button, Field, Input, Modal, PageBoundary, Progress, useUI } from "./ui";
 import { tr, srv } from "../lib/i18n";
 import { LangSwitch } from "./LangSwitch";
 import { GlobalSearch } from "./GlobalSearch";
@@ -312,7 +312,7 @@ export function Layout({ me }: { me: Me }) {
         </header>
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
-            <Outlet />
+            <PageBoundary key={loc.pathname}><Outlet /></PageBoundary>
           </div>
         </main>
       </div>

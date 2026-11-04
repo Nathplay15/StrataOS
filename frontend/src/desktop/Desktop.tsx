@@ -211,9 +211,11 @@ function Taskbar({ me, apps, alerts }: { me: Me; apps: AppDef[]; alerts: Overvie
 interface WebApp { id: string; name: string; icon: string; url: string }
 
 /** One cell of the icon grid: fixed size, icon centered, label on two lines at most. */
-function DesktopIcon({ id, label, cell, onOpen, onDragEnd, tabbable, onFocus, onArrow, children }: {
+function DesktopIcon({ id, label, hint, cell, onOpen, onDragEnd, tabbable, onFocus, onArrow, children }: {
   id: string;
   label: string;
+  /** Said by screen readers and shown on hover, not under the icon. */
+  hint?: string;
   cell: Cell;
   onOpen: () => void;
   onDragEnd: (x: number, y: number) => void;
@@ -229,8 +231,8 @@ function DesktopIcon({ id, label, cell, onOpen, onDragEnd, tabbable, onFocus, on
   return (
     <button
       type="button"
-      title={label}
-      aria-label={label}
+      title={hint ?? label}
+      aria-label={hint ?? label}
       data-icon={id}
       tabIndex={tabbable ? 0 : -1}
       onFocus={onFocus}
@@ -406,7 +408,7 @@ function DesktopInner({ me }: { me: Me }) {
             </DesktopIcon>
           ))}
           {webApps.map((w) => (
-            <DesktopIcon key={w.id} label={tr("{0} (opens in a new tab)", w.name)} onOpen={() => window.open(w.url, "_blank", "noopener")} {...iconProps(w.id)}>
+            <DesktopIcon key={w.id} label={w.name} hint={tr("{0} (opens in a new tab)", w.name)} onOpen={() => window.open(w.url, "_blank", "noopener")} {...iconProps(w.id)}>
               <div className="relative flex h-14 w-14 items-center justify-center rounded-[15px] bg-white/90 p-2 shadow-lg">
                 {w.icon ? <img src={w.icon} alt="" referrerPolicy="no-referrer" className="h-full w-full object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <span className="text-[22px] font-semibold text-slate-700">{w.name[0]?.toUpperCase()}</span>}
                 <ExternalLink size={12} className="absolute -bottom-1 -right-1 rounded bg-black/60 p-0.5 text-white" />

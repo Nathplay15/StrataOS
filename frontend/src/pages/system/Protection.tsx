@@ -98,7 +98,7 @@ export function ProtectionCard({ sources, onPreset }: { sources: string[]; onPre
           <div className="text-muted">{tr("Each month, a sample of files is restored from every backup to a temporary folder and compared with the originals.")}{data.lastRestoreTest ? " " + tr("Last run {0}.", ago(data.lastRestoreTest)) : ""}</div>
         </div>
         <Switch aria-label={tr("Monthly restore test")} checked={!data.restoreTestOff} onChange={(v) => toggle.mutate(!v)} />
-        <Button size="sm" icon={<ArchiveRestore size={14} />} disabled={!data.testable.length} loading={test.isPending} onClick={() => test.mutate()}>{tr("Test now")}</Button>
+        <Button size="sm" icon={<ArchiveRestore size={14} />} disabled={!data.testable?.length} loading={test.isPending} onClick={() => test.mutate()}>{tr("Test now")}</Button>
       </div>
       <Modal open={explain} onClose={() => setExplain(false)} title={tr("The 3-2-1 rule")} footer={<Button onClick={() => setExplain(false)}>{tr("Close")}</Button>}>
         <div className="space-y-3 text-[13px]">

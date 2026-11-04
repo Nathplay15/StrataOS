@@ -258,7 +258,7 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
   // In a portal: the desktop's top bar has a backdrop blur, which would make it
   // the containing block of this fixed overlay and squash it to the bar's height.
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex justify-center bg-black/40 px-4 pt-[10vh] text-fg" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[10000] flex items-start justify-center bg-black/40 px-4 pt-[10vh] text-fg" onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={tr("Search")} className="card flex max-h-[70vh] w-[640px] max-w-full flex-col overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-line px-4">
           <Search size={17} className="shrink-0 text-muted" />

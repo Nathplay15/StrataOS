@@ -730,6 +730,9 @@ func (s *Server) dataProtectRoutes() {
 			}
 		})
 		ids, _ := s.testable()
+		if ids == nil {
+			ids = []string{} // the page reads its length
+		}
 		usb := []map[string]string{}
 		s.store.Read(func(st *store.State) {
 			for _, v := range st.Volumes {

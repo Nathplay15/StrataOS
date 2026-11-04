@@ -1,9 +1,31 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Loader2, RefreshCcw, X, XCircle } from "lucide-react";
 import { cx } from "../lib/format";
 import { InWindow } from "../desktop/context";
 import { srv, tr } from "../lib/i18n";
+
+/* ---------- Page error boundary ---------- */
+
+/** Keeps a page that crashes inside its own frame: the rest of the interface
+ *  (other windows, menus) goes on working. Give it a key that changes with the
+ *  page so that leaving the page clears the error. */
+export class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { console.error(error); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="card mx-auto mt-6 max-w-xl p-6 text-center">
+        <AlertTriangle className="mx-auto text-warn" size={28} />
+        <div className="mt-3 font-semibold">{tr("This page hit an error")}</div>
+        <div className="text-muted mt-1 break-words text-[12.5px]">{this.state.error.message}</div>
+        <Button className="mt-4" icon={<RefreshCcw size={14} />} onClick={() => this.setState({ error: null })}>{tr("Try again")}</Button>
+      </div>
+    );
+  }
+}
 
 /* ---------- Buttons ---------- */
 

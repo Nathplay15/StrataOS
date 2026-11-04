@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Me } from "../lib/types";
 import { cx } from "../lib/format";
-import { Spinner } from "../components/ui";
+import { PageBoundary, Spinner } from "../components/ui";
 import type { AppDef } from "./apps";
 import { useWM, type Win } from "./wm";
 
@@ -12,7 +12,7 @@ export function AppContent({ app, win, me }: { app: AppDef; win: Win; me: Me }) 
     const C = app.component;
     return (
       <div className="h-full overflow-y-auto px-5 py-5">
-        <C me={me} />
+        <PageBoundary key={app.id}><C me={me} /></PageBoundary>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function AppContent({ app, win, me }: { app: AppDef; win: Win; me: Me }) 
       </nav>
       <div className="min-w-0 flex-1 overflow-y-auto px-5 py-5">
         <Suspense fallback={<Spinner />}>
-          <C key={current.id} me={me} />
+          <PageBoundary key={current.id}><C me={me} /></PageBoundary>
         </Suspense>
       </div>
     </div>
