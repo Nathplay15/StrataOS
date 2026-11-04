@@ -86,7 +86,10 @@ class MainActivity : FragmentActivity() {
                 Surface(Modifier.fillMaxSize()) {
                     when {
                         !signedIn -> Onboarding(initialLink = pairLink, onLinkUsed = { pairLink = null }, onDone = { signedIn = true; unlocked = true })
-                        Graph.prefs.biometricLock && !unlocked -> LockScreen { authenticate() }
+                        // unlocked first: the setting is not observable state, and read alone
+                        // it would leave unlocked unobserved, so the lock screen would not come
+                        // back after the lock was turned on until something else recomposes.
+                        !unlocked && Graph.prefs.biometricLock -> LockScreen { authenticate() }
                         else -> Home(tab, { tab = it }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null })
                     }
                 }

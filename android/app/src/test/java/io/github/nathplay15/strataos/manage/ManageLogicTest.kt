@@ -2,6 +2,7 @@ package io.github.nathplay15.strataos.manage
 
 import io.github.nathplay15.strataos.net.manage.FrigateEvent
 import io.github.nathplay15.strataos.net.manage.PasswordProblem
+import io.github.nathplay15.strataos.net.manage.RestorePoints
 import io.github.nathplay15.strataos.net.manage.Segment
 import io.github.nathplay15.strataos.net.manage.VpnPeer
 import io.github.nathplay15.strataos.net.json
@@ -190,5 +191,14 @@ class WebSessionLogicTest {
         assertFalse(sameOrigin("https://nas.local:8096/".toHttpUrl(), base))
         assertFalse(sameOrigin("http://nas.local:7443/".toHttpUrl(), base))
         assertFalse(sameOrigin(null, base))
+    }
+
+    @Test fun nullsTakeTheDefaults() {
+        // Go sends nil slices as null; root is an object since 0.10.
+        val r = json.decodeFromString(RestorePoints.serializer(), """{"supported":true,"root":{"fsType":"btrfs","device":"/dev/sda2","subvol":"@"},"mode":null,"points":null}""")
+        assertTrue(r.supported)
+        assertEquals("btrfs", r.root.fsType)
+        assertEquals("", r.mode)
+        assertTrue(r.points.isEmpty())
     }
 }

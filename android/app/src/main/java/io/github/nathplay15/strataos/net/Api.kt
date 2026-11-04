@@ -55,7 +55,9 @@ import okio.source
 /** An answer of the NAS other than 2xx. [twoFactor]: a two-factor code is required or was wrong. */
 class ApiException(val status: Int, message: String, val twoFactor: Boolean = false, val offset: Long? = null) : IOException(message)
 
-val json = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
+// coerceInputValues: a null where the app has a default takes the default (Go
+// sends nil slices and maps as null), and so does an enum value it does not know.
+val json = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true; coerceInputValues = true }
 
 /** Builds the HTTP client for a NAS: certificate pinning, timeouts suited to large uploads. */
 fun nasHttpClient(pin: String?, caOnly: Boolean): OkHttpClient {

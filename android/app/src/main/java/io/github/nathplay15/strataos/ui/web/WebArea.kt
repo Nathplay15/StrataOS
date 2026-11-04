@@ -8,6 +8,7 @@ import android.net.http.SslCertificate
 import android.net.http.SslError
 import android.os.Build
 import android.util.Base64
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
@@ -178,6 +179,10 @@ fun WebArea(back: () -> Unit) {
                 e != null -> ErrorPane(e) { attempt++ }
                 start != null -> AndroidView(modifier = Modifier.fillMaxSize(), factory = { c ->
                     WebView(c).apply {
+                        // Without layout params the view counts as wrap_content: the WebView
+                        // then lays the page out with a zero height (100%, vh: 0) and the
+                        // interface, whose layout fills the screen, shows nothing.
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                         CookieManager.getInstance().setAcceptCookie(true)
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true

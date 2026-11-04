@@ -2,6 +2,7 @@ package io.github.nathplay15.strataos.net
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -107,7 +108,8 @@ fun Api.saveShare(name: String, share: JsonObject) {
 fun Api.deleteShare(name: String) { delete("/api/shares/${name.encodeSegment()}") }
 
 fun Api.users(): List<NasUser> = call(get("/api/users"), ListSerializer(NasUser.serializer()))
-fun Api.groups(): List<NasGroup> = call(get("/api/groups"), ListSerializer(NasGroup.serializer()))
+// null when the NAS has no user group (accounts.ListGroups returns a nil slice).
+fun Api.groups(): List<NasGroup> = call(get("/api/groups"), ListSerializer(NasGroup.serializer()).nullable) ?: emptyList()
 fun Api.userQuotas(user: String): List<QuotaEntry> = call(get("/api/users/$user/quotas"), ListSerializer(QuotaEntry.serializer()))
 fun Api.setUserQuota(user: String, kind: String, target: String, limit: Long) {
     call(request(url("/api/users/$user/quotas")).put(body(QuotaBody(kind, target, limit))).build(), JsonObject.serializer())
