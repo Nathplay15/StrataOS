@@ -13,6 +13,7 @@ else
   plan() { c GET "/api/storage/replace/plan?$1"; }
   rstart() { c POST /api/storage/replace -d "$1" | py 'print(d.get("id") or d)'; }
   rwait() { # waits for a replacement and prints its phase and error
+    case $1 in *[!0-9a-f]* | "") echo "not started: $1"; return ;; esac
     for _ in $(seq 1 200); do
       ph=$(c GET /api/storage/replace | py "print([i['phase'] for i in d['items'] if i['id']=='$1'][0])" 2>/dev/null)
       case $ph in done | failed) break ;; esac; sleep 3
@@ -52,9 +53,14 @@ else
   check "plan: rebuild the missing disk" "$(plan "group=raid:$MD" | py 'p=d["plan"]; print(p["mode"], p["left"], p["old"]["state"])')" "degraded 0 missing"
   check "plan: no redundancy warning" "$(plan "group=raid:$MD" | py 'print(d["plan"]["warnings"])')" "No redundancy is left"
   check "plan: add-first refused" "$(plan "group=raid:$MD&mode=add-first" | py 'print(d["plan"]["refusal"])')" "out of service"
+  # Slow rebuild, and a restart of StrataOS in the middle: the replacement is resumed.
+  vm "echo 20000 | sudo tee /proc/sys/dev/raid/speed_limit_max >/dev/null"
   ID=$(rstart '{"group":"raid:'"$MD"'","new":"'"$R1"'","confirm":"'"$(n "$R1")"'"}')
-  # A restart in the middle: the replacement is resumed.
-  sleep 2; vm "sudo systemctl restart strata"; sleep 3; wait_api
+  for _ in $(seq 1 30); do [ "$(c GET /api/storage/replace | py "print([i['phase'] for i in d['items'] if i['id']=='$ID'][0])")" = rebuild ] && break; sleep 1; done
+  check "rebuild progress shown" "$(sleep 4; c GET /api/storage/replace | py "i=[i for i in d['items'] if i['id']=='$ID'][0]; print(i['phase'], i['running'], i['progress'] > 0 or i.get('waiting', False))")" "rebuild True True"
+  check "RAID page: rebuilding" "$(c GET /api/storage/raid | py "print([a.get('syncAction') for a in d if a['label']=='rp'][0])")" "recovery"
+  vm "sudo systemctl restart strata"; sleep 3; wait_api
+  vm "echo 200000 | sudo tee /proc/sys/dev/raid/speed_limit_max >/dev/null"
   c POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
   check "rebuild done after a restart" "$(rwait "$ID")" "done"
   check "array complete again" "$(members rp)" "['$R1:active sync', '$R3:active sync']"

@@ -228,6 +228,9 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 		phase("add")
 	}
 	if rec.Phase == "add" {
+		// The reservation kept other tools off the new disk until now; Start
+		// erases it under storage.Lock and makes it a member.
+		storage.ClearBusy(op.New)
 		if err := op.Start(ctx, j.Logf); err != nil {
 			return fail(err)
 		}
