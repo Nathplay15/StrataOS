@@ -105,7 +105,8 @@ fun Api.saveFileServices(c: FileServicesConfig) = call(sendJson("PUT", "/api/fil
 // ---- Restore points ----
 
 @Serializable data class RestorePoint(val name: String = "", val created: String = "", val label: String = "", val info: String = "", val invalid: Boolean = false)
-@Serializable data class RestorePoints(val supported: Boolean = false, val reason: String = "", val root: String = "", val mode: String = "", val points: List<RestorePoint> = emptyList())
+@Serializable data class RootFs(val fsType: String = "", val device: String = "", val subvol: String = "")
+@Serializable data class RestorePoints(val supported: Boolean = false, val reason: String = "", val root: RootFs = RootFs(), val mode: String = "", val points: List<RestorePoint> = emptyList())
 
 fun Api.restorePoints(): RestorePoints = call(get("/api/system/restore-points"), RestorePoints.serializer())
 fun Api.createRestorePoint() = ok("POST", "/api/system/restore-points")

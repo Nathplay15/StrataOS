@@ -3249,6 +3249,7 @@
  "This NAS answered": "Questo NAS ha risposto",
  "This NAS connects to the source; the source holds no access to this NAS, so even compromised it cannot delete its backups. The remote account needs root or: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>": "Questo NAS si connette all'origine; l'origine non ha alcun accesso a questo NAS, quindi anche se compromessa non può eliminarne i backup. L'account remoto richiede root oppure: zfs allow <utente> snapshot,send,hold,destroy,mount <dataset>",
  "This NAS does not allow the console to install updates.": "Questo NAS non consente alla console di installare gli aggiornamenti.",
+ "This NAS does not allow the console to install updates: allow it on that NAS (Multi-NAS Console → Authorized access).": "Questo NAS non consente alla console di installare aggiornamenti: consentilo su quel NAS (Console multi-NAS → Accesso autorizzato).",
  "This NAS does not reach most of the cluster. VMs under high availability that run here are stopped after 30 seconds, so that the others can restart them safely.": "Questo NAS non raggiunge la maggior parte del cluster. Le VM in alta disponibilità che girano qui vengono arrestate dopo 30 secondi, così che gli altri possano riavviarle in sicurezza.",
  "This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access).": "Questo NAS non è più monitorato da qui. Revocate l'accesso anche su quel NAS (Console multi-NAS → Accessi autorizzati).",
  "This NAS left the cluster": "Questo NAS ha lasciato il cluster",

@@ -1571,6 +1571,7 @@
  "ce NAS n'a pas de clé du cluster Ceph": "deze NAS heeft geen sleutel van het Ceph-cluster",
  "ce NAS n'autorise pas la console à copier des machines virtuelles et des conteneurs": "deze NAS staat de console niet toe virtuele machines en containers te kopiëren",
  "ce NAS n'autorise pas la console à installer les mises à jour": "deze NAS staat niet toe dat de console updates installeert",
+ "ce NAS n'autorise pas la console à installer les mises à jour : sur ce NAS, ouvrez Console multi-NAS → Accès autorisés et activez « Autoriser cette console à installer les mises à jour »": "deze NAS staat de console niet toe updates te installeren: open op die NAS Multi-NAS-console → Geautoriseerde toegang en schakel „Deze console toestaan updates te installeren” in",
  "ce NAS n'autorise pas la console à le redémarrer": "deze NAS staat niet toe dat de console hem opnieuw opstart",
  "ce NAS n'est pas un nœud Ceph": "deze NAS is geen Ceph-node",
  "ce NAS n'est pas un nœud Ceph : ajoutez-le d'abord à Ceph": "deze NAS is geen Ceph-node: voeg hem eerst toe aan Ceph",

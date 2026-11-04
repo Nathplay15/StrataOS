@@ -1571,6 +1571,7 @@
  "ce NAS n'a pas de clé du cluster Ceph": "este NAS não tem a chave do cluster Ceph",
  "ce NAS n'autorise pas la console à copier des machines virtuelles et des conteneurs": "este NAS não permite que o console copie máquinas virtuais e contêineres",
  "ce NAS n'autorise pas la console à installer les mises à jour": "este NAS não permite que o console instale atualizações",
+ "ce NAS n'autorise pas la console à installer les mises à jour : sur ce NAS, ouvrez Console multi-NAS → Accès autorisés et activez « Autoriser cette console à installer les mises à jour »": "este NAS não permite que o console instale atualizações: nesse NAS, abra Console multi-NAS → Acesso autorizado e ative “Permitir que este console instale atualizações”",
  "ce NAS n'autorise pas la console à le redémarrer": "este NAS não permite que o console o reinicie",
  "ce NAS n'est pas un nœud Ceph": "este NAS não é um nó Ceph",
  "ce NAS n'est pas un nœud Ceph : ajoutez-le d'abord à Ceph": "este NAS não é um nó Ceph: adicione-o primeiro ao Ceph",

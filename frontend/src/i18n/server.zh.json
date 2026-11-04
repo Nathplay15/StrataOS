@@ -1571,6 +1571,7 @@
  "ce NAS n'a pas de clé du cluster Ceph": "此 NAS 没有 Ceph 集群的密钥",
  "ce NAS n'autorise pas la console à copier des machines virtuelles et des conteneurs": "此 NAS 不允许该控制台复制虚拟机和容器",
  "ce NAS n'autorise pas la console à installer les mises à jour": "此 NAS 不允许控制台安装更新",
+ "ce NAS n'autorise pas la console à installer les mises à jour : sur ce NAS, ouvrez Console multi-NAS → Accès autorisés et activez « Autoriser cette console à installer les mises à jour »": "此 NAS 不允许控制台安装更新：请在该 NAS 上打开 多 NAS 控制台 → 已授权访问，并开启“允许此控制台安装更新”",
  "ce NAS n'autorise pas la console à le redémarrer": "此 NAS 不允许控制台重启它",
  "ce NAS n'est pas un nœud Ceph": "此 NAS 不是 Ceph 节点",
  "ce NAS n'est pas un nœud Ceph : ajoutez-le d'abord à Ceph": "此 NAS 不是 Ceph 节点：请先将其添加到 Ceph",

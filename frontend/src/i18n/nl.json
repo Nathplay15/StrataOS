@@ -3249,6 +3249,7 @@
  "This NAS answered": "Deze NAS antwoordde",
  "This NAS connects to the source; the source holds no access to this NAS, so even compromised it cannot delete its backups. The remote account needs root or: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>": "Deze NAS maakt verbinding met de bron; de bron heeft geen toegang tot deze NAS, zodat hij zelfs bij een compromittering de back-ups niet kan verwijderen. Het externe account heeft root nodig of: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>",
  "This NAS does not allow the console to install updates.": "Deze NAS staat niet toe dat de console updates installeert.",
+ "This NAS does not allow the console to install updates: allow it on that NAS (Multi-NAS Console → Authorized access).": "Deze NAS staat de console niet toe updates te installeren: sta het toe op die NAS (Multi-NAS-console → Geautoriseerde toegang).",
  "This NAS does not reach most of the cluster. VMs under high availability that run here are stopped after 30 seconds, so that the others can restart them safely.": "Deze NAS bereikt het grootste deel van het cluster niet. VM's onder hoge beschikbaarheid die hier draaien, worden na 30 seconden gestopt, zodat de andere ze veilig kunnen herstarten.",
  "This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access).": "Dit NAS wordt niet meer vanaf hier bewaakt. Trek de toegang ook in op dit NAS (Multi-NAS-console → Toegestane toegang).",
  "This NAS left the cluster": "Deze NAS heeft het cluster verlaten",

@@ -114,6 +114,11 @@ class MainActivity : FragmentActivity() {
         io.github.nathplay15.strataos.sync.SyncLive.stop()
         // Locked again when the app goes to the background (not on rotation).
         if (!isChangingConfigurations) unlocked = false
+        // A prompt left open is dismissed by the system without always calling
+        // back: forget it, or the next one would never be shown.
+        prompt?.cancelAuthentication()
+        prompt = null
+        prompting = false
     }
 
     private fun handle(intent: Intent?) {
@@ -125,23 +130,26 @@ class MainActivity : FragmentActivity() {
         super.onResume()
         // Catch up with the NAS notifications missed while away (the periodic check runs every 15 minutes at best).
         if (signedIn) thread { runCatching { EventSync.poll(applicationContext) } }
-        if (signedIn && Graph.prefs.biometricLock && !unlocked) authenticate()
+        // Posted: the prompt needs the activity fully resumed to show.
+        if (signedIn && Graph.prefs.biometricLock && !unlocked) window.decorView.post { authenticate() }
     }
 
     private var prompting = false
+    private var prompt: BiometricPrompt? = null
 
     fun authenticate() {
-        if (prompting) return
+        if (prompting || unlocked || isFinishing || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val allowed = BIOMETRIC_STRONG or BIOMETRIC_WEAK or DEVICE_CREDENTIAL
         if (BiometricManager.from(this).canAuthenticate(allowed) != BiometricManager.BIOMETRIC_SUCCESS) {
             unlocked = true // nothing enrolled any more: do not lock the user out of their files
             return
         }
         prompting = true
-        BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { prompting = false; unlocked = true }
-            override fun onAuthenticationError(code: Int, msg: CharSequence) { prompting = false }
-        }).authenticate(
+        prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { prompting = false; prompt = null; unlocked = true }
+            override fun onAuthenticationError(code: Int, msg: CharSequence) { prompting = false; prompt = null }
+        })
+        prompt!!.authenticate(
             BiometricPrompt.PromptInfo.Builder()
                 .setTitle(getString(R.string.unlock_title))
                 .setSubtitle(Graph.prefs.server?.hostname ?: "")

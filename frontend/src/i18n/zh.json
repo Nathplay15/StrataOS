@@ -3249,6 +3249,7 @@
  "This NAS answered": "此 NAS 已应答",
  "This NAS connects to the source; the source holds no access to this NAS, so even compromised it cannot delete its backups. The remote account needs root or: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>": "此 NAS 连接到源端；源端无权访问此 NAS，因此即使被攻破也无法删除其备份。远程账户需要 root 权限，或：zfs allow <user> snapshot,send,hold,destroy,mount <dataset>",
  "This NAS does not allow the console to install updates.": "此 NAS 不允许控制台安装更新。",
+ "This NAS does not allow the console to install updates: allow it on that NAS (Multi-NAS Console → Authorized access).": "此 NAS 不允许控制台安装更新：请在该 NAS 上允许（多 NAS 控制台 → 已授权访问）。",
  "This NAS does not reach most of the cluster. VMs under high availability that run here are stopped after 30 seconds, so that the others can restart them safely.": "此 NAS 无法连接集群中的大多数节点。在此运行的高可用虚拟机将在 30 秒后被停止，以便其他 NAS 安全地重新启动它们。",
  "This NAS is no longer monitored from here. Also remove access on that NAS (Multi-NAS Console → Authorized access).": "此 NAS 不再从这里受到监控。请同时在该 NAS 上撤销访问权限（多 NAS 控制台 → 允许访问的设备）。",
  "This NAS left the cluster": "此 NAS 已离开集群",

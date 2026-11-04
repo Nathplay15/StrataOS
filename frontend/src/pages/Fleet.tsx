@@ -67,7 +67,7 @@ function NASCard({ r, onRemove, selected, onSelect }: { r: Row; onRemove?: () =>
           <div className="mt-3 text-muted text-[12px]">StrataOS {s.version} · {tr("running for {0} day(s)", s.uptimeDays)} · {tr("{0}/{1} container(s)", s.containers.running, s.containers.total)}</div>
           <UpdateBadges u={s.updates} />
           {s.ha && <div className="mt-2 text-muted text-[12px]">{s.ha.role === "primary" ? tr("High availability: primary") : tr("High availability: secondary")}</div>}
-          {r.id !== "local" && s.access && !s.access.updates && <div className="mt-2 text-muted text-[12px]">{tr("This NAS does not allow the console to install updates.")}</div>}
+          {r.id !== "local" && s.access && !s.access.updates && <div className="mt-2 text-muted text-[12px]">{tr("This NAS does not allow the console to install updates: allow it on that NAS (Multi-NAS Console → Authorized access).")}</div>}
           {s.sample && (
             <div className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
               <div><div className="mb-1 flex justify-between"><span className="text-muted">{tr("Processor")}</span><span>{s.sample.cpu.toFixed(0)} %</span></div><Progress value={s.sample.cpu} /></div>

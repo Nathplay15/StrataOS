@@ -2413,4 +2413,5 @@ export const serverTexts: [string, string][] = [
   ["tâche de snapshot introuvable", "snapshot task not found"],
   ["Aucune tâche de sauvegarde active", "No active backup task"],
   ["Des tâches de sauvegarde existent mais elles sont toutes désactivées, donc rien n'est sauvegardé : {0}. Activez-en une dans Sauvegarde ou Synchronisation cloud.", "Backup tasks exist but they are all disabled, so nothing is backed up: {0}. Enable one in Backup or Cloud sync."],
+  ["ce NAS n'autorise pas la console à installer les mises à jour : sur ce NAS, ouvrez Console multi-NAS → Accès autorisés et activez « Autoriser cette console à installer les mises à jour »", "this NAS does not allow the console to install updates: on that NAS, open Multi-NAS Console → Authorized access and turn on “Allow this console to install updates”"],
 ];

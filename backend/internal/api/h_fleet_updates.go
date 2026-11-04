@@ -604,7 +604,7 @@ func (s *Server) fleetStartItem(run store.FleetUpdateRun, idx int, m store.Fleet
 		return
 	}
 	if !st.Access.Updates {
-		s.fleetFail(run.ID, idx, "this NAS does not allow the console to install updates")
+		s.fleetFail(run.ID, idx, "this NAS does not allow the console to install updates: on that NAS, open Multi-NAS Console → Authorized access and turn on “Allow this console to install updates”")
 		return
 	}
 	if st.AptBusy {
@@ -945,7 +945,7 @@ func (s *Server) fleetUpdateRoutes() {
 					return
 				}
 				if !sum.Access.Updates {
-					errs[i] = fmt.Errorf("%s: this NAS does not allow the console to install updates", m.Name)
+					errs[i] = fmt.Errorf("%s: this NAS does not allow the console to install updates: on that NAS, open Multi-NAS Console → Authorized access and turn on “Allow this console to install updates”", m.Name)
 				}
 				nodes[i] = fleetNode{Hostname: sum.Hostname, Host: m.Host, HARole: sum.HA.Role, HAPeers: sum.HA.Peers, Cluster: sum.Cluster}
 			}()

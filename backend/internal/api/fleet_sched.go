@@ -22,7 +22,7 @@ func fleetAllowed(m store.FleetManager, perm string) error {
 		if m.AllowUpdates {
 			return nil
 		}
-		return forbidden("this NAS does not allow the console to install updates")
+		return forbidden("this NAS does not allow the console to install updates: on that NAS, open Multi-NAS Console → Authorized access and turn on “Allow this console to install updates”")
 	case "reboot":
 		if m.AllowUpdates && m.AllowReboot {
 			return nil
