@@ -180,16 +180,22 @@ type Schedule struct {
 	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
-	// TargetKind is zfs | btrfs | mdadm | disks; Target is a dataset, pool, volume ID,
-	// array name, or "all" / a disk path for SMART tests.
+	// TargetKind is zfs | btrfs | lvm | mdadm | disks; Target is a dataset, pool, volume ID,
+	// thin logical volume (vg/lv), array name, or "all" / a disk path for SMART tests.
 	TargetKind string `json:"targetKind"`
 	Target     string `json:"target"`
 	Subvolume  string `json:"subvolume,omitempty"` // btrfs: snapshot only this subvolume
 	Recursive  bool   `json:"recursive,omitempty"` // zfs: include child datasets
 	KeepCount  int    `json:"keepCount,omitempty"` // retention: newest N snapshots
 	KeepDays   int    `json:"keepDays,omitempty"`  // retention: snapshots younger than N days
-	LockDays   int    `json:"lockDays,omitempty"`  // snapshots cannot be deleted for N days (immutable)
-	SmartTest  string `json:"smartTest,omitempty"` // short | long
+	// Calendar retention (0.10): the newest snapshot of each of the last N
+	// hours, days, ISO weeks and months is kept too (protect.Policy).
+	KeepHourly  int    `json:"keepHourly,omitempty"`
+	KeepDaily   int    `json:"keepDaily,omitempty"`
+	KeepWeekly  int    `json:"keepWeekly,omitempty"`
+	KeepMonthly int    `json:"keepMonthly,omitempty"`
+	LockDays    int    `json:"lockDays,omitempty"`  // snapshots cannot be deleted for N days (immutable)
+	SmartTest   string `json:"smartTest,omitempty"` // short | long
 	// Antivirus: what to do with infected files (report | quarantine).
 	AVAction  string        `json:"avAction,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
@@ -260,6 +266,12 @@ type BackupTask struct {
 	// Containers: LXC containers backed up with the folders (tar.zst archives
 	// in a "lxc" folder at the destination, see backup/lxc.go).
 	Containers []string `json:"containers,omitempty"`
+
+	// Offsite: the destination is kept away from the NAS (a USB disk taken
+	// home, say); remote and cloud destinations are off-site anyway.
+	Offsite bool `json:"offsite,omitempty"`
+	// RestoreTest is the outcome of the last automatic restore test.
+	RestoreTest *RestoreTest `json:"restoreTest,omitempty"`
 }
 
 // Directory is the domain the NAS belongs to: Active Directory (Samba/winbind
@@ -543,6 +555,27 @@ type CloudSync struct {
 	Synced    bool          `json:"synced,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
 	History   []ScheduleRun `json:"history"`
+	// RestoreTest is the outcome of the last automatic restore test.
+	RestoreTest *RestoreTest `json:"restoreTest,omitempty"`
+}
+
+// RestoreTest is the outcome of a restore test: a sample of files restored
+// from the newest version of a backup to a temporary folder and checked.
+type RestoreTest struct {
+	Time     time.Time `json:"time"`
+	Status   string    `json:"status"`   // success | failed
+	Files    int       `json:"files"`    // files restored
+	Verified int       `json:"verified"` // of which compared with an unchanged original
+	Bytes    int64     `json:"bytes"`
+	Message  string    `json:"message"`
+}
+
+// Protection holds the data protection settings (0.10).
+type Protection struct {
+	// RestoreTestOff stops the monthly restore tests (on by default).
+	RestoreTestOff bool `json:"restoreTestOff,omitempty"`
+	// LastRestoreTest is when the restore tests last ran (all tasks).
+	LastRestoreTest time.Time `json:"lastRestoreTest,omitzero"`
 }
 
 type State struct {
@@ -601,6 +634,8 @@ type State struct {
 	Advisor Advisor `json:"advisor,omitzero"`
 	// CatalogSources: community app catalogs of the App Center (store/catalog.go).
 	CatalogSources []*CatalogSource `json:"catalogSources,omitempty"`
+	// Protection: 3-2-1 assistant and restore tests.
+	Protection Protection `json:"protection,omitzero"`
 }
 
 const maxEvents = 2000

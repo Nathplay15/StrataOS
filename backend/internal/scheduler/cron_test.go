@@ -63,3 +63,35 @@ func TestExpired(t *testing.T) {
 		t.Errorf("the newest snapshot must always be kept")
 	}
 }
+
+func TestExpireRetention(t *testing.T) {
+	now := at("2026-10-17 12:00")
+	id := func(t time.Time) time.Time { return t }
+	// 96 hourly snapshots, newest first.
+	var hours []time.Time
+	for i := range 96 {
+		hours = append(hours, now.Add(-time.Duration(i)*time.Hour))
+	}
+	// Before 0.10: count and days must both hold.
+	if got := Expire(hours, id, Retention{Count: 48, Days: 1}, now); len(got) != 96-25 {
+		t.Errorf("count+days: %d removed, want %d", len(got), 96-25)
+	}
+	// Calendar: 24 hourly + 3 daily. The daily ones are the newest of Oct 17,
+	// 16 (both among the hourly ones) and 15 (23:00): one more.
+	got := Expire(hours, id, Retention{Hourly: 24, Daily: 3}, now)
+	if len(got) != 96-25 {
+		t.Errorf("hourly+daily: %d removed, want %d", len(got), 96-25)
+	}
+	for _, g := range got {
+		if g.After(now.Add(-24 * time.Hour)) {
+			t.Errorf("removed %v, within the 24 hourly ones", g)
+		}
+	}
+	// With a calendar rule, Count is one more rule (a union).
+	if got := Expire(hours, id, Retention{Count: 48, Daily: 1}, now); len(got) != 96-48 {
+		t.Errorf("count+daily: %d removed, want 48", len(got))
+	}
+	if !(Retention{}).Empty() || (Retention{Weekly: 1}).Empty() {
+		t.Error("Empty")
+	}
+}

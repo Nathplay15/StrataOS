@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, Bug, CalendarClock, Camera, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, ArchiveRestore, Bug, CalendarClock, Camera, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
 import { ago, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, srv } from "../../lib/i18n";
+import { RestoreWizard } from "../../components/RestoreWizard";
 
-type Targets = { snapshot: ScheduleTarget[]; scrub: ScheduleTarget[]; disks: ScheduleTarget[] };
+type ShareTarget = { share: string; kind: Schedule["targetKind"]; value: string; subvolume?: string; whole?: boolean };
+type Targets = { snapshot: ScheduleTarget[]; scrub: ScheduleTarget[]; disks: ScheduleTarget[]; shares?: ShareTarget[] };
+type Snap = { name: string; time: string; keep: boolean; locked?: boolean };
 
 const typeInfo = {
   snapshot: { label: tr("Snapshot"), icon: <Camera size={15} />, tone: "accent" as const },
@@ -164,7 +167,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS or Btrfs, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine") }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS, Btrfs or LVM thin, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine") }[t]}</div>
               </div>
             </button>
           ))}
@@ -177,6 +180,14 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
             <Notice tone="warn">{s.type === "snapshot" ? tr("No ZFS dataset or Btrfs volume: snapshots require one of the two.") : s.type === "appupdate" ? tr("No application installed.") : tr("No RAID array, ZFS pool or Btrfs volume to check.")}</Notice>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
+              {s.type === "snapshot" && !!targets.shares?.length && (
+                <Field label={tr("Shared folder")} className="sm:col-span-2" hint={tr("Picks the volume, sub-volume or dataset that holds it. A folder that is not a sub-volume or dataset of its own is snapshotted with its whole volume.")}>
+                  <Select value="" onChange={(e) => { const t = targets.shares!.find((x) => x.share === e.target.value); if (t) { setNamed(true); set({ targetKind: t.kind, target: t.value, subvolume: t.subvolume ?? "", name: tr("Snapshots of {0}", t.share) }); } }}>
+                    <option value="">{tr("Choose a shared folder…")}</option>
+                    {targets.shares.map((t) => <option key={t.share} value={t.share}>{t.share}{t.whole ? ` (${tr("whole volume")})` : ""}</option>)}
+                  </Select>
+                </Field>
+              )}
               <Field label={tr("Target")} className={s.targetKind === "btrfs" && s.type === "snapshot" ? "" : "sm:col-span-2"}>
                 <Select value={`${s.targetKind}|${s.target}`} onChange={(e) => { const [k, ...v] = e.target.value.split("|"); set({ targetKind: k as Schedule["targetKind"], target: v.join("|"), subvolume: "" }); }}>
                   {options.map((o) => <option key={`${o.kind}|${o.value}`} value={`${o.kind}|${o.value}`}>{o.label}</option>)}
@@ -228,6 +239,18 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               <Field label={tr("Keep the last N")} hint={tr("0 = no limit on count")}><Input type="number" min={0} value={s.keepCount ?? 0} onChange={(e) => set({ keepCount: Math.max(0, +e.target.value) })} /></Field>
               <Field label={tr("Keep for (days)")} hint={tr("0 = no limit on age")}><Input type="number" min={0} value={s.keepDays ?? 0} onChange={(e) => set({ keepDays: Math.max(0, +e.target.value) })} /></Field>
             </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label={tr("Hourly")}><Input type="number" min={0} value={s.keepHourly ?? 0} onChange={(e) => set({ keepHourly: Math.max(0, +e.target.value) })} /></Field>
+              <Field label={tr("Daily")}><Input type="number" min={0} value={s.keepDaily ?? 0} onChange={(e) => set({ keepDaily: Math.max(0, +e.target.value) })} /></Field>
+              <Field label={tr("Weekly")}><Input type="number" min={0} value={s.keepWeekly ?? 0} onChange={(e) => set({ keepWeekly: Math.max(0, +e.target.value) })} /></Field>
+              <Field label={tr("Monthly")}><Input type="number" min={0} value={s.keepMonthly ?? 0} onChange={(e) => set({ keepMonthly: Math.max(0, +e.target.value) })} /></Field>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
+              {tr("Suggestions:")}
+              <button type="button" className="rounded bg-panel-2 px-2 py-0.5 hover:text-fg" onClick={() => { set({ keepCount: 0, keepDays: 0, keepHourly: 24, keepDaily: 7, keepWeekly: 4, keepMonthly: 6 }); setPlan(fromCron("0 * * * *")); }}>{tr("Hourly: 24 h, 7 d, 4 w, 6 m")}</button>
+              <button type="button" className="rounded bg-panel-2 px-2 py-0.5 hover:text-fg" onClick={() => { set({ keepCount: 0, keepDays: 0, keepHourly: 0, keepDaily: 14, keepWeekly: 8, keepMonthly: 12 }); setPlan(fromCron("0 0 * * *")); }}>{tr("Daily: 14 d, 8 w, 12 m")}</button>
+            </div>
+            <div className="text-[12px] text-muted">{tr("Hourly, daily, weekly and monthly keep the newest snapshot of each of the last N hours, days, weeks and months; with one of them set, every rule adds what it keeps. Without them, a snapshot must satisfy both the count and the age.")}</div>
             <Field label={tr("Lock each snapshot for (days)")} hint={tr("Ransomware protection: no one can delete a locked snapshot before its date, not even an administrator. 0 = no lock.")}><Input type="number" min={0} max={3650} value={s.lockDays ?? 0} onChange={(e) => set({ lockDays: Math.max(0, +e.target.value) })} /></Field>
             {s.targetKind === "zfs" && <Switch checked={!!s.recursive} onChange={(v) => set({ recursive: v })} label={tr("Include child datasets")} hint={tr("Atomic recursive snapshot (zfs snapshot -r)")} />}
             <div className="text-[12px] text-muted">{tr("Only snapshots created by this task are deleted; the most recent one is always kept. Manual snapshots are never touched.")}</div>
@@ -265,6 +288,33 @@ function HistoryModal({ s, onClose }: { s: Schedule; onClose: () => void }) {
   );
 }
 
+function retentionLabel(s: Schedule) {
+  return [s.keepCount ? tr("Last {0}", s.keepCount) : "", s.keepDays ? tr("{0} d", s.keepDays) : "", s.keepHourly ? tr("{0} hourly", s.keepHourly) : "", s.keepDaily ? tr("{0} daily", s.keepDaily) : "", s.keepWeekly ? tr("{0} weekly", s.keepWeekly) : "", s.keepMonthly ? tr("{0} monthly", s.keepMonthly) : ""].filter(Boolean).join(" / ");
+}
+
+/** Snapshots a task made, newest first, with what its retention keeps; restore from them. */
+function SnapshotsModal({ s, onClose, onRestore }: { s: Schedule; onClose: () => void; onRestore: () => void }) {
+  const { data, isLoading, error } = useQuery({ queryKey: ["schedule-snapshots", s.id], queryFn: () => api.get<Snap[]>(`/api/schedules/${s.id}/snapshots`) });
+  return (
+    <Modal open onClose={onClose} wide title={tr("Snapshots — {0}", s.name)} footer={<><Button icon={<ArchiveRestore size={15} />} onClick={onRestore}>{tr("Browse and restore…")}</Button><Button onClick={onClose}>{tr("Close")}</Button></>}>
+      <ErrorBox error={error} />
+      {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<Camera />} title={tr("No snapshots yet")} /> : (
+        <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+          {data.map((x) => (
+            <div key={x.name} className={cx("flex items-center gap-3 rounded-lg px-3 py-1.5 text-[12.5px]", x.keep ? "bg-panel-2" : "bg-warn/10")}>
+              <span className="w-40 shrink-0">{dateTime(x.time)}</span>
+              <span className="mono min-w-0 flex-1 truncate text-muted">{x.name}</span>
+              {x.locked && <Badge tone="accent">{tr("Locked")}</Badge>}
+              {!x.keep && <Badge tone="warn">{tr("Deleted at the next run")}</Badge>}
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-3 text-[12px] text-muted">{tr("{0} snapshot(s), retention: {1}", data?.length ?? 0, retentionLabel(s))}</p>
+    </Modal>
+  );
+}
+
 function targetLabel(s: Schedule, targets?: Targets) {
   if (s.type === "smart") return s.target === "all" ? tr("All disks") : s.target;
   if (s.type === "appupdate") return s.target === "all" ? tr("All running applications") : s.target;
@@ -278,6 +328,8 @@ export default function Schedules() {
   const { confirm } = useUI();
   const [edit, setEdit] = useState<Schedule | null | undefined>(undefined);
   const [hist, setHist] = useState<Schedule | null>(null);
+  const [snaps, setSnaps] = useState<Schedule | null>(null);
+  const [restore, setRestore] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["schedules"], queryFn: () => api.get<Schedule[]>("/api/schedules"), refetchInterval: 10000 });
   const targets = useQuery({ queryKey: ["schedule-targets"], queryFn: () => api.get<Targets>("/api/schedules/targets") });
   const toggle = useAction((s: Schedule) => api.put(`/api/schedules/${s.id}`, { ...s, enabled: !s.enabled }));
@@ -313,7 +365,7 @@ export default function Schedules() {
                           <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", { accent: "bg-accent-soft text-accent", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn", danger: "bg-danger/10 text-danger" }[ti.tone])}>{ti.icon}</span>
                           <div>
                             <div className="whitespace-nowrap font-medium">{s.name}</div>
-                            <div className="whitespace-nowrap text-muted text-[11.5px]">{ti.label}{s.type === "snapshot" && ` · garder ${[s.keepCount ? tr("Last {0}", s.keepCount) : "", s.keepDays ? tr("{0} d", s.keepDays) : ""].filter(Boolean).join(" / ")}`}{s.type === "smart" && ` · ${s.smartTest === "long" ? "long" : "court"}`}</div>
+                            <div className="whitespace-nowrap text-muted text-[11.5px]">{ti.label}{s.type === "snapshot" && ` · ${retentionLabel(s)}`}{s.type === "smart" && ` · ${s.smartTest === "long" ? "long" : "court"}`}</div>
                           </div>
                         </div>
                       </td>
@@ -331,6 +383,7 @@ export default function Schedules() {
                       <td><Switch aria-label={tr("Active")} checked={s.enabled} onChange={() => toggle.mutate(s)} /></td>
                       <td className="text-right whitespace-nowrap">
                         <IconButton title={tr("Run now")} disabled={s.running} onClick={() => run.mutate(s.id)}><Play size={15} /></IconButton>
+                        {s.type === "snapshot" && <IconButton title={tr("Snapshots")} onClick={() => setSnaps(s)}><Images size={15} /></IconButton>}
                         <IconButton title={tr("History")} onClick={() => setHist(s)}><History size={15} /></IconButton>
                         <IconButton title={tr("Edit")} disabled={!targets.data} onClick={() => setEdit(s)}><Edit3 size={15} /></IconButton>
                         <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", s.name), text: tr("The task will no longer run. Snapshots already created are kept."), danger: true })) del.mutate(s.id); }}><Trash2 size={15} /></IconButton>
@@ -346,6 +399,8 @@ export default function Schedules() {
       <p className="mt-4 text-[12px] text-muted">{tr("Tasks run at the NAS local time. A run missed while the NAS is off is not made up. Failures trigger a notification (Settings → Notifications).")}</p>
       {edit !== undefined && targets.data && <TaskModal initial={edit} targets={targets.data} onClose={() => setEdit(undefined)} />}
       {hist && <HistoryModal s={data?.find((x) => x.id === hist.id) ?? hist} onClose={() => setHist(null)} />}
+      {snaps && <SnapshotsModal s={snaps} onClose={() => setSnaps(null)} onRestore={() => { setRestore(snaps.targetKind === "lvm" ? `lvm:${snaps.target}` : ""); setSnaps(null); }} />}
+      {restore !== null && <RestoreWizard initialSource={restore || undefined} onClose={() => setRestore(null)} />}
     </div>
   );
 }

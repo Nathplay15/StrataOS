@@ -173,38 +173,80 @@ func ShadowMount(p string) string {
 	return ""
 }
 
-// SyncVersionLinks updates the @GMT links of a volume.
+// SyncVersionLinks updates the @GMT links of a volume: those of the whole
+// volume in .strata-versions, those of a Btrfs sub-volume snapshotted on its
+// own (a shared folder with its own schedule) in .strata-versions/<base>.
 func SyncVersionLinks(mp string) error {
 	dir := filepath.Join(mp, VersionsDirName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	want := map[string]string{}
+	want := map[string]map[string]string{"": {}}
 	for _, t := range SnapshotTrees(mp) {
-		if t.Base != mp || t.Time.IsZero() {
+		if t.Time.IsZero() {
 			continue
 		}
-		rel, err := filepath.Rel(dir, t.Root)
+		sub := ""
+		if t.Base != mp {
+			b, _, _ := strings.Cut(t.Name, "@")
+			sub = b
+		}
+		d := filepath.Join(dir, sub)
+		rel, err := filepath.Rel(d, t.Root)
 		if err != nil {
 			continue
 		}
-		want["@GMT-"+t.Time.UTC().Format("2006.01.02-15.04.05")] = rel
+		if want[sub] == nil {
+			want[sub] = map[string]string{}
+		}
+		want[sub]["@GMT-"+t.Time.UTC().Format("2006.01.02-15.04.05")] = rel
 	}
+	// Sub-volume folders no longer needed.
 	ents, _ := os.ReadDir(dir)
 	for _, e := range ents {
-		p := filepath.Join(dir, e.Name())
-		if cur, err := os.Readlink(p); err != nil || want[e.Name()] != cur {
-			_ = os.Remove(p) // stale, or not one of ours
-		} else {
-			delete(want, e.Name())
+		if e.IsDir() && want[e.Name()] == nil {
+			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
 		}
 	}
-	for name, target := range want {
-		if err := os.Symlink(target, filepath.Join(dir, name)); err != nil {
+	for sub, links := range want {
+		d := filepath.Join(dir, sub)
+		if err := os.MkdirAll(d, 0o755); err != nil {
 			return err
+		}
+		ents, _ := os.ReadDir(d)
+		for _, e := range ents {
+			if e.IsDir() {
+				continue // a sub-volume folder, handled on its own
+			}
+			p := filepath.Join(d, e.Name())
+			if cur, err := os.Readlink(p); err != nil || links[e.Name()] != cur {
+				_ = os.Remove(p) // stale, or not one of ours
+			} else {
+				delete(links, e.Name())
+			}
+		}
+		for name, target := range links {
+			if err := os.Symlink(target, filepath.Join(d, name)); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// ShareVersionsDir returns, for a shared folder that is a Btrfs sub-volume
+// with snapshots of its own, the folder of its @GMT links ("" otherwise:
+// the share uses those of the whole volume).
+func ShareVersionsDir(mp, share string) string {
+	if share == mp || !strings.HasPrefix(share, mp+"/") {
+		return ""
+	}
+	base := strings.ReplaceAll(strings.TrimPrefix(share, mp+"/"), "/", "_")
+	d := filepath.Join(mp, VersionsDirName, base)
+	if ents, err := os.ReadDir(d); err == nil && len(ents) > 0 {
+		return d
+	}
+	return ""
 }
 
 // MountOf returns the mount point holding p (or its nearest existing parent).

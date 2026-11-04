@@ -18,6 +18,7 @@ import (
 	"strataos/internal/certs"
 	"strataos/internal/docker"
 	"strataos/internal/health"
+	"strataos/internal/protect"
 	"strataos/internal/scheduler"
 	"strataos/internal/storage"
 	"strataos/internal/store"
@@ -445,6 +446,24 @@ func (s *Server) advisorFacts() health.Facts {
 			}
 		}
 		f.NotifyConfigured = set.WebhookURL != "" || (set.TelegramToken != "" && set.TelegramChatID != "") || set.NtfyURL != "" || (set.SMTPHost != "" && set.NotifyEmail != "")
+	})
+	if len(f.Backups) > 0 {
+		r := protect.Assess(s.protectionCopies(f.Now))
+		f.Rule321 = &r
+	}
+	testable, _ := s.testable()
+	s.store.Read(func(st *store.State) {
+		f.RestoreTestOff = st.Protection.RestoreTestOff && len(testable) > 0
+		for _, b := range st.Backups {
+			if b.Enabled && b.RestoreTest != nil && b.RestoreTest.Status != "success" {
+				f.RestoreFailed = append(f.RestoreFailed, b.Name)
+			}
+		}
+		for _, c := range st.Clouds {
+			if c.Enabled && c.RestoreTest != nil && c.RestoreTest.Status != "success" {
+				f.RestoreFailed = append(f.RestoreFailed, c.Name)
+			}
+		}
 	})
 	if !f.NotifyConfigured {
 		_, devices := s.mobilePushTargets()

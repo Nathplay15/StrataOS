@@ -9,6 +9,7 @@ import (
 
 	"strataos/internal/antivirus"
 	"strataos/internal/docker"
+	"strataos/internal/protect"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 )
@@ -31,10 +32,12 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 	}
 	switch s.Type {
 	case "snapshot":
-		if s.KeepCount < 0 || s.KeepDays < 0 {
-			return fmt.Errorf("retention values must be positive")
+		for _, n := range []int{s.KeepCount, s.KeepDays, s.KeepHourly, s.KeepDaily, s.KeepWeekly, s.KeepMonthly} {
+			if n < 0 || n > 100000 {
+				return fmt.Errorf("retention values must be positive")
+			}
 		}
-		if s.KeepCount == 0 && s.KeepDays == 0 {
+		if RetentionOf(s).Empty() {
 			return fmt.Errorf("set a retention (number of snapshots or days) to avoid filling the volume")
 		}
 		if s.LockDays < 0 || s.LockDays > 3650 {
@@ -52,8 +55,19 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 			if strings.Contains(s.Subvolume, "..") {
 				return fmt.Errorf("invalid subvolume")
 			}
+		case "lvm":
+			vg, lv, ok := strings.Cut(s.Target, "/")
+			if !ok || storage.ValidName(vg) != nil || storage.ValidName(lv) != nil {
+				return fmt.Errorf("choose an LVM thin volume")
+			}
+			if !storage.IsThinLV(vg, lv) {
+				return fmt.Errorf("%s is not an LVM thin volume: only thin volumes can be snapshotted on a schedule", s.Target)
+			}
+			if s.LockDays > 0 {
+				return fmt.Errorf("LVM snapshots cannot be locked")
+			}
 		default:
-			return fmt.Errorf("snapshots are supported on ZFS datasets and Btrfs volumes")
+			return fmt.Errorf("snapshots are supported on ZFS datasets, Btrfs volumes and LVM thin volumes")
 		}
 	case "scrub":
 		switch s.TargetKind {
@@ -114,6 +128,9 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 		if s.TargetKind == "zfs" {
 			return zfsSnapshot(&s, logf)
 		}
+		if s.TargetKind == "lvm" {
+			return lvmSnapshot(&s, logf)
+		}
 		mp, ok := resolve(s.Target)
 		if !ok {
 			return "", fmt.Errorf("volume %s no longer exists", s.Target)
@@ -147,17 +164,80 @@ func expired[T any](items []T, created func(T) time.Time, keepCount, keepDays in
 	return out
 }
 
+// Retention of the snapshots of a task. Without a calendar rule, Count and
+// Days work as before 0.10: a snapshot must satisfy both to stay. With one
+// (hourly, daily, weekly or monthly), each rule keeps its snapshots and
+// Count/Days are rules like the others (protect.Policy).
+type Retention struct {
+	Count, Days                    int
+	Hourly, Daily, Weekly, Monthly int
+}
+
+// RetentionOf reads the retention of a schedule.
+func RetentionOf(s *store.Schedule) Retention {
+	return Retention{Count: s.KeepCount, Days: s.KeepDays, Hourly: s.KeepHourly, Daily: s.KeepDaily, Weekly: s.KeepWeekly, Monthly: s.KeepMonthly}
+}
+
+func (r Retention) calendar() bool { return r.Hourly+r.Daily+r.Weekly+r.Monthly > 0 }
+
+// Empty reports whether nothing limits the number of snapshots.
+func (r Retention) Empty() bool { return r.Count <= 0 && r.Days <= 0 && !r.calendar() }
+
+// Expire returns the snapshots to delete. items must be sorted newest first.
+func Expire[T any](items []T, created func(T) time.Time, r Retention, now time.Time) []T {
+	if !r.calendar() {
+		return expired(items, created, r.Count, r.Days, now)
+	}
+	times := make([]time.Time, len(items))
+	for i, it := range items {
+		times[i] = created(it)
+	}
+	p := protect.Policy{Last: r.Count, Days: r.Days, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly}
+	var out []T
+	for _, i := range protect.Expired(times, p, now) {
+		out = append(out, items[i])
+	}
+	return out
+}
+
+// Snap is a snapshot made by a task.
+type Snap struct {
+	Name   string    `json:"name"`
+	Time   time.Time `json:"time"`
+	Keep   bool      `json:"keep"`
+	Locked bool      `json:"locked,omitempty"`
+}
+
 func zfsSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
-	return SnapshotZFS(s.Target, autoPrefix(s), s.Recursive, s.KeepCount, s.KeepDays, s.LockDays, logf)
+	return snapshotZFS(s.Target, autoPrefix(s), s.Recursive, RetentionOf(s), s.LockDays, logf)
 }
 
 func btrfsSnapshot(s *store.Schedule, mp string, logf func(string, ...any)) (string, error) {
-	return SnapshotBtrfs(mp, s.Subvolume, autoPrefix(s), s.KeepCount, s.KeepDays, s.LockDays, logf)
+	return snapshotBtrfs(mp, s.Subvolume, autoPrefix(s), RetentionOf(s), s.LockDays, logf)
 }
 
 // SnapshotZFS snapshots dataset as <tag><stamp> and applies retention to the
 // snapshots carrying the same tag (others, manual or from other tasks, are never touched).
 func SnapshotZFS(dataset, tag string, recursive bool, keepCount, keepDays, lockDays int, logf func(string, ...any)) (string, error) {
+	return snapshotZFS(dataset, tag, recursive, Retention{Count: keepCount, Days: keepDays}, lockDays, logf)
+}
+
+func zfsTagged(dataset, tag string) ([]storage.ZSnapshot, error) {
+	all, err := storage.SnapshotsOf(dataset)
+	if err != nil {
+		return nil, err
+	}
+	var mine []storage.ZSnapshot
+	for _, sn := range all {
+		if strings.HasPrefix(sn.Name, dataset+"@"+tag) {
+			mine = append(mine, sn)
+		}
+	}
+	sort.Slice(mine, func(i, j int) bool { return mine[i].Creation.After(mine[j].Creation) })
+	return mine, nil
+}
+
+func snapshotZFS(dataset, tag string, recursive bool, r Retention, lockDays int, logf func(string, ...any)) (string, error) {
 	name := tag + time.Now().Format(stampLayout)
 	logf("Creating %s@%s", dataset, name)
 	if err := storage.Snapshot(dataset, name, recursive); err != nil {
@@ -168,19 +248,12 @@ func SnapshotZFS(dataset, tag string, recursive bool, keepCount, keepDays, lockD
 			return "", fmt.Errorf("snapshot created but not locked: %w", err)
 		}
 	}
-	all, err := storage.SnapshotsOf(dataset)
+	mine, err := zfsTagged(dataset, tag)
 	if err != nil {
 		return "", err
 	}
-	var mine []storage.ZSnapshot
-	for _, sn := range all {
-		if strings.HasPrefix(sn.Name, dataset+"@"+tag) {
-			mine = append(mine, sn)
-		}
-	}
-	sort.Slice(mine, func(i, j int) bool { return mine[i].Creation.After(mine[j].Creation) })
 	removed := 0
-	for _, sn := range expired(mine, func(z storage.ZSnapshot) time.Time { return z.Creation }, keepCount, keepDays, time.Now()) {
+	for _, sn := range Expire(mine, func(z storage.ZSnapshot) time.Time { return z.Creation }, r, time.Now()) {
 		if time.Now().Before(storage.ZFSLockUntil(sn.Name)) {
 			continue // still locked: kept until its date
 		}
@@ -198,11 +271,41 @@ func SnapshotZFS(dataset, tag string, recursive bool, keepCount, keepDays, lockD
 // volume when empty) as .snapshots/<sub>@<tag><stamp>, then applies retention
 // to the snapshots carrying the same tag.
 func SnapshotBtrfs(mp, sub, tag string, keepCount, keepDays, lockDays int, logf func(string, ...any)) (string, error) {
+	return snapshotBtrfs(mp, sub, tag, Retention{Count: keepCount, Days: keepDays}, lockDays, logf)
+}
+
+func btrfsPrefix(sub, tag string) string {
 	base := "root"
 	if sub != "" {
 		base = strings.ReplaceAll(strings.Trim(sub, "/"), "/", "_")
 	}
-	prefix := base + "@" + tag
+	return base + "@" + tag
+}
+
+// btrfsTagged lists the snapshots of prefix, newest first; their time is
+// the stamp of their name.
+func btrfsTagged(mp, prefix string) ([]Snap, error) {
+	names, err := storage.BtrfsSnapshotNames(mp)
+	if err != nil {
+		return nil, err
+	}
+	var mine []Snap
+	for _, n := range names {
+		if !strings.HasPrefix(n, prefix) {
+			continue
+		}
+		at, err := time.ParseInLocation(stampLayout, strings.TrimPrefix(n, prefix), time.Local)
+		if err != nil {
+			continue
+		}
+		mine = append(mine, Snap{Name: n, Time: at})
+	}
+	sort.Slice(mine, func(i, j int) bool { return mine[i].Time.After(mine[j].Time) })
+	return mine, nil
+}
+
+func snapshotBtrfs(mp, sub, tag string, r Retention, lockDays int, logf func(string, ...any)) (string, error) {
+	prefix := btrfsPrefix(sub, tag)
 	name := prefix + time.Now().Format(stampLayout)
 	logf("Creating %s/.snapshots/%s", mp, name)
 	if _, err := storage.BtrfsSnapshot(mp, sub, name); err != nil {
@@ -213,15 +316,57 @@ func SnapshotBtrfs(mp, sub, tag string, keepCount, keepDays, lockDays int, logf 
 			return "", fmt.Errorf("snapshot created but not locked: %w", err)
 		}
 	}
-	names, err := storage.BtrfsSnapshotNames(mp)
+	mine, err := btrfsTagged(mp, prefix)
 	if err != nil {
 		return "", err
 	}
-	type snap struct {
-		name string
-		at   time.Time
+	removed := 0
+	for _, sn := range Expire(mine, func(x Snap) time.Time { return x.Time }, r, time.Now()) {
+		if time.Now().Before(storage.BtrfsLockUntil(mp, sn.Name)) {
+			continue // still locked: kept until its date
+		}
+		logf("Retention: deleting .snapshots/%s", sn.Name)
+		if err := storage.BtrfsDeleteSubvol(mp, ".snapshots/"+sn.Name); err != nil {
+			logf("warning: %v", err)
+			continue
+		}
+		removed++
 	}
-	var mine []snap
+	return fmt.Sprintf("Snapshot .snapshots/%s created, %d old one(s) deleted, %d kept", name, removed, len(mine)-removed), nil
+}
+
+// lvmSnapshot makes a thin snapshot of an LVM thin volume (vg/lv) named
+// <lv>-<tag><stamp>, then applies retention to those of the same tag.
+func lvmSnapshot(s *store.Schedule, logf func(string, ...any)) (string, error) {
+	vg, lv, _ := strings.Cut(s.Target, "/")
+	prefix := lv + "-" + autoPrefix(s)
+	name := prefix + time.Now().Format(stampLayout)
+	logf("Creating the thin snapshot %s/%s", vg, name)
+	if err := storage.ThinSnapshot(vg, lv, name); err != nil {
+		return "", err
+	}
+	mine, err := lvmTagged(vg, lv, prefix)
+	if err != nil {
+		return "", err
+	}
+	removed := 0
+	for _, sn := range Expire(mine, func(x Snap) time.Time { return x.Time }, RetentionOf(s), time.Now()) {
+		logf("Retention: removing %s/%s", vg, sn.Name)
+		if err := storage.RemoveThinSnapshot(vg, sn.Name); err != nil {
+			logf("warning: %v", err)
+			continue
+		}
+		removed++
+	}
+	return fmt.Sprintf("Snapshot %s/%s created, %d old one(s) deleted, %d kept", vg, name, removed, len(mine)-removed), nil
+}
+
+func lvmTagged(vg, lv, prefix string) ([]Snap, error) {
+	names, err := storage.ThinSnapshotNames(vg, lv)
+	if err != nil {
+		return nil, err
+	}
+	var mine []Snap
 	for _, n := range names {
 		if !strings.HasPrefix(n, prefix) {
 			continue
@@ -230,22 +375,60 @@ func SnapshotBtrfs(mp, sub, tag string, keepCount, keepDays, lockDays int, logf 
 		if err != nil {
 			continue
 		}
-		mine = append(mine, snap{n, at})
+		mine = append(mine, Snap{Name: n, Time: at})
 	}
-	sort.Slice(mine, func(i, j int) bool { return mine[i].at.After(mine[j].at) })
-	removed := 0
-	for _, sn := range expired(mine, func(x snap) time.Time { return x.at }, keepCount, keepDays, time.Now()) {
-		if time.Now().Before(storage.BtrfsLockUntil(mp, sn.name)) {
-			continue // still locked: kept until its date
+	sort.Slice(mine, func(i, j int) bool { return mine[i].Time.After(mine[j].Time) })
+	return mine, nil
+}
+
+// TaskSnapshots lists the snapshots a snapshot task made, newest first,
+// with what its retention keeps (as if it ran now).
+func TaskSnapshots(s store.Schedule, resolve Resolver) ([]Snap, error) {
+	var mine []Snap
+	switch s.TargetKind {
+	case "zfs":
+		zs, err := zfsTagged(s.Target, autoPrefix(&s))
+		if err != nil {
+			return nil, err
 		}
-		logf("Retention: deleting .snapshots/%s", sn.name)
-		if err := storage.BtrfsDeleteSubvol(mp, ".snapshots/"+sn.name); err != nil {
-			logf("warning: %v", err)
-			continue
+		for _, z := range zs {
+			_, n, _ := strings.Cut(z.Name, "@")
+			mine = append(mine, Snap{Name: n, Time: z.Creation, Locked: time.Now().Before(storage.ZFSLockUntil(z.Name))})
 		}
-		removed++
+	case "btrfs":
+		mp, ok := resolve(s.Target)
+		if !ok {
+			return nil, fmt.Errorf("volume %s no longer exists", s.Target)
+		}
+		list, err := btrfsTagged(mp, btrfsPrefix(s.Subvolume, autoPrefix(&s)))
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range list {
+			b.Locked = time.Now().Before(storage.BtrfsLockUntil(mp, b.Name))
+			mine = append(mine, b)
+		}
+	case "lvm":
+		vg, lv, _ := strings.Cut(s.Target, "/")
+		list, err := lvmTagged(vg, lv, lv+"-"+autoPrefix(&s))
+		if err != nil {
+			return nil, err
+		}
+		mine = list
+	default:
+		return nil, fmt.Errorf("not a snapshot task")
 	}
-	return fmt.Sprintf("Snapshot .snapshots/%s created, %d old one(s) deleted, %d kept", name, removed, len(mine)-removed), nil
+	drop := map[string]bool{}
+	for _, x := range Expire(mine, func(x Snap) time.Time { return x.Time }, RetentionOf(&s), time.Now()) {
+		drop[x.Name] = true
+	}
+	for i := range mine {
+		mine[i].Keep = !drop[mine[i].Name] || mine[i].Locked
+	}
+	if mine == nil {
+		mine = []Snap{}
+	}
+	return mine, nil
 }
 
 // alreadyRunning recognises "scrub in progress" errors, which are not failures.

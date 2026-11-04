@@ -15,7 +15,7 @@ type VolumeChoice = { name: string; kind: string; mountPoint: string; found: boo
 type Preview = { strataos: string; version: number; created: string; hostname: string; encrypted: boolean; secrets: boolean; volumes: VolumeChoice[]; targets: VolumeChoice[]; sections: Section[] };
 type AutoConfig = { enabled: boolean; folder: string; keep: number; hour: number; secrets?: boolean; passphrase?: string; lastRun?: string; lastResult?: string; lastFile?: string };
 type Auto = { config: AutoConfig; files: { name: string; size: number; modified: string }[] };
-type Doc = { hostname: string; secrets?: unknown; config: { network?: { interfaces?: { mode: string; addresses?: string[] }[]; bonds?: { mode: string; addresses?: string[] }[]; bridges?: { mode: string; addresses?: string[] }[]; vlans?: { mode: string; addresses?: string[] }[] } } };
+export type Doc = { hostname: string; secrets?: unknown; config: { network?: { interfaces?: { mode: string; addresses?: string[] }[]; bonds?: { mode: string; addresses?: string[] }[]; bridges?: { mode: string; addresses?: string[] }[]; vlans?: { mode: string; addresses?: string[] }[] } } };
 
 const sectionNames: Record<string, string> = {
   system: tr("Name and time zone"),
@@ -99,7 +99,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function JobLog({ id, onEnd }: { id: string; onEnd: (j: Job) => void }) {
+export function JobLog({ id, onEnd, label }: { id: string; onEnd: (j: Job) => void; label?: string }) {
   const { data } = useQuery({ queryKey: ["job", id], queryFn: () => api.get<Job>(`/api/jobs/${id}`), refetchInterval: (q) => (q.state.data?.status === "running" ? 1500 : false) });
   const ended = useRef(false);
   useEffect(() => {
@@ -112,14 +112,14 @@ function JobLog({ id, onEnd }: { id: string; onEnd: (j: Job) => void }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-[13px]">
-        {data.status === "running" ? <Spinner label={tr("Importing…")} /> : data.status === "success" ? <Badge tone="ok">{tr("Completed")}</Badge> : <Badge tone="danger">{srv(data.error) || tr("failed")}</Badge>}
+        {data.status === "running" ? <Spinner label={label ?? tr("Importing…")} /> : data.status === "success" ? <Badge tone="ok">{tr("Completed")}</Badge> : <Badge tone="danger">{srv(data.error) || tr("failed")}</Badge>}
       </div>
       <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[11.5px]">{data.log ?? ""}</pre>
     </div>
   );
 }
 
-function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   const { confirm } = useUI();
   const { track } = useJobs();
   const [pass, setPass] = useState("");

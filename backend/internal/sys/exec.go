@@ -126,3 +126,27 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	}
 	return os.Rename(tmp, path)
 }
+
+// Stream runs a command whose standard output goes to w as it comes (large
+// outputs: file contents, archives); stderr is kept for the error.
+func Stream(ctx context.Context, o Opts, w io.Writer, name string, args ...string) error {
+	if o.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
+		defer cancel()
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
+	cmd.Env = append(cmd.Env, o.Env...)
+	var stderr bytes.Buffer
+	cmd.Stdout = w
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		code := -1
+		if ee, ok := err.(*exec.ExitError); ok {
+			code = ee.ExitCode()
+		}
+		return &CmdError{Cmd: name, Code: code, Stderr: stderr.String()}
+	}
+	return nil
+}
