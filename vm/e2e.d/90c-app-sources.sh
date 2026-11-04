@@ -70,7 +70,7 @@ check "community app installed" "$(job "$(c POST "/api/apps/community/$SRC/e2e-w
 check "it answers" "$(web_code 8199)" "200"
 check "listed as installed, from its catalog" "$(c GET /api/apps/community | py 'print([(i["stack"], i["version"], i["sourceName"], i["update"], i["port"]) for i in d["installed"]])')" "('e2e-cwho', '1.0', 'E2E catalog', False, '8199')"
 check "approved host path installed" "$(job "$(c POST "/api/apps/community/$SRC/e2e-hostinfo/install" -d '{"name":"e2e-chost","approve":{"hostPaths":["/etc/hostname"]}}')")" "success"
-check "its data folder created under /srv/strata" "$(vm "sudo stat -c %U /srv/strata/main/e2e-hostinfo")" "1000"
+check "its data folder created under /srv/strata" "$(vm "sudo stat -c %u /srv/strata/main/e2e-hostinfo")" "1000"
 check "approval recorded" "$(vm "sudo cat /var/lib/strata/stacks/e2e-chost/.strata-community.json" | py 'print(d["approved"])')" "{'hostPaths': ['/etc/hostname']}"
 c DELETE '/api/docker/stacks/e2e-chost?volumes=1' >/dev/null
 vm "sudo rm -rf /srv/strata/main/e2e-hostinfo"

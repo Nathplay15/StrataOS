@@ -12,12 +12,13 @@ EP="$P/E2ESecret"
 GO=$(command -v go || echo "$HOME/.local/opt/go/bin/go")
 S="$TMP/strataos-sync"
 [ -x "$S" ] || (cd desktop && CGO_ENABLED=0 "$GO" build -o "$S" ./cmd/strataos-sync) 2>&1 | tail -3
+sx() { STRATA_LANG=en "$S" "$@"; } # English messages
 EA="$TMP/e2e-a" EB="$TMP/e2e-b" LA="$TMP/e2e-la" LB="$TMP/e2e-lb"
 pair_client() { # pair_client CONFIG NAME
   local pr; pr=$(u POST /api/me/devices/pairing)
-  "$S" --config "$1" pair --server "$HTTPS" --code "$(echo "$pr" | py 'print(d["code"])')" --fingerprint "$(echo "$pr" | py 'print(d["fingerprint"])')" --name "$2" 2>&1
+  sx --config "$1" pair --server "$HTTPS" --code "$(echo "$pr" | py 'print(d["code"])')" --fingerprint "$(echo "$pr" | py 'print(d["fingerprint"])')" --name "$2" 2>&1
 }
-once() { timeout -s QUIT 240 "$S" --config "$1" sync-once 2>&1; }
+once() { timeout -s QUIT 240 sx --config "$1" sync-once 2>&1; }
 check "first computer paired" "$(pair_client "$EA" e2e-enc-a)" "paired with"
 check "second computer paired" "$(pair_client "$EB" e2e-enc-b)" "paired with"
 TOKA=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['token'])" "$EA/config.json")
@@ -28,13 +29,13 @@ printf 'correct horse battery staple\n' > "$TMP/e2e-pass"
 mkdir -p "$LA/notes"
 echo "top secret plan" > "$LA/notes/plan.txt"
 head -c 300000 /dev/urandom > "$LA/big.bin"
-check "short passphrase refused" "$(STRATAOS_SYNC_PASSPHRASE=short "$S" --config "$EA" add --local "$LA" --remote "$EP" --encrypt 2>&1)" "at least 10"
-ADD=$("$S" --config "$EA" add --local "$LA" --remote "$EP" --encrypt --passphrase-file "$TMP/e2e-pass" 2>&1)
+check "short passphrase refused" "$(STRATAOS_SYNC_PASSPHRASE=short STRATA_LANG=en "$S" --config "$EA" add --local "$LA" --remote "$EP" --encrypt 2>&1)" "at least 10"
+ADD=$(sx --config "$EA" add --local "$LA" --remote "$EP" --encrypt --passphrase-file "$TMP/e2e-pass" 2>&1)
 check "encrypted folder added, recovery key shown" "$(echo "$ADD" | grep -c '^[A-Z2-7]\{4\}-')" "1"
 RK=$(echo "$ADD" | grep '^[A-Z2-7]\{4\}-')
-check "listed as encrypted" "$("$S" --config "$EA" list)" "(end-to-end encrypted)"
+check "listed as encrypted" "$(sx --config "$EA" list)" "(end-to-end encrypted)"
 ID=$(echo "$ADD" | tail -1)
-check "recovery key exported again" "$("$S" --config "$EA" recovery-key "$ID" 2>&1)" "$RK"
+check "recovery key exported again" "$(sx --config "$EA" recovery-key "$ID" 2>&1)" "$RK"
 check "first sync" "$(once "$EA")" "idle"
 
 # What the NAS has: a header and ciphertext only.
@@ -61,11 +62,11 @@ check "non-empty folder cannot be marked" "$(bt POST /api/sync/e2e -d "{\"folder
 check "unmarking a non-empty folder refused" "$(bt DELETE "/api/sync/e2e?folder=$EP")" "empty the folder first"
 
 # The second computer: locked without the passphrase, unlocked with the recovery key.
-check "second computer: passphrase asked" "$("$S" --config "$EB" add --local "$LB" --remote "$EP" 2>&1)" "end-to-end encrypted"
+check "second computer: passphrase asked" "$(sx --config "$EB" add --local "$LB" --remote "$EP" 2>&1)" "end-to-end encrypted"
 printf 'wrong passphrase!!\n' > "$TMP/e2e-wrong"
-check "wrong passphrase refused" "$("$S" --config "$EB" add --local "$LB" --remote "$EP" --passphrase-file "$TMP/e2e-wrong" 2>&1)" "Wrong passphrase"
+check "wrong passphrase refused" "$(sx --config "$EB" add --local "$LB" --remote "$EP" --passphrase-file "$TMP/e2e-wrong" 2>&1)" "Wrong passphrase"
 echo "$RK" > "$TMP/e2e-rk"
-check "unlocked with the recovery key" "$("$S" --config "$EB" add --local "$LB" --remote "$EP" --recovery-key-file "$TMP/e2e-rk" >/dev/null 2>&1 && "$S" --config "$EB" list)" "(end-to-end encrypted)"
+check "unlocked with the recovery key" "$(sx --config "$EB" add --local "$LB" --remote "$EP" --recovery-key-file "$TMP/e2e-rk" >/dev/null 2>&1 && sx --config "$EB" list)" "(end-to-end encrypted)"
 check "second computer syncs" "$(once "$EB")" "idle"
 check "decrypted contents" "$(cat "$LB/notes/plan.txt"; cmp "$LA/big.bin" "$LB/big.bin" && echo same)" "top secret plan
 same"
@@ -83,15 +84,15 @@ check "still no plaintext on the NAS" "$(vm "sudo grep -rl 'revised' $EP | wc -l
 echo "another long passphrase" > "$TMP/e2e-pass2"
 ID_BEFORE=$(vm "sudo cat $EP/.strataos-sync-e2e.json" | py 'print(d["id"])')
 check "header only replaced with the same key ID" "$(bt PUT /api/sync/e2e -d "{\"folder\":\"$EP\",\"header\":$(vm "sudo cat $EP/.strataos-sync-e2e.json" | py 'import json; d["id"]="cd"*16; print(json.dumps(d))')}" -o /dev/null -w '%{http_code}')" "412"
-check "passphrase changed" "$("$S" --config "$EA" passphrase "$ID" --passphrase-file "$TMP/e2e-pass2" 2>&1)" "passphrase changed"
+check "passphrase changed" "$(sx --config "$EA" passphrase --passphrase-file "$TMP/e2e-pass2" "$ID" 2>&1)" "passphrase changed"
 check "key ID unchanged" "$(vm "sudo cat $EP/.strataos-sync-e2e.json" | py 'print(d["id"])')" "$ID_BEFORE"
 check "the second computer keeps syncing" "$(echo more > "$LA/more.txt"; once "$EA" >/dev/null; once "$EB" >/dev/null; cat "$LB/more.txt")" "more"
 EC="$TMP/e2e-c"
-"$S" --config "$EC" pair --server "$HTTPS" --code "$(u POST /api/me/devices/pairing | py 'print(d["code"])')" --trust >/dev/null 2>&1
-check "old passphrase no longer opens it" "$("$S" --config "$EC" add --local "$TMP/e2e-lc" --remote "$EP" --passphrase-file "$TMP/e2e-pass" 2>&1)" "Wrong passphrase"
-check "new passphrase opens it" "$("$S" --config "$EC" add --local "$TMP/e2e-lc" --remote "$EP" --passphrase-file "$TMP/e2e-pass2" >/dev/null 2>&1 && once "$EC" >/dev/null; cat "$TMP/e2e-lc/notes/plan.txt")" "revised plan"
+sx --config "$EC" pair --server "$HTTPS" --code "$(u POST /api/me/devices/pairing | py 'print(d["code"])')" --trust >/dev/null 2>&1
+check "old passphrase no longer opens it" "$(sx --config "$EC" add --local "$TMP/e2e-lc" --remote "$EP" --passphrase-file "$TMP/e2e-pass" 2>&1)" "Wrong passphrase"
+check "new passphrase opens it" "$(sx --config "$EC" add --local "$TMP/e2e-lc" --remote "$EP" --passphrase-file "$TMP/e2e-pass2" >/dev/null 2>&1 && once "$EC" >/dev/null; cat "$TMP/e2e-lc/notes/plan.txt")" "revised plan"
 
 # Cleanup: the folder can be deleted as a whole from the web interface.
-for x in "$EA" "$EB" "$EC"; do "$S" --config "$x" unpair >/dev/null 2>&1; done
+for x in "$EA" "$EB" "$EC"; do sx --config "$x" unpair >/dev/null 2>&1; done
 check "encrypted folder deleted as a whole" "$(u POST /api/files/delete -d "{\"paths\":[\"$EP\"]}")" '"ok":true'
 check "gone" "$(vm "sudo test -e $EP && echo still || echo gone")" "gone"
