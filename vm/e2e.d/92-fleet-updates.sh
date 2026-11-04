@@ -10,7 +10,7 @@ section "Multi-NAS console: grouped updates"
 FC=$(c POST /api/fleet/code | py 'print(d["code"])')
 FM=$(c POST /api/fleet -d "{\"host\":\"127.0.0.1\",\"code\":\"$FC\"}" | py 'print(d["id"])')
 MG=$(c GET /api/fleet/managers | py 'print(d[-1]["id"])')
-check "versions and updates shown" "$(c GET /api/fleet | py 'r=[x for x in d if x["id"]=="'"$FM"'"][0]["summary"]; print(r["version"] == r["updates"]["version"], "system" in r["updates"], sorted(r["access"].items()))')" "True True [('reboot', False), ('updates', False)]"
+check "versions and updates shown" "$(c GET /api/fleet | py 'r=[x for x in d if x["id"]=="'"$FM"'"][0]["summary"]; print(r["version"] == r["updates"]["version"], "system" in r["updates"], sorted(r["access"].items()))')" "True True [('reboot', False), ('updates', False), ('vms', False)]"
 check "update permission off by default" "$(c GET /api/fleet/managers | py 'print([m.get("allowUpdates", False) for m in d if m["id"]=="'"$MG"'"])')" "[False]"
 check "console refuses without the permission" "$(c POST /api/fleet/updates -d "{\"ids\":[\"$FM\"],\"kind\":\"strata\",\"strategy\":\"rolling\",\"dryRun\":true}")" "does not allow the console to install updates"
 

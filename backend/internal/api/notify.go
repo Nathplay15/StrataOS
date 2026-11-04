@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/url"
+	"os"
 	"regexp"
 	"strataos/internal/accounts"
 	"strataos/internal/i18n"
@@ -363,6 +365,22 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 	return sent, nil
 }
 
+// freshRoots reads the system CA bundle again on each call: Go keeps the pool
+// it loaded first for the life of the process, so a CA added afterwards (a
+// company or home mail server's) would only work after a restart. nil (the
+// cached system pool) when the bundle cannot be read.
+func freshRoots() *x509.CertPool {
+	pem, err := os.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+	if err != nil {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil
+	}
+	return pool
+}
+
 // sendMail sends one message. security: "tls" (implicit TLS, usually port 465),
 // "starttls" (required), "none", or "auto" (TLS on 465, otherwise STARTTLS when offered).
 func sendMail(host string, port int, security string, auth smtp.Auth, from, to string, msg []byte) error {
@@ -373,7 +391,7 @@ func sendMail(host string, port int, security string, auth smtp.Auth, from, to s
 			security = "tls"
 		}
 	}
-	tlsCfg := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+	tlsCfg := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12, RootCAs: freshRoots()}
 	dialer := &net.Dialer{Timeout: 15 * time.Second}
 	var conn net.Conn
 	var err error

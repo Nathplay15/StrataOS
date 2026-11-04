@@ -424,7 +424,8 @@ check "forged cookie refused" "$(curl -s -o /dev/null -w '%{http_code}' -b "stra
 LD=$(u POST /api/links -d '{"path":"/srv/strata/main/Photos/drop","download":false,"upload":true}' | py 'print(d["id"])')
 vm "echo one > /tmp/a.txt"; ./vm/vm.sh ssh 'cat /tmp/a.txt' > "$TMP/a.txt" 2>/dev/null
 curl -s -X POST -H 'X-Strata: 1' -F "f=@$TMP/a.txt;filename=a.txt" $B/api/s/$LD/upload >/dev/null
-check "drop box never overwrites" "$(curl -s -X POST -H 'X-Strata: 1' -F "f=@$TMP/a.txt;filename=../../a.txt" $B/api/s/$LD/upload)" '"names":["a (2).txt"]'
+# The answer keeps the name sent (a renamed file would reveal what is there); the disk has both.
+check "drop box never overwrites" "$(curl -s -X POST -H 'X-Strata: 1' -F "f=@$TMP/a.txt;filename=../../a.txt" $B/api/s/$LD/upload >/dev/null; vm "sudo ls /srv/strata/main/Photos/drop | tr '\\n' '|'")" 'a (2).txt|a.txt|'
 check "dropped files owned by the link owner" "$(vm "sudo stat -c %U '/srv/strata/main/Photos/drop/a (2).txt'")" "$USER_NAME"
 check "drop box content stays hidden" "$(curl -s $B/api/s/$LD/files)" '"entries":[]'
 check "cross-site upload refused" "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: http://evil.example' -F "f=@$TMP/a.txt" $B/api/s/$LD/upload)" "403"

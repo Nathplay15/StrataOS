@@ -78,8 +78,8 @@ echo hello > "$TMP/secret.txt"
 check "name and email required" "$(pub -F "file=@$TMP/secret.txt" "$B/api/s/$LID/upload")" "name and email address are requested"
 check "invalid email refused" "$(pub -F name=Marie -F 'email=marie@' -F "file=@$TMP/secret.txt" "$B/api/s/$LID/upload")" "invalid email"
 check "upload keeps the name sent" "$(pub -F name='Marie Curie' -F email=marie@example.org -F "file=@$TMP/secret.txt" "$B/api/s/$LID/upload" | py 'print(d["uploaded"], d["names"])')" "1 ['secret.txt']"
-check "…stored without replacing" "$(vm "cat '$REQ/secret.txt'; cat '$REQ/secret (2).txt'" | tr '\n' ' ')" "secret hello"
-check "traversal in the file name" "$(pub -F name=M -F email=m@example.org -F "file=@$TMP/secret.txt;filename=../../e2e-escape.txt" "$B/api/s/$LID/upload" | py 'print(d["names"])'; vm "test -e $P/e2e-escape.txt && echo escaped; test -e $REQ/e2e-escape.txt && echo inside")" "inside"
+check "…stored without replacing" "$(vm "sudo cat '$REQ/secret.txt'; sudo cat '$REQ/secret (2).txt'" | tr '\n' ' ')" "secret hello"
+check "traversal in the file name" "$(pub -F name=M -F email=m@example.org -F "file=@$TMP/secret.txt;filename=../../e2e-escape.txt" "$B/api/s/$LID/upload" | py 'print(d["names"])'; vm "sudo test -e $P/e2e-escape.txt && echo escaped; sudo test -e $REQ/e2e-escape.txt && echo inside")" "inside"
 head -c 1200000 /dev/urandom > "$TMP/big.bin"
 check "per-file size limit" "$(pub -F name=M -F email=m@example.org -F "file=@$TMP/big.bin" "$B/api/s/$LID/upload")" "file too large"
 check "…partial file removed" "$(vm "ls $REQ | grep -c big.bin")" "0"
@@ -90,7 +90,7 @@ check "total size limit" "$(pub -o /dev/null -w '%{http_code}' -F name=M -F emai
 check "statistics" "$(c GET /api/links | py "print([(l['uploads'], l['views'] >= 1, l['uploadLog'][0]['guest'], l['uploadLog'][0]['email'], bool(l.get('lastUpload'))) for l in d if l['id']=='$LID'])")" "(3, True, 'Marie Curie', 'marie@example.org', True)"
 check "guest folders" "$(c PUT /api/links/$LID -d '{"guestFolders":true,"maxTotalMb":0}' | py 'print(d["guestFolders"], d["maxTotalBytes"] if "maxTotalBytes" in d else 0)')" "True 0"
 pub -F name='Ada/../Lovelace' -F email=ada@example.org -F "file=@$TMP/secret.txt" "$B/api/s/$LID/upload" >/dev/null
-check "…files in the sender's folder" "$(vm "ls '$REQ/Ada_.._Lovelace/'")" "secret.txt"
+check "…files in the sender's folder" "$(vm "sudo ls '$REQ/Ada_.._Lovelace/'")" "secret.txt"
 check "event logged" "$(c GET /api/system/events | py '[print(e["message"]) for e in d[:10]]')" "received in"
 
 # Password, download limit, expiry.

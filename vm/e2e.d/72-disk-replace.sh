@@ -57,7 +57,10 @@ else
   vm "echo 20000 | sudo tee /proc/sys/dev/raid/speed_limit_max >/dev/null"
   ID=$(rstart '{"group":"raid:'"$MD"'","new":"'"$R1"'","confirm":"'"$(n "$R1")"'"}')
   for _ in $(seq 1 30); do [ "$(c GET /api/storage/replace | py "print([i['phase'] for i in d['items'] if i['id']=='$ID'][0])")" = rebuild ] && break; sleep 1; done
-  check "rebuild progress shown" "$(sleep 4; c GET /api/storage/replace | py "i=[i for i in d['items'] if i['id']=='$ID'][0]; print(i['phase'], i['running'], i['progress'] > 0 or i.get('waiting', False))")" "rebuild True True"
+  # The job polls every 5 s: wait for its first reading.
+  rprog() { c GET /api/storage/replace | py "i=[i for i in d['items'] if i['id']=='$ID'][0]; print(i['phase'], i['running'], i['progress'] > 0 or i.get('waiting', False))"; }
+  for _ in $(seq 1 15); do [ "$(rprog)" = "rebuild True True" ] && break; sleep 1; done
+  check "rebuild progress shown" "$(rprog)" "rebuild True True"
   check "RAID page: rebuilding" "$(c GET /api/storage/raid | py "print([a.get('syncAction') for a in d if a['label']=='rp'][0])")" "recovery"
   vm "sudo systemctl restart strata"; sleep 3; wait_api
   vm "echo 200000 | sudo tee /proc/sys/dev/raid/speed_limit_max >/dev/null"
