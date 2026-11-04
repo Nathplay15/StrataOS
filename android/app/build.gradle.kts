@@ -8,7 +8,8 @@ plugins {
 
 // The app follows the NAS version (VERSION at the root of the repository):
 // versionCode = major * 1 000 000 + minor * 1 000 + patch (0.7.0 → 7000).
-val strataVersion = rootDir.parentFile.resolve("VERSION").readText().trim()
+// -PstrataVersion=0.10.2 overrides it (testing the app updates with a "newer" debug build).
+val strataVersion = (findProperty("strataVersion") as String?) ?: rootDir.parentFile.resolve("VERSION").readText().trim()
 val strataVersionCode = strataVersion.split(".").map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
     .let { (it.getOrElse(0) { 0 } * 1_000_000) + (it.getOrElse(1) { 0 } * 1_000) + it.getOrElse(2) { 0 } }
 

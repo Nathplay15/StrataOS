@@ -61,6 +61,7 @@ fun StatusScreen() {
                     Column(Modifier.padding(16.dp)) {
                         Text(st.info.hostname, style = MaterialTheme.typography.titleLarge)
                         Text(stringResource(R.string.status_version, st.info.version, formatUptime(st.info.uptime)), style = MaterialTheme.typography.bodyMedium)
+                        NasNewerBanner(st.info.version)
                         if (st.info.load.isNotEmpty()) Text(stringResource(R.string.status_load, "%.2f".format(st.info.load[0])), style = MaterialTheme.typography.bodySmall)
                     }
                 }

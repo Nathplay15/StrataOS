@@ -85,6 +85,11 @@ class MainActivity : FragmentActivity() {
             StrataTheme {
                 Surface(Modifier.fillMaxSize()) {
                     when {
+                        // A notification of the app updates also works signed out (the check does not need the NAS).
+                        !signedIn && overlay == "update" -> Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+                            BackHandler { overlay = null }
+                            UpdateScreen(onBack = { overlay = null })
+                        }
                         !signedIn -> Onboarding(initialLink = pairLink, onLinkUsed = { pairLink = null }, onDone = { signedIn = true; unlocked = true })
                         // unlocked first: the setting is not observable state, and read alone
                         // it would leave unlocked unobserved, so the lock screen would not come
@@ -109,11 +114,13 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        io.github.nathplay15.strataos.update.Updater.visible = true
         if (signedIn) io.github.nathplay15.strataos.sync.SyncLive.start(this)
     }
 
     override fun onStop() {
         super.onStop()
+        io.github.nathplay15.strataos.update.Updater.visible = false
         io.github.nathplay15.strataos.sync.SyncLive.stop()
         // Locked again when the app goes to the background (not on rotation).
         if (!isChangingConfigurations) unlocked = false
@@ -179,6 +186,7 @@ fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
     "backup" -> "files" to "backup"
     "sync" -> "files" to "sync"
     "settings" -> "files" to "settings"
+    "update" -> "files" to "update"
     else -> "files" to null
 }
 
@@ -212,7 +220,8 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
             when (overlay) {
                 "backup" -> BackupScreen(onBack = { setOverlay(null) })
                 "sync" -> io.github.nathplay15.strataos.ui.sync.SyncScreen(onBack = { setOverlay(null) })
-                else -> SettingsScreen(onSignedOut, onBack = { setOverlay(null) })
+                "update" -> UpdateScreen(onBack = { setOverlay(null) })
+                else -> SettingsScreen(onSignedOut, onBack = { setOverlay(null) }, onOpenUpdates = { setOverlay("update") })
             }
         }
         return
@@ -224,7 +233,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     )
     val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
     val content: @Composable () -> Unit = {
-        androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }, LocalOpenOverlay provides setOverlay) {
             when (tab) {
                 "photos" -> PhotosScreen(account)
                 "manage" -> ManageScreen(account)

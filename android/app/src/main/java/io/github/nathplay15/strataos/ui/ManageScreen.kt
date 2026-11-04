@@ -53,6 +53,9 @@ private const val STATUS = "status"
 /** Opens a folder of the NAS in the Files tab (from a management area: snapshots, shares…). */
 val LocalOpenInFiles = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
 
+/** Opens a full screen page of the app (settings, app update…). */
+val LocalOpenOverlay = androidx.compose.runtime.staticCompositionLocalOf<(String?) -> Unit> { {} }
+
 /**
  * The Manage tab: the NAS status and the management areas. Phones show a
  * grid and open an area full screen; tablets keep the list beside the area.
@@ -113,6 +116,7 @@ fun ManageScreen(accountAction: @Composable () -> Unit) {
                             }
                             Text(info.hostname, style = MaterialTheme.typography.titleLarge)
                             Text(stringResource(R.string.a_version, info.version), style = MaterialTheme.typography.bodySmall)
+                            NasNewerBanner(info.version)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (ov.alerts.isEmpty()) Icon(Icons.Default.CheckCircle, null, tint = Tone.OK.color())
                                 else Icon(Icons.Default.Warning, null, tint = Tone.WARN.color())

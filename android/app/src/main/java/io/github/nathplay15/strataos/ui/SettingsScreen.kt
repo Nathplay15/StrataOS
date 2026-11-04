@@ -53,7 +53,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
+fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null, onOpenUpdates: () -> Unit = {}) {
     val ctx = LocalContext.current
     val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
@@ -108,6 +108,10 @@ fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null) {
                     Push.register(ctx as android.app.Activity, vapid) { ok -> if (!ok) Toast.makeText(ctx, res.getString(R.string.push_failed), Toast.LENGTH_LONG).show(); tick++ }
                 }
             }) { Text(stringResource(R.string.push_setup)) }
+            HorizontalDivider()
+            Text(stringResource(R.string.update_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.update_installed, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = onOpenUpdates) { Text(stringResource(R.string.update_check)) }
             HorizontalDivider()
             Button(onClick = { confirmSignOut = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.sign_out)) }
             Text(stringResource(R.string.about, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

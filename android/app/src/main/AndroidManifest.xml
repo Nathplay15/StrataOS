@@ -21,6 +21,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <!-- Updates of the app itself (sideloaded): installs the verified APK of a newer release,
+         without a prompt on Android 12+ once the app installed the version it replaces. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -117,6 +122,18 @@
         <receiver
             android:name=".sync.SyncActionReceiver"
             android:exported="false" />
+
+        <!-- App updates: result of an installation, and the first start of a new version. -->
+        <receiver
+            android:name=".update.InstallReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".update.UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

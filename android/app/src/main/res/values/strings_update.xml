@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Updates of the app itself from the GitHub releases (update/, ui/UpdateScreen.kt). -->
+<resources>
+    <string name="channel_updates">App updates</string>
+    <string name="update_title">App updates</string>
+    <string name="update_installed">Installed: %1$s</string>
+    <string name="update_latest">Latest version: %1$s</string>
+    <string name="update_latest_unknown">Latest version: not checked yet</string>
+    <string name="update_last_check">Checked %1$s</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_up_to_date">The app is up to date.</string>
+    <string name="update_available">StrataOS app %1$s is available</string>
+    <string name="update_available_text">Tap to see what\'s new and update.</string>
+    <string name="update_action">Update</string>
+    <string name="update_ready_title">StrataOS app %1$s is ready to install</string>
+    <string name="update_ready_text">Tap to install it.</string>
+    <string name="update_updated_title">StrataOS app updated to %1$s</string>
+    <string name="update_updated_text">Tap to open the app.</string>
+    <string name="update_whats_new">What\'s new in %1$s</string>
+    <string name="update_release_page">Open the release page</string>
+    <string name="update_download_install">Download and install (%1$s)</string>
+    <string name="update_install">Install</string>
+    <string name="update_downloading">Downloading %1$s…</string>
+    <string name="update_installing">Installing…</string>
+    <string name="update_waiting">Confirm the installation in the window Android shows.</string>
+    <string name="update_unknown_sources">Android must allow StrataOS to install apps: open the setting, turn on \"Allow from this source\", then come back.</string>
+    <string name="update_open_settings">Open the setting</string>
+    <string name="update_auto_title">Automatic updates</string>
+    <string name="update_mode_off">Off</string>
+    <string name="update_mode_off_hint">The app only checks when you tap Check for updates.</string>
+    <string name="update_mode_notify">Notify only</string>
+    <string name="update_mode_notify_hint">Checks once a day and tells you when a new version is out.</string>
+    <string name="update_mode_auto">Download and install automatically</string>
+    <string name="update_mode_auto_hint">Installs new versions by itself. Android 12 and later install them without asking; older versions show Android\'s confirmation.</string>
+    <string name="update_wifi_only">Only on Wi-Fi (unmetered networks)</string>
+    <string name="update_beta">Include beta versions</string>
+    <string name="update_beta_hint">Pre-releases to try the next version early. They may have bugs.</string>
+    <string name="update_signature_note">Each download is checked against the checksums of its release, and must be signed with the same key as the installed app: Android refuses an app signed with another key.</string>
+    <string name="update_nas_newer">The NAS runs StrataOS %1$s and this app is %2$s: update the app.</string>
+    <string name="update_err_no_apk">This release has no Android app file.</string>
+    <string name="update_err_no_sums">The checksum list (SHA256SUMS) of this release is missing or does not list the app: it was not installed.</string>
+    <string name="update_err_checksum">The downloaded file does not match its checksum: it was not installed.</string>
+    <string name="update_err_signature">This app is not signed with the same key as the installed one, so it was not installed (Android would refuse it anyway). To change where the app comes from, uninstall it and install the new one by hand.</string>
+    <string name="update_err_package">The downloaded file is not the StrataOS app.</string>
+    <string name="update_err_older">The downloaded app is not newer than the installed one.</string>
+    <string name="update_err_install">Installation failed: %1$s</string>
+    <string name="update_err_cancelled">Installation cancelled.</string>
+    <string name="update_err_network">Could not reach GitHub: %1$s</string>
+</resources>
