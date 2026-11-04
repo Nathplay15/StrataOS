@@ -16,7 +16,7 @@ type TSStatus = { installed: boolean; state: string; loggedIn: boolean; authUrl?
 type TSConfig = { advertiseLan: boolean; routes: string; exitNode: boolean; acceptRoutes: boolean; ssh: boolean };
 type TSData = { installed: boolean; status: TSStatus; config: TSConfig; lanGuess: string };
 
-function Tailscale() {
+export function Tailscale() {
   const { confirm } = useUI();
   const { data, error } = useQuery({ queryKey: ["remote-tailscale"], queryFn: () => api.get<TSData>("/api/remote/tailscale"), refetchInterval: 5000 });
   const [c, setC] = useState<TSConfig | null>(null);
@@ -116,7 +116,7 @@ type TunnelData = {
   proxyEnabled: boolean;
 };
 
-function CloudflareTunnel() {
+export function CloudflareTunnel() {
   const { data, error } = useQuery({ queryKey: ["remote-tunnel"], queryFn: () => api.get<TunnelData>("/api/remote/tunnel"), refetchInterval: 5000 });
   const [c, setC] = useState<{ enabled: boolean; token: string } | null>(null);
   useEffect(() => { if (data && !c) setC({ enabled: data.config.enabled, token: data.config.token ?? "" }); }, [data, c]);
@@ -214,7 +214,7 @@ function certBadge(d: Domain) {
   return <Badge tone="warn" dot>{tr("Self-signed for now")}</Badge>;
 }
 
-function AppDomains() {
+export function AppDomains() {
   const { confirm } = useUI();
   const { data, error } = useQuery({ queryKey: ["remote-domains"], queryFn: () => api.get<DomainsData>("/api/remote/domains"), refetchInterval: 5000 });
   const [email, setEmail] = useState<string | null>(null);

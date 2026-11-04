@@ -57,6 +57,10 @@ type User struct {
 	// and the last one cleared (ids of the notification feed).
 	NotifRead    int64 `json:"notifRead,omitempty"`
 	NotifCleared int64 `json:"notifCleared,omitempty"`
+	// Two-factor setup step of administrators (api/h_access.go): when it
+	// was first shown, and until when "Remind me later" hides it.
+	TwoFactorPrompted  time.Time `json:"twoFactorPrompted,omitzero"`
+	TwoFactorPostponed time.Time `json:"twoFactorPostponed,omitzero"`
 }
 
 type Share struct {
@@ -426,6 +430,20 @@ type ShareLink struct {
 	Uploads      int       `json:"uploads"`
 	Created      time.Time `json:"created"`
 	LastUsed     time.Time `json:"lastUsed,omitzero"`
+	// File requests and statistics (api/h_links.go, store/access.go).
+	Title        string       `json:"title,omitempty"`        // shown to visitors
+	Message      string       `json:"message,omitempty"`      // instructions to visitors
+	AskGuest     string       `json:"askGuest,omitempty"`     // "" | "optional" | "required": name and email of uploaders
+	GuestFolders bool         `json:"guestFolders,omitempty"` // each named guest's files in their own sub-folder
+	MaxFileBytes int64        `json:"maxFileBytes,omitempty"`
+	MaxTotal     int64        `json:"maxTotalBytes,omitempty"` // all uploads together
+	Received     int64        `json:"receivedBytes,omitempty"`
+	Notify       bool         `json:"notify,omitempty"` // tell the owner about uploads
+	Views        int          `json:"views,omitempty"`
+	LastView     time.Time    `json:"lastView,omitzero"`
+	LastDownload time.Time    `json:"lastDownload,omitzero"`
+	LastUpload   time.Time    `json:"lastUpload,omitzero"`
+	UploadLog    []LinkUpload `json:"uploadLog,omitempty"`
 }
 
 // VPN is the WireGuard server of the NAS.
@@ -551,6 +569,8 @@ type State struct {
 	Media     Media           `json:"media,omitzero"`
 	NVR       NVR             `json:"nvr,omitzero"`
 	Console   Console         `json:"console,omitzero"` // appliance screen on the local display
+	// TwoFactor: two-factor authentication required for administrators (store/access.go).
+	TwoFactor TwoFactorPolicy `json:"twoFactor,omitzero"`
 	Mobile    Mobile          `json:"mobile,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).

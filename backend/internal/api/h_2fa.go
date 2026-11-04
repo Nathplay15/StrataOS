@@ -124,6 +124,9 @@ func (s *Server) twoFactorRoutes() {
 			if u == nil || !checkPassword(u.PasswordHash, req.Password) {
 				return badRequest("incorrect password")
 			}
+			if err := keepsSecondFactor(st, u, false, len(u.Passkeys)); err != nil {
+				return err
+			}
 			u.TOTPSecret, u.TOTPPending, u.TOTPLast, u.RecoveryCodes = "", "", 0, nil
 			return nil
 		})

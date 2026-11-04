@@ -93,7 +93,7 @@ export function RecoveryForm({ onBack }: { onBack: () => void }) {
           )}
           <Field label={tr("New password")}><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           <Field label={tr("Confirm the password")}><Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Field>
-          {admin?.twoFactor && <Checkbox checked={removeTwoFactor} onChange={setRemoveTwoFactor} label={<span className="text-[13px] text-muted">{tr("Also remove two-factor authentication (lost phone)")}</span>} />}
+          {admin?.twoFactor && <Checkbox checked={removeTwoFactor} onChange={setRemoveTwoFactor} label={<span className="text-[13px] text-muted">{tr("Also remove two-factor authentication and passkeys (lost phone or key)")}</span>} />}
           <p className="text-muted text-[12px]">{tr("The code is used up by this change. Administrators are notified.")}</p>
           <ErrorBox error={err} />
           <Button variant="primary" className="w-full" loading={busy} icon={<KeyRound size={15} />} type="submit" disabled={!username || !password}>

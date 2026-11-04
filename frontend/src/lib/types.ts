@@ -5,6 +5,17 @@ export interface Me {
   twoFactor?: boolean;
   /** Interface language last reported by a browser (PUT /api/me/lang). */
   lang?: string;
+  twoFactorPrompt?: TwoFactorPrompt;
+}
+
+/** Setup step of administrators without a second factor (api/h_access.go). */
+export interface TwoFactorPrompt {
+  show: boolean;
+  canPostpone: boolean;
+  required: boolean;
+  enforced: boolean;
+  deadline?: string;
+  postponedUntil?: string;
 }
 
 export interface Job {
@@ -535,10 +546,15 @@ export interface UserQuota extends QuotaTarget {
   limit: number;
 }
 
+export type LinkUpload = { time: string; name: string; size: number; guest?: string; email?: string };
 export type ShareLink = {
   id: string; owner: string; path?: string; album?: string; dir: boolean; download: boolean; upload: boolean;
   expires?: string; maxDownloads?: number; downloads: number; uploads: number; created: string; lastUsed?: string;
   password: boolean; name: string;
+  state: "active" | "expired" | "exhausted" | "full";
+  title?: string; message?: string; askGuest?: "" | "optional" | "required"; guestFolders?: boolean;
+  maxFileBytes?: number; maxTotalBytes?: number; receivedBytes?: number; notify?: boolean;
+  views?: number; lastView?: string; lastDownload?: string; lastUpload?: string; uploadLog?: LinkUpload[];
 };
 
 export type LVCache = { mode: string; device?: string; usedPercent: number; dirtyBlocks: number; readHits: number; readMisses: number; writeHits: number; writeMisses: number };

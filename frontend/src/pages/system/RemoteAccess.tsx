@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Globe, Plug, Waypoints } from "lucide-react";
+import { Compass, Globe, Plug, Waypoints } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { Button, Card, ErrorBox, Field, Input, PageHeader, Select, Spinner, Switch } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
 import RemoteExtras from "./RemoteExtras";
+import { RemoteAssistant } from "./RemoteAssistant";
 import { modes, WireGuardTabs, type Mode, type WGConfig, type WGData } from "./WireGuard";
 
 type VPN = WGConfig & { port: number; publicKey: string };
@@ -23,6 +24,7 @@ export default function RemoteAccess() {
     if (data && !d) setD(data.ddns);
   }, [data, c, d]);
   const save = useAction(() => api.put("/api/vpn", c), { success: tr("VPN saved") });
+  const [assistant, setAssistant] = useState(false);
   const saveDDNS = useAction(() => api.put<DDNS>("/api/ddns", d), { success: tr("Dynamic DNS saved"), onDone: (r) => setD(r) });
 
   const header = <PageHeader title={tr("Remote access")} subtitle={tr("WireGuard VPN and dynamic DNS: access the NAS from outside without exposing its services")} icon={<Waypoints size={20} />} />;
@@ -34,7 +36,14 @@ export default function RemoteAccess() {
       {header}
       <ErrorBox error={save.error || saveDDNS.error} />
       <div className="space-y-5">
-        <Card title={<span className="flex items-center gap-2"><Waypoints size={16} className="text-accent" />{tr("WireGuard VPN server")}</span>} actions={data.installed && <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3"><Compass size={22} className="mt-0.5 shrink-0 text-accent" /><div><div className="font-medium">{tr("Not sure which method to use?")}</div><div className="text-muted text-[13px]">{tr("The assistant asks what you want to reach from outside, recommends a method for your network, helps set it up and tests it.")}</div></div></div>
+            <Button variant="primary" onClick={() => setAssistant(true)}>{tr("Start the assistant")}</Button>
+          </div>
+        </Card>
+        <RemoteAssistant open={assistant} onClose={() => setAssistant(false)} />
+        <Card id="remote-wireguard" title={<span className="flex items-center gap-2"><Waypoints size={16} className="text-accent" />{tr("WireGuard VPN server")}</span>} actions={data.installed && <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
           {!data.installed ? (
             <div className="flex flex-wrap items-center justify-between gap-3"><div className="text-muted text-[13px]">{tr("WireGuard is not installed.")}</div><Button variant="primary" icon={<Plug size={15} />} loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button></div>
           ) : (

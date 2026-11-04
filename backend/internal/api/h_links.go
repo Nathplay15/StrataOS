@@ -2,9 +2,12 @@ package api
 
 // Share links: a file, a folder or a photo album reachable without an account
 // at /s/<id>, optionally protected by a password, with an expiry date and a
-// download limit. Folders can also receive files (drop box). A link acts with
-// the rights of its owner, checked again on every request: it stops working
-// when the owner loses access or is disabled.
+// download limit. Folders can also receive files: a file request when the
+// content stays hidden (upload only), with an optional name and email of the
+// sender, size limits and a notification to the owner. A link acts with the
+// rights of its owner, checked again on every request: it stops working when
+// the owner loses access or is disabled. Visitors are rate limited per
+// address (linkReads, linkUploads); views, downloads and uploads are counted.
 
 import (
 	"crypto/hmac"
@@ -12,10 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
-	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -75,12 +75,13 @@ type linkView struct {
 	*store.ShareLink
 	Password bool   `json:"password"`
 	Name     string `json:"name"`
+	State    string `json:"state"` // gate.Link*
 }
 
 func (s *Server) viewLink(l *store.ShareLink, albums []*store.Album) linkView {
 	c := *l
 	c.PasswordHash = ""
-	v := linkView{ShareLink: &c, Password: l.PasswordHash != "", Name: filepath.Base(l.Path)}
+	v := linkView{ShareLink: &c, Password: l.PasswordHash != "", Name: filepath.Base(l.Path), State: linkLimits(l).State(time.Now())}
 	for _, a := range albums {
 		if a.ID == l.Album {
 			v.Name = a.Name
@@ -208,13 +209,11 @@ func (s *Server) linkRoutes() {
 
 	s.user("POST /api/links", func(r *http.Request) (any, error) {
 		var req struct {
-			Path         string `json:"path"`
-			Album        string `json:"album"`
-			Download     bool   `json:"download"`
-			Upload       bool   `json:"upload"`
-			Password     string `json:"password"`
-			ExpiresDays  int    `json:"expiresDays"`
-			MaxDownloads int    `json:"maxDownloads"`
+			Path     string `json:"path"`
+			Album    string `json:"album"`
+			Download bool   `json:"download"`
+			Upload   bool   `json:"upload"`
+			linkOptions
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -264,23 +263,9 @@ func (s *Server) linkRoutes() {
 		if !l.Download && !l.Upload {
 			return nil, badRequest("the link must allow downloading or uploading")
 		}
-		if req.Password != "" {
-			if len(req.Password) < 4 {
-				return nil, badRequest("password too short")
-			}
-			h, err := hashPassword(req.Password)
-			if err != nil {
-				return nil, err
-			}
-			l.PasswordHash = h
+		if err := req.linkOptions.apply(l, time.Now()); err != nil {
+			return nil, err
 		}
-		if req.ExpiresDays < 0 || req.ExpiresDays > 3650 || req.MaxDownloads < 0 {
-			return nil, badRequest("invalid limits")
-		}
-		if req.ExpiresDays > 0 {
-			l.Expires = time.Now().AddDate(0, 0, req.ExpiresDays)
-		}
-		l.MaxDownloads = req.MaxDownloads
 		var albums []*store.Album
 		err := s.store.Update(func(st *store.State) error {
 			if len(st.Links) >= 5000 {
@@ -293,8 +278,54 @@ func (s *Server) linkRoutes() {
 		if err != nil {
 			return nil, err
 		}
-		s.audit(r, "links", "Share link created for "+firstNonEmpty(l.Path, "album "+l.Album))
+		if l.Upload && !l.Download {
+			s.audit(r, "links", "File request created for "+l.Path)
+		} else {
+			s.audit(r, "links", "Share link created for "+firstNonEmpty(l.Path, "album "+l.Album))
+		}
 		return s.viewLink(l, albums), nil
+	})
+
+	// Changes the options of a link (expiry, password, limits, file request).
+	s.user("PUT /api/links/{id}", func(r *http.Request) (any, error) {
+		var req linkOptions
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		id, me, admin := r.PathValue("id"), userOf(r), isAdmin(r)
+		// Hash a new password outside the state lock.
+		if req.Password != nil && *req.Password != "" {
+			var tmp store.ShareLink
+			if err := (linkOptions{Password: req.Password}).apply(&tmp, time.Now()); err != nil {
+				return nil, err
+			}
+			req.Password, req.ClearPassword = nil, false
+			req.hashed = tmp.PasswordHash
+		}
+		var view linkView
+		err := s.store.Update(func(st *store.State) error {
+			for _, l := range st.Links {
+				if l.ID != id || (l.Owner != me && !admin) {
+					continue
+				}
+				c := *l
+				if err := req.apply(&c, time.Now()); err != nil {
+					return err
+				}
+				if req.hashed != "" {
+					c.PasswordHash = req.hashed
+				}
+				*l = c
+				view = s.viewLink(l, st.Photos.Albums)
+				return nil
+			}
+			return notFound("link not found")
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "links", "Share link changed: "+view.Name)
+		return view, nil
 	})
 
 	s.user("DELETE /api/links/{id}", func(r *http.Request) (any, error) {
@@ -318,17 +349,30 @@ func (s *Server) linkRoutes() {
 	})
 
 	// ---- Visitor side (no account) ----
-	s.public("GET /api/s/{id}", func(r *http.Request) (any, error) {
+	s.mux.Handle("GET /api/s/{id}", linkRate(linkReads, s.wrap(func(r *http.Request) (any, error) {
 		l, admin, err := s.openLink(r.PathValue("id"))
 		if err != nil {
 			return nil, err
 		}
-		info := map[string]any{"password": l.PasswordHash != "", "unlocked": s.linkUnlocked(r, &l), "dir": l.Dir, "download": l.Download, "upload": l.Upload, "owner": l.Owner}
+		unlocked := s.linkUnlocked(r, &l)
+		if now := time.Now(); countView(l.ID, clientIP(r), now) {
+			s.touchLink(l.ID, func(x *store.ShareLink) { x.Views++; x.LastView = now })
+		}
+		info := map[string]any{"password": l.PasswordHash != "", "unlocked": unlocked, "dir": l.Dir, "download": l.Download, "upload": l.Upload, "owner": l.Owner, "title": l.Title}
 		if !l.Expires.IsZero() {
 			info["expires"] = l.Expires
 		}
 		if l.MaxDownloads > 0 {
 			info["downloadsLeft"] = max(0, l.MaxDownloads-l.Downloads)
+		}
+		if l.Upload && unlocked {
+			info["message"], info["askGuest"] = l.Message, l.AskGuest
+			if l.MaxFileBytes > 0 {
+				info["maxFileBytes"] = l.MaxFileBytes
+			}
+			if l.MaxTotal > 0 {
+				info["uploadLeft"] = max(0, l.MaxTotal-l.Received)
+			}
 		}
 		if l.Album != "" {
 			a, _, err := s.albumItems(&l, admin)
@@ -343,6 +387,9 @@ func (s *Server) linkRoutes() {
 			return nil, err
 		}
 		info["name"] = filepath.Base(t.abs)
+		if !l.Download && l.Title != "" {
+			info["name"] = l.Title // a file request: the folder name is not needed
+		}
 		if !l.Dir {
 			if rt, err := t.open(); err == nil {
 				if st, err := rt.Stat(t.rel); err == nil {
@@ -352,7 +399,7 @@ func (s *Server) linkRoutes() {
 			}
 		}
 		return info, nil
-	})
+	})))
 
 	s.mux.HandleFunc("POST /api/s/{id}/unlock", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
@@ -388,7 +435,7 @@ func (s *Server) linkRoutes() {
 	})
 
 	// Folder content or album photos.
-	s.public("GET /api/s/{id}/files", func(r *http.Request) (any, error) {
+	s.mux.Handle("GET /api/s/{id}/files", linkRate(linkReads, s.wrap(func(r *http.Request) (any, error) {
 		l, admin, err := s.openLink(r.PathValue("id"))
 		if err != nil {
 			return nil, err
@@ -451,9 +498,9 @@ func (s *Server) linkRoutes() {
 			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 		})
 		return map[string]any{"path": filepath.ToSlash(filepath.Clean("/" + sub)), "entries": out}, nil
-	})
+	})))
 
-	s.mux.HandleFunc("GET /api/s/{id}/download", func(w http.ResponseWriter, r *http.Request) {
+	s.mux.Handle("GET /api/s/{id}/download", linkRate(linkReads, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l, admin, err := s.openLink(r.PathValue("id"))
 		if err != nil {
 			writeErr(w, err)
@@ -487,16 +534,19 @@ func (s *Server) linkRoutes() {
 			writeErr(w, err)
 			return
 		}
-		count := r.URL.Query().Get("inline") != "1" // previews are not downloads
-		s.serveTarget(w, r, t, func() {
-			if count {
-				s.touchLink(l.ID, func(x *store.ShareLink) { x.Downloads++ })
+		// Previews and resumed parts are not downloads; a download is
+		// counted before it starts so the limit holds.
+		if r.URL.Query().Get("inline") != "1" && firstRange(r) {
+			if err := s.reserveDownload(l.ID); err != nil {
+				writeErr(w, err)
+				return
 			}
-		})
-	})
+		}
+		s.serveTarget(w, r, t, nil)
+	})))
 
 	// Thumbnails of the photos of an album or a folder link.
-	s.mux.HandleFunc("GET /api/s/{id}/thumb", func(w http.ResponseWriter, r *http.Request) {
+	s.mux.Handle("GET /api/s/{id}/thumb", linkRate(linkReads, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l, admin, err := s.openLink(r.PathValue("id"))
 		if err != nil || !s.linkUnlocked(r, &l) || !l.Download {
 			writeErr(w, firstErr(err, &Error{Status: http.StatusUnauthorized, Msg: "password required"}))
@@ -530,77 +580,8 @@ func (s *Server) linkRoutes() {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "private, max-age=86400")
 		http.ServeFile(w, r, f)
-	})
+	})))
 
-	// Drop box: visitors add files to the folder (never overwriting).
-	s.mux.HandleFunc("POST /api/s/{id}/upload", func(w http.ResponseWriter, r *http.Request) {
-		if !sameOrigin(r) {
-			writeErr(w, &Error{Status: http.StatusForbidden, Msg: "cross-site request refused"})
-			return
-		}
-		l, admin, err := s.openLink(r.PathValue("id"))
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		if !s.linkUnlocked(r, &l) {
-			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: "password required"})
-			return
-		}
-		t, err := s.linkTarget(&l, admin, "")
-		if err != nil || !l.Upload || !t.acc.write {
-			writeErr(w, firstErr(err, &Error{Status: http.StatusForbidden, Msg: "this link cannot receive files"}))
-			return
-		}
-		rt, err := t.open()
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		defer rt.Close()
-		mr, err := r.MultipartReader()
-		if err != nil {
-			writeErr(w, badRequest("multipart body expected"))
-			return
-		}
-		var names []string
-		for {
-			part, err := mr.NextPart()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				writeErr(w, badRequest(err.Error()))
-				return
-			}
-			_, params, _ := mime.ParseMediaType(part.Header.Get("Content-Disposition"))
-			name := filepath.Base(filepath.Clean("/" + filepath.ToSlash(params["filename"])))
-			if name == "/" || name == "." || strings.HasPrefix(name, ".") || len(name) > 255 {
-				continue
-			}
-			name = uniqueName(func(n string) bool { _, err := rt.Lstat(path.Join(t.rel, n)); return err == nil }, name)
-			rel := path.Join(t.rel, name)
-			f, err := rt.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o664)
-			if err != nil {
-				writeErr(w, badRequest(err.Error()))
-				return
-			}
-			_, err = io.Copy(f, part)
-			f.Close()
-			if err != nil {
-				_ = rt.Remove(rel)
-				writeErr(w, err)
-				return
-			}
-			if !admin {
-				s.chownTo(l.Owner, rt, rel)
-			}
-			names = append(names, name)
-		}
-		if len(names) > 0 {
-			s.touchLink(l.ID, func(x *store.ShareLink) { x.Uploads += len(names) })
-			s.store.Log("info", "links", l.Owner, fmt.Sprintf("Drop by link: %d file(s) received in %s", len(names), t.abs))
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"uploaded": len(names), "names": names})
-	})
+	// Drop box / file request: visitors add files (never overwriting).
+	s.mux.Handle("POST /api/s/{id}/upload", linkRate(linkUploads, http.HandlerFunc(s.linkUpload)))
 }

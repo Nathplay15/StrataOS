@@ -5,6 +5,7 @@ import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { AppLink } from "../../components/AppLink";
 import { ReplaceLink } from "../storage/ReplaceDisk";
+import { revealElement } from "../../lib/intent";
 import { Ring } from "../../components/charts";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, useUI } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
@@ -69,7 +70,7 @@ export default function SecurityAdvisor() {
           const devs = srv(it.title).match(/\/dev\/[\w/-]+/g) ?? [];
           return <ReplaceLink sel={devs.length === 1 ? { disk: devs[0] } : {}}><Button size="sm" variant="primary" icon={<Replace size={13} />}>{tr("Replace a disk")}</Button></ReplaceLink>;
         })()}
-        {it.link && <AppLink to={it.link}><Button size="sm" variant="ghost" icon={<ExternalLink size={13} />}>{tr("Open the setting")}</Button></AppLink>}
+        {it.link && <span onClick={() => { const h = it.link!.split("#")[1]; if (h) revealElement(h); }}><AppLink to={it.link.split("#")[0]}><Button size="sm" variant="ghost" icon={<ExternalLink size={13} />}>{tr("Open the setting")}</Button></AppLink></span>}
         <Button size="sm" variant="ghost" icon={it.ignored ? <Eye size={13} /> : <EyeOff size={13} />} onClick={() => ignore.mutate({ id: it.id, ignored: !it.ignored })}>
           {it.ignored ? tr("Watch again") : tr("Ignore")}
         </Button>

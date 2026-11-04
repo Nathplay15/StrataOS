@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"strataos/internal/accounts"
+	"strataos/internal/gate"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 	"strataos/internal/system"
@@ -46,6 +47,8 @@ type meResp struct {
 	Role      string `json:"role"`
 	TwoFactor bool   `json:"twoFactor"`
 	Lang      string `json:"lang,omitempty"` // interface language last reported (PUT /api/me/lang)
+	// TwoFactorPrompt: the setup step of administrators (h_access.go).
+	TwoFactorPrompt *gate.Prompt `json:"twoFactorPrompt,omitempty"`
 }
 
 func (s *Server) authRoutes() {
@@ -167,6 +170,17 @@ func (s *Server) authRoutes() {
 			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: errBadLogin.Error()})
 			return
 		}
+		var passkeyOnly bool
+		s.store.Read(func(st *store.State) {
+			if x := st.User(u.Username); x != nil {
+				passkeyOnly = passkeyOnlyBlocked(st, x, time.Now())
+			}
+		})
+		if passkeyOnly {
+			// Password right, but the policy wants the passkey (h_access.go).
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "two-factor authentication is required for administrators: sign in with your passkey", "passkeyRequired": true})
+			return
+		}
 		if u.TOTPSecret != "" {
 			if strings.TrimSpace(req.Code) == "" {
 				// Password is right: ask for the second factor (does not count as a failure).
@@ -187,7 +201,7 @@ func (s *Server) authRoutes() {
 		}
 		s.setCookie(w, r, s.sessions.create(u.Username, u.Role, ip, ttl), ttl)
 		s.store.Log("info", "auth", u.Username, "Signed in from "+ip)
-		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""})
+		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != "", TwoFactorPrompt: s.twoFactorPrompt(u.Username, true)})
 	}))
 
 	s.userRaw("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +219,9 @@ func (s *Server) authRoutes() {
 				m = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != "", Lang: u.Lang}
 			}
 		})
+		if m.Username != "" {
+			m.TwoFactorPrompt = s.twoFactorPrompt(m.Username, true)
+		}
 		return m, nil
 	})
 
