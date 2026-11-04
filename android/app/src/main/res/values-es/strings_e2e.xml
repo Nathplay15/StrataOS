@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">Cifrado de extremo a extremo</string>
+    <string name="e2e_folder_notice">Carpeta cifrada de extremo a extremo: los nombres y el contenido los cifra la aplicación de escritorio StrataOS Sync y solo se pueden leer allí. La aplicación del teléfono aún no puede abrirlos.</string>
+    <string name="e2e_cannot_open">Este archivo está cifrado de extremo a extremo: ábralo con la aplicación de escritorio StrataOS Sync.</string>
+    <string name="e2e_sync_unsupported">Carpeta cifrada de extremo a extremo: el teléfono aún no puede sincronizarla (use la aplicación de escritorio).</string>
+</resources>

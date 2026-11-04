@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">Cifratura end-to-end</string>
+    <string name="e2e_folder_notice">Cartella con cifratura end-to-end: nomi e contenuti sono cifrati dall\'app desktop StrataOS Sync e possono essere letti solo lì. L\'app per telefono non può ancora aprirli.</string>
+    <string name="e2e_cannot_open">Questo file ha la cifratura end-to-end: aprilo con l\'app desktop StrataOS Sync.</string>
+    <string name="e2e_sync_unsupported">Cartella con cifratura end-to-end: il telefono non può ancora sincronizzarla (usa l\'app desktop).</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">端到端加密</string>
+    <string name="e2e_folder_notice">端到端加密文件夹：名称和内容由 StrataOS Sync 桌面应用加密，只能在该应用中读取。手机应用暂时无法打开。</string>
+    <string name="e2e_cannot_open">此文件已端到端加密：请使用 StrataOS Sync 桌面应用打开。</string>
+    <string name="e2e_sync_unsupported">端到端加密文件夹：手机暂时无法同步（请使用桌面应用）。</string>
+</resources>

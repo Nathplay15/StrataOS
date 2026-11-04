@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">End-to-end versleuteld</string>
+    <string name="e2e_folder_notice">End-to-end versleutelde map: namen en inhoud worden versleuteld door de desktop-app StrataOS Sync en kunnen alleen daar worden gelezen. De telefoon-app kan ze nog niet openen.</string>
+    <string name="e2e_cannot_open">Dit bestand is end-to-end versleuteld: open het met de desktop-app StrataOS Sync.</string>
+    <string name="e2e_sync_unsupported">End-to-end versleutelde map: de telefoon kan hem nog niet synchroniseren (gebruik de desktop-app).</string>
+</resources>

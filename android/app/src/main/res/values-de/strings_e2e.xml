@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">Ende-zu-Ende-verschlüsselt</string>
+    <string name="e2e_folder_notice">Ende-zu-Ende-verschlüsselter Ordner: Namen und Inhalte werden von der StrataOS-Sync-Desktop-App verschlüsselt und können nur dort gelesen werden. Die Smartphone-App kann sie noch nicht öffnen.</string>
+    <string name="e2e_cannot_open">Diese Datei ist Ende-zu-Ende-verschlüsselt: Öffnen Sie sie mit der StrataOS-Sync-Desktop-App.</string>
+    <string name="e2e_sync_unsupported">Ende-zu-Ende-verschlüsselter Ordner: Das Smartphone kann ihn noch nicht synchronisieren (verwenden Sie die Desktop-App).</string>
+</resources>

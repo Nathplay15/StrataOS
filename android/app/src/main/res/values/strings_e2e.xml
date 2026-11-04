@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- End-to-end encrypted sync folders (made with the desktop app): shown, not opened.
-     English and French only for now: the other languages come with the integration
-     (then drop tools:ignore). -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<!-- End-to-end encrypted sync folders (made with the desktop app): shown, not opened. -->
+<resources>
     <string name="e2e_badge">End-to-end encrypted</string>
     <string name="e2e_folder_notice">End-to-end encrypted folder: names and contents are encrypted by the StrataOS Sync desktop app and can only be read there. The phone app cannot open them yet.</string>
     <string name="e2e_cannot_open">This file is end-to-end encrypted: open it with the StrataOS Sync desktop app.</string>

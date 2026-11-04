@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="e2e_badge">Criptografia de ponta a ponta</string>
+    <string name="e2e_folder_notice">Pasta com criptografia de ponta a ponta: os nomes e o conteúdo são criptografados pelo app de desktop StrataOS Sync e só podem ser lidos nele. O app do celular ainda não consegue abri-los.</string>
+    <string name="e2e_cannot_open">Este arquivo tem criptografia de ponta a ponta: abra-o com o app de desktop StrataOS Sync.</string>
+    <string name="e2e_sync_unsupported">Pasta com criptografia de ponta a ponta: o celular ainda não consegue sincronizá-la (use o app de desktop).</string>
+</resources>
