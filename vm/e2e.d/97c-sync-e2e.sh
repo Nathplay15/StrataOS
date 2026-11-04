@@ -18,7 +18,7 @@ pair_client() { # pair_client CONFIG NAME
   local pr; pr=$(u POST /api/me/devices/pairing)
   sx --config "$1" pair --server "$HTTPS" --code "$(echo "$pr" | py 'print(d["code"])')" --fingerprint "$(echo "$pr" | py 'print(d["fingerprint"])')" --name "$2" 2>&1
 }
-once() { timeout -s QUIT 240 sx --config "$1" sync-once 2>&1; }
+once() { STRATA_LANG=en timeout -s QUIT 240 "$S" --config "$1" sync-once 2>&1; }
 check "first computer paired" "$(pair_client "$EA" e2e-enc-a)" "paired with"
 check "second computer paired" "$(pair_client "$EB" e2e-enc-b)" "paired with"
 TOKA=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['token'])" "$EA/config.json")
