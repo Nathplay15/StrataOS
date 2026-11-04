@@ -54,7 +54,7 @@ func (s *Server) twoFactorPrompt(name string, mark bool) *gate.Prompt {
 			p = gate.TwoFactorPrompt(policyOf(st), accountOf(u), now)
 		}
 	})
-	if !p.Show && !p.Required {
+	if !p.Show && !p.Required && p.Postponed.IsZero() {
 		return nil
 	}
 	return &p

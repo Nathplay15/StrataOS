@@ -168,6 +168,29 @@ func tlsError(err error) string {
 	return "error"
 }
 
+// verifyTLS checks the certificate like a browser, the chain first (so a
+// self-signed certificate is reported as such, whatever its name), then the
+// dates and the name.
+func verifyTLS(ctx context.Context, d *net.Dialer, addr, host string) string {
+	c, err := (&tls.Dialer{NetDialer: d, Config: &tls.Config{ServerName: host, InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}}).DialContext(ctx, "tcp4", addr) //nolint:gosec // verified below
+	if err != nil {
+		return "error"
+	}
+	defer c.Close()
+	certs := c.(*tls.Conn).ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return "error"
+	}
+	inter := x509.NewCertPool()
+	for _, x := range certs[1:] {
+		inter.AddCert(x)
+	}
+	if _, err := certs[0].Verify(x509.VerifyOptions{Intermediates: inter}); err != nil {
+		return tlsError(err)
+	}
+	return tlsError(certs[0].VerifyHostname(host))
+}
+
 type checkReq struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
@@ -226,11 +249,7 @@ func (s *Server) reachCheck(ctx context.Context, req checkReq) checkResp {
 	if req.HTTP {
 		scheme, p.TLS = "http", "skipped"
 	} else {
-		tc, err := (&tls.Dialer{NetDialer: d, Config: &tls.Config{ServerName: req.Host, MinVersion: tls.VersionTLS12}}).DialContext(ctx, "tcp4", addr)
-		p.TLS = tlsError(err)
-		if err == nil {
-			tc.Close()
-		}
+		p.TLS = verifyTLS(ctx, d, addr, req.Host)
 	}
 	if p.TLS == "" || p.TLS == "skipped" || p.TLS == "untrusted" || p.TLS == "expired" || p.TLS == "name" {
 		// Go on past a certificate problem to see who answers.
