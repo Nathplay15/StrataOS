@@ -184,6 +184,7 @@ var fleetDash struct {
 	at         time.Time                 // end of the last refresh
 	viewed     time.Time
 	refreshing bool
+	fresh      bool          // the running refresh asks for fresh reports
 	done       chan struct{} // closed at the end of the running refresh
 }
 
@@ -213,16 +214,21 @@ func fleetHealthOf(ctx context.Context, m store.FleetMember, fresh bool) (*fleet
 // running is waited for instead of starting another.
 func (s *Server) fleetHealthRefresh(ctx context.Context, fresh bool) {
 	fleetDash.Lock()
-	if fleetDash.refreshing {
-		done := fleetDash.done
+	for fleetDash.refreshing {
+		done, wasFresh := fleetDash.done, fleetDash.fresh
 		fleetDash.Unlock()
 		select {
 		case <-done:
 		case <-ctx.Done():
+			return
 		}
-		return
+		if wasFresh || !fresh {
+			return
+		}
+		// A background refresh was running: ask again for fresh reports.
+		fleetDash.Lock()
 	}
-	fleetDash.refreshing, fleetDash.done = true, make(chan struct{})
+	fleetDash.refreshing, fleetDash.fresh, fleetDash.done = true, fresh, make(chan struct{})
 	prev := fleetDash.rows
 	fleetDash.Unlock()
 
