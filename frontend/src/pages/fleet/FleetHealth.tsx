@@ -190,9 +190,9 @@ export function FleetHealthBoard({ onUpdate }: { onUpdate: (id: string) => void 
   const toggle = (id: string) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
 
   return (
-    <div className="space-y-4">
+    <div className="@container space-y-4">
       <ErrorBox error={q.error || refresh.error} />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 @xl:grid-cols-2 @4xl:grid-cols-4">
         <div className={`rounded-xl border p-4 ${t.attention ? (t.critical ? "border-danger/40 bg-danger/5" : "border-warn/40 bg-warn/5") : "border-ok/40 bg-ok/5"}`}>
           <div className="flex items-center gap-2 font-semibold">
             {t.attention ? <AlertTriangle size={17} className={t.critical ? "text-danger" : "text-warn"} /> : <CheckCircle2 size={17} className="text-ok" />}
