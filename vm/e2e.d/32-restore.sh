@@ -13,8 +13,11 @@ SCH=$(c POST /api/schedules -d "{\"name\":\"e2e snapshots\",\"type\":\"snapshot\
 check "schedule with daily/monthly retention" "$(c GET /api/schedules | py "print([(s['keepDaily'],s['keepMonthly']) for s in d if s['id']=='$SCH'])")" "[(2, 3)]"
 check "retention required" "$(c POST /api/schedules -d "{\"name\":\"x\",\"type\":\"snapshot\",\"cron\":\"0 0 * * *\",\"enabled\":false,\"targetKind\":\"btrfs\",\"target\":\"$FASTID\"}")" "set a retention"
 check "negative retention refused" "$(c POST /api/schedules -d "{\"name\":\"x\",\"type\":\"snapshot\",\"cron\":\"0 0 * * *\",\"enabled\":false,\"targetKind\":\"btrfs\",\"target\":\"$FASTID\",\"keepHourly\":-1}")" "positive"
-check "shared folders offered as snapshot targets" "$(c GET /api/schedules/targets | py 'print(sorted(s["share"] for s in d["shares"]))')" "Photos"
+vm "sudo mkdir -p $FAST/rtest"
+c POST /api/shares -d "{\"name\":\"RTest\",\"path\":\"$FAST/rtest\",\"smb\":true,\"browseable\":true,\"permissions\":{}}" >/dev/null
+check "shared folders offered as snapshot targets" "$(c GET /api/schedules/targets | py 'print([(s["share"], s["kind"], s["value"]) for s in d["shares"]])')" "('RTest', 'btrfs', '$FASTID')"
 # Older snapshots of this task, dated by their name.
+vm "sudo mkdir -p $FAST/.snapshots"
 for st in 20260101-010000 20260101-020000 20260101-030000 20260102-120000 20260201-120000; do
   vm "sudo btrfs subvolume snapshot -r $FAST $FAST/.snapshots/root@auto-$SCH-$st >/dev/null"
 done
@@ -26,6 +29,7 @@ check "three kept" "$(vm "sudo ls $FAST/.snapshots | grep -c 'root@auto-$SCH-'")
 NEWSNAP=$(vm "sudo ls $FAST/.snapshots | grep 'root@auto-$SCH-' | sort | tail -1" | tr -d '\r')
 
 # ---- Guided restore from the snapshot ----
+sleep 2 # the change must be later than the snapshot (dates compare at the second)
 vm "echo version-two-longer | sudo tee $FAST/rtest/doc.txt >/dev/null; sudo rm $FAST/rtest/sub/other.txt"
 SRC="snap:$FAST"
 check "snapshot source listed" "$(c GET /api/restore/sources | py 'print([s["id"] for s in d])')" "$SRC"
@@ -39,8 +43,8 @@ check "preview to a folder: all new" "$(c POST /api/restore/preview -d "{$RQ,\"m
 check "target outside the volumes refused" "$(c POST /api/restore/preview -d "{$RQ,\"mode\":\"folder\",\"target\":\"/etc\"}")" "error"
 check "target inside the selection refused" "$(c POST /api/restore/preview -d "{$RQ,\"mode\":\"folder\",\"target\":\"$FAST/rtest/x\"}")" "inside"
 check "restore keeping both" "$(job "$(c POST /api/restore/run -d "{$RQ,\"mode\":\"inplace\",\"policy\":\"rename\"}")")" "success"
-check "current file kept, restored copy renamed" "$(vm "sudo cat $FAST/rtest/doc.txt; sudo cat '$FAST/rtest/doc (restored '*').txt'; sudo cat $FAST/rtest/sub/other.txt" | tr '\n' ' ')" "version-two-longer version-one keep"
-vm "sudo rm -f '$FAST/rtest/doc (restored '*').txt'"
+check "current file kept, restored copy renamed" "$(vm "sudo sh -c 'cat $FAST/rtest/doc.txt \"$FAST/rtest/doc (restored \"*\").txt\" $FAST/rtest/sub/other.txt'" | tr '\n' ' ')" "version-two-longer version-one keep"
+vm "sudo sh -c 'rm -f \"$FAST/rtest/doc (restored \"*\").txt\"'"
 check "restore to a folder" "$(job "$(c POST /api/restore/run -d "{$RQ,\"mode\":\"folder\",\"target\":\"$FAST/restored\",\"policy\":\"skip\"}")")" "success"
 check "restored under the folder" "$(vm "sudo cat $FAST/restored/rtest/doc.txt")" "version-one"
 check "restore overwriting" "$(job "$(c POST /api/restore/run -d "{\"source\":\"$SRC\",\"point\":\"$NEWSNAP\",\"paths\":[\"$FAST/rtest/doc.txt\"],\"mode\":\"inplace\",\"policy\":\"overwrite\"}")")" "success"
@@ -94,5 +98,6 @@ c PUT /api/protection -d '{"restoreTestOff":false}' >/dev/null
 c DELETE /api/backups/$RB >/dev/null
 c DELETE /api/backups/$RC >/dev/null
 c DELETE /api/schedules/$SCH >/dev/null
+c DELETE /api/shares/RTest >/dev/null
 vm "for s in \$(sudo ls $FAST/.snapshots | grep -e 'root@auto-$SCH-' -e 'root@pre-restore-'); do sudo btrfs subvolume delete $FAST/.snapshots/\$s >/dev/null; done; sudo rm -rf $FAST/rtest $FAST/restored $FAST/restic-e2e $FAST/rsync-e2e /srv/strata/main/rtest"
 c POST /api/security/advisor/run >/dev/null
