@@ -260,6 +260,17 @@ Conflicts answer **412** `{"error", "conflict": true, "current": <entry or null>
 
 The server side is `backend/internal/api/sync*.go` and `backend/internal/syncjournal`: a per-share index of files numbered by change (gzipped gob in `/var/lib/strata/sync-index/`), loaded when a client asks, refreshed by inotify (one watch per folder; past the limit, full rescans every minute) and a full rescan every 5 minutes, so changes made over SMB, NFS, SFTP or the web appear like the others. Hashes are computed in the background for files up to 256 MB and cached by inode, size and date (a move keeps its hash). An index unused for an hour is saved and closed; the next request reloads it and rescans.
 
+## Disk replacement
+
+`storage/replace.go` decides, `storage/replace_run.go` acts, `api/h_replace.go` drives the job:
+
+- **Groups** (`storage.ReplaceGroups`): each mdadm array, each data vdev of a ZFS pool (`ParseZTopology` reads `zpool status -P`, `replacing-N` included) and each LVM volume group whose physical volumes are disks or partitions (a VG on an md array is replaced at the RAID level), with its members mapped to whole disks (serial, size) and the number of members it can lose.
+- **Plan** (`storage.PlanReplace(ReplaceFacts, ReplaceSel)`, pure, tested in `replace_test.go`): finds the group and member from a disk, a group ID (`raid:<md>`, `zfs:<pool>:<vdev>`, `zfs:<pool>` = its vdev with a missing disk, `lvm:<vg>`) or a member; offers `add-first` (old disk still working: `mdadm --replace`, `zpool replace`, `pvmove`) and `degraded` (member missing or faulty: `mdadm --add`, `zpool replace <guid>`); computes the size the new disk needs, the redundancy left, the warnings (other disks wearing, old or no backup) and the candidates; refuses no redundancy (RAID 0/JBOD), too many members missing, another member failing SMART, add-first on an already degraded array, a rebuild running, LVM with a missing PV or cache/RAID/thin LVs, a spare, and a new disk that is too small, in use, busy (burn-in) or failing.
+- **Run** (`ReplaceOp.Start` / `Poll` / `Finish`): erase the new disk, hand it over, follow `/proc/mdstat`, `zpool status` or `lvs -a` (`pvmove -b` runs in lvmpolld), then remove the old member (`mdadm --remove` + `--zero-superblock`, `zpool labelclear`, `vgreduce` + `pvremove`).
+- **API**: `GET /api/storage/replace/plan?disk=|group=&member=&mode=&new=` (plan, `ledctl`, the running replacement of the group), `POST /api/storage/replace` `{disk|group, member, mode, new, confirm (new disk name), smartTest}` → `{job, id}`, `GET /api/storage/replace` (records with live `progress`, `eta`, `waiting`), `POST /api/storage/replace/{id}/locate` `{on}` (`ledctl locate=`), `DELETE /api/storage/replace/{id}` (a finished record). The POST plans again with fresh facts: the browser's plan is never trusted.
+- **State**: `State.DiskReplacements` (20 kept), saved at each phase (`check`, `add`, `rebuild`, `remove`, `done`, `failed`) with the serial numbers of both disks; `replaceResume` resumes the `rebuild`/`remove` phases after a restart, finding the disks again by serial number. Alerts of degraded arrays, faulted pools and weak or failing disks carry `replace` (the selection), which the dashboard turns into a button (intent `disks`).
+- **End-to-end**: `vm/e2e.d/72-disk-replace.sh`, on 4 extra disks (`VM_DISKS=13`, which `make vm-test` uses).
+
 ## Releases
 
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.

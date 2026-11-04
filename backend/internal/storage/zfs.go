@@ -25,7 +25,16 @@ type ZPool struct {
 	Status string `json:"status,omitempty"` // raw `zpool status` text
 	// Problems lists leaf devices that are not ONLINE (to offer a replacement).
 	Problems []ZProblem `json:"problems,omitempty"`
+	// Scan is the scrub or resilver running now (nil when none).
+	Scan     *ZScanInfo `json:"scan,omitempty"`
 	Datasets []ZDataset `json:"datasets,omitempty"`
+}
+
+// ZScanInfo is a running scrub or resilver ("Rebuilding x %" for a resilver).
+type ZScanInfo struct {
+	Kind     string  `json:"kind"` // scrub | resilver
+	Progress float64 `json:"progress"`
+	ETA      int64   `json:"eta,omitempty"` // seconds left, 0 when unknown
 }
 
 type ZProblem struct {
@@ -137,6 +146,10 @@ func ListZPools(withDetail bool) ([]ZPool, error) {
 		if withDetail {
 			p.Status, _ = sys.Run("zpool", "status", "-P", p.Name)
 			p.Problems = parseProblems(p.Status)
+			if z := ParseZScan(p.Status); z.Running {
+				pct, eta := ParseZScanProgress(p.Status)
+				p.Scan = &ZScanInfo{Kind: z.Kind, Progress: pct, ETA: eta}
+			}
 			p.Datasets, _ = ListZDatasets(p.Name, "filesystem,volume")
 		}
 		pools = append(pools, p)

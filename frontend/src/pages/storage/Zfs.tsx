@@ -4,10 +4,11 @@ import { Boxes, Camera, Download, FolderPlus, Plus, RotateCcw, ShieldCheck, Tras
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { ZDataset, ZPool } from "../../lib/types";
-import { bytes, cx, dateTime, parseSize, pct } from "../../lib/format";
+import { bytes, cx, dateTime, duration, parseSize, pct } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
 import { DiskPicker } from "../../components/DiskPicker";
 import { tr } from "../../lib/i18n";
+import { ReplaceBanner, ReplaceWizard, type ReplaceSel } from "./ReplaceDisk";
 
 type VDev = { type: string; disks: string[] };
 const vdevTypes = [
@@ -130,16 +131,15 @@ function Datasets({ pool }: { pool: ZPool }) {
   );
 }
 
-function PoolCard({ p }: { p: ZPool }) {
+function PoolCard({ p, onReplace }: { p: ZPool; onReplace: (s: ReplaceSel) => void }) {
   const { confirm } = useUI();
   const [showStatus, setShowStatus] = useState(false);
   const [add, setAdd] = useState<string | null>(null);
   const [dev, setDev] = useState<string[]>([]);
-  const [replace, setReplace] = useState<string | null>(null);
   const act = useAction((a: { action: string; device?: string; newDevice?: string }) => api.post(`/api/storage/zfs/${p.name}/${a.action}`, { device: a.device ?? "", newDevice: a.newDevice ?? "" }), { success: tr("Operation completed") });
   const destroy = useAction(() => api.del(`/api/storage/zfs/${p.name}`), { success: tr("Pool destroyed") });
   return (
-    <Card title={<span className="flex items-center gap-2.5"><Boxes size={17} className="text-accent" />{p.name} <Health value={p.health === "ONLINE" ? "healthy" : p.health.toLowerCase()} /></span>} actions={<>
+    <Card title={<span className="flex items-center gap-2.5"><Boxes size={17} className="text-accent" />{p.name} <Health value={p.scan?.kind === "resilver" ? "rebuilding" : p.health === "ONLINE" ? "healthy" : p.health.toLowerCase()} /></span>} actions={<>
       <Button size="sm" variant="ghost" icon={<ShieldCheck size={14} />} onClick={() => act.mutate({ action: "scrub" })}>{tr("Scrub")}</Button>
       <Select className="!w-auto !py-1 !text-[12.5px]" value="" onChange={(e) => { const v = e.target.value; if (v.startsWith("add-")) setAdd(v); else if (v) act.mutate({ action: v }); }}>
         <option value="">{tr("More…")}</option>
@@ -155,13 +155,22 @@ function PoolCard({ p }: { p: ZPool }) {
         <div><div className="text-muted text-[12px]">{tr("Deduplication")}</div><div className="font-semibold">{p.dedup}</div></div>
       </div>
       <Progress className="mt-4" value={pct(p.alloc, p.size)} />
+      {p.scan && (
+        <div className="mt-4 rounded-xl bg-panel-2 p-3">
+          <div className="mb-2 flex justify-between text-[12.5px]">
+            <span className="font-medium">{p.scan.kind === "resilver" ? tr("Rebuilding") : tr("Scrub")} {p.scan.progress.toFixed(1)} %</span>
+            <span className="text-muted">{p.scan.eta ? tr("about {0} left", duration(p.scan.eta)) : ""}</span>
+          </div>
+          <Progress value={p.scan.progress} tone="accent" />
+        </div>
+      )}
       {!!p.problems?.length && (
         <div className="mt-4 space-y-2">
           {p.problems.map((d) => (
             <div key={d.device} className="flex flex-wrap items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px]">
               <Badge tone="danger">{d.state}</Badge>
               <span className="mono min-w-0 flex-1 truncate">{d.was || d.device}</span>
-              <Button size="sm" variant="primary" onClick={() => { setDev([]); setReplace(d.device); }}>{tr("Replace")}</Button>
+              <Button size="sm" variant="primary" onClick={() => onReplace({ group: `zfs:${p.name}`, member: d.device })}>{tr("Replace")}</Button>
             </div>
           ))}
         </div>
@@ -169,15 +178,6 @@ function PoolCard({ p }: { p: ZPool }) {
       <button className="mt-4 text-accent text-[12.5px]" onClick={() => setShowStatus(!showStatus)}>{showStatus ? tr("Hide") : tr("Show")} {" "}{tr("the topology and detailed status")}</button>
       {showStatus && <pre className="mono mt-2 overflow-x-auto rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{p.status}</pre>}
       <div className="mt-5"><Datasets pool={p} /></div>
-      <Modal open={!!replace} onClose={() => setReplace(null)} title={tr("Replace a disk")} footer={<>
-        <Button onClick={() => setReplace(null)}>{tr("Cancel")}</Button>
-        <Button variant="primary" disabled={!dev.length} loading={act.isPending} onClick={() => { act.mutate({ action: "replace", device: replace!, newDevice: dev[0] }); setReplace(null); setDev([]); }}>{tr("Replace and rebuild")}</Button>
-      </>}>
-        <div className="space-y-3">
-          <Notice>{tr("The new disk will be wiped, then ZFS will copy the data over (resilver). The pool remains usable during the operation.")}</Notice>
-          <DiskPicker value={dev} onChange={setDev} single />
-        </div>
-      </Modal>
       <Modal open={!!add} onClose={() => setAdd(null)} title={tr("Add a device to the pool")} footer={<>
         <Button onClick={() => setAdd(null)}>{tr("Cancel")}</Button>
         <Button variant="primary" disabled={!dev.length} onClick={() => { act.mutate({ action: add!, device: dev[0] }); setAdd(null); setDev([]); }}>{tr("Add")}</Button>
@@ -221,6 +221,8 @@ export default function Zfs() {
   const [tab, setTab] = useState<"pools" | "snapshots">("pools");
   const [create, setCreate] = useState(false);
   const [imp, setImp] = useState(false);
+  const [replace, setReplace] = useState<ReplaceSel | null>(null);
+  const [replaceId, setReplaceId] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["zfs"], queryFn: () => api.get<{ available: boolean; broken?: boolean; pools: ZPool[] }>("/api/storage/zfs"), refetchInterval: 10000 });
   const importable = useQuery({ queryKey: ["zfs-importable"], queryFn: () => api.get<{ name: string; id: string; state: string }[]>("/api/storage/zfs/importable"), enabled: imp });
   const doImport = useAction((n: string) => api.post("/api/storage/zfs/import", { name: n }), { success: tr("Pool imported"), onDone: () => setImp(false) });
@@ -234,6 +236,7 @@ export default function Zfs() {
         <Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreate(true)}>{tr("Create a pool")}</Button>
       </>} />
       <ErrorBox error={error} />
+      <ReplaceBanner onOpen={setReplaceId} />
       {!data?.available ? (
         <Card>
           {data?.broken ? (
@@ -247,11 +250,12 @@ export default function Zfs() {
           <Tabs value={tab} onChange={setTab} tabs={[{ id: "pools", label: tr("Pools ({0})", data.pools.length) }, { id: "snapshots", label: tr("Snapshots") }]} />
           {tab === "pools" ? (
             !data.pools.length ? <Card><Empty icon={<Boxes />} title={tr("No ZFS pools")} text={tr("A ZFS pool combines disks, redundancy (mirror, RAIDZ), data integrity, compression and snapshots.")} action={<Button variant="primary" onClick={() => setCreate(true)}>{tr("Create a pool")}</Button>} /></Card>
-              : <div className="space-y-5">{data.pools.map((p) => <PoolCard key={p.name} p={p} />)}</div>
+              : <div className="space-y-5">{data.pools.map((p) => <PoolCard key={p.name} p={p} onReplace={setReplace} />)}</div>
           ) : <Snapshots />}
         </>
       )}
       {create && <CreatePool onClose={() => setCreate(false)} />}
+      <ReplaceWizard sel={replace} replacement={replaceId} onClose={() => { setReplace(null); setReplaceId(null); }} />
       <Modal open={imp} onClose={() => setImp(false)} title={tr("Import an existing pool")}>
         {importable.isLoading ? <Spinner /> : !importable.data?.length ? <Notice>{tr("No importable pools detected on the disks.")}</Notice> : (
           <div className="space-y-2">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Eraser, FlaskConical, HardDrive, Thermometer } from "lucide-react";
+import { Activity, Eraser, FlaskConical, HardDrive, Replace, Thermometer } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Disk, SmartInfo } from "../../lib/types";
@@ -9,6 +9,11 @@ import { useUI, Badge, Button, Card, Empty, ErrorBox, Modal, Notice, PageHeader,
 import { SmartHistory, useSsdWear, WearLine } from "../../components/DiskHealth";
 import { tr, locale, srv } from "../../lib/i18n";
 import { BurnInBadge, BurnInModal, useBurnIns } from "./BurnIn";
+import { ReplaceBanner, ReplaceWizard, type ReplaceSel } from "./ReplaceDisk";
+import { useIntent } from "../../lib/intent";
+
+// Disks that belong to a redundancy group: the replacement wizard applies.
+const replaceable = (d: Disk) => !d.system && ["raid", "zfs", "lvm"].includes(d.usage ?? "");
 
 const usageLabel: Record<string, [string, "neutral" | "ok" | "warn" | "danger" | "accent"]> = {
   free: [tr("Free"), "ok"],
@@ -38,7 +43,7 @@ function activeUseText(d: Disk): string {
   }
 }
 
-function SmartModal({ disk, onClose }: { disk: Disk | null; onClose: () => void }) {
+function SmartModal({ disk, onClose, onReplace }: { disk: Disk | null; onClose: () => void; onReplace: (d: Disk) => void }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["smart", disk?.path],
     queryFn: () => api.get<SmartInfo>(`/api/storage/disks/smart${q({ device: disk!.path })}`),
@@ -69,7 +74,12 @@ function SmartModal({ disk, onClose }: { disk: Disk | null; onClose: () => void 
           </div>
           <div className="text-[13px] text-muted">{data.model} {" "}{tr("· S/N")}{" "}{data.serial} {" "}{tr("· firmware")}{" "}{data.firmware}</div>
           {data.messages?.map((m) => <div key={m} className="text-warn text-[12.5px]">{m}</div>)}
-          {!!data.warnings?.length && <Notice tone="warn"><b>{tr("Signs of wear:")}</b>{" "}{data.warnings.map((w) => srv(w)).join(", ")}. {tr("Check your backups and plan to replace the disk.")}</Notice>}
+          {(!!data.warnings?.length || data.passed === false) && (
+            <Notice tone="warn">
+              {!!data.warnings?.length && <><b>{tr("Signs of wear:")}</b>{" "}{data.warnings.map((w) => srv(w)).join(", ")}. </>}{tr("Check your backups and plan to replace the disk.")}
+              {disk && replaceable(disk) && <div className="mt-2"><Button size="sm" icon={<Replace size={14} />} onClick={() => onReplace(disk)}>{tr("Replace this disk")}</Button></div>}
+            </Notice>
+          )}
           {data.attributes.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-line">
               <table className="table">
@@ -106,6 +116,9 @@ export default function Disks() {
   const burnIns = useBurnIns();
   const wear = useSsdWear();
   const wipe = useAction((d: string) => api.post("/api/storage/disks/wipe", { device: d }), { success: tr("Disk wiped") });
+  const [replace, setReplace] = useState<ReplaceSel | null>(null);
+  const [replaceId, setReplaceId] = useState<string | null>(null);
+  useIntent("disks", (i) => setReplace(i.replace));
 
   const doWipe = async (d: Disk) => {
     const ok = await confirm({
@@ -120,6 +133,7 @@ export default function Disks() {
     <div>
       <PageHeader title={tr("Disks")} subtitle={tr("Detected physical disks and their health status")} icon={<HardDrive size={20} />} />
       <ErrorBox error={error} />
+      <ReplaceBanner onOpen={setReplaceId} />
       {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<HardDrive />} title={tr("No disks detected")} /> : (
         <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
           {data.map((d) => {
@@ -157,7 +171,15 @@ export default function Disks() {
                     <span className="flex items-center gap-1.5"><Activity size={14} /> {d.powerOnHours ? tr("{0} h", d.powerOnHours.toLocaleString(locale)) : "—"}</span>
                   </div>
                   {d.healthy === true && warnings.length > 0 && (
-                    <div className="mt-3 text-[12.5px] text-warn">{tr("Signs of wear: {0}. Check your backups and plan its replacement.", warnings.join(", "))}</div>
+                    <div className="mt-3 text-[12.5px] text-warn">
+                      {tr("Signs of wear: {0}. Check your backups and plan its replacement.", warnings.join(", "))}
+                      {replaceable(d) && <>{" "}<button className="font-medium text-accent underline-offset-2 hover:underline" onClick={() => setReplace({ disk: d.path })}>{tr("Replace this disk")}</button></>}
+                    </div>
+                  )}
+                  {d.healthy === false && replaceable(d) && (
+                    <div className="mt-3 text-[12.5px] text-danger">
+                      {tr("This disk fails its SMART health check.")}{" "}<button className="font-medium text-accent underline-offset-2 hover:underline" onClick={() => setReplace({ disk: d.path })}>{tr("Replace this disk")}</button>
+                    </div>
                   )}
                   {(() => {
                     const w = wear.data?.find((x) => x.device === d.path);
@@ -177,6 +199,7 @@ export default function Disks() {
                 </div>
                 <div className="flex justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
                   <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>
+                  {replaceable(d) && <Button size="sm" variant="ghost" icon={<Replace size={14} />} onClick={() => setReplace({ disk: d.path })}>{tr("Replace")}</Button>}
                   {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} disabled={!!noBurnIn} title={noBurnIn || undefined} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
                   {!d.system && d.usage !== "free" && d.usage !== "ceph" && (
                     <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} disabled={!!inUse} title={inUse || undefined} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
@@ -187,7 +210,8 @@ export default function Disks() {
           })}
         </div></div>
       )}
-      <SmartModal disk={smart} onClose={() => setSmart(null)} />
+      <SmartModal disk={smart} onClose={() => setSmart(null)} onReplace={(d) => { setSmart(null); setReplace({ disk: d.path }); }} />
+      <ReplaceWizard sel={replace} replacement={replaceId} onClose={() => { setReplace(null); setReplaceId(null); }} />
       <BurnInModal disk={burn} data={burnIns.data} onClose={() => setBurn(null)} />
     </div>
   );

@@ -7,6 +7,7 @@ import { bytes, duration, pct, rate } from "../lib/format";
 import { Card, Empty, Health, PageHeader, Progress, Spinner, Stat } from "../components/ui";
 import { AreaChart, Ring } from "../components/charts";
 import { tr, srv } from "../lib/i18n";
+import { ReplaceLink } from "./storage/ReplaceDisk";
 
 export default function Dashboard({ me }: { me: Me }) {
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info"), refetchInterval: 30000 });
@@ -27,8 +28,9 @@ export default function Dashboard({ me }: { me: Me }) {
         <div className="mb-5 space-y-2">
           {o.alerts.map((a) => (
             <div key={a.message} className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-[13.5px] ${a.level === "error" ? "border-danger/30 bg-danger/10 text-danger" : "border-warn/30 bg-warn/10 text-warn"}`}>
-              {a.level === "error" ? <XCircle size={17} /> : <AlertTriangle size={17} />}
-              {srv(a.message)}
+              {a.level === "error" ? <XCircle size={17} className="shrink-0" /> : <AlertTriangle size={17} className="shrink-0" />}
+              <span className="min-w-0 flex-1">{srv(a.message)}</span>
+              {a.replace && me.role === "admin" && <ReplaceLink sel={a.replace}><span className="shrink-0 rounded-lg border border-current px-2.5 py-1 text-[12.5px] font-medium">{tr("Replace the disk")}</span></ReplaceLink>}
             </div>
           ))}
         </div>

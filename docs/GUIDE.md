@@ -63,7 +63,19 @@ RAID is not a backup: it protects you from a disk failure, not from an accidenta
 
 **Test new disks first**: before putting data on a new disk, run a **Burn-in test** (Storage → Disks, on a free disk). It chains a SMART short test, a surface test of every block and a SMART extended test, then compares the sector counters before and after. Choose "Read-only (non-destructive)", or "Write test (erases the disk)" for the most thorough check. Both modes need a free disk: a disk in use (RAID member, LVM, imported ZFS pool, mounted) cannot be tested or wiped, and its card says why. A full test of a large disk takes a day or more; you are notified of the result.
 
-To replace a failed disk: Storage → RAID (or ZFS), "Replace", then pick the new disk; the rebuild starts by itself. You receive one notification when the rebuild starts and one when it ends, not one per step.
+### Replacing a disk
+
+When a disk shows signs of wear (reallocated sectors, errors) or fails, click **Replace** on its card in Storage → Disks. The same wizard opens from the SMART warning, from the security advisor, from the alert of a degraded array on the dashboard, and from the RAID and ZFS pages ("Replace the missing disk").
+
+1. **Situation**: which RAID array, ZFS pool or LVM volume group uses the disk, what it holds, how many more disks can fail, the SMART state of the other disks and the date of the last successful backup.
+2. **Method**:
+   - **Add the new disk first** (recommended, when the old disk still works and you have a free bay or port): the data of the old disk is copied onto the new one while the old one stays in service, so the data keeps its protection (`mdadm --replace`, `zpool replace`, or `pvmove` for an LVM volume group). The old disk is then taken out.
+   - **The failed disk is already removed**: the missing data is rebuilt onto the new disk from the other disks.
+3. **New disk**: StrataOS lists the disks that are large enough and not in use, offers a 2-minute SMART self-test first (run a burn-in test beforehand for a thorough check), and erases the chosen disk only after you type its name.
+
+The replacement then runs in the background, with its progress and the time left ("Rebuilding 42 %", the same words on the RAID and ZFS pages). You can close the window or reload the page: a banner on the storage pages shows it, and it even goes on after a restart of StrataOS. At the end you are notified, and the wizard tells which disk to pull: its **serial number** (printed on its label) and model. If `ledctl` (package `ledmon`) is installed and your enclosure supports it, the LED of its bay blinks.
+
+StrataOS refuses, and says why, when the replacement would put data at risk: no redundancy (RAID 0 or JBOD), too many disks missing, another disk of the array also failing (back up and replace that one first), an array that is already degraded (rebuild the missing disk first), a rebuild already running, a new disk that is too small or in use. Btrfs volumes, Ceph disks and the system disk are not handled by the wizard: it tells where to go instead. You receive one notification when a rebuild starts and one when it ends, not one per step.
 
 **iSCSI** (Storage → iSCSI) offers network disks to VMware, Proxmox, Hyper-V, Windows or Linux servers. "Create a target", add one or more **LUNs** (an image file on a volume, an LVM logical volume or a ZFS volume), then list the **allowed initiators**: nobody can connect while the list is empty. Turn on **CHAP authentication** if the storage network is not isolated, and never let two computers write to the same LUN unless they use a cluster file system.
 
