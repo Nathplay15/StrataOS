@@ -43,7 +43,15 @@
         <div class="row"><input id="local" spellcheck="false"><button id="browse-local" data-t="action.browse"></button></div>
       </label>
       <p class="muted" data-t="folders.localhint"></p>
+      <label class="row" style="justify-content:flex-start;gap:.5em"><input type="checkbox" id="e2e-on" style="width:auto"> <span data-t="folders.encrypt"></span></label>
+      <div id="e2e-box" hidden>
+        <label><span data-t="folders.passphrase"></span><input id="e2e-pass" type="password" autocomplete="new-password"></label>
+        <label id="e2e-pass2-row"><span data-t="folders.passphrase2"></span><input id="e2e-pass2" type="password" autocomplete="new-password"></label>
+        <label id="e2e-rec-row" hidden><span data-t="folders.recoverykey"></span><input id="e2e-rec" class="mono" spellcheck="false" autocomplete="off"></label>
+        <p class="muted" data-t="folders.e2ehint"></p>
+      </div>
       <button id="add-pair" class="primary" data-t="folders.addbutton"></button>
+      <div id="recovery" class="notice warn" hidden></div>
     </div>
   </section>
 

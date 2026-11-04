@@ -38,6 +38,7 @@ type App struct {
 	cfg       config.Config
 	client    *api.Client
 	eng       *engine.Engine
+	e2e       *engine.E2ERemote
 	engCancel context.CancelFunc
 	engDone   chan struct{}
 	up, down  ratelimit.Limiter
@@ -134,7 +135,9 @@ func (a *App) newEngineLocked() (*engine.Engine, error) {
 		ignore = engine.DefaultIgnore
 	}
 	tr := trash.Trasher{Fallback: a.Store.TrashDir()}
-	return engine.New(engine.APIRemote{C: a.client}, engine.Options{
+	a.e2e = &engine.E2ERemote{Inner: engine.APIRemote{C: a.client}, Skipped: a.e2eSkipped}
+	a.e2eKeysLocked()
+	return engine.New(a.e2e, engine.Options{
 		StateFile: a.Store.StateFile(), Device: c.DeviceName, Ignore: ignore, Trash: tr.Trash, OnEvent: a.onEvent,
 	})
 }
@@ -379,7 +382,7 @@ func (a *App) update(f func(*config.Config) error) (config.Config, error) {
 // ---- Folders ----
 
 // AddPair synchronizes a local folder (created when missing) with a NAS folder.
-func (a *App) AddPair(local, remote string) (engine.Pair, error) {
+func (a *App) AddPair(local, remote string, opt PairOptions) (engine.Pair, error) {
 	local = strings.TrimSpace(local)
 	if strings.HasPrefix(local, "~") {
 		if h, err := os.UserHomeDir(); err == nil {
@@ -408,15 +411,25 @@ func (a *App) AddPair(local, remote string) (engine.Pair, error) {
 	if inside(a.Store.Dir, local) || inside(local, a.Store.Dir) {
 		return engine.Pair{}, errors.New(a.T("err.local.appdir"))
 	}
+	p := engine.Pair{ID: config.NewID(), Local: local, Remote: remote}
+	var key *config.E2EKey
 	if c := a.Client(); c != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		_, err := c.Changes(ctx, remote, "", 0)
-		cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		k, err := a.setupE2E(ctx, c, remote, opt)
 		if err != nil {
 			return engine.Pair{}, err
 		}
+		if k != nil {
+			key, p.Encrypted = k, true
+			ctx = api.WithE2E(ctx, k.ID)
+		}
+		if _, err := c.Changes(ctx, remote, "", 0); err != nil {
+			return engine.Pair{}, err
+		}
+	} else if opt.Encrypt {
+		return engine.Pair{}, errors.New(a.T("err.notpaired"))
 	}
-	p := engine.Pair{ID: config.NewID(), Local: local, Remote: remote}
 	_, err := a.update(func(c *config.Config) error {
 		for _, x := range c.Pairs {
 			if inside(local, x.Local) || inside(x.Local, local) {
@@ -424,6 +437,12 @@ func (a *App) AddPair(local, remote string) (engine.Pair, error) {
 			}
 		}
 		c.Pairs = append(c.Pairs, p)
+		if key != nil {
+			if c.E2E == nil {
+				c.E2E = map[string]config.E2EKey{}
+			}
+			c.E2E[p.ID] = *key
+		}
 		return nil
 	})
 	if err != nil {
@@ -434,6 +453,7 @@ func (a *App) AddPair(local, remote string) (engine.Pair, error) {
 
 func (a *App) applyPairs() error {
 	a.mu.Lock()
+	a.e2eKeysLocked()
 	eng, pairs := a.eng, a.cfg.Pairs
 	a.mu.Unlock()
 	if eng != nil {
@@ -455,6 +475,7 @@ func (a *App) RemovePair(id string) error {
 			}
 		}
 		c.Pairs = keep
+		delete(c.E2E, id)
 		return nil
 	})
 	if err != nil {

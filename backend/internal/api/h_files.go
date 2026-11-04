@@ -29,10 +29,18 @@ type fileEntry struct {
 	Mode    string    `json:"mode"`
 	ModTime time.Time `json:"modTime"`
 	Link    bool      `json:"link"`
+	// Encrypted: an end-to-end encrypted sync folder (sync_e2e.go).
+	Encrypted bool `json:"encrypted,omitempty"`
 }
 
 // access describes what the current user may do with a path.
-type access struct{ read, write, ancestor bool }
+type access struct {
+	read, write, ancestor bool
+	// e2e: the end-to-end encrypted folder holding the path (sync_e2e.go),
+	// where write is off; e2eWrite is the user's own right there.
+	e2e      string
+	e2eWrite bool
+}
 
 // sharePerm returns "rw", "ro", "none" or "" for a user on a share.
 func sharePerm(sh *store.Share, me string, groups []string) string {
@@ -92,7 +100,7 @@ func (s *Server) locateFor(me string, admin bool, p string) (target, error) {
 		return target{}, &Error{Status: http.StatusForbidden, Msg: "outside of the NAS storage"}
 	}
 	if admin {
-		return target{root: storage.MountRoot, rel: relTo(storage.MountRoot, clean), abs: clean, acc: access{read: true, write: true}}, nil
+		return e2eTarget(target{root: storage.MountRoot, rel: relTo(storage.MountRoot, clean), abs: clean, acc: access{read: true, write: true}}), nil
 	}
 	groups := accounts.UserGroups(me)
 	var best *store.Share
@@ -123,13 +131,21 @@ func (s *Server) locateFor(me string, admin bool, p string) (target, error) {
 		if real, err := filepath.EvalSymlinks(best.Path); err != nil || real != best.Path {
 			return target{}, &Error{Status: http.StatusForbidden, Msg: "share folder is unavailable"}
 		}
-		return target{root: best.Path, rel: relTo(best.Path, clean), abs: clean, acc: access{read: true, write: bestPerm == "rw"}}, nil
+		return e2eTarget(target{root: best.Path, rel: relTo(best.Path, clean), abs: clean, acc: access{read: true, write: bestPerm == "rw"}}), nil
 	}
 	if clean == storage.MountRoot || ancestor {
 		// Folders above a share: listing only, filtered to the way down to shares.
 		return target{root: storage.MountRoot, rel: relTo(storage.MountRoot, clean), abs: clean, acc: access{read: true, ancestor: true}}, nil
 	}
 	return target{}, &Error{Status: http.StatusForbidden, Msg: "access denied"}
+}
+
+// e2eTarget makes the inside of an end-to-end encrypted folder read-only.
+func e2eTarget(t target) target {
+	if root := e2eRootOf(t.abs); root != "" {
+		t.acc.e2e, t.acc.e2eWrite, t.acc.write = root, t.acc.write, false
+	}
+	return t
 }
 
 func (t target) open() (*os.Root, error) {
@@ -234,6 +250,11 @@ func (s *Server) fileRoutes() {
 					fe.Dir = st.IsDir()
 				}
 			}
+			if fe.Dir && !fe.Link && t.acc.e2e == "" {
+				if fi, err := rt.Lstat(path.Join(c.rel, e2eMarker)); err == nil && fi.Mode().IsRegular() {
+					fe.Encrypted = true
+				}
+			}
 			out = append(out, fe)
 		}
 		sort.Slice(out, func(i, j int) bool {
@@ -242,7 +263,7 @@ func (s *Server) fileRoutes() {
 			}
 			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 		})
-		return map[string]any{"path": t.abs, "entries": out, "writable": t.acc.write}, nil
+		return map[string]any{"path": t.abs, "entries": out, "writable": t.acc.write, "encrypted": t.acc.e2e != ""}, nil
 	})
 
 	s.user("POST /api/files/mkdir", func(r *http.Request) (any, error) {
@@ -282,7 +303,7 @@ func (s *Server) fileRoutes() {
 		if err != nil {
 			return nil, err
 		}
-		if !from.acc.write || !to.acc.write || from.protected() || to.rel == "." {
+		if !from.removable() || !to.acc.write || from.protected() || to.rel == "." {
 			return nil, errForbidden
 		}
 		if from.root != to.root {
@@ -312,7 +333,7 @@ func (s *Server) fileRoutes() {
 			if err != nil {
 				return nil, err
 			}
-			if !t.acc.write || t.protected() {
+			if !t.removable() || t.protected() {
 				return nil, &Error{Status: http.StatusForbidden, Msg: "cannot delete " + raw}
 			}
 			rt, err := t.open()

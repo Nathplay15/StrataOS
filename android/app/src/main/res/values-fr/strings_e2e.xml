@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dossiers de synchronisation chiffrés de bout en bout (créés avec l'application de bureau). -->
+<resources>
+    <string name="e2e_badge">Chiffré de bout en bout</string>
+    <string name="e2e_folder_notice">Dossier chiffré de bout en bout : les noms et le contenu sont chiffrés par l\'application de bureau StrataOS Sync, seule capable de les lire. L\'application mobile ne peut pas encore les ouvrir.</string>
+    <string name="e2e_cannot_open">Ce fichier est chiffré de bout en bout : ouvrez-le avec l\'application de bureau StrataOS Sync.</string>
+    <string name="e2e_sync_unsupported">Dossier chiffré de bout en bout : le téléphone ne peut pas encore le synchroniser (utilisez l\'application de bureau).</string>
+</resources>

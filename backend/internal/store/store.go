@@ -573,6 +573,8 @@ type State struct {
 	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
 	// Advisor: security advisor (ignored items, last run).
 	Advisor Advisor `json:"advisor,omitzero"`
+	// CatalogSources: community app catalogs of the App Center (store/catalog.go).
+	CatalogSources []*CatalogSource `json:"catalogSources,omitempty"`
 }
 
 const maxEvents = 2000

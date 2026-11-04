@@ -31,8 +31,17 @@ type Config struct {
 	Language    string        `json:"language,omitempty"` // "" = the system's
 	Autostart   bool          `json:"autostart,omitempty"`
 	NoNotify    bool          `json:"noNotify,omitempty"`
+	// E2E: keys of the end-to-end encrypted folders, by pair ID. Kept here
+	// like the device token: this file is readable by the user only.
+	E2E map[string]E2EKey `json:"e2e,omitempty"`
 	// Configured once: the first launch turns start at login on.
 	Initialized bool `json:"initialized,omitempty"`
+}
+
+// E2EKey is the key of an encrypted folder.
+type E2EKey struct {
+	ID  string `json:"id"`  // key ID of the folder (its header on the NAS)
+	Key string `json:"key"` // master key, base64
 }
 
 // Paired tells whether the app is signed in to a NAS.

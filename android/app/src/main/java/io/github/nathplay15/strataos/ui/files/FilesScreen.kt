@@ -253,6 +253,11 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
             setPath(e.path)
             return
         }
+        // End-to-end encrypted folder: only ciphertext here (desktop app only).
+        if (list?.encrypted == true) {
+            android.widget.Toast.makeText(ctx, R.string.e2e_cannot_open, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         when (kindOf(e.name)) {
             Kind.VIDEO -> PlayerActivity.start(ctx, listOf(QueueItem(e.path, e.name, true)), 0)
             Kind.AUDIO -> {
@@ -406,6 +411,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                 Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
                 LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
             }
+            if (list?.encrypted == true) Text(stringResource(R.string.e2e_folder_notice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 8.dp))
             if (inRecycle) Text(stringResource(R.string.a_recycle_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 8.dp))
             if (searching && search.value?.truncated == true) Text(stringResource(R.string.a_search_truncated), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp, 4.dp))
             val source = if (searching && query.trim().length >= 2) search else load
@@ -433,8 +439,10 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                             ListItem(
                                 headlineContent = { Text(e.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 supportingContent = {
+                                    val e2eBadge = stringResource(R.string.e2e_badge)
                                     Text(buildList {
                                         if (searching) add(displayPath(e.path.substringBeforeLast('/')))
+                                        if (e.encrypted) add(e2eBadge)
                                         if (!e.dir) add(formatBytes(e.size))
                                         add(formatDate(e.modTime))
                                     }.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -151,11 +151,12 @@ func validFileName(n string) error {
 
 // uploadTarget locates the destination folder for the user (rights are
 // checked again at every step: they may change during a long upload).
-func (s *Server) uploadTarget(user string, admin bool, folder string) (target, error) {
+func (s *Server) uploadTarget(r *http.Request, user string, admin bool, folder string) (target, error) {
 	t, err := s.locateFor(user, admin, folder)
 	if err != nil {
 		return target{}, err
 	}
+	s.e2eAllow(r, &t)
 	if !t.acc.write || t.acc.ancestor {
 		return target{}, &Error{Status: http.StatusForbidden, Msg: "no write access to this folder"}
 	}
@@ -347,7 +348,7 @@ func (s *Server) mobileUploadRoutes() {
 				return nil, err
 			}
 		}
-		t, err := s.uploadTarget(userOf(r), isAdmin(r), req.Folder)
+		t, err := s.uploadTarget(r, userOf(r), isAdmin(r), req.Folder)
 		if err != nil {
 			return nil, err
 		}
@@ -404,7 +405,7 @@ func (s *Server) mobileUploadRoutes() {
 		}
 		l.Lock()
 		defer l.Unlock()
-		t, err := s.uploadTarget(u.User, isAdmin(r), u.Folder)
+		t, err := s.uploadTarget(r, u.User, isAdmin(r), u.Folder)
 		if err != nil {
 			return nil, err
 		}
@@ -480,7 +481,7 @@ func (s *Server) mobileUploadRoutes() {
 			s.uploadsSaveLocked()
 		}
 		uploads.mu.Unlock()
-		t, err := s.uploadTarget(u.User, isAdmin(r), u.Folder)
+		t, err := s.uploadTarget(r, u.User, isAdmin(r), u.Folder)
 		if err != nil {
 			return nil, err
 		}
@@ -598,6 +599,7 @@ func (s *Server) mkdirsFor(r *http.Request, p string) error {
 	if t.acc.ancestor || t.rel == "." {
 		return nil // nothing to create (or not inside a share)
 	}
+	s.e2eAllow(r, &t)
 	if !t.acc.write {
 		return errForbidden
 	}
@@ -638,7 +640,7 @@ func (s *Server) patchUpload(w http.ResponseWriter, r *http.Request) (any, error
 	}
 	l.Lock()
 	defer l.Unlock()
-	t, err := s.uploadTarget(u.User, isAdmin(r), u.Folder)
+	t, err := s.uploadTarget(r, u.User, isAdmin(r), u.Folder)
 	if err != nil {
 		return nil, err
 	}

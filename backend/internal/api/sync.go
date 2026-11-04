@@ -117,6 +117,12 @@ func (s *Server) syncFolderOf(r *http.Request, folder string) (syncFolder, error
 	if real, err := filepath.EvalSymlinks(sh.Path); err != nil || real != sh.Path {
 		return syncFolder{}, &Error{Status: http.StatusServiceUnavailable, Msg: "the shared folder is unavailable (volume missing or encrypted folder locked)"}
 	}
+	if t.acc.e2e != "" {
+		if err := s.e2eClient(r, t.acc.e2e, t.abs); err != nil {
+			return syncFolder{}, err
+		}
+		s.e2eAllow(r, &t)
+	}
 	f := syncFolder{abs: t.abs, share: *sh, rel: relTo(sh.Path, t.abs), write: t.acc.write, recycle: sh.RecycleBin}
 	if f.rel == "." {
 		f.rel = ""
@@ -165,6 +171,7 @@ func (s *Server) syncItem(r *http.Request, f syncFolder, rel string, write bool)
 	if err != nil {
 		return target{}, err
 	}
+	s.e2eAllow(r, &t)
 	if write {
 		if err := s.syncWritable(r, f, t); err != nil {
 			return target{}, err
@@ -245,7 +252,7 @@ func (s *Server) syncRoutes() {
 	s.user("GET /api/sync/info", func(r *http.Request) (any, error) {
 		host, _ := hostname()
 		return map[string]any{"hostname": host, "version": s.version, "time": time.Now().UnixMilli(), "api": 1,
-			"features": []string{"changes", "longpoll", "hashes", "conditional-upload", "recycle"}, "maxUpload": maxUploadSize}, nil
+			"features": []string{"changes", "longpoll", "hashes", "conditional-upload", "recycle", "e2e"}, "maxUpload": maxUploadSize}, nil
 	})
 
 	// The shared folders the user may follow.

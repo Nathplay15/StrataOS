@@ -282,6 +282,8 @@ func (s *Server) routes() {
 	s.mobileRoutes()
 	s.mobileUploadRoutes()
 	s.syncRoutes()
+	s.marketRoutes()
+	s.syncE2ERoutes()
 	s.rpiKernelRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()

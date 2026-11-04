@@ -194,7 +194,7 @@ func (s *Server) fileMoreRoutes() {
 			if err != nil {
 				return nil, err
 			}
-			if !t.acc.read || t.acc.ancestor || (req.Move && (!t.acc.write || t.protected())) {
+			if !t.acc.read || t.acc.ancestor || (req.Move && (!t.removable() || t.protected())) {
 				return nil, &Error{Status: http.StatusForbidden, Msg: "cannot move " + p}
 			}
 			if dst.abs == t.abs || strings.HasPrefix(dst.abs, t.abs+"/") {
@@ -277,7 +277,7 @@ func (s *Server) fileMoreRoutes() {
 			if err != nil {
 				return nil, err
 			}
-			if !t.acc.write || t.protected() {
+			if !t.removable() || t.protected() {
 				return nil, &Error{Status: http.StatusForbidden, Msg: "cannot delete " + p}
 			}
 			targets = append(targets, t)

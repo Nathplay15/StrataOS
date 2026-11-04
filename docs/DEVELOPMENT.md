@@ -223,6 +223,7 @@ Without these secrets the release still publishes everything else, and the workf
 | `cmd/strataos-sync/` | Entry point: the tray app without a command, the headless commands (`pair`, `add`, `sync-once`, `daemon`…) otherwise |
 | `internal/engine/` | Sync engine: local scan, NAS change feed, three-way plan (local / NAS / last synchronized state), transfers with resume, moves, conflicts, deletion brake |
 | `internal/api/` | Client of the Sync API, certificate pinning (same rules as the Android app) |
+| `internal/e2e/` | End-to-end encryption of folders: header (Argon2id, wrapped master key), recovery key, names, chunked contents (below) |
 | `internal/app/` | Ties settings, client and engine together; the settings page (`web/`, served on 127.0.0.1 with a per-launch token) |
 | `internal/tray/`, `internal/platform/`, `internal/trash/` | Tray icon and menu; opening folders, notifications, start at login per system; the system trash |
 | `internal/i18n/catalog/` | Texts, one JSON file per language (`en`, `fr`; add `de.json`… with the same keys: a missing key shows in English) |
@@ -253,12 +254,36 @@ For any client paired with a device token (`Authorization: Bearer stdev_…`; pa
 | `POST /api/sync/mkdir` `{folder, path}` | Creates a folder and the missing ones above it |
 | `POST /api/sync/move` `{folder, from, to, ifMatch}` | Renames or moves inside the shared folder; 412 if the file is not at version `ifMatch` or the destination exists |
 | `POST /api/sync/delete` `{folder, path, ifMatch}` | Deletes a file at version `ifMatch` (`*`: any) to the recycle bin of the share when it has one, or an empty folder (`.DS_Store`, `Thumbs.db`… do not count); 412 otherwise |
+| `GET /api/sync/e2e?folder=` | `{encrypted, root, header}`: whether the folder is (inside) an end-to-end encrypted folder, and its header when it is that folder |
+| `POST /api/sync/e2e` `{folder, header}` / `PUT` | Makes an empty folder encrypted (writes `.strataos-sync-e2e.json`); `PUT` replaces the header of an encrypted folder with the same key ID (new passphrase) |
+| `DELETE /api/sync/e2e?folder=` | Turns an empty encrypted folder back into a plain one |
 | `POST /api/mobile/uploads` `{folder, name, size, modTime, sync: true, replace: true, ifMatch, mkdirs}` then `PATCH /api/mobile/uploads/{id}` | Resumable upload (see the Android app); with `replace`, the last chunk puts the file in place of the version `ifMatch` (`""`: there must be none, `*`: any) |
 | `POST /api/mobile/uploads/{id}/commit` `{name, ifMatch}` | After a 412, completes the uploaded file again (under a conflict name, say) |
 
 Conflicts answer **412** `{"error", "conflict": true, "current": <entry or null>}`; a finished upload stays on the NAS until committed or cancelled. Errors: 401 (token revoked), 403 (read-only, frozen or no access, with the reason), 404 (folder gone: never delete local files then), 503 (volume missing or encrypted folder locked), 507 (quota or space).
 
 The server side is `backend/internal/api/sync*.go` and `backend/internal/syncjournal`: a per-share index of files numbered by change (gzipped gob in `/var/lib/strata/sync-index/`), loaded when a client asks, refreshed by inotify (one watch per folder; past the limit, full rescans every minute) and a full rescan every 5 minutes, so changes made over SMB, NFS, SFTP or the web appear like the others. Hashes are computed in the background for files up to 256 MB and cached by inode, size and date (a move keeps its hash). An index unused for an hour is saved and closed; the next request reloads it and rescans.
+
+### End-to-end encrypted folders
+
+The desktop app encrypts a folder before upload (`desktop/internal/e2e`, wrapped around the engine by `engine.E2ERemote`, which translates names, sizes, hashes and offsets so the engine works unchanged). A folder has a random 256-bit master key; its header on the NAS (`.strataos-sync-e2e.json`, ignored by the sync journal) holds the Argon2id parameters and the key sealed with the passphrase (XChaCha20-Poly1305), plus an HMAC check value for the recovery key (the master key in base32 with a 2-byte checksum). HKDF-SHA256 derives a content key and two name keys. Names: one path component at a time, deterministic (nonce = HMAC of the name, a synthetic IV), unpadded base64url, so at most 151 bytes of plaintext per name. Contents: `SE2E | 1 | 16-byte random prefix`, then the sealed metadata (plaintext size and SHA-256, nonce = prefix | 2^64-1) and 64 KiB chunks sealed with nonce = prefix | index and the header plus a last-chunk flag as associated data (no reordering, truncation or mixing of files). The metadata gives the hashes the engine compares without downloading files; resumed downloads fetch the header then start at the chunk holding the offset; uploads are not resumed (a fresh prefix each time). Keys live in the app's `config.json` (`e2e`, by pair ID, like the device token).
+
+On the NAS (`api/sync_e2e.go`): `locate` marks paths inside an encrypted folder (`access.e2e`) and turns their write access off, so the file manager, uploads, share links and the editor see them read-only; the folder itself stays removable as a whole. The Sync API only serves an encrypted folder to a client that sends its key ID in `X-Strata-E2E` (409 otherwise: an old app or the phone does not download ciphertext nor upload plaintext), and only then gives write access back (`e2eAllow`). This is a guard against mistakes, not a permission. File listings carry `encrypted` (the listing is inside one; an entry is one). The Android app shows them as encrypted and refuses to sync them (no Argon2id/XChaCha in the platform yet). Tests: `go test ./internal/e2e ./internal/engine` (round trips, tamper detection, names, two computers through the fake NAS, resumed downloads), `api/sync_e2e_test.go`, and `vm/e2e.d/97c-sync-e2e.sh` (two clients, recovery key, passphrase change, refusals).
+
+## Community app catalogs
+
+`backend/internal/market` reads community catalogs (format: [CATALOG-FORMAT.md](CATALOG-FORMAT.md)): `ParseLocation` (https, Git, http on loopback only), `Fetch` (HTTPS with redirects kept on HTTPS, or a shallow `git clone` with no symlinks, hooks or submodules), `Verify` (Ed25519), `Parse` (strict JSON, invalid apps left out with their reason) and `Analyze`, which reads a compose file and lists what it grants (`Grants`), refusing unknown or file-reading keys in strict mode. `Grants.Required()` is the approval an install needs; `Approval.Covers` checks the administrator's. The API (`api/h_market.go`) keeps sources in `State.CatalogSources` and their verified index in `/var/lib/strata/catalogs/<id>.json` (`<id>.pending.json` for a pinned source whose checksum changed, until accepted). An install renders the `.env` like the built-in catalog, analyses the template, checks the approval, writes the stack, runs `docker compose config --format json` and analyses that again (lenient mode: the real parser's view) before `up`; symlinks under `/srv/strata` are resolved and count as their target. Installed apps carry `.strata-community.json`.
+
+| Route | |
+|---|---|
+| `GET /api/apps/sources` | Sources with trust (`signed`/`pinned`), checksum, pending checksum, last error, apps left out |
+| `POST /api/apps/sources` `{url, publicKey?, sha256?}` | Adds a source: with a key, verified; without key nor checksum, answers `{confirm: {sha256, name, apps, invalid, signed}}` and saves nothing; with the checksum, pins it |
+| `POST /api/apps/sources/{id}/refresh`, `…/accept` `{sha256}`, `DELETE /api/apps/sources/{id}` | Refresh, accept a pending index, remove |
+| `GET /api/apps/community` | `{sources, apps, installed}` (installed: version, latest, update, orphaned, port) |
+| `POST /api/apps/community/{source}/{app}/check` `{name, values}` / `…/install` `{name, values, approve}` | Grants and required approval / install job |
+| `POST /api/apps/community/stacks/{stack}/check` / `…/update` `{approve}` | Same for updating an installed app to the catalog's version |
+
+Tests: `go test ./internal/market` (strict refusals, grants, interpolation, signatures, git fetch from a local repository, and the comparison with `docker compose config` when docker compose is installed), `api/h_market_test.go` (pinned and signed sources against a test server), `vm/e2e.d/90c-app-sources.sh` (a catalog served on the NAS, installs, approval refusals, update, signatures). The example catalog in `packaging/catalog-example/` is signed with a published test key; `TestExampleCatalog` checks the signature.
 
 ## Disk replacement
 

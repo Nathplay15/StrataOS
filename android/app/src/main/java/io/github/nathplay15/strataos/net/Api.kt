@@ -28,8 +28,9 @@ import okio.source
 @Serializable data class Device(val id: String = "", val name: String = "", val model: String = "", val push: Boolean = false, val pushError: String = "")
 @Serializable data class PairResponse(val token: String, val device: Device = Device(), val user: Me = Me(), val server: ServerMeta = ServerMeta())
 @Serializable data class MobileInfo(val hostname: String = "", val version: String = "", val vapidKey: String = "", val user: Me = Me(), val device: Device? = null)
-@Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean = false, val size: Long = 0, val modTime: String = "", val link: Boolean = false)
-@Serializable data class FileList(val path: String = "", val entries: List<FileEntry> = emptyList(), val writable: Boolean = false)
+// encrypted: an end-to-end encrypted sync folder (desktop app only, not readable here).
+@Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean = false, val size: Long = 0, val modTime: String = "", val link: Boolean = false, val encrypted: Boolean = false)
+@Serializable data class FileList(val path: String = "", val entries: List<FileEntry> = emptyList(), val writable: Boolean = false, val encrypted: Boolean = false)
 @Serializable data class UploadState(
     val id: String = "", val offset: Long = 0, val size: Long = 0, val name: String = "", val folder: String = "",
     val done: Boolean = false, val duplicate: Boolean = false, val path: String = "",

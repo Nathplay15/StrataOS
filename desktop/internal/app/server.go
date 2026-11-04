@@ -157,7 +157,7 @@ func (u *UI) routes(handle func(string, func(*http.Request) (any, error))) {
 	handle("GET /api/state", func(r *http.Request) (any, error) {
 		home, _ := os.UserHomeDir()
 		c := a.Config()
-		return map[string]any{"paired": a.Paired(), "config": c, "status": a.Status(), "lang": a.Lang(),
+		return map[string]any{"paired": a.Paired(), "config": RedactKeys(c), "status": a.Status(), "lang": a.Lang(),
 			"version": a.Version, "dir": a.Store.Dir, "home": home, "sep": string(filepath.Separator),
 			"defaultIgnore": engine.DefaultIgnore, "autostart": platform.Autostart()}, nil
 	})
@@ -220,13 +220,14 @@ func (u *UI) routes(handle func(string, func(*http.Request) (any, error))) {
 			return nil, err
 		}
 		type dir struct {
-			Name string `json:"name"`
-			Path string `json:"path"`
+			Name      string `json:"name"`
+			Path      string `json:"path"`
+			Encrypted bool   `json:"encrypted,omitempty"`
 		}
 		dirs := []dir{}
 		for _, e := range ents {
 			if e.Dir {
-				dirs = append(dirs, dir{e.Name, e.Path})
+				dirs = append(dirs, dir{e.Name, e.Path, e.Encrypted})
 			}
 		}
 		sort.Slice(dirs, func(i, j int) bool { return strings.ToLower(dirs[i].Name) < strings.ToLower(dirs[j].Name) })
@@ -239,11 +240,37 @@ func (u *UI) routes(handle func(string, func(*http.Request) (any, error))) {
 		return map[string]any{"dirs": dirs, "isShare": isShare}, nil
 	})
 	handle("POST /api/pairs", func(r *http.Request) (any, error) {
-		var req struct{ Local, Remote string }
+		var req struct {
+			Local, Remote string
+			PairOptions
+		}
 		if err := decodeBody(r, &req); err != nil {
 			return nil, err
 		}
-		return a.AddPair(req.Local, req.Remote)
+		p, err := a.AddPair(req.Local, req.Remote, req.PairOptions)
+		if IsE2ELocked(err) {
+			// The NAS folder is encrypted: the page asks for its passphrase.
+			return map[string]any{"locked": true, "message": err.Error()}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		out := map[string]any{"pair": p}
+		if p.Encrypted && req.Encrypt {
+			out["recoveryKey"], _ = a.RecoveryKey(p.ID)
+		}
+		return out, nil
+	})
+	handle("GET /api/pairs/{id}/recovery", func(r *http.Request) (any, error) {
+		k, err := a.RecoveryKey(r.PathValue("id"))
+		return map[string]string{"recoveryKey": k}, err
+	})
+	handle("POST /api/pairs/{id}/passphrase", func(r *http.Request) (any, error) {
+		var req struct{ Passphrase string }
+		if err := decodeBody(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, a.ChangePassphrase(r.Context(), r.PathValue("id"), req.Passphrase)
 	})
 	handle("PUT /api/pairs/{id}", func(r *http.Request) (any, error) {
 		var req struct {

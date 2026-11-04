@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Pencil, Trash2, Upload } from "lucide-react";
+import { ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Lock, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { FileEntry, UserQuota } from "../lib/types";
@@ -8,7 +8,7 @@ import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
 import { VersionsModal } from "../components/VersionsModal";
 import { CastButton } from "../components/Cast";
-import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, PageHeader, Progress, Spinner, useUI } from "../components/ui";
+import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Spinner, useUI } from "../components/ui";
 import { Workspace, tabFor, type OpenTab } from "../components/files/Workspace";
 import { OpenWith } from "../components/files/common";
 import { fileKind, officeType, type OfficeStatus } from "../lib/filetypes";
@@ -19,6 +19,7 @@ import { useIntent } from "../lib/intent";
 const ROOT = "/srv/strata";
 
 function icon(e: FileEntry) {
+  if (e.dir && e.encrypted) return <Lock size={18} className="text-ok" />;
   if (e.dir) return <Folder size={18} className="text-accent" fill="currentColor" fillOpacity={0.15} />;
   switch (fileKind(e.name)) {
     case "image": return <FileImage size={18} className="text-ok" />;
@@ -55,7 +56,7 @@ export default function Files() {
   const myQuotas = useQuery({ queryKey: ["my-quotas"], queryFn: () => api.get<UserQuota[]>("/api/me/quotas"), staleTime: 60000 });
   const { data, isLoading, error } = useQuery({
     queryKey: ["files", path, hidden],
-    queryFn: () => api.get<{ path: string; entries: FileEntry[]; writable: boolean }>(`/api/files${q({ path, hidden: hidden ? 1 : undefined })}`),
+    queryFn: () => api.get<{ path: string; entries: FileEntry[]; writable: boolean; encrypted?: boolean }>(`/api/files${q({ path, hidden: hidden ? 1 : undefined })}`),
   });
   const office = useQuery({ queryKey: ["office-status"], queryFn: () => api.get<OfficeStatus>("/api/office/status"), staleTime: 60000 });
   const go = (p: string) => { setPath(p); setSel([]); setActive(null); };
@@ -67,6 +68,8 @@ export default function Files() {
   };
   const open = (e: FileEntry) => {
     if (e.dir) return go(e.path);
+    // Ciphertext: nothing to preview, only the raw (encrypted) file.
+    if (data?.encrypted) return void (window.location.href = `/api/files/download${q({ path: e.path })}`);
     const kind = fileKind(e.name);
     // OnlyOffice, when set up, stays the default for the documents it edits;
     // "Open with" offers the built-in previews.
@@ -205,6 +208,9 @@ export default function Files() {
         ))}
       </div>
 
+      {data?.encrypted && (
+        <div className="mb-4"><Notice>{tr("End-to-end encrypted folder: names and contents are encrypted by the StrataOS Sync desktop app and can only be read there, with the folder's passphrase. It is read-only here and has no previews.")}</Notice></div>
+      )}
       {upload && (
         <div className="card mb-4 p-4">
           <div className="mb-2 flex justify-between text-[13px]"><span>{tr("Uploading")}{" "}{upload.name}</span><span>{upload.pct.toFixed(0)} %</span></div>
@@ -240,16 +246,17 @@ export default function Files() {
                     <td><Checkbox checked={sel.includes(e.path)} onChange={(v) => setSel(v ? [...sel, e.path] : sel.filter((x) => x !== e.path))} /></td>
                     <td>
                       <button className="flex items-center gap-2.5 text-left" onClick={() => open(e)}>
-                        {icon(e)}<span className="hover:text-accent">{e.name}</span>
+                        {icon(e)}<span className={cx("hover:text-accent", data?.encrypted && "mono text-[12px] text-muted")}>{e.name}</span>
+                        {e.encrypted && <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[11px] text-ok">{tr("End-to-end encrypted")}</span>}
                       </button>
                     </td>
                     <td className="text-muted">{e.dir ? "—" : bytes(e.size)}</td>
                     <td className="text-muted text-[12.5px]">{dateTime(e.modTime)}</td>
                     <td className="mono hidden text-muted md:table-cell">{e.mode}</td>
                     <td className="text-right whitespace-nowrap">
-                      {!e.dir && <OpenWith entry={e} office={office.data} onOpen={openTab} />}
+                      {!e.dir && !data?.encrypted && <OpenWith entry={e} office={office.data} onOpen={openTab} />}
                       <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(e.path)} title={tr("Download")} />
-                      {!e.dir && <CastButton path={e.path} name={e.name} />}
+                      {!e.dir && !data?.encrypted && <CastButton path={e.path} name={e.name} />}
                       {!e.dir && path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => setVersions({ path: e.path, name: e.name })} title={tr("Previous versions")} />}
                       {path !== ROOT && <Button size="sm" variant="ghost" icon={<Link2 size={14} />} onClick={() => setShare({ path: e.path, name: e.name, dir: e.dir })} title={tr("Share a link")} />}
                       {data?.writable && path !== ROOT && <Button size="sm" variant="ghost" icon={<Pencil size={14} />} onClick={() => setRename({ from: e.path, name: e.name })} title={tr("Rename")} />}
