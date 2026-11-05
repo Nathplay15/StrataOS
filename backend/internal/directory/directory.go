@@ -5,6 +5,8 @@ package directory
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/url"
 	"os"
@@ -72,6 +74,9 @@ func Validate(c *store.Directory) error {
 		}
 		if strings.ContainsAny(c.BindPassword, "\n\r") {
 			return fmt.Errorf("invalid bind password")
+		}
+		if err := ValidCACert(c); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("choose Active Directory or LDAP")
@@ -289,10 +294,16 @@ auth_provider = ldap
 ldap_uri = %s
 ldap_search_base = %s
 ldap_id_use_start_tls = %s
-ldap_tls_reqcert = allow
+ldap_tls_reqcert = %s
 cache_credentials = true
 enumerate = true
-`, c.URI, c.BaseDN, tls)
+`, c.URI, c.BaseDN, tls, reqcert(c))
+	if c.TLSVerify && c.CACert != "" {
+		fmt.Fprintf(&b, "ldap_tls_cacert = %s\n", LDAPCAFile)
+	}
+	if err := writeCA(c); err != nil {
+		return err
+	}
 	if c.BindDN != "" {
 		fmt.Fprintf(&b, "ldap_default_bind_dn = %s\nldap_default_authtok_type = password\nldap_default_authtok = %s\n", c.BindDN, c.BindPassword)
 	}
@@ -308,6 +319,50 @@ enumerate = true
 	if _, err := sys.Run("systemctl", "restart", "sssd.service"); err != nil {
 		return fmt.Errorf("sssd did not start: %w", err)
 	}
+	return nil
+}
+
+func reqcert(c store.Directory) string {
+	if c.TLSVerify {
+		return "demand"
+	}
+	return "allow"
+}
+
+// ValidCACert checks the CA certificate given for an LDAP server: PEM
+// certificates only, 64 KiB at most.
+func ValidCACert(c *store.Directory) error {
+	c.CACert = strings.TrimSpace(c.CACert)
+	if c.CACert == "" {
+		return nil
+	}
+	if !c.TLSVerify {
+		c.CACert = ""
+		return nil
+	}
+	if len(c.CACert) > 64<<10 {
+		return fmt.Errorf("CA certificate too large")
+	}
+	rest := []byte(c.CACert)
+	n := 0
+	for {
+		var blk *pem.Block
+		blk, rest = pem.Decode(rest)
+		if blk == nil {
+			break
+		}
+		if blk.Type != "CERTIFICATE" {
+			return fmt.Errorf("the CA must be PEM certificates (-----BEGIN CERTIFICATE-----)")
+		}
+		if _, err := x509.ParseCertificate(blk.Bytes); err != nil {
+			return fmt.Errorf("invalid CA certificate: %v", err)
+		}
+		n++
+	}
+	if n == 0 || strings.TrimSpace(string(rest)) != "" {
+		return fmt.Errorf("the CA must be PEM certificates (-----BEGIN CERTIFICATE-----)")
+	}
+	c.CACert += "\n"
 	return nil
 }
 

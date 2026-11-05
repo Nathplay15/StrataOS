@@ -41,8 +41,9 @@ func (s *Server) directoryLogin(ctx context.Context, login, password string) (st
 			x = &store.User{Username: name, Role: "user", Source: c.Type, CreatedAt: time.Now()}
 			st.Users = append(st.Users, x)
 		}
-		if x.Source == "" {
-			// A local account with that name: the directory never signs in as it.
+		if x.Source != c.Type {
+			// A local account (or one of another directory) with that name:
+			// the directory never signs in as it.
 			return errBadLogin
 		}
 		if c.AdminGroup != "" {
