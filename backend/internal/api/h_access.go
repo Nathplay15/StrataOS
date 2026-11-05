@@ -165,9 +165,9 @@ func (s *Server) accessRoutes() {
 			RequireKey bool          `json:"requireKey"`
 			KeyUV      string        `json:"keyUv"`
 			GraceDays  int           `json:"graceDays"`
-			Since     time.Time     `json:"since,omitzero"`
-			Recovery  bool          `json:"consoleRecovery"`
-			Admins    []adminFactor `json:"admins"`
+			Since      time.Time     `json:"since,omitzero"`
+			Recovery   bool          `json:"consoleRecovery"`
+			Admins     []adminFactor `json:"admins"`
 		}
 		out.Admins = []adminFactor{}
 		s.store.Read(func(st *store.State) {

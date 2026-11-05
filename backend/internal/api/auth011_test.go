@@ -54,7 +54,7 @@ func (k *softKey) u2fGet(t *testing.T, opts map[string]any, origin string, tampe
 	}
 	sig, _ := ecdsa.SignASN1(rand.Reader, k.priv, d[:])
 	return map[string]any{"id": b64.EncodeToString(k.id), "rawId": b64.EncodeToString(k.id), "type": "public-key",
-		"response": map[string]any{"clientDataJSON": b64.EncodeToString(cd), "authenticatorData": b64.EncodeToString(ad), "signature": b64.EncodeToString(sig)},
+		"response":               map[string]any{"clientDataJSON": b64.EncodeToString(cd), "authenticatorData": b64.EncodeToString(ad), "signature": b64.EncodeToString(sig)},
 		"clientExtensionResults": map[string]any{}}
 }
 
