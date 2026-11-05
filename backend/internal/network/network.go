@@ -738,6 +738,17 @@ func Current() *Pending {
 	return &c
 }
 
+// PendingConfig returns a copy of the configuration on trial, if any.
+func PendingConfig() *Config {
+	mu.Lock()
+	defer mu.Unlock()
+	if pending == nil || pending.Config == nil {
+		return nil
+	}
+	c := *pending.Config
+	return &c
+}
+
 // Recover handles a change left pending by a previous run of the daemon.
 func Recover() {
 	b, err := os.ReadFile(pendingPath())

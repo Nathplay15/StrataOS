@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strataos/internal/energy"
+	"strataos/internal/firewall"
 	"strataos/internal/guard"
 	"sync"
 	"time"
@@ -621,6 +622,11 @@ type State struct {
 	// Network is the configuration StrataOS applied (links it manages).
 	Network *network.Config `json:"network,omitempty"`
 	UPS     *ups.Config     `json:"ups,omitempty"`
+
+	// Firewall: guests' firewalls, security groups, address sets and the
+	// NAS firewall (internal/firewall).
+	Firewall *firewall.Config `json:"firewall,omitempty"`
+
 	// ConfigBackup: automatic exports of this configuration.
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`

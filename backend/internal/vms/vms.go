@@ -471,7 +471,14 @@ func install(ctx context.Context, r CreateReq, spec installSpec, logf func(strin
 		if _, err := os.Stat("/sys/class/net/" + r.Network + "/bridge"); err != nil {
 			return fmt.Errorf("%s is not a bridge (create one in Network)", r.Network)
 		}
-		args = append(args, "--network", "bridge="+r.Network+",model="+model)
+		nw := "bridge=" + r.Network + ",model=" + model
+		// A VXLAN virtual network has a smaller MTU: virtio tells the guest.
+		if b, err := os.ReadFile("/sys/class/net/" + r.Network + "/mtu"); err == nil {
+			if mtu, _ := strconv.Atoi(strings.TrimSpace(string(b))); mtu > 0 && mtu < 1500 {
+				nw += ",mtu.size=" + strconv.Itoa(mtu)
+			}
+		}
+		args = append(args, "--network", nw)
 	default:
 		return fmt.Errorf("invalid network")
 	}

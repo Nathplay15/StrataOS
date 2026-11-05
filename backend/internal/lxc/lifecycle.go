@@ -219,10 +219,23 @@ func keyctlProfile() string {
 
 func writeConfig(s *Spec) error {
 	o := ConfigOpts{NATBridge: NATBridge}
+	if s.Network.Mode == "bridge" {
+		o.MTU = linkMTU(s.Network.Bridge)
+	}
 	if s.Features.Keyctl {
 		o.KeyctlSeccomp = keyctlProfile()
 	}
 	return sys.WriteFileAtomic(filepath.Join(Dir(s.Name), "config"), []byte(GenerateConfig(s, o)), 0o640)
+}
+
+// linkMTU reads the MTU of a link (0 when unknown).
+func linkMTU(name string) int {
+	b, err := os.ReadFile(filepath.Join("/sys/class/net", name, "mtu"))
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
 }
 
 // ensureTraverse lets the container's shifted root reach its root file
