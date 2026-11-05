@@ -23,6 +23,7 @@
   "brake.remote": "{0} file(s) deleted on this computer would go to the recycle bin of the NAS.",
   "brake.restore": "Keep them (restore)",
   "brake.text": "{0} of {1} files would be deleted. Synchronization waits for your decision.",
+  "err.alreadypaired": "This computer is already paired with this NAS.",
   "err.certchanged": "The certificate of the NAS changed (now {0}). If you did not renew it, someone may be intercepting the connection; otherwise sign out and pair again.",
   "err.certuntrusted": "The certificate of the NAS ({0}) is not trusted yet: check its fingerprint.",
   "err.e2e.header": "The header of the encrypted folder on the NAS is missing or has changed.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "This folder overlaps a folder already synchronized: {0}",
   "err.notpaired": "Pair this computer with the NAS first.",
   "err.remote.choose": "Choose a folder of the NAS.",
+  "err.resolve.encrypted": "This file is in an end-to-end encrypted folder: the NAS cannot share it.",
+  "err.resolve.outside": "This file is not in a folder synchronized with a NAS.",
   "err.twofactor": "Type the code of your authenticator app (two-factor authentication).",
   "err.unauthorized": "The NAS refused the sign-in",
   "err.unreachable": "Cannot reach {0}: {1}",
+  "err.upload.empty": "Nothing to send: no files.",
+  "err.upload.exists": "already on the NAS",
   "folders.add": "Synchronize a folder",
   "folders.addbutton": "Synchronize",
   "folders.changepass": "Change the passphrase",
@@ -131,5 +136,6 @@
   "tray.quit": "Quit",
   "tray.resume": "Resume",
   "tray.settings": "Settings…",
-  "tray.syncnow": "Sync now"
+  "tray.syncnow": "Sync now",
+  "web.reopen": "Open the web interface again from the StrataOS app."
 }

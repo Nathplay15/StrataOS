@@ -1,8 +1,9 @@
 // StrataOS Sync keeps folders of a computer synchronized with folders of a
-// StrataOS NAS. Without a command it runs the tray app (and its settings
-// page); the commands run it headless:
+// StrataOS NAS. The desktop app (desktop/app) runs it as its sync engine
+// ("agent", agent.go); without a command it starts that app when installed
+// next to it; the other commands run it headless:
 //
-//	strataos-sync [--config DIR] pair --server URL --code CODE [--fingerprint FP | --trust]
+//	strataos-sync [--config DIR] [--account ID] pair --server URL --code CODE [--fingerprint FP | --trust]
 //	strataos-sync [--config DIR] pair --link 'strataos://pair?…'
 //	strataos-sync [--config DIR] pair --server URL --user NAME --password-file FILE [--otp CODE]
 //	strataos-sync [--config DIR] add --local DIR --remote /srv/strata/volume/Share[/sub] [--exclude a,b]
@@ -18,19 +19,16 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"strataos-sync/internal/api"
 	"strataos-sync/internal/app"
 	"strataos-sync/internal/config"
-	"strataos-sync/internal/platform"
-	"strataos-sync/internal/tray"
+	"strataos-sync/internal/agent"
 )
 
 var version = "dev"
@@ -39,7 +37,8 @@ func main() {
 	attachConsole()
 	global := flag.NewFlagSet("strataos-sync", flag.ExitOnError)
 	dir := global.String("config", "", "folder of the settings and state (default: the user's configuration folder)")
-	background := global.Bool("background", false, "start in the tray without opening the settings (start at login)")
+	background := global.Bool("background", false, "start the desktop app hidden (start at login)")
+	account := global.String("account", "", "account of another NAS paired by the desktop app (see accounts)")
 	showVersion := global.Bool("version", false, "print the version")
 	global.Usage = usage
 	_ = global.Parse(os.Args[1:])
@@ -50,11 +49,26 @@ func main() {
 	if *dir == "" {
 		*dir = config.DefaultDir()
 	}
-	store := &config.Store{Dir: *dir}
 	args := global.Args()
-	if len(args) == 0 {
-		runGUI(store, *background)
+	if len(args) > 0 && args[0] == "agent" {
+		runAgent(*dir, args[1:])
 		return
+	}
+	if len(args) > 0 && args[0] == "accounts" {
+		listAccounts(*dir)
+		return
+	}
+	if len(args) == 0 {
+		launchDesktopApp(*background)
+		return
+	}
+	store := &config.Store{Dir: *dir}
+	if *account != "" && *account != agent.MainAccount {
+		if !validAccount(*account) {
+			fmt.Fprintln(os.Stderr, "strataos-sync: invalid account")
+			os.Exit(2)
+		}
+		store.Dir = filepath.Join(*dir, "accounts", *account)
 	}
 	if err := runCommand(store, args[0], args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "strataos-sync:", err)
@@ -69,9 +83,10 @@ func main() {
 func usage() {
 	fmt.Fprint(os.Stderr, `StrataOS Sync `+version+`: two-way synchronization of folders with a StrataOS NAS.
 
-Usage: strataos-sync [--config DIR] [command]
+Usage: strataos-sync [--config DIR] [--account ID] [command]
 
-Without a command: the tray app (settings at the first launch).
+Without a command: starts the StrataOS desktop app when it is installed.
+--account: another NAS paired by the desktop app (the first one by default).
 Commands (headless):
   pair      --server URL (--code CODE | --user NAME --password-file FILE [--otp CODE]) [--fingerprint FP | --trust] [--name NAME]
             or --link 'strataos://pair?…' (copied from the NAS web interface)
@@ -87,6 +102,8 @@ Commands (headless):
   sync-once synchronize until up to date, then exit [--confirm-deletes | --restore-deletes]
   daemon    synchronize continuously (Ctrl+C stops)
   unpair    sign this computer out of the NAS
+  accounts  the NAS paired by the desktop app, with their account IDs
+  agent     the sync engine of the desktop app (started by the app itself)
 `)
 }
 
@@ -343,64 +360,6 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 	}
 	usage()
 	return exitCode(2)
-}
-
-// runGUI runs the tray app.
-func runGUI(store *config.Store, background bool) {
-	if err := os.MkdirAll(store.Dir, 0o700); err != nil {
-		log.Fatal(err)
-	}
-	urlFile := filepath.Join(store.Dir, "ui-url")
-	// One app per account: a second launch opens the settings of the first.
-	if b, err := os.ReadFile(urlFile); err == nil {
-		u := strings.TrimSpace(string(b))
-		hc := &http.Client{Timeout: 2 * time.Second}
-		if resp, err := hc.Get(u); err == nil {
-			resp.Body.Close()
-			if !background {
-				_ = platform.Open(u)
-			}
-			return
-		}
-	}
-	setupLog(store.LogFile())
-	a, err := app.New(store, version)
-	if err != nil {
-		log.Fatal(err)
-	}
-	a.Notify = func(title, body string) {
-		if err := platform.Notify(title, body); err != nil {
-			log.Printf("notification: %v", err)
-		}
-	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	a.FirstRun()
-	if err := a.Start(ctx); err != nil {
-		log.Printf("start: %v", err)
-	}
-	ui, err := a.ServeUI(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_ = os.WriteFile(urlFile, []byte(ui.URL()), 0o600)
-	defer os.Remove(urlFile)
-	open := func() {
-		if err := platform.Open(ui.URL()); err != nil {
-			log.Printf("open the settings: %v", err)
-		}
-	}
-	if !background || !a.Paired() || !tray.Available {
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			open()
-		}()
-	}
-	log.Printf("StrataOS Sync %s started (settings: %s)", version, strings.Split(ui.URL(), "?")[0])
-	tray.Run(a, open, ctx.Done(), func() {
-		cancel()
-		a.Stop()
-	})
 }
 
 // setupLog writes the log to a file, started again above 5 MB.

@@ -23,6 +23,7 @@
   "brake.remote": "{0} file eliminati su questo computer andrebbero nel cestino del NAS.",
   "brake.restore": "Conservali (ripristina)",
   "brake.text": "Verrebbero eliminati {0} file su {1}. La sincronizzazione attende la tua decisione.",
+  "err.alreadypaired": "Questo computer è già associato a questo NAS.",
   "err.certchanged": "Il certificato del NAS è cambiato (ora {0}). Se non l'hai rinnovato tu, qualcuno potrebbe intercettare la connessione; altrimenti esci e abbina di nuovo.",
   "err.certuntrusted": "Il certificato del NAS ({0}) non è ancora attendibile: verifica la sua impronta.",
   "err.e2e.header": "L'intestazione della cartella cifrata sul NAS manca o è cambiata.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "Questa cartella si sovrappone a una cartella già sincronizzata: {0}",
   "err.notpaired": "Abbina prima questo computer al NAS.",
   "err.remote.choose": "Scegli una cartella del NAS.",
+  "err.resolve.encrypted": "Questo file si trova in una cartella crittografata end-to-end: il NAS non può condividerlo.",
+  "err.resolve.outside": "Questo file non si trova in una cartella sincronizzata con un NAS.",
   "err.twofactor": "Digita il codice della tua app di autenticazione (autenticazione a due fattori).",
   "err.unauthorized": "Il NAS ha rifiutato l'accesso",
   "err.unreachable": "Impossibile raggiungere {0}: {1}",
+  "err.upload.empty": "Niente da inviare: nessun file.",
+  "err.upload.exists": "già presente sul NAS",
   "folders.add": "Sincronizza una cartella",
   "folders.addbutton": "Sincronizza",
   "folders.changepass": "Cambia la passphrase",
@@ -131,5 +136,6 @@
   "tray.quit": "Esci",
   "tray.resume": "Riprendi",
   "tray.settings": "Impostazioni…",
-  "tray.syncnow": "Sincronizza ora"
+  "tray.syncnow": "Sincronizza ora",
+  "web.reopen": "Riapri l'interfaccia web dall'app StrataOS."
 }

@@ -23,6 +23,7 @@
   "brake.remote": "在此电脑上删除的 {0} 个文件将移入 NAS 的回收站。",
   "brake.restore": "保留（还原）",
   "brake.text": "{1} 个文件中将有 {0} 个被删除。同步正在等待您的决定。",
+  "err.alreadypaired": "此电脑已与该 NAS 配对。",
   "err.certchanged": "NAS 的证书已更改（现为 {0}）。如果不是您续订的，则可能有人在拦截连接；否则请退出登录并重新配对。",
   "err.certuntrusted": "NAS 的证书（{0}）尚未受信任：请核对其指纹。",
   "err.e2e.header": "NAS 上加密文件夹的头部缺失或已更改。",
@@ -39,9 +40,13 @@
   "err.local.overlap": "此文件夹与已同步的文件夹重叠：{0}",
   "err.notpaired": "请先将此电脑与 NAS 配对。",
   "err.remote.choose": "请选择 NAS 上的文件夹。",
+  "err.resolve.encrypted": "此文件位于端到端加密文件夹中：NAS 无法共享它。",
+  "err.resolve.outside": "此文件不在与 NAS 同步的文件夹中。",
   "err.twofactor": "请输入验证器应用中的验证码（双重验证）。",
   "err.unauthorized": "NAS 拒绝了登录",
   "err.unreachable": "无法连接 {0}：{1}",
+  "err.upload.empty": "没有可发送的内容：没有文件。",
+  "err.upload.exists": "已在 NAS 上",
   "folders.add": "同步文件夹",
   "folders.addbutton": "同步",
   "folders.changepass": "更改口令",
@@ -131,5 +136,6 @@
   "tray.quit": "退出",
   "tray.resume": "继续",
   "tray.settings": "设置…",
-  "tray.syncnow": "立即同步"
+  "tray.syncnow": "立即同步",
+  "web.reopen": "请从 StrataOS 应用重新打开网页界面。"
 }

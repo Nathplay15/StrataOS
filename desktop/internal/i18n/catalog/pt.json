@@ -23,6 +23,7 @@
   "brake.remote": "{0} arquivo(s) excluído(s) neste computador iria(m) para a lixeira do NAS.",
   "brake.restore": "Mantê-los (restaurar)",
   "brake.text": "{0} de {1} arquivos seriam excluídos. A sincronização aguarda a sua decisão.",
+  "err.alreadypaired": "Este computador já está emparelhado com este NAS.",
   "err.certchanged": "O certificado do NAS mudou (agora {0}). Se você não o renovou, alguém pode estar interceptando a conexão; caso contrário, saia e pareie novamente.",
   "err.certuntrusted": "O certificado do NAS ({0}) ainda não é confiável: confira a impressão digital dele.",
   "err.e2e.header": "O cabeçalho da pasta criptografada no NAS está ausente ou foi alterado.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "Esta pasta se sobrepõe a uma pasta já sincronizada: {0}",
   "err.notpaired": "Pareie primeiro este computador com o NAS.",
   "err.remote.choose": "Escolha uma pasta do NAS.",
+  "err.resolve.encrypted": "Este arquivo está em uma pasta criptografada de ponta a ponta: o NAS não pode compartilhá-lo.",
+  "err.resolve.outside": "Este arquivo não está em uma pasta sincronizada com um NAS.",
   "err.twofactor": "Digite o código do seu app autenticador (autenticação em duas etapas).",
   "err.unauthorized": "O NAS recusou o login",
   "err.unreachable": "Não foi possível acessar {0}: {1}",
+  "err.upload.empty": "Nada para enviar: nenhum arquivo.",
+  "err.upload.exists": "já está no NAS",
   "folders.add": "Sincronizar uma pasta",
   "folders.addbutton": "Sincronizar",
   "folders.changepass": "Alterar a senha",
@@ -131,5 +136,6 @@
   "tray.quit": "Sair",
   "tray.resume": "Retomar",
   "tray.settings": "Configurações…",
-  "tray.syncnow": "Sincronizar agora"
+  "tray.syncnow": "Sincronizar agora",
+  "web.reopen": "Abra a interface web novamente a partir do aplicativo StrataOS."
 }

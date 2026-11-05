@@ -3,7 +3,6 @@ module strataos-sync
 go 1.26.0
 
 require (
-	fyne.io/systray v1.12.2
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/godbus/dbus/v5 v5.2.4
 	go.etcd.io/bbolt v1.5.0

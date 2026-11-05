@@ -23,6 +23,7 @@
   "brake.remote": "{0} fichier(s) supprimé(s) sur cet ordinateur iraient dans la corbeille du NAS.",
   "brake.restore": "Les garder (restaurer)",
   "brake.text": "{0} fichiers sur {1} seraient supprimés. La synchronisation attend votre décision.",
+  "err.alreadypaired": "Cet ordinateur est déjà associé à ce NAS.",
   "err.certchanged": "Le certificat du NAS a changé (maintenant {0}). Si vous ne l'avez pas renouvelé, quelqu'un intercepte peut-être la connexion ; sinon, déconnectez-vous et associez à nouveau.",
   "err.certuntrusted": "Le certificat du NAS ({0}) n'est pas encore approuvé : vérifiez son empreinte.",
   "err.e2e.header": "L'en-tête du dossier chiffré manque sur le NAS ou a changé.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "Ce dossier chevauche un dossier déjà synchronisé : {0}",
   "err.notpaired": "Associez d'abord cet ordinateur au NAS.",
   "err.remote.choose": "Choisissez un dossier du NAS.",
+  "err.resolve.encrypted": "Ce fichier est dans un dossier chiffré de bout en bout : le NAS ne peut pas le partager.",
+  "err.resolve.outside": "Ce fichier n'est pas dans un dossier synchronisé avec un NAS.",
   "err.twofactor": "Saisissez le code de votre application d'authentification (double authentification).",
   "err.unauthorized": "Le NAS a refusé la connexion",
   "err.unreachable": "Impossible de joindre {0} : {1}",
+  "err.upload.empty": "Rien à envoyer : aucun fichier.",
+  "err.upload.exists": "déjà sur le NAS",
   "folders.add": "Synchroniser un dossier",
   "folders.addbutton": "Synchroniser",
   "folders.changepass": "Changer la phrase secrète",
@@ -131,5 +136,6 @@
   "tray.quit": "Quitter",
   "tray.resume": "Reprendre",
   "tray.settings": "Réglages…",
-  "tray.syncnow": "Synchroniser maintenant"
+  "tray.syncnow": "Synchroniser maintenant",
+  "web.reopen": "Rouvrez l'interface web depuis l'application StrataOS."
 }
