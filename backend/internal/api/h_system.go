@@ -372,7 +372,7 @@ func (s *Server) systemRoutes() {
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "lxc": "install-lxc.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ceph": "install-ceph.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "lxc": "install-lxc.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ceph": "install-ceph.sh", "s3": "install-s3.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}
@@ -414,6 +414,7 @@ func componentsInstalled() map[string]bool {
 		"iscsi":      iscsi.Installed(),
 		"nvr":        nvr.Installed(),
 		"rsync":      sys.Has("rsync"),
+		"s3":         s3Installed(),
 		"xfs":        sys.Has("mkfs.xfs"),
 		"tailscale":  remote.TailscaleInstalled(),
 		"tunnel":     remote.CloudflaredInstalled(),
