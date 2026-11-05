@@ -453,6 +453,11 @@ func (s *Server) advisorFacts() health.Facts {
 	}
 	testable, _ := s.testable()
 	s.store.Read(func(st *store.State) {
+		for _, d := range st.Datastores {
+			df := health.DatastoreFact{Name: d.Name, Created: d.Created, LastOK: lastVerified(d), Off: d.Verify.Off}
+			df.LastFailed = len(d.Verifies) > 0 && d.Verifies[0].Status != "success"
+			f.Datastores = append(f.Datastores, df)
+		}
 		f.RestoreTestOff = st.Protection.RestoreTestOff && len(testable) > 0
 		for _, b := range st.Backups {
 			if b.Enabled && b.RestoreTest != nil && b.RestoreTest.Status != "success" {

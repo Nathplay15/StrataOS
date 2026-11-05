@@ -165,6 +165,16 @@ type VMBackup struct {
 func VMBackups(ctx context.Context, t store.BackupTask) ([]VMBackup, error) {
 	out := []VMBackup{}
 	switch {
+	case t.Datastore != "":
+		items, err := GuestBackups(ctx, t)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range items {
+			if it.Kind == "vm" && it.Complete {
+				out = append(out, VMBackup{Task: t.ID, TaskName: t.Name, VM: it.Name, Created: it.Time, Size: it.Logical, Mode: "image", Snapshot: it.ID})
+			}
+		}
 	case t.Kind == "rsync" && t.DestType == "local":
 		entries, _ := os.ReadDir(filepath.Join(t.DestPath, "vms"))
 		for _, e := range entries {
@@ -212,6 +222,8 @@ func RestoreVM(ctx context.Context, t store.BackupTask, vm, snapshot string, r v
 	}
 	vp := vms.Progress{Set: p.Set, Log: p.Log}
 	switch {
+	case t.Datastore != "":
+		return RestoreGuest(ctx, t, snapshot, GuestRestore{Name: r.Name, Storage: r.Storage, Start: r.Start}, p)
 	case t.Kind == "rsync" && t.DestType == "local":
 		if err := vms.RestoreVM(ctx, filepath.Join(t.DestPath, "vms", vm), r, vp); err != nil {
 			return "", err

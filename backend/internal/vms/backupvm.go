@@ -82,40 +82,12 @@ func ExportVM(ctx context.Context, name, dest, mode string, p Progress) (*Backup
 			disks = append(disks, d)
 		}
 	}
-	running := vm.State == "running" || vm.State == "paused"
-	shared := false
-	if running {
-		if mode == "" {
-			mode = BackupSnapshot
-		}
-		switch mode {
-		case BackupSuspend:
-			if vm.State == "running" {
-				if _, err := virsh("suspend", name); err != nil {
-					return nil, err
-				}
-				defer func() { _, _ = virsh("resume", name) }()
-			}
-			man.Consistency, shared = "suspended", true
-		case BackupShutdown:
-			p.log("Shutting %s down for the copy", name)
-			if _, err := virsh("shutdown", name); err != nil {
-				return nil, err
-			}
-			if !waitState(name, "shut off", 5*time.Minute) {
-				return nil, fmt.Errorf("%s did not shut down within 5 minutes", name)
-			}
-			defer func() { _ = Action(name, "start") }()
-			man.Consistency = "offline"
-		default:
-			commit, how, err := tempSnapshot(vm, disks, p)
-			if err != nil {
-				return nil, err
-			}
-			defer commit()
-			man.Consistency, shared = how, true
-		}
+	release, consistency, shared, err := holdStill(vm, disks, mode, p)
+	if err != nil {
+		return nil, err
 	}
+	defer release()
+	man.Consistency = consistency
 	for i, d := range disks {
 		file := fmt.Sprintf("%s.qcow2", d.Target)
 		p.log("Copying disk %s (%s)", d.Target, d.Source)
@@ -148,6 +120,53 @@ func ExportVM(ctx context.Context, name, dest, mode string, p Progress) (*Backup
 	}
 	p.set(100)
 	return man, nil
+}
+
+// holdStill keeps the disks of a VM from changing while they are copied:
+// nothing to do when it is off; otherwise a temporary snapshot (default),
+// a pause or a shutdown. shared: the disks stay open by the VM (read
+// them with locking off). release undoes it.
+func holdStill(vm *VM, disks []Disk, mode string, p Progress) (release func(), consistency string, shared bool, err error) {
+	name := vm.Name
+	var undo []func()
+	release = func() {
+		for i := len(undo) - 1; i >= 0; i-- {
+			undo[i]()
+		}
+	}
+	if vm.State != "running" && vm.State != "paused" {
+		return release, "offline", false, nil
+	}
+	if mode == "" {
+		mode = BackupSnapshot
+	}
+	switch mode {
+	case BackupSuspend:
+		if vm.State == "running" {
+			if _, err := virsh("suspend", name); err != nil {
+				return nil, "", false, err
+			}
+			undo = append(undo, func() { _, _ = virsh("resume", name) })
+		}
+		return release, "suspended", true, nil
+	case BackupShutdown:
+		p.log("Shutting %s down for the copy", name)
+		if _, err := virsh("shutdown", name); err != nil {
+			return nil, "", false, err
+		}
+		if !waitState(name, "shut off", 5*time.Minute) {
+			return nil, "", false, fmt.Errorf("%s did not shut down within 5 minutes", name)
+		}
+		undo = append(undo, func() { _ = Action(name, "start") })
+		return release, "offline", false, nil
+	default:
+		commit, how, err := tempSnapshot(vm, disks, p)
+		if err != nil {
+			return nil, "", false, err
+		}
+		undo = append(undo, commit)
+		return release, how, true, nil
+	}
 }
 
 // tempSnapshot puts a temporary overlay on every disk of a running VM, so that

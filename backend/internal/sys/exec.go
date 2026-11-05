@@ -45,6 +45,8 @@ type Opts struct {
 	AllowCodes []int
 	// Output, when set, receives combined stdout/stderr as it is produced.
 	Output io.Writer
+	// Input, when set (and Stdin empty), is streamed to the command's stdin.
+	Input io.Reader
 }
 
 // Run executes name with args and returns its stdout.
@@ -79,6 +81,8 @@ func RunOpts(ctx context.Context, o Opts, name string, args ...string) (string, 
 	cmd.Dir = o.Dir
 	if o.Stdin != "" {
 		cmd.Stdin = strings.NewReader(o.Stdin)
+	} else if o.Input != nil {
+		cmd.Stdin = o.Input
 	}
 	var stdout, stderr bytes.Buffer
 	if o.Output != nil {

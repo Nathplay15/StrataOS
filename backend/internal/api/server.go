@@ -271,6 +271,7 @@ func (s *Server) routes() {
 	s.versionRoutes()
 	s.guardRoutes()
 	s.vaultRoutes()
+	s.datastoreRoutes()
 	s.metricsRoutes()
 	s.fleetRoutes()
 	s.fleetHealthRoutes()

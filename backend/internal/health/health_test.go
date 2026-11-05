@@ -315,3 +315,28 @@ func TestAdviseDataProtection(t *testing.T) {
 		t.Errorf("3-2-1 met: %s", ids(items))
 	}
 }
+
+func TestAdviseDatastores(t *testing.T) {
+	f := baseFacts()
+	now := f.Now
+	f.Datastores = []DatastoreFact{
+		{Name: "new", Created: now.Add(-time.Hour)},                                              // too young to flag
+		{Name: "never", Created: now.Add(-72 * time.Hour)},                                       // never checked
+		{Name: "ok", Created: now.Add(-900 * time.Hour), LastOK: now.Add(-24 * time.Hour)},       // fine
+		{Name: "old", Created: now.Add(-900 * time.Hour), LastOK: now.Add(-40 * 24 * time.Hour)}, // stale
+		{Name: "off", Created: now.Add(-900 * time.Hour), LastOK: now.Add(-time.Hour), Off: true},
+		{Name: "bad", Created: now.Add(-900 * time.Hour), LastOK: now.Add(-48 * time.Hour), LastFailed: true},
+	}
+	items := Advise(f, nil)
+	got := map[string]store.AdvisorItem{}
+	for _, it := range items {
+		got[it.ID] = it
+	}
+	if it := got["datastore-verify-failed"]; it.Severity != "high" || !strings.Contains(it.Title, "bad") {
+		t.Fatalf("failed: %+v", it)
+	}
+	it := got["datastore-unverified"]
+	if it.Severity != "medium" || !strings.Contains(it.Title, "never, off, old") || strings.Contains(it.Title, "new") || strings.Contains(it.Title, "ok") {
+		t.Fatalf("unverified: %+v", it)
+	}
+}

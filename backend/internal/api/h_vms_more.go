@@ -439,7 +439,7 @@ func (s *Server) vmMoreRoutes() {
 		s.store.Read(func(st *store.State) {
 			for _, b := range st.Backups {
 				if len(b.VMs) > 0 {
-					tasks = append(tasks, *b)
+					tasks = append(tasks, resolveTask(st, b))
 				}
 			}
 		})
@@ -470,7 +470,7 @@ func (s *Server) vmMoreRoutes() {
 		var found bool
 		s.store.Read(func(st *store.State) {
 			if x := st.Backup(req.Task); x != nil {
-				t, found = *x, true
+				t, found = resolveTask(st, x), true
 			}
 		})
 		if !found {

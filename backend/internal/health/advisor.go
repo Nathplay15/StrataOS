@@ -53,6 +53,9 @@ type Facts struct {
 	RestoreSupported bool
 	RestoreWhy       string
 
+	// Datastores: backup repositories and their integrity checks.
+	Datastores []DatastoreFact
+
 	FailingDisks []string
 	WeakDisks    []string
 
@@ -64,6 +67,15 @@ type Facts struct {
 	NotifyConfigured bool
 
 	Now time.Time
+}
+
+// DatastoreFact is a backup repository.
+type DatastoreFact struct {
+	Name       string
+	Created    time.Time
+	LastOK     time.Time // last successful check (zero: never)
+	LastFailed bool      // the last check failed
+	Off        bool      // scheduled checks are off
 }
 
 // BackupFact is a backup or cloud sync task.
@@ -194,6 +206,23 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 	if len(f.RestoreFailed) > 0 {
 		add("restore-test-failed", "high", sub("Restore test failed: {0}", list(f.RestoreFailed)),
 			"A sample of files could not be restored intact from these backups: they may not save you when needed. Open the task to see why, run the backup again, then the restore test.", "", "/backup")
+	}
+	var dsFailed, dsUnchecked []string
+	for _, d := range f.Datastores {
+		switch {
+		case d.LastFailed:
+			dsFailed = append(dsFailed, d.Name)
+		case d.Off || (d.LastOK.IsZero() && f.Now.Sub(d.Created) > 48*time.Hour) || (!d.LastOK.IsZero() && f.Now.Sub(d.LastOK) > 35*24*time.Hour):
+			dsUnchecked = append(dsUnchecked, d.Name)
+		}
+	}
+	if len(dsFailed) > 0 {
+		add("datastore-verify-failed", "high", sub("Backup repository check failed: {0}", list(dsFailed)),
+			"Some data of these repositories could not be read back intact: the backups that use it may not restore. Backup → Backup repositories shows the damaged files and the snapshots concerned; run the backups again, then check again.", "", "/backup")
+	}
+	if len(dsUnchecked) > 0 {
+		add("datastore-unverified", "medium", sub("Backup repository not checked: {0}", list(dsUnchecked)),
+			"Nobody knows whether these backups can still be read: a disk or a server can damage them silently. Turn the scheduled check on, or run Verify now in Backup → Backup repositories.", "", "/backup")
 	}
 	if f.RestoreTestOff {
 		add("restore-test-off", "low", "Monthly restore tests are off",

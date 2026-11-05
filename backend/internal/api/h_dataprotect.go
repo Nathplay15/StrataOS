@@ -72,9 +72,12 @@ func (s *Server) restoreSources(forPath string) []restore.Source {
 			out = append(out, restore.ThinSource(t.VG, t.LV, t.MountPoint))
 		}
 	}
+	if forPath == "" {
+		out = append(out, s.imageSources()...)
+	}
 	s.store.Read(func(st *store.State) {
 		for _, b := range st.Backups {
-			src, err := restore.BackupSource(*b)
+			src, err := restore.BackupSource(resolveTask(st, b))
 			if err != nil {
 				continue
 			}
@@ -115,7 +118,7 @@ func (s *Server) restoreSource(id string) (restore.Source, error) {
 		var t *store.BackupTask
 		s.store.Read(func(st *store.State) {
 			if x := st.Backup(rest); x != nil {
-				c := *x
+				c := resolveTask(st, x)
 				t = &c
 			}
 		})
@@ -126,6 +129,8 @@ func (s *Server) restoreSource(id string) (restore.Source, error) {
 			}
 			return src, nil
 		}
+	case "image":
+		return s.imageSourceOf(rest)
 	case "cloud":
 		var t *store.CloudSync
 		s.store.Read(func(st *store.State) {
@@ -178,6 +183,9 @@ func (s *Server) planRestore(ctx context.Context, req restoreRequest) (*restoreP
 	}
 	if len(req.Paths) == 0 || len(req.Paths) > 1000 {
 		return nil, badRequest("choose what to restore")
+	}
+	if src.Info().Kind == "image" && req.Mode == "inplace" {
+		return nil, badRequest("files of a disk backup are restored to a folder or downloaded")
 	}
 	p := &restorePlan{src: src, point: req.Point}
 	for _, raw := range req.Paths {
@@ -317,9 +325,15 @@ func lastOK(h []store.ScheduleRun) (time.Time, bool) {
 func (s *Server) protectionCopies(now time.Time) []protect.Copy {
 	var bks []store.BackupTask
 	var clouds []store.CloudSync
+	dsOffsite := map[string]bool{}
 	s.store.Read(func(st *store.State) {
 		for _, b := range st.Backups {
-			bks = append(bks, *b)
+			if b.DestType == "datastore" {
+				if ds := st.Datastore(b.Datastore); ds != nil {
+					dsOffsite[b.ID] = ds.Offsite
+				}
+			}
+			bks = append(bks, resolveTask(st, b))
 		}
 		for _, c := range st.Clouds {
 			clouds = append(clouds, *c)
@@ -341,14 +355,14 @@ func (s *Server) protectionCopies(now time.Time) []protect.Copy {
 		}
 	}
 	for _, b := range bks {
-		if b.SourceType != "" || b.Kind == "sync" || len(b.Sources) == 0 {
+		if b.SourceType != "" || b.Kind == "sync" || len(b.Sources)+len(b.VMs)+len(b.Containers) == 0 || b.DestType == "datastore" {
 			continue // pulls copy another NAS; a two-way sync copies deletions too
 		}
 		dest := b.DestType
 		usb := dest == "local" && b.Kind != "zfs" && storage.OnUSB(b.DestPath)
 		c := protect.Copy{ID: "backup:" + b.ID, Name: b.Name, Kind: "backup"}
 		c.Media, c.Offsite = protect.MediaOf(dest, usb)
-		c.Offsite = c.Offsite || b.Offsite
+		c.Offsite = c.Offsite || b.Offsite || dsOffsite[b.ID]
 		health(&c, b.Enabled, b.Cron, b.History)
 		out = append(out, c)
 	}
@@ -371,7 +385,7 @@ func (s *Server) testable() (ids []string, names map[string]string) {
 	names = map[string]string{}
 	s.store.Read(func(st *store.State) {
 		for _, b := range st.Backups {
-			if t, _ := lastOK(b.History); b.Enabled && restore.Browsable(*b) && !t.IsZero() {
+			if t, _ := lastOK(b.History); b.Enabled && restore.Browsable(*b) && !t.IsZero() && (b.DestType != "datastore" || len(b.Sources) > 0) {
 				ids = append(ids, "backup:"+b.ID)
 				names["backup:"+b.ID] = b.Name
 			}
@@ -512,6 +526,17 @@ func (s *Server) dataProtectRoutes() {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 		defer cancel()
 		dir := q.Get("path")
+		if rs, ok := src.(restore.Rooted); ok && dir == "" {
+			roots, err := rs.Roots(q.Get("point"))
+			if err != nil {
+				return nil, badRequest(err.Error())
+			}
+			out := []protect.Entry{}
+			for _, root := range roots {
+				out = append(out, protect.Entry{Path: root, Name: path.Base(root), Dir: true})
+			}
+			return map[string]any{"entries": out}, nil
+		}
 		if dir == "" {
 			pts, err := src.Points(ctx)
 			if err != nil {

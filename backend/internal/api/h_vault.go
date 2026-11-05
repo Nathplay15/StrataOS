@@ -62,6 +62,9 @@ func (s *Server) vaultAuth(r *http.Request, vid, cid string) (string, bool, erro
 			for _, c := range v.Clients {
 				if c.ID == cid && subtle.ConstantTimeCompare([]byte(c.TokenHash), []byte(hashToken(tok))) == 1 {
 					dir, appendOnly, ok = filepath.Join(v.Path, c.ID), v.AppendOnly, true
+					if v.Shared {
+						dir = filepath.Join(v.Path, "shared") // one repository for every NAS
+					}
 				}
 			}
 		}
@@ -255,7 +258,9 @@ func (s *Server) vaultRoutes() {
 		for i := range out {
 			for j := range out[i].Clients {
 				out[i].Clients[j].TokenHash = ""
-				out[i].Clients[j].Size = dirSize(filepath.Join(out[i].Path, out[i].Clients[j].ID))
+				if !out[i].Shared {
+					out[i].Clients[j].Size = dirSize(filepath.Join(out[i].Path, out[i].Clients[j].ID))
+				}
 			}
 		}
 		if out == nil {
@@ -268,6 +273,7 @@ func (s *Server) vaultRoutes() {
 			Name       string `json:"name"`
 			Path       string `json:"path"`
 			AppendOnly bool   `json:"appendOnly"`
+			Shared     bool   `json:"shared"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -284,7 +290,7 @@ func (s *Server) vaultRoutes() {
 			return nil, err
 		}
 		_ = os.Chmod(p, 0o700)
-		v := &store.Vault{ID: newLinkID()[:12], Name: req.Name, Path: p, AppendOnly: req.AppendOnly, Created: time.Now(), Clients: []store.VaultClient{}}
+		v := &store.Vault{ID: newLinkID()[:12], Name: req.Name, Path: p, AppendOnly: req.AppendOnly, Shared: req.Shared, Created: time.Now(), Clients: []store.VaultClient{}}
 		err = s.store.Update(func(st *store.State) error { st.Vaults = append(st.Vaults, v); return nil })
 		s.audit(r, "vault", "Backup vault created: "+p)
 		return v, err
