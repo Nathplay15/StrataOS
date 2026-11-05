@@ -339,7 +339,7 @@ func (s *Server) recoveryAdmins() []recoveryAdmin {
 	s.store.Read(func(st *store.State) {
 		for _, u := range st.Users {
 			if u.Role == "admin" && u.Source == "" && !u.Disabled {
-				out = append(out, recoveryAdmin{Username: u.Username, FullName: u.FullName, TwoFactor: u.TOTPSecret != "" || len(u.Passkeys) > 0})
+				out = append(out, recoveryAdmin{Username: u.Username, FullName: u.FullName, TwoFactor: hasSecondFactor(u) || len(u.Passkeys) > 0})
 			}
 		}
 	})

@@ -61,6 +61,13 @@ type User struct {
 	// was first shown, and until when "Remind me later" hides it.
 	TwoFactorPrompted  time.Time `json:"twoFactorPrompted,omitzero"`
 	TwoFactorPostponed time.Time `json:"twoFactorPostponed,omitzero"`
+	// SecurityKeys: WebAuthn credentials used as a second factor after the
+	// password (non-discoverable allowed, store/auth.go), unlike passkeys.
+	SecurityKeys []Passkey `json:"securityKeys,omitempty"`
+	// OIDC: identity provider accounts linked to this one (store/auth.go).
+	OIDC []OIDCLink `json:"oidc,omitempty"`
+	// S3Keys: access keys for the built-in S3 service.
+	S3Keys []S3Key `json:"s3Keys,omitempty"`
 }
 
 type Share struct {
@@ -287,6 +294,10 @@ type Directory struct {
 	BindDN       string `json:"bindDn,omitempty"`
 	BindPassword string `json:"bindPassword,omitempty"`
 	StartTLS     bool   `json:"startTls,omitempty"`
+	// TLSVerify checks the certificate of the LDAP server (ldaps:// or
+	// StartTLS) against the system CAs, or CACert (PEM) when set.
+	TLSVerify bool   `json:"tlsVerify,omitempty"`
+	CACert    string `json:"caCert,omitempty"`
 	// AdminGroup: members of this directory group are StrataOS administrators.
 	AdminGroup string    `json:"adminGroup,omitempty"`
 	JoinedAt   time.Time `json:"joinedAt"`
@@ -611,6 +622,10 @@ type State struct {
 	// TwoFactor: two-factor authentication required for administrators (store/access.go).
 	TwoFactor TwoFactorPolicy `json:"twoFactor,omitzero"`
 	Mobile    Mobile          `json:"mobile,omitzero"`
+	// OIDC: identity providers of the sign-in page; S3: the built-in S3
+	// service (store/auth.go).
+	OIDC []*OIDCProvider `json:"oidc,omitempty"`
+	S3   S3Service       `json:"s3,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`

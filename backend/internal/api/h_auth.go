@@ -49,6 +49,9 @@ type meResp struct {
 	Lang      string `json:"lang,omitempty"` // interface language last reported (PUT /api/me/lang)
 	// TwoFactorPrompt: the setup step of administrators (h_access.go).
 	TwoFactorPrompt *gate.Prompt `json:"twoFactorPrompt,omitempty"`
+	// NoPassword: an account created by an identity provider, which may set
+	// a first password (for SMB, apps) without the current one.
+	NoPassword bool `json:"noPassword,omitempty"`
 }
 
 func (s *Server) authRoutes() {
@@ -181,27 +184,21 @@ func (s *Server) authRoutes() {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "two-factor authentication is required for administrators: sign in with your passkey", "passkeyRequired": true})
 			return
 		}
-		if u.TOTPSecret != "" {
+		if hasSecondFactor(&u) {
+			// A code sent with the password (older clients, scripts) is still
+			// checked here; otherwise the second step is asked for.
 			if strings.TrimSpace(req.Code) == "" {
-				// Password is right: ask for the second factor (does not count as a failure).
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "code de double authentification requis", "twoFactor": true})
+				s.askSecondFactor(w, r, u, req.Remember, "", "")
 				return
 			}
 			if !s.checkSecondFactor(u.Username, req.Code) {
 				s.store.Log("warning", "auth", u.Username, "Wrong two-factor code from "+ip)
 				s.guardFail(ip, "web", u.Username)
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "code de double authentification incorrect", "twoFactor": true})
+				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "wrong two-factor code", "twoFactor": true, "methods": s.methodsOf(r, u)})
 				return
 			}
 		}
-		s.limiter.reset(ip)
-		ttl := s.sessionTTL()
-		if req.Remember {
-			ttl = 30 * 24 * time.Hour
-		}
-		s.setCookie(w, r, s.sessions.create(u.Username, u.Role, ip, ttl), ttl)
-		s.store.Log("info", "auth", u.Username, "Signed in from "+ip)
-		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != "", TwoFactorPrompt: s.twoFactorPrompt(u.Username, true)})
+		s.startSession(w, r, u, req.Remember, "", "Signed in from ")
 	}))
 
 	s.userRaw("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -216,11 +213,11 @@ func (s *Server) authRoutes() {
 		var m meResp
 		s.store.Read(func(st *store.State) {
 			if u := st.User(userOf(r)); u != nil {
-				m = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != "", Lang: u.Lang}
+				m = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(u), Lang: u.Lang, NoPassword: u.PasswordHash == "" && u.Source == ""}
 			}
 		})
 		if m.Username != "" {
-			m.TwoFactorPrompt = s.twoFactorPrompt(m.Username, true)
+			m.TwoFactorPrompt = s.twoFactorPrompt(m.Username, true, sessionFrom(r.Context()).MFA)
 		}
 		return m, nil
 	})
@@ -243,7 +240,13 @@ func (s *Server) authRoutes() {
 		if source != "" {
 			return nil, badRequest("this account's password is managed by the directory")
 		}
-		if !checkPassword(hash, req.Current) {
+		if hash == "" {
+			// Created by an identity provider without a password: a first one
+			// may be set from a fresh session.
+			if !s.confirmIdentity(r, name, "") {
+				return nil, badRequest("sign in again to set a password")
+			}
+		} else if !checkPassword(hash, req.Current) {
 			return nil, badRequest("current password is incorrect")
 		}
 		if err := s.changePassword(name, req.New); err != nil {

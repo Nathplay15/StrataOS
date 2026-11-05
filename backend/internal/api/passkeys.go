@@ -174,6 +174,10 @@ func (p *passkeyUser) WebAuthnCredentials() []webauthn.Credential {
 func copyUser(u *store.User) store.User {
 	c := *u
 	c.Passkeys = slices.Clone(u.Passkeys)
+	c.SecurityKeys = slices.Clone(u.SecurityKeys)
+	c.RecoveryCodes = slices.Clone(u.RecoveryCodes)
+	c.OIDC = slices.Clone(u.OIDC)
+	c.S3Keys = slices.Clone(u.S3Keys)
 	c.WebAuthnID = slices.Clone(u.WebAuthnID)
 	return c
 }
@@ -420,7 +424,7 @@ func (s *Server) passkeyRoutes() {
 		}
 		s.setCookie(w, r, s.sessions.create(u.Username, u.Role, ip, ttl), ttl)
 		s.store.Log("info", "auth", u.Username, "Signed in with a passkey from "+ip)
-		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""})
+		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(&u)})
 	}))
 
 	s.user("GET /api/me/passkeys", func(r *http.Request) (any, error) {
@@ -559,7 +563,7 @@ func (s *Server) passkeyRoutes() {
 				return notFound("passkey not found")
 			}
 			name = k.Name
-			if err := keepsSecondFactor(st, u, u.TOTPSecret != "", len(u.Passkeys)-1); err != nil {
+			if err := keepsSecondFactor(st, u, u.TOTPSecret != "", len(u.Passkeys)-1, len(u.SecurityKeys)); err != nil {
 				return err
 			}
 			u.Passkeys = slices.DeleteFunc(u.Passkeys, func(p store.Passkey) bool { return p.ID == r.PathValue("id") })

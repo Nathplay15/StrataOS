@@ -2,42 +2,12 @@ package api
 
 import (
 	"crypto/rand"
-	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"strataos/internal/store"
 	"strataos/internal/totp"
 )
-
-// checkSecondFactor accepts a TOTP code or a single-use recovery code.
-func (s *Server) checkSecondFactor(user, code string) bool {
-	code = strings.TrimSpace(code)
-	ok := false
-	_ = s.store.Update(func(st *store.State) error {
-		u := st.User(user)
-		if u == nil || u.TOTPSecret == "" {
-			return nil
-		}
-		if valid, counter := totp.Verify(u.TOTPSecret, code, time.Now(), u.TOTPLast); valid {
-			u.TOTPLast = counter
-			ok = true
-			return nil
-		}
-		norm := strings.ToLower(strings.ReplaceAll(code, " ", ""))
-		for i, h := range u.RecoveryCodes {
-			if checkPassword(h, norm) {
-				u.RecoveryCodes = append(u.RecoveryCodes[:i], u.RecoveryCodes[i+1:]...)
-				ok = true
-				s.store.LogLocked(st, "warning", "auth", user, fmt.Sprintf("Recovery code used (%d left)", len(u.RecoveryCodes)))
-				return nil
-			}
-		}
-		return nil
-	})
-	return ok
-}
 
 func recoveryCode() string {
 	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -82,17 +52,11 @@ func (s *Server) twoFactorRoutes() {
 			return nil, err
 		}
 		name := userOf(r)
-		codes := make([]string, 8)
-		hashes := make([]string, 8)
-		for i := range codes {
-			codes[i] = recoveryCode()
-			h, err := hashPassword(strings.ReplaceAll(codes[i], " ", ""))
-			if err != nil {
-				return nil, err
-			}
-			hashes[i] = h
+		codes, hashes, err := userRecoveryCodes()
+		if err != nil {
+			return nil, err
 		}
-		err := s.store.Update(func(st *store.State) error {
+		err = s.store.Update(func(st *store.State) error {
 			u := st.User(name)
 			if u == nil || u.TOTPPending == "" {
 				return badRequest("start the setup first")
@@ -124,10 +88,13 @@ func (s *Server) twoFactorRoutes() {
 			if u == nil || !checkPassword(u.PasswordHash, req.Password) {
 				return badRequest("incorrect password")
 			}
-			if err := keepsSecondFactor(st, u, false, len(u.Passkeys)); err != nil {
+			if err := keepsSecondFactor(st, u, false, len(u.Passkeys), len(u.SecurityKeys)); err != nil {
 				return err
 			}
-			u.TOTPSecret, u.TOTPPending, u.TOTPLast, u.RecoveryCodes = "", "", 0, nil
+			u.TOTPSecret, u.TOTPPending, u.TOTPLast = "", "", 0
+			if len(u.SecurityKeys) == 0 {
+				u.RecoveryCodes = nil // they stand in for security keys too
+			}
 			return nil
 		})
 		if err == nil {
@@ -136,7 +103,8 @@ func (s *Server) twoFactorRoutes() {
 		return nil, err
 	})
 
-	// An administrator can reset the second factor of a user who lost their phone.
+	// An administrator can reset the second factor of a user who lost their
+	// phone or security key: the app, the security keys and the recovery codes.
 	s.admin("POST /api/users/{name}/2fa/reset", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
 		err := s.store.Update(func(st *store.State) error {
@@ -145,6 +113,7 @@ func (s *Server) twoFactorRoutes() {
 				return notFound("user not found")
 			}
 			u.TOTPSecret, u.TOTPPending, u.TOTPLast, u.RecoveryCodes = "", "", 0, nil
+			u.SecurityKeys = nil
 			return nil
 		})
 		if err == nil {

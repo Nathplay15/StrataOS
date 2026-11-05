@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"strataos/internal/gate"
 	"strataos/internal/store"
 )
 
@@ -337,7 +338,7 @@ func (s *Server) mobileRoutes() {
 		host, _ := hostname()
 		writeJSON(w, http.StatusOK, map[string]any{
 			"token": tok, "device": viewDevice(d),
-			"user":   meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""},
+			"user":   meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(&u)},
 			"server": map[string]string{"hostname": host, "version": s.version},
 		})
 	}))
@@ -349,7 +350,7 @@ func (s *Server) mobileRoutes() {
 			"features": []string{"uploads", "exists", "events", "push", "sync", "websession", "livevideo"}}
 		s.store.Read(func(st *store.State) {
 			if u := st.User(userOf(r)); u != nil {
-				out["user"] = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: u.TOTPSecret != ""}
+				out["user"] = meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(u)}
 				if dev := deviceFrom(r.Context()); dev != nil {
 					if d := u.MobileDevice(dev.id); d != nil {
 						v := viewDevice(*d)
@@ -539,7 +540,19 @@ func (s *Server) passwordSignIn(r *http.Request, username, password, code, ip st
 		s.guardFail(ip, "mobile app", username)
 		return u, map[string]any{"error": errBadLogin.Error()}
 	}
-	if u.TOTPSecret != "" {
+	// The app cannot use a security key or a passkey: such accounts pair
+	// with the QR code of the web interface (a session that passed them).
+	var blocked, keyOnly bool
+	s.store.Read(func(st *store.State) {
+		if x := st.User(u.Username); x != nil {
+			blocked = passkeyOnlyBlocked(st, x, time.Now())
+			keyOnly = len(x.SecurityKeys) > 0 && !(x.TOTPSecret != "" && gate.TOTPAccepted(policyOf(st), accountOf(x), time.Now()))
+		}
+	})
+	if blocked || keyOnly {
+		return u, map[string]any{"error": "this account signs in with a security key or a passkey: pair the app with the QR code of the web interface (your name → Devices)", "pairingCodeRequired": true}
+	}
+	if hasSecondFactor(&u) {
 		if strings.TrimSpace(code) == "" {
 			return u, map[string]any{"error": "two-factor code required", "twoFactor": true}
 		}
