@@ -248,6 +248,7 @@ func (s *Server) routes() {
 	s.accessRoutes()
 	s.passkeyRoutes()
 	s.secondFactorRoutes()
+	s.oidcRoutes()
 	s.certRoutes()
 	s.upsRoutes()
 	s.vmRoutes()
