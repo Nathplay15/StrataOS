@@ -25,10 +25,10 @@ import (
 	"strings"
 	"syscall"
 
+	"strataos-sync/internal/agent"
 	"strataos-sync/internal/api"
 	"strataos-sync/internal/app"
 	"strataos-sync/internal/config"
-	"strataos-sync/internal/agent"
 )
 
 var version = "dev"
