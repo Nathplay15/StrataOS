@@ -41,7 +41,8 @@ Versions: trixie → forky at the time of the check.
 | Samba (smb.conf options, vfs fruit/shadow_copy2/recycle/full_audit, AD member options) | 4.22 → 4.25 | **OK**: `testparm` gives the same (harmless) warnings on both |
 | Windows discovery (WSD) | wsdd2 is **not in forky** | **Needs change, done**: Recommends `wsdd2 \| wsdd-server`; postinst enables whichever unit exists; `wsdd-server.service` is listed in the services page when loaded |
 | Docker | docker.io 26.1 → 28.5, docker-compose 2.26 → 2.40 (Debian packages) | **OK** (StrataOS uses Debian's packages). Docker's own repository (`download.docker.com`) has **no forky suite yet**: a NAS where the owner added it by hand must keep `trixie` in that source |
-| ZFS | zfs-dkms 2.3.9 → 2.4.4, kernel 6.12 → 7.2 | **OK** in containers (installs); DKMS build checked by the VM test (see results) |
+| ZFS | zfs-dkms 2.3.9 → 2.4.4 (supports Linux up to 7.2), kernel 6.12 → 7.2 | **Needs change, done**: the module builds on 7.2 (1 min 30 s), but the daily image ran 7.2.12 while the archive only had 7.2.15 headers, so ZFS was built for a kernel that was not installed. `install-zfs.sh` now installs the current kernel in that case and asks for a restart (the same can happen on Debian 13 after a point release) |
+| LVM (cache detach, volume group removal) | lvm2 2.03.31 on both, udev 257 → 262 | **Needs change, done**: after `pvremove` no change event reaches udev on forky, so the freed disk stayed "in use (lvm)" until a reboot. StrataOS now asks udev to re-read the disk |
 | Kernel modules (iSCSI target, vfio-pci, wireguard, nf_tables, bonding, 8021q, raid456, dm-cache, btrfs, xfs) | linux 7.2 | **OK**: same names, all present |
 | cgroup v2, systemd units and options | systemd 257 → 262 | **OK** (cgroup v2 only on both; no StrataOS unit uses removed options) |
 | Network (systemd-networkd, `ifdown` to take over from ifupdown) | isc-dhcp-client removed from forky | **OK**: StrataOS writes systemd-networkd files and never uses dhclient |
@@ -65,6 +66,24 @@ Versions: trixie → forky at the time of the check.
 | Raspberry Pi archive (kernel switch, image) | `forky` exists but has **no kernels** yet | **Needs change, done**: the kernel switch tries the running codename then `trixie`; the image builder takes `SUITE=`. Building a forky Raspberry Pi image is **blocked upstream** until the archive publishes kernels |
 | Installer ISO | built from a Debian 13 netinst | Not changed: a Debian 14 ISO will need `SRC_ISO=` pointing at a forky netinst and the menu label; not tried (forky installer images are not stable) |
 
+## VM results (10 November 2026)
+
+`vm/debian14-test.sh`, daily forky image, kernel 7.2.12, 13 disks:
+
+| Run | Result |
+|---|---|
+| Debian 13, package with the Debian 14 changes | 71 passed, 0 failed |
+| Debian 14, first run | 58 passed, 13 failed: 5 from the LVM/udev issue, 8 from ZFS (job timeout, then the kernel headers issue) |
+| Debian 14, LVM fix | 64 passed, 7 failed (all ZFS) |
+| Debian 14, LVM and ZFS fixes | 71 passed, 0 failed (ZFS installer installed kernel 7.2.15, VM restarted, ZFS 2.4.4 loaded) |
+| Debian 13, LVM and ZFS fixes | 71 passed, 0 failed (headers of the running kernel available: no kernel change, no restart) |
+
+Everything else of the subset passed on forky: setup wizard, mdadm RAID 5 +
+ext4, Btrfs RAID 1, LVM with an SSD cache, users and groups, SMB (written to
+with smbclient) and NFS exports, POSIX ACLs, file manager security checks,
+Docker with an app from the App Center and its update task, Windows discovery
+(wsdd-server), directory clients, `testparm`, nftables.
+
 ## What changed in StrataOS
 
 - `packaging/debian/control.in`: `wsdd2 | wsdd-server`.
@@ -73,6 +92,8 @@ Versions: trixie → forky at the time of the check.
 - `packaging/scripts/install-directory.sh`: sssd installed only when the release has it.
 - `packaging/scripts/install-rclone.sh`: a clear message when rclone is not packaged.
 - `packaging/scripts/install-tailscale.sh`: suite = running codename, falling back to `trixie`.
+- `backend/internal/storage/lvm.go`: `pvRemove` re-triggers udev after `pvremove` (all callers).
+- `packaging/scripts/install-zfs.sh`: installs the kernel matching the available headers when the running kernel's are gone, and says to restart.
 - `backend/internal/system/aptsources.go`: `Codename()`, `SuiteCandidates`, `SourcesSuite`, `WithSuite` (unit-tested); `backend/internal/api/h_rpikernel.go` uses them for the Raspberry Pi archive.
 - `packaging/test-install.sh`, CI job `debian-install`, `vm/vm.sh` `VM_DEBIAN=14`, `vm/debian14-test.sh`.
 
