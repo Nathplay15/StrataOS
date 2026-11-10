@@ -1,5 +1,5 @@
 #!/bin/bash
-# StrataOS test VM: Debian 13 cloud image under QEMU/KVM with 6 extra SATA disks.
+# StrataOS test VM: Debian 13 (or 14, VM_DEBIAN) cloud image under QEMU/KVM with 6 extra SATA disks.
 #
 #   vm.sh create            create the VM disks and run first boot (cloud-init)
 #   vm.sh start | stop      boot / shut down the VM
