@@ -5,7 +5,9 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { enable as autostartOn } from "@tauri-apps/plugin-autostart";
 import { agent, nas } from "./agent";
+import { pref, setPref } from "./prefs";
 import { notify, useApp } from "./state";
 import { t, tk } from "./i18n";
 import type { Account, AgentState } from "./types";
@@ -81,6 +83,12 @@ export function useShellBridge(b: Bridge) {
       listen("actions", () => void takeActions()),
     ];
     void takeActions();
+    // Start at login is on after the first launch, like the former tray app
+    // (whose own entry the agent removes); Settings turns it off.
+    if (!pref("autostart-init")) {
+      setPref("autostart-init", "1");
+      void autostartOn().catch(() => {});
+    }
     return () => un.forEach((p) => void p.then((f) => f()));
   }, []);
 
