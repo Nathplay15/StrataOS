@@ -155,6 +155,13 @@ fn save_text(path: String, text: String) -> Result<(), String> {
     std::fs::write(&path, text).map_err(|e| e.to_string())
 }
 
+/// Writes a file fetched by the window (an earlier version of a NAS file)
+/// to the path chosen in the save dialog.
+#[tauri::command]
+fn save_bytes(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, data).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
@@ -231,6 +238,7 @@ pub fn run() {
             integration_status,
             integration_set,
             save_text,
+            save_bytes,
             quit
         ])
         .setup(|app| {
