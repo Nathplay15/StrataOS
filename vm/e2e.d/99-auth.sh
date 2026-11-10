@@ -111,13 +111,12 @@ staticPasswords:
 - email: oidc.user@example.com
   hash: "$DEXHASH"
   username: oidcuser
-  preferredUsername: oidcuser
   userID: 4f0c2d1e-0000-4000-8000-000000000001
 EOF
 vm "cat > /tmp/dex.yaml" < "$TMP/dex.yaml"
 vm "sudo docker rm -f e2e-dex >/dev/null 2>&1; sudo docker run -d --name e2e-dex --network host -v /tmp/dex.yaml:/etc/dex/config.yaml:ro ghcr.io/dexidp/dex:v2.41.1 dex serve /etc/dex/config.yaml >/dev/null"
 for _ in $(seq 1 60); do vm "curl -sf http://127.0.0.1:5556/dex/.well-known/openid-configuration >/dev/null" && break; sleep 2; done
-PROV="{\"id\":\"dex\",\"name\":\"Dex\",\"issuer\":\"http://127.0.0.1:5556/dex\",\"clientId\":\"strataos\",\"clientSecret\":\"$DEXSECRET\",\"enabled\":true,\"allowHttp\":true,\"autoCreate\":false}"
+PROV="{\"id\":\"dex\",\"name\":\"Dex\",\"issuer\":\"http://127.0.0.1:5556/dex\",\"clientId\":\"strataos\",\"clientSecret\":\"$DEXSECRET\",\"enabled\":true,\"allowHttp\":true,\"usernameClaim\":\"name\",\"autoCreate\":false}"
 check "plain HTTP issuer needs the explicit setting" "$(c POST /api/security/oidc -d "${PROV/\"allowHttp\":true/\"allowHttp\":false}")" "HTTPS"
 check "provider metadata test" "$(c POST /api/security/oidc/test -d '{"issuer":"http://127.0.0.1:5556/dex","allowHttp":true}' | py 'print(d["ok"], d["keys"] > 0)')" "True True"
 check "provider added" "$(c POST /api/security/oidc -d "$PROV")" '"id":"dex"'

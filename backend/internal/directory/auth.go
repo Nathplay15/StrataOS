@@ -167,8 +167,15 @@ func TestLDAP(ctx context.Context, c store.Directory) error {
 		return nil
 	}
 	msg := strings.ToLower(out + " " + err.Error())
+	// OpenLDAP reports a refused certificate as "can't contact": the same
+	// request without the check tells the two apart.
+	certRefused := false
+	if c.TLSVerify && strings.Contains(msg, "contact ldap server") {
+		_, errNoCheck := sys.RunOpts(ctx, sys.Opts{Env: []string{"LDAPTLS_REQCERT=allow"}}, "ldapsearch", args...)
+		certRefused = errNoCheck == nil
+	}
 	switch {
-	case strings.Contains(msg, "certificate") || strings.Contains(msg, "tls") || strings.Contains(msg, "ssl"):
+	case certRefused || strings.Contains(msg, "certificate") || strings.Contains(msg, "tls") || strings.Contains(msg, "ssl"):
 		return fmt.Errorf("the certificate of the LDAP server could not be verified: give its CA certificate, or turn certificate checks off")
 	case strings.Contains(msg, "invalid credentials"):
 		return fmt.Errorf("the bind account or its password is wrong")
