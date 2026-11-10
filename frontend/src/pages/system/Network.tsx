@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Link2, Waypoints, Network as NetIcon, Plus, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, useUI } from "../../components/ui";
+import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Tabs, useUI } from "../../components/ui";
 import { tr, locale } from "../../lib/i18n";
+import { FirewallTab } from "./firewall/FirewallTab";
+import { VirtualNetworksTab } from "./firewall/VirtualNetworks";
 
 type Link = { name: string; mac: string; state: string; mtu: number; addresses: string[]; speed: number; kind: string };
 type Status = { interfaces: Link[]; gateway: string; dns: string[]; hostname: string };
@@ -52,7 +54,7 @@ function IPEditor({ ip, onChange }: { ip: IP; onChange: (ip: IP) => void }) {
 }
 
 /** Watches a trial configuration: confirms it when the NAS answers, offers the new addresses otherwise. */
-export function TrialModal({ pending, newURLs, onClose, onConfirmed }: { pending: Pending; newURLs: string[]; onClose: () => void; onConfirmed?: () => void }) {
+export function TrialModal({ pending, newURLs, onClose, onConfirmed, confirmPath = "/api/system/network/confirm", title }: { pending: Pending; newURLs: string[]; onClose: () => void; onConfirmed?: () => void; confirmPath?: string; title?: string }) {
   const qc = useQueryClient();
   const { toast } = useUI();
   const [left, setLeft] = useState(Math.round((new Date(pending.deadline).getTime() - Date.now()) / 1000));
@@ -70,7 +72,7 @@ export function TrialModal({ pending, newURLs, onClose, onConfirmed }: { pending
       await new Promise((r) => setTimeout(r, 4000));
       while (!stop) {
         try {
-          const r = await fetch("/api/system/network/confirm", { method: "POST", headers: { "Content-Type": "application/json", "X-Strata": "1" }, body: JSON.stringify({ token: pending.token }), signal: AbortSignal.timeout(4000) });
+          const r = await fetch(confirmPath, { method: "POST", headers: { "Content-Type": "application/json", "X-Strata": "1" }, body: JSON.stringify({ token: pending.token }), signal: AbortSignal.timeout(4000) });
           if (r.ok) {
             setState("confirmed");
             toast(tr("New network configuration confirmed"));
@@ -88,10 +90,10 @@ export function TrialModal({ pending, newURLs, onClose, onConfirmed }: { pending
       }
     })();
     return () => { stop = true; };
-  }, [pending.token, qc, toast]);
+  }, [pending.token, qc, toast, confirmPath]);
   const expired = left <= 0 && state !== "confirmed";
   return (
-    <Modal open onClose={onClose} title={tr("Testing the new network configuration")} footer={state === "confirmed" || expired ? <Button variant="primary" onClick={onClose}>{tr("Close")}</Button> : undefined}>
+    <Modal open onClose={onClose} title={title ?? tr("Testing the new network configuration")} footer={state === "confirmed" || expired ? <Button variant="primary" onClick={onClose}>{tr("Close")}</Button> : undefined}>
       {state === "confirmed" ? (
         <div className="flex items-center gap-3 text-ok"><CheckCircle2 size={22} /> {" "}{tr("Configuration kept: the NAS is reachable.")}</div>
       ) : expired ? (
@@ -116,7 +118,39 @@ export function TrialModal({ pending, newURLs, onClose, onConfirmed }: { pending
   );
 }
 
+type NetTab = "interfaces" | "firewall" | "vnets";
+
+/** Tab of the Network page, kept in the address (#firewall, #vnets). */
+function useNetTab(): [NetTab, (t: NetTab) => void] {
+  const fromHash = (): NetTab => (location.hash === "#firewall" ? "firewall" : location.hash === "#vnets" ? "vnets" : "interfaces");
+  const [tab, setTab] = useState<NetTab>(fromHash);
+  useEffect(() => {
+    const f = () => setTab(fromHash());
+    addEventListener("hashchange", f);
+    return () => removeEventListener("hashchange", f);
+  }, []);
+  return [tab, (t) => { history.replaceState(null, "", t === "interfaces" ? location.pathname + location.search : `#${t}`); setTab(t); }];
+}
+
+function NetTabs({ tab, setTab }: { tab: NetTab; setTab: (t: NetTab) => void }) {
+  return <Tabs tabs={[{ id: "interfaces", label: tr("Interfaces") }, { id: "firewall", label: tr("Firewall") }, { id: "vnets", label: tr("Virtual networks") }]} value={tab} onChange={setTab} />;
+}
+
 export default function NetworkPage() {
+  const [tab, setTab] = useNetTab();
+  if (tab !== "interfaces") {
+    return (
+      <div>
+        <PageHeader title={tr("Network")} subtitle={tr("Interfaces, firewall, virtual networks and NAS name")} icon={<NetIcon size={20} />} />
+        <NetTabs tab={tab} setTab={setTab} />
+        {tab === "firewall" ? <FirewallTab /> : <VirtualNetworksTab />}
+      </div>
+    );
+  }
+  return <InterfacesPage tabs={<NetTabs tab={tab} setTab={setTab} />} />;
+}
+
+function InterfacesPage({ tabs }: { tabs: ReactNode }) {
   const { confirm } = useUI();
   const { data, isLoading, error } = useQuery({ queryKey: ["network"], queryFn: () => api.get<Net>("/api/system/network"), refetchInterval: 10000 });
   const [cfg, setCfg] = useState<Config | null>(null);
@@ -162,6 +196,7 @@ export default function NetworkPage() {
         {dirty && <Button icon={<Undo2 size={15} />} onClick={() => setCfg(structuredClone({ ...data.config, bridges: data.config.bridges ?? [] }))}>{tr("Discard changes")}</Button>}
         <Button variant="primary" disabled={!dirty || nm || !!data.pending} loading={apply.isPending} onClick={doApply}>{tr("Apply")}</Button>
       </>} />
+      {tabs}
       <ErrorBox error={error || apply.error} />
       {nm && <div className="mb-4"><Notice tone="warn">{tr("NetworkManager manages the network on this machine: StrataOS does not change the configuration. Disable NetworkManager to manage the network from this page.")}</Notice></div>}
       {data.pending && !trial && (
