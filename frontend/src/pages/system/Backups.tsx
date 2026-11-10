@@ -12,6 +12,7 @@ import { TimeMachineCard } from "./TimeMachine";
 import { BackupVMPicker } from "./BackupVMs";
 import { ProtectionCard, RestoreTestBadge } from "./Protection";
 import { RestoreWizard } from "../../components/RestoreWizard";
+import { DatastoresCard, useDatastores } from "./Datastores";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -37,8 +38,9 @@ function srcLabel(b: BackupTask) {
 
 const blank: BackupTask = { id: "", name: "", kind: "rsync", sources: [], destType: "local", destPath: "", port: 22, cron: "0 1 * * *", enabled: true, history: [], keepDaily: 7, keepWeekly: 4, keepMonthly: 12, keepLast: 7 };
 
-function destLabel(b: BackupTask) {
+function destLabel(b: BackupTask, stores?: { id: string; name: string }[]) {
   switch (b.destType) {
+    case "datastore": return tr("Repository {0}", stores?.find((d) => d.id === b.datastore)?.name ?? "?");
     case "local": return b.destPath;
     case "ssh": case "sftp": return `${b.user}@${b.host}:${b.destPath}`;
     case "s3": return tr("S3 {0}/{1}", b.s3Endpoint?.replace(/^https?:\/\//, ""), b.destPath);
@@ -83,25 +85,26 @@ function VaultPair({ b, set }: { b: BackupTask; set: (k: Partial<BackupTask>) =>
   );
 }
 
-type VaultT = { id: string; name: string; path: string; appendOnly: boolean; created: string; clients: { id: string; name: string; created: string; lastSeen?: string; size: number }[] };
+type VaultT = { id: string; name: string; path: string; appendOnly: boolean; shared?: boolean; created: string; clients: { id: string; name: string; created: string; lastSeen?: string; size: number }[] };
 
 function VaultsCard({ sources }: { sources?: Sources }) {
   const { confirm, toast } = useUI();
   const { data } = useQuery({ queryKey: ["vaults"], queryFn: () => api.get<VaultT[]>("/api/vaults") });
-  const [form, setForm] = useState<{ name: string; path: string; appendOnly: boolean } | null>(null);
+  const [form, setForm] = useState<{ name: string; path: string; appendOnly: boolean; shared: boolean } | null>(null);
   const [code, setCode] = useState<{ vault: string; code: string } | null>(null);
   const create = useAction(() => api.post("/api/vaults", form), { success: tr("Vault created"), onDone: () => setForm(null) });
   const mkCode = useAction((id: string) => api.post<{ code: string }>(`/api/vaults/${id}/code`), { onDone: (r) => setCode({ vault: "", code: r.code }) });
   const revoke = useAction((v: { id: string; cid: string }) => api.del(`/api/vaults/${v.id}/clients/${v.cid}`), { success: tr("Access removed (backups are kept)") });
   const del = useAction((id: string) => api.del(`/api/vaults/${id}`), { success: tr("Vault deleted (data is kept)") });
   return (
-    <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Backup vaults")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true })}>{tr("New vault")}</Button>}>
+    <Card className="mt-6" title={<span className="flex items-center gap-2"><VaultIcon size={16} />{tr("Backup vaults")}</span>} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setForm({ name: "", path: "", appendOnly: true, shared: false })}>{tr("New vault")}</Button>}>
       <p className="mb-3 text-muted text-[12.5px]">{tr("Receive encrypted backups from other StrataOS NAS here (“Vault of another StrataOS NAS” type on the NAS to back up).")}</p>
       {!data?.length ? <div className="text-muted text-[13px]">{tr("No vaults.")}</div> : data.map((v) => (
         <div key={v.id} className="mb-3 rounded-xl border border-line p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="font-medium">{v.name}</div><span className="mono text-muted text-[12px]">{v.path}</span>
             {v.appendOnly && <Badge tone="ok">{tr("Append-only")}</Badge>}
+            {v.shared && <Badge tone="accent">{tr("Shared by the paired NAS")}</Badge>}
             <div className="flex-1" />
             <Button size="sm" loading={mkCode.isPending && mkCode.variables === v.id} onClick={() => mkCode.mutate(v.id)}>{tr("Pairing code")}</Button>
             <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete the vault {0}?", v.name), text: tr("Paired NAS will no longer be able to send backups to it. The data remains in the folder."), danger: true })) del.mutate(v.id); }}><Trash2 size={15} /></IconButton>
@@ -111,7 +114,7 @@ function VaultsCard({ sources }: { sources?: Sources }) {
               <tbody>
                 {v.clients.map((c) => (
                   <tr key={c.id}>
-                    <td>{c.name}</td><td className="text-muted">{bytes(c.size)}</td>
+                    <td>{c.name}</td><td className="text-muted">{v.shared ? "" : bytes(c.size)}</td>
                     <td className="text-muted text-[12px]">{c.lastSeen ? tr("Last upload {0}", ago(c.lastSeen)) : tr("Never")}</td>
                     <td className="text-right"><Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Remove access for {0}?", c.name), text: tr("This NAS will no longer be able to send backups. Those already received are kept."), danger: true })) revoke.mutate({ id: v.id, cid: c.id }); }}>{tr("Remove")}</Button></td>
                   </tr>
@@ -135,6 +138,7 @@ function VaultsCard({ sources }: { sources?: Sources }) {
               </div>
             </Field>
             <Switch checked={form.appendOnly} onChange={(v) => setForm({ ...form, appendOnly: v })} label={tr("Append-only (anti-ransomware)")} hint={tr("A paired NAS can add backups but never delete any: even if compromised, it cannot destroy its copies. Older versions accumulate.")} />
+            <Switch checked={form.shared} onChange={(v) => setForm({ ...form, shared: v })} label={tr("One repository for all the paired NAS")} hint={tr("For a backup repository shared by several NAS: data they have in common (same VMs, same files) is stored once. They must use the same repository password, and each one can read the others' backups.")} />
             <ErrorBox error={create.error} />
           </div>
         )}
@@ -207,7 +211,8 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
   const save = useAction(() => (editing ? api.put(`/api/backups/${b.id}`, payload()) : api.post("/api/backups", payload())), { success: editing ? tr("Backup updated") : tr("Backup created"), onDone: onClose });
   const test = useAction(() => api.post<{ message: string }>("/api/backups/test", payload()), { success: (r) => srv(r.message) });
   const remote = !pull && (b.destType === "ssh" || b.destType === "sftp");
-  const destTypes = b.kind === "restic" ? [["local", tr("Local folder / USB disk")], ["sftp", tr("SFTP server (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("restic REST server")], ["strataos", tr("Vault of another StrataOS NAS")]] : [["local", b.kind === "zfs" ? tr("Local pool") : tr("Local folder / USB disk")], ["ssh", tr("Remote server (SSH)")]];
+  const stores = useDatastores();
+  const destTypes = b.kind === "restic" ? [["datastore", tr("Backup repository (VMs as deduplicated images)")], ["local", tr("Local folder / USB disk")], ["sftp", tr("SFTP server (SSH)")], ["s3", tr("S3 / B2 / MinIO")], ["rest", tr("restic REST server")], ["strataos", tr("Vault of another StrataOS NAS")]] : [["local", b.kind === "zfs" ? tr("Local pool") : tr("Local folder / USB disk")], ["ssh", tr("Remote server (SSH)")]];
   const pickKind = (k: CardKind) => {
     const reset = { sources: [], destPath: "", sourceType: "" as const, versions: false };
     if (k === "pull") set({ ...reset, kind: "rsync", sourceType: "ssh", destType: "local", port: 22, versions: true, keepLast: 14, keepDays: 0 });
@@ -215,8 +220,8 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
     else set({ ...reset, kind: k, destType: "local", keepLast: 7 });
     setRemoteSources("");
   };
-  const hasDest = card === "sync" || b.destType === "strataos" ? true : !!b.destPath;
-  const hasSources = card === "pull" ? !!remoteSources.trim() : b.sources.length > 0;
+  const hasDest = card === "sync" || b.destType === "strataos" ? true : b.destType === "datastore" ? !!b.datastore : !!b.destPath;
+  const hasSources = card === "pull" ? !!remoteSources.trim() : b.sources.length + (b.vms?.length ?? 0) + (b.containers?.length ?? 0) > 0;
 
   return (
     <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", b.name) : tr("New backup")} wide footer={<>
@@ -329,6 +334,15 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
               </Field>
             )}
             {remote && <RemoteFields b={b} set={set} />}
+            {b.destType === "datastore" && (
+              <Field label={tr("Repository")} hint={tr("Backup → Backup repositories. Its location, password and integrity checks are set there.")}>
+                <Select value={b.datastore ?? ""} onChange={(e) => set({ datastore: e.target.value })}>
+                  <option value="">{stores.data?.length ? tr("Choose…") : tr("No repositories yet: create one below this list first")}</option>
+                  {stores.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {b.destType === "datastore" && ((b.vms?.length ?? 0) > 0 || (b.containers?.length ?? 0) > 0) && <Notice>{tr("VM disks and containers are stored as images cut into blocks: blocks already in the repository (other VMs, earlier runs, other NAS) are not stored again. A VM disk backup can be opened in Restore… to bring back single files.")}</Notice>}
             {b.destType === "strataos" && <VaultPair b={b} set={set} />}
             {b.destType === "s3" && (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -337,7 +351,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
                 <Field label={tr("Secret key")}><Input type="password" value={b.secretKey ?? ""} onChange={(e) => set({ secretKey: e.target.value })} /></Field>
               </div>
             )}
-            {b.destType !== "strataos" && <Field
+            {b.destType !== "strataos" && b.destType !== "datastore" && <Field
               label={b.kind === "zfs" ? tr("Destination dataset") : b.destType === "s3" ? tr("Bucket / folder") : b.destType === "rest" ? tr("REST server URL") : b.destType === "local" ? tr("Destination folder") : tr("Remote path")}
               hint={b.kind === "zfs" ? tr("e.g. backup/media (created automatically)") : pull ? tr("Each source is copied into a sub-folder. A new folder on Btrfs or ZFS becomes its own sub-volume or dataset, so its snapshots hold only this backup.") : b.destType === "local" ? tr("Inside a volume, e.g. /srv/strata/usb/backups (a USB disk is imported from Storage Manager)") : undefined}
             >
@@ -366,14 +380,17 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
         )}
         {b.kind === "restic" && (
           <div className="space-y-3 rounded-xl border border-line p-4">
-            <Field label={tr("Repository password")} hint={tr("Encrypts all data. Without it, the backup is unrecoverable: keep it outside the NAS.")}><Input type="password" value={b.password ?? ""} onChange={(e) => set({ password: e.target.value })} /></Field>
+            {b.destType !== "datastore" && <Field label={tr("Repository password")} hint={tr("Encrypts all data. Without it, the backup is unrecoverable: keep it outside the NAS.")}><Input type="password" value={b.password ?? ""} onChange={(e) => set({ password: e.target.value })} /></Field>}
             <div className="text-[12.5px] font-medium text-muted">{tr("Keep")}</div>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <Field label={tr("Latest")}><Input type="number" min={0} value={b.keepLast ?? 0} onChange={(e) => set({ keepLast: +e.target.value })} /></Field>
+              <Field label={tr("Hourly")}><Input type="number" min={0} value={b.keepHourly ?? 0} onChange={(e) => set({ keepHourly: +e.target.value })} /></Field>
               <Field label={tr("Daily")}><Input type="number" min={0} value={b.keepDaily ?? 0} onChange={(e) => set({ keepDaily: +e.target.value })} /></Field>
               <Field label={tr("Weekly")}><Input type="number" min={0} value={b.keepWeekly ?? 0} onChange={(e) => set({ keepWeekly: +e.target.value })} /></Field>
               <Field label={tr("Monthly")}><Input type="number" min={0} value={b.keepMonthly ?? 0} onChange={(e) => set({ keepMonthly: +e.target.value })} /></Field>
+              <Field label={tr("Yearly")}><Input type="number" min={0} value={b.keepYearly ?? 0} onChange={(e) => set({ keepYearly: +e.target.value })} /></Field>
             </div>
+            {b.destType === "datastore" && <p className="text-muted text-[12px]">{tr("Each VM, container and the folders keep their own versions by these rules; the data no version uses any more is removed by the repository's daily cleanup.")}</p>}
             <Field label={tr("Exclusions (one per line)")}><textarea className="input mono h-16" value={excludes} onChange={(e) => setExcludes(e.target.value)} /></Field>
           </div>
         )}
@@ -424,6 +441,7 @@ export default function Backups() {
   const resync = useAction((id: string) => api.post(`/api/backups/${id}/resync`));
   const toggle = useAction((b: BackupTask) => api.put(`/api/backups/${b.id}`, { ...b, enabled: !b.enabled }));
   const del = useAction((id: string) => api.del(`/api/backups/${id}`), { success: tr("Backup deleted (backed-up data is kept)") });
+  const stores = useDatastores();
 
   return (
     <div>
@@ -449,7 +467,7 @@ export default function Backups() {
                   </div>
                   <div className="mt-3 space-y-1 text-[12.5px]">
                     <div className="truncate"><span className="text-muted">{tr("From")}{" "}</span><span className="mono">{srcLabel(b)}</span></div>
-                    <div className="truncate"><span className="text-muted">{b.kind === "sync" ? tr("With") : tr("To")}{" "}</span><span className="mono">{destLabel(b)}</span></div>
+                    <div className="truncate"><span className="text-muted">{b.kind === "sync" ? tr("With") : tr("To")}{" "}</span><span className="mono">{destLabel(b, stores.data)}</span></div>
                     <div className="text-muted">{b.cron ? describeCron(b.cron) : tr("On demand")}{b.enabled && b.nextRun ? tr(" · next {0}", dateTime(b.nextRun)) : ""}</div>
                   </div>
                   {last && (
@@ -473,6 +491,7 @@ export default function Backups() {
           })}
         </div></div>
       )}
+      <DatastoresCard volumes={sources.data?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")) ?? []} />
       <TimeMachineCard volumes={sources.data?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")) ?? []} />
       <VaultsCard sources={sources.data} />
       {edit !== undefined && sources.data && <Editor initial={edit} preset={edit ? undefined : preset} sources={sources.data} onClose={() => setEdit(undefined)} />}
