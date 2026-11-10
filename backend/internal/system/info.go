@@ -138,6 +138,7 @@ var KnownServices = []struct{ Unit, Name string }{
 	{"smbd.service", "SMB / CIFS"},
 	{"nmbd.service", "NetBIOS (nmbd)"},
 	{"wsdd2.service", "Windows discovery (WSD)"},
+	{"wsdd-server.service", "Windows discovery (WSD)"}, // wsdd, where wsdd2 is not packaged
 	{"avahi-daemon.service", "Bonjour / mDNS"},
 	{"nfs-server.service", "NFS server"},
 	{"docker.service", "Docker Engine"},

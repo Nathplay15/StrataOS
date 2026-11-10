@@ -82,6 +82,27 @@ jobs:
           path: dist/*.deb
           retention-days: 7
 
+  # The amd64 package installed in Debian containers: trixie (Debian 13, the
+  # target) must pass; forky (Debian 14, testing) warns early about
+  # dependency breakage without blocking (testing changes every day).
+  debian-install:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [trixie, forky]
+    continue-on-error: ${{ matrix.suite != 'trixie' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: packages
+          path: dist
+      - name: Install in debian:${{ matrix.suite }}
+        run: packaging/test-install.sh ${{ matrix.suite }}
+
   # The Android app: unit tests (uploads, dedupe, certificate pinning, token
   # storage) and an unsigned release build (R8).
   android:

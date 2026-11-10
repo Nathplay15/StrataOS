@@ -82,6 +82,19 @@ Details in [vm/README.md](../vm/README.md).
 | `vm/rpi-image-test.sh [image]` | Checks and boots the Raspberry Pi image (`RPI_MODEL=3`: as an emulated Raspberry Pi 3 B; `RPI_MODEL=5`: the Pi 5 kernel up to its initramfs) |
 | `vm/restore-lvm-test.sh` | Restore points on an LVM system |
 
+### Debian 14 (forky)
+
+StrataOS targets Debian 13; Debian 14 (testing) is followed in
+[DEBIAN-14.md](DEBIAN-14.md). `packaging/test-install.sh <trixie|forky|sid>`
+installs `dist/strataos_*_amd64.deb` in a `debian:<suite>` container (Depends,
+Recommends, postinst, the daemon answering, every component's packages
+simulated); CI runs it for trixie and forky (forky does not block).
+`vm/debian14-test.sh` makes a VM from the daily forky cloud image
+(`VM_DEBIAN=14 vm/vm.sh create` does only that) and runs the first sections of
+the end-to-end suite on it. Never hard-code `trixie` where the running
+release is meant: `system.Codename()`, and `system.SuiteCandidates` for a
+vendor repository that may not publish the new release yet.
+
 `vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.

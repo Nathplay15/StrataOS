@@ -281,26 +281,48 @@ func (s *Server) rpiSwitchJob(user string) func(ctx context.Context, j *jobs.Job
 		if err := os.MkdirAll(filepath.Dir(rpiKeyring), 0o755); err != nil {
 			return err
 		}
-		for f, b := range map[string][]byte{rpiKeyring: in.key, rpiSources: in.sources, rpiPref: in.pref} {
+		for f, b := range map[string][]byte{rpiKeyring: in.key, rpiPref: in.pref} {
 			if err := sys.WriteFileAtomic(f, b, 0o644); err != nil {
 				return err
 			}
 		}
-		if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
-			return err
+		// The suite of the Debian release running; the shipped one (trixie)
+		// when the Raspberry Pi archive has no kernels for it yet.
+		var upgrades map[string]string
+		var installs []string
+		suites := system.SuiteCandidates(system.Codename(), system.SourcesSuite(string(in.sources)))
+		for i, suite := range suites {
+			last := i == len(suites)-1
+			j.Logf("Raspberry Pi archive: suite %s", suite)
+			if err := sys.WriteFileAtomic(rpiSources, []byte(system.WithSuite(string(in.sources), suite)), 0o644); err != nil {
+				return err
+			}
+			if err := aptRun(ctx, j, "apt-get", "update"); err != nil {
+				if !last {
+					continue // no such suite on the archive
+				}
+				return err
+			}
+			sim, err := sys.RunOpts(ctx, sys.Opts{Timeout: 5 * time.Minute}, "apt-get", append([]string{"-s", "-o", "Debug::NoLocking=1", "install", "--no-install-recommends"}, rpiPackages...)...)
+			if err != nil {
+				if !last {
+					continue
+				}
+				return fmt.Errorf("the Raspberry Pi packages cannot be installed: %w", err)
+			}
+			var outside []string
+			upgrades, installs, outside = system.PlanCheck(sim, in.pin)
+			if len(outside) > 0 {
+				return fmt.Errorf("packages outside of the pin would come from the Raspberry Pi archive: %s", strings.Join(outside, ", "))
+			}
+			if slices.Contains(installs, "linux-image-rpi-v8") && slices.Contains(installs, "linux-image-rpi-2712") {
+				break
+			}
+			if last {
+				return fmt.Errorf("the Raspberry Pi kernels are not available from the Raspberry Pi archive")
+			}
 		}
 		j.SetProgress(15)
-		sim, err := sys.RunOpts(ctx, sys.Opts{Timeout: 5 * time.Minute}, "apt-get", append([]string{"-s", "-o", "Debug::NoLocking=1", "install", "--no-install-recommends"}, rpiPackages...)...)
-		if err != nil {
-			return fmt.Errorf("the Raspberry Pi packages cannot be installed: %w", err)
-		}
-		upgrades, installs, outside := system.PlanCheck(sim, in.pin)
-		if len(outside) > 0 {
-			return fmt.Errorf("packages outside of the pin would come from the Raspberry Pi archive: %s", strings.Join(outside, ", "))
-		}
-		if !slices.Contains(installs, "linux-image-rpi-v8") || !slices.Contains(installs, "linux-image-rpi-2712") {
-			return fmt.Errorf("the Raspberry Pi kernels are not available from the Raspberry Pi archive")
-		}
 		replaced := []string{}
 		for p, v := range upgrades {
 			j.Logf("Replacing %s %s", p, v)

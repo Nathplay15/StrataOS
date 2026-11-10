@@ -22,7 +22,8 @@ case "$1" in
     # inside the installer's chroot): the services then start at first boot.
     systemctl enable strata.service >/dev/null 2>&1 || true
     systemctl enable smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
-    systemctl enable wsdd2.service >/dev/null 2>&1 || true
+    # Windows discovery: wsdd2, or wsdd (wsdd-server) where wsdd2 is not packaged.
+    systemctl enable wsdd2.service >/dev/null 2>&1 || systemctl enable wsdd-server.service >/dev/null 2>&1 || true
     systemctl enable docker.service >/dev/null 2>&1 || true
     # samba (Recommends) pulls in the AD domain controller unit: StrataOS is a standalone server.
     if ! grep -qi "server role *= *active directory" /etc/samba/smb.conf 2>/dev/null; then
@@ -36,7 +37,7 @@ case "$1" in
       # The console screen runs the binary too (the daemon enables it).
       systemctl try-restart strata-console.service >/dev/null 2>&1 || true
       systemctl start smbd.service nmbd.service nfs-server.service >/dev/null 2>&1 || true
-      systemctl start wsdd2.service >/dev/null 2>&1 || true
+      systemctl start wsdd2.service >/dev/null 2>&1 || systemctl start wsdd-server.service >/dev/null 2>&1 || true
       systemctl start docker.service >/dev/null 2>&1 || true
       systemctl reload avahi-daemon.service >/dev/null 2>&1 || true
     fi

@@ -1,5 +1,5 @@
 #!/bin/bash
-# StrataOS test VM: Debian 13 cloud image under QEMU/KVM with 6 extra SATA disks.
+# StrataOS test VM: Debian 13 (or 14, VM_DEBIAN) cloud image under QEMU/KVM with 6 extra SATA disks.
 #
 #   vm.sh create            create the VM disks and run first boot (cloud-init)
 #   vm.sh start | stop      boot / shut down the VM
@@ -20,15 +20,22 @@
 # by every VM started with the same value (high availability tests).
 # VM_ARCH (amd64 | arm64): arm64 runs an emulated ARM machine (much slower, no KVM)
 # with virtio disks only, to check the arm64 package.
+# VM_DEBIAN (13 | 14): 14 builds the VM from the daily Debian 14 (forky, testing)
+# cloud image instead (docs/DEBIAN-14.md); delete vm/images/debian-14-* to take
+# a newer daily image.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGES="$DIR/images"
 STATE="${VM_STATE:-$DIR/state}"
 VM_ARCH=${VM_ARCH:-amd64}
-BASE="$IMAGES/debian-13-generic-$VM_ARCH.qcow2"
+VM_DEBIAN=${VM_DEBIAN:-13}
+case "$VM_DEBIAN" in
+  13) BASE="$IMAGES/debian-13-generic-$VM_ARCH.qcow2"; BASE_URL="https://cloud.debian.org/images/cloud/trixie/latest" ;;
+  14) BASE="$IMAGES/debian-14-generic-$VM_ARCH-daily.qcow2"; BASE_URL="https://cloud.debian.org/images/cloud/forky/daily/latest" ;;
+  *) echo "VM_DEBIAN must be 13 or 14" >&2; exit 1 ;;
+esac
 QEMU_ARM_DIR=${QEMU_ARM_DIR:-$HOME/.local/opt/qemu-arm}
-BASE_URL="https://cloud.debian.org/images/cloud/trixie/latest"
 SYSDISK="$STATE/system.qcow2"
 KEY="$STATE/id_ed25519"
 PIDFILE="$STATE/qemu.pid"
@@ -80,11 +87,11 @@ aavmf() { for f in /usr/share/AAVMF/AAVMF_CODE.no-secboot.fd "$QEMU_ARM_DIR/usr/
 fetch_base() {
   mkdir -p "$IMAGES"
   if [ ! -f "$BASE" ]; then
-    log "Downloading the Debian 13 cloud image"
+    log "Downloading the Debian $VM_DEBIAN cloud image"
     curl -fSL -o "$BASE.part" "$BASE_URL/$(basename "$BASE")"
-    curl -fsSL -o "$IMAGES/SHA512SUMS" "$BASE_URL/SHA512SUMS"
+    curl -fsSL -o "$IMAGES/SHA512SUMS-$VM_DEBIAN" "$BASE_URL/SHA512SUMS"
     mv "$BASE.part" "$BASE"
-    (cd "$IMAGES" && grep " $(basename "$BASE")\$" SHA512SUMS | sha512sum -c -) || { rm -f "$BASE"; die "checksum mismatch"; }
+    (cd "$IMAGES" && grep " $(basename "$BASE")\$" "SHA512SUMS-$VM_DEBIAN" | sha512sum -c -) || { rm -f "$BASE"; die "checksum mismatch"; }
   fi
 }
 
