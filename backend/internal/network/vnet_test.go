@@ -131,3 +131,28 @@ func TestVNetHelpers(t *testing.T) {
 		t.Error("mtu or gateway")
 	}
 }
+
+func TestDockerForwardRules(t *testing.T) {
+	c := vnetConfig()
+	r := DockerForwardRules(c, []string{"lxcbr0", "bad name"})
+	var lines []string
+	for _, x := range r {
+		lines = append(lines, strings.Join(x, " "))
+	}
+	all := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"-i vn0 -o vn0 -m comment --comment strata-vnet -j ACCEPT",
+		"-i vn0 -m comment --comment strata-vnet -j ACCEPT",
+		"-o vn0 -m conntrack --ctstate RELATED,ESTABLISHED -m comment --comment strata-vnet -j ACCEPT",
+		"-i vn1 -o vn1 -m comment",
+		"-i lxcbr0 -m comment",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in\n%s", want, all)
+		}
+	}
+	// Not routed: an isolated network never reaches the LAN through the NAS.
+	if strings.Contains(all, "-i vn1 -m") || strings.Contains(all, "bad") {
+		t.Error(all)
+	}
+}

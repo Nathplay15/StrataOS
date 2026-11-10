@@ -95,7 +95,7 @@ for p in $PA $PB; do check "lxc component on $p" "$(job $p "$(cat "$T/inst$p")" 
 section "NAS firewall"
 check "off by default, nothing loaded" "$(api $PA GET /api/system/network/firewall | py 'print(d["config"]["host"]["enabled"], d["ruleset"]["host"]=="", d["nft"])')" "False True True"
 check "SMB open from B" "$(tcp B 10.96.1.1 445)" "open"
-FW='{"host":{"enabled":true,"policyIn":"drop","logDrops":true,"rules":[{"dir":"in","action":"drop","proto":"tcp","ports":"445","source":"set:blocked"},{"dir":"in","action":"accept","source":"lan"}]},"ipsets":[{"name":"blocked","entries":["10.96.1.2"]}]}'
+FW='{"host":{"enabled":true,"policyIn":"drop","logDrops":true,"rules":[{"dir":"in","action":"drop","proto":"tcp","ports":"445","source":"set:blocked","log":true},{"dir":"in","action":"accept","source":"lan"}]},"ipsets":[{"name":"blocked","entries":["10.96.1.2"]}]}'
 check "invalid rule refused" "$(api $PA PUT /api/system/network/firewall -d '{"config":{"host":{"enabled":true,"rules":[{"dir":"in","action":"accept","ports":"445"}]}}}')" "ports need the TCP or UDP protocol"
 R=$(api $PA PUT /api/system/network/firewall -d "{\"config\":$FW,\"timeout\":60}")
 check "host change applied on trial" "$R" '"token"'
@@ -146,12 +146,11 @@ for _ in $(seq 1 20); do [ -n "$(ex $PA web "ip -4 route | grep -m1 default")" ]
 check "still blocked after a restart" "$(reach $PA web http://10.96.1.2:7070/api/setup)" "blocked"
 NEW=$(api $PA GET /api/system/network/firewall | py 'print([g["binding"]["ifaces"] for g in d["guests"] if g["name"]=="web"][0])')
 check "new interface followed" "$( [ -n "$NEW" ] && [ "$NEW" != "['$OLD']" ] && echo followed)" "followed"
-# Incoming: a web server in the container, reached from the NAS.
-ex $PA web 'mkdir -p /www && echo hi >/www/index.html && (httpd -p 8080 -h /www 2>/dev/null || busybox httpd -p 8080 -h /www)' >/dev/null
+# Incoming: ping from the NAS, dropped by the default policy, then allowed.
 WIP=$(ipof $PA web)
-check "incoming dropped by the default policy" "$(A ssh "curl -s -m 4 http://$WIP:8080/ || echo dropped")" "dropped"
-api $PA PUT /api/system/network/firewall/guest/lxc/web -d '{"enabled":true,"isolate":true,"rules":[{"dir":"in","action":"accept","proto":"tcp","ports":"8080","source":"nas"}]}' >/dev/null
-check "incoming allowed by a rule" "$(A ssh "curl -s -m 4 http://$WIP:8080/ || echo dropped")" "hi"
+check "incoming dropped by the default policy" "$(A ssh "ping -c1 -W2 $WIP >/dev/null && echo up || echo dropped")" "dropped"
+api $PA PUT /api/system/network/firewall/guest/lxc/web -d '{"enabled":true,"isolate":true,"rules":[{"dir":"in","action":"accept","proto":"icmp","source":"nas"}]}' >/dev/null
+check "incoming allowed by a rule" "$(A ssh "ping -c1 -W2 $WIP >/dev/null && echo up || echo dropped")" "up"
 api $PA PUT /api/system/network/firewall/guest/lxc/web -d '{"enabled":false,"rules":[]}' >/dev/null
 check "firewall off: LAN again" "$(reach $PA web http://10.96.1.2:7070/api/setup)" "ok"
 
@@ -174,7 +173,8 @@ check "network named in the wizards' list" "$(api $PA GET /api/lxc | py 'print(d
 section "Virtual network: isolated bridge"
 R=$(api $PA POST /api/system/network/vnets -d '{"id":"lab","kind":"isolated"}')
 check "created" "$(trial $PA "$R")" "confirmed"
-check "two containers" "$(ct $PA lab1 '{"mode":"bridge","bridge":"vn1","address":"10.31.0.11/24"}') $(ct $PA lab2 '{"mode":"bridge","bridge":"vn1","address":"10.31.0.12/24"}')" "success success"
+check "first container" "$(ct $PA lab1 '{"mode":"bridge","bridge":"vn1","address":"10.31.0.11/24"}')" "success"
+check "second container" "$(ct $PA lab2 '{"mode":"bridge","bridge":"vn1","address":"10.31.0.12/24"}')" "success"
 check "they talk to each other" "$(ex $PA lab1 'ping -c1 -W2 10.31.0.12 >/dev/null && echo up || echo down')" "up"
 check "no way out" "$(ex $PA lab1 'ping -c1 -W2 10.96.1.2 >/dev/null && echo up || echo down')" "down"
 

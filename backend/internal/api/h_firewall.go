@@ -341,6 +341,7 @@ func netFingerprint() string {
 func (s *Server) fwLoop() {
 	ctx := context.Background()
 	_ = s.fwApply(ctx, true)
+	s.vnetDockerForward()
 	last, fp := time.Now(), netFingerprint()
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
@@ -355,6 +356,7 @@ func (s *Server) fwLoop() {
 		if kicked || now != fp || time.Since(last) > time.Minute {
 			fp, last = now, time.Now()
 			_ = s.fwApply(ctx, true)
+			s.vnetDockerForward()
 			s.vnetDockerSync(ctx)
 		}
 	}

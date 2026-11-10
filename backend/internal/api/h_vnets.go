@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"strataos/internal/docker"
+	"strataos/internal/lxc"
 	"strataos/internal/network"
 	"strataos/internal/store"
+	"strataos/internal/sys"
 	"strataos/internal/system"
 )
 
@@ -136,6 +138,34 @@ func (s *Server) vnetDockerSync(ctx context.Context) {
 		if !want[id] {
 			// Refused while containers use it: tried again next time.
 			_ = s.docker.Call(ctx, "DELETE", "/networks/"+url.PathEscape(name), nil, nil, nil)
+		}
+	}
+}
+
+// vnetDockerForward keeps the DOCKER-USER rules of network.DockerForwardRules
+// (when Docker is there) and removes the ones no longer wanted.
+func (s *Server) vnetDockerForward() {
+	if !sys.Has("iptables") {
+		return
+	}
+	cur, err := sys.Run("iptables", "-S", "DOCKER-USER")
+	if err != nil {
+		return
+	}
+	want := network.DockerForwardRules(s.netConfigNow(), []string{lxc.NATBridge})
+	wanted := map[string]bool{}
+	for _, r := range want {
+		wanted["-A DOCKER-USER "+strings.Join(r, " ")] = true
+	}
+	for _, l := range strings.Split(cur, "\n") {
+		l = strings.TrimSpace(l)
+		if strings.Contains(l, "--comment strata-vnet") && !wanted[l] {
+			_, _ = sys.Run("iptables", append([]string{"-D", "DOCKER-USER"}, strings.Fields(strings.TrimPrefix(l, "-A DOCKER-USER "))...)...)
+		}
+	}
+	for _, r := range want {
+		if _, err := sys.Run("iptables", append([]string{"-C", "DOCKER-USER"}, r...)...); err != nil {
+			_, _ = sys.Run("iptables", append([]string{"-I", "DOCKER-USER"}, r...)...)
 		}
 	}
 }

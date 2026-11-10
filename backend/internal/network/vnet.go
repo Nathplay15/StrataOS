@@ -457,3 +457,30 @@ func (c Config) VNetByBridge(bridge string) (VNet, bool) {
 	}
 	return VNet{}, false
 }
+
+// DockerForwardRules are the iptables rules (DOCKER-USER chain) that let the
+// guests' traffic through Docker's FORWARD chain, whose policy is drop (with
+// br_netfilter even bridged frames go through it). nat lists the bridges
+// whose guests are routed by the NAS (NAT virtual networks, lxcbr0); the
+// others only switch frames between their own ports. What a guest may reach
+// is decided by the firewall's own tables.
+func DockerForwardRules(c Config, nat []string) [][]string {
+	var out [][]string
+	tag := []string{"-m", "comment", "--comment", "strata-vnet", "-j", "ACCEPT"}
+	add := func(br string, routed bool) {
+		out = append(out, append([]string{"-i", br, "-o", br}, tag...))
+		if routed {
+			out = append(out, append([]string{"-i", br}, tag...))
+			out = append(out, append([]string{"-o", br, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED"}, tag...))
+		}
+	}
+	for _, v := range c.Virtual {
+		add(v.Bridge, v.Kind == "nat")
+	}
+	for _, b := range nat {
+		if ifNameRe.MatchString(b) {
+			add(b, true)
+		}
+	}
+	return out
+}
