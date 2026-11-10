@@ -141,39 +141,18 @@ func Validate(t *store.BackupTask) error {
 			return fmt.Errorf("rsync destinations are local folders or SSH servers")
 		}
 	case "restic":
-		switch t.DestType {
-		case "local":
-			c := filepath.Clean(t.DestPath)
-			if !strings.HasPrefix(c, storage.MountRoot+"/") {
-				return fmt.Errorf("a local repository must be inside a volume (/srv/strata/...)")
+		if t.DestType == "datastore" {
+			if !idRe.MatchString(t.Datastore) {
+				return fmt.Errorf("choose a backup repository")
 			}
-			t.DestPath = c
-		case "sftp":
-			if !strings.HasPrefix(t.DestPath, "/") {
-				return fmt.Errorf("the remote path must be absolute")
+			t.Password, t.SecretKey, t.VaultToken = "", "", ""
+		} else {
+			t.Datastore = ""
+			if err := validateResticDest(t); err != nil {
+				return err
 			}
-		case "s3":
-			if t.S3Endpoint == "" || t.DestPath == "" || t.AccessKey == "" || t.SecretKey == "" {
-				return fmt.Errorf("S3 needs an endpoint, a bucket and access keys")
-			}
-			if u, err := url.Parse(t.S3Endpoint); err != nil || (u.Scheme != "https" && u.Scheme != "http") {
-				return fmt.Errorf("the S3 endpoint must be an http(s) URL")
-			}
-		case "rest":
-			if u, err := url.Parse(t.DestPath); err != nil || (u.Scheme != "https" && u.Scheme != "http") {
-				return fmt.Errorf("the REST server must be an http(s) URL")
-			}
-		case "strataos":
-			if u, err := url.Parse(t.VaultURL); err != nil || u.Scheme != "https" || t.VaultToken == "" || len(t.VaultCert) != 64 {
-				return fmt.Errorf("pair this NAS with the vault first")
-			}
-		default:
-			return fmt.Errorf("unsupported restic destination")
 		}
-		if len(t.Password) < 8 {
-			return fmt.Errorf("the repository password must be at least 8 characters (keep it safe: without it the backup cannot be restored)")
-		}
-		if t.KeepLast+t.KeepDaily+t.KeepWeekly+t.KeepMonthly == 0 {
+		if t.KeepLast+t.KeepHourly+t.KeepDaily+t.KeepWeekly+t.KeepMonthly+t.KeepYearly == 0 {
 			t.KeepDaily, t.KeepWeekly, t.KeepMonthly = 7, 4, 12
 		}
 	case "zfs":
@@ -197,6 +176,45 @@ func Validate(t *store.BackupTask) error {
 	}
 	return nil
 }
+
+// validateResticDest checks the repository of a restic task or datastore.
+func validateResticDest(t *store.BackupTask) error {
+	switch t.DestType {
+	case "local":
+		c := filepath.Clean(t.DestPath)
+		if !strings.HasPrefix(c, storage.MountRoot+"/") {
+			return fmt.Errorf("a local repository must be inside a volume (/srv/strata/...)")
+		}
+		t.DestPath = c
+	case "sftp":
+		if !strings.HasPrefix(t.DestPath, "/") {
+			return fmt.Errorf("the remote path must be absolute")
+		}
+	case "s3":
+		if t.S3Endpoint == "" || t.DestPath == "" || t.AccessKey == "" || t.SecretKey == "" {
+			return fmt.Errorf("S3 needs an endpoint, a bucket and access keys")
+		}
+		if u, err := url.Parse(t.S3Endpoint); err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+			return fmt.Errorf("the S3 endpoint must be an http(s) URL")
+		}
+	case "rest":
+		if u, err := url.Parse(t.DestPath); err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+			return fmt.Errorf("the REST server must be an http(s) URL")
+		}
+	case "strataos":
+		if u, err := url.Parse(t.VaultURL); err != nil || u.Scheme != "https" || t.VaultToken == "" || len(t.VaultCert) != 64 {
+			return fmt.Errorf("pair this NAS with the vault first")
+		}
+	default:
+		return fmt.Errorf("unsupported restic destination")
+	}
+	if len(t.Password) < 8 {
+		return fmt.Errorf("the repository password must be at least 8 characters (keep it safe: without it the backup cannot be restored)")
+	}
+	return nil
+}
+
+var idRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 
 // lineWriter turns command output into lines (splitting on \r too, for progress bars).
 type lineWriter struct {
@@ -226,6 +244,9 @@ type Progress struct {
 
 // Run executes one backup and returns a summary.
 func Run(ctx context.Context, t store.BackupTask, p Progress) (string, error) {
+	if t.Datastore != "" {
+		return runDatastore(ctx, &t, p)
+	}
 	if len(t.VMs) > 0 || len(t.Containers) > 0 {
 		return runWithVMs(ctx, &t, p)
 	}
@@ -371,6 +392,33 @@ func runRestic(ctx context.Context, t *store.BackupTask, p Progress) (string, er
 	if err := ensureRepo(ctx, t, p); err != nil {
 		return "", err
 	}
+	msg, err := resticFolders(ctx, t, p)
+	if err != nil {
+		return "", err
+	}
+	p.Set(92)
+	applyRetention(ctx, t, p)
+	return msg, nil
+}
+
+// applyRetention forgets the snapshots of a task its retention drops.
+func applyRetention(ctx context.Context, t *store.BackupTask, p Progress) {
+	forget := append([]string{"forget", "--retry-lock", "30m"}, forgetArgs(t)...)
+	if t.Datastore == "" {
+		forget = append(forget, "--prune") // datastores are pruned on their own schedule
+	}
+	if t.AppendOnly {
+		p.Log("Append-only vault: old snapshots are kept (deletions are refused by the vault)")
+		return
+	}
+	p.Log("Applying retention")
+	if _, err := restic(ctx, t, nil, forget...); err != nil {
+		p.Log("warning: retention failed: %v", err)
+	}
+}
+
+// resticFolders backs up the folders of a task (one snapshot).
+func resticFolders(ctx context.Context, t *store.BackupTask, p Progress) (string, error) {
 	_ = os.MkdirAll("/var/cache/strata/restic", 0o700)
 	var summary struct {
 		FilesNew, FilesChanged, FilesUnmodified int
@@ -402,7 +450,8 @@ func runRestic(ctx context.Context, t *store.BackupTask, p Progress) (string, er
 			p.Log("%v", m["error"])
 		}
 	}}
-	args := []string{"backup", "--json", "--host", hostname(), "--tag", "strata-" + t.ID, "--exclude", ".recycle", "--exclude", ".snapshots"}
+	args := []string{"backup", "--json", "--retry-lock", "30m", "--host", hostname(), "--tag", "strata-" + t.ID, "--exclude", ".recycle", "--exclude", ".snapshots",
+		"--exclude", ".strata-diskmount-*", "--exclude", ".strata-imgrestore-*"}
 	for _, e := range t.Excludes {
 		args = append(args, "--exclude", e)
 	}
@@ -415,21 +464,6 @@ func runRestic(ctx context.Context, t *store.BackupTask, p Progress) (string, er
 		}
 		p.Log("warning: some files could not be read")
 	}
-	p.Set(92)
-	forget := []string{"forget", "--prune", "--tag", "strata-" + t.ID, "--group-by", "host,tags"}
-	for flag, n := range map[string]int{"--keep-last": t.KeepLast, "--keep-daily": t.KeepDaily, "--keep-weekly": t.KeepWeekly, "--keep-monthly": t.KeepMonthly} {
-		if n > 0 {
-			forget = append(forget, flag, strconv.Itoa(n))
-		}
-	}
-	if t.AppendOnly {
-		p.Log("Append-only vault: old snapshots are kept (deletions are refused by the vault)")
-	} else {
-		p.Log("Applying retention")
-		if _, err := restic(ctx, t, nil, forget...); err != nil {
-			p.Log("warning: retention failed: %v", err)
-		}
-	}
 	return fmt.Sprintf("Snapshot %s: %d new, %d changed, %s added", short(summary.SnapshotID), summary.FilesNew, summary.FilesChanged, humanBytes(summary.DataAdded)), nil
 }
 
@@ -439,23 +473,41 @@ type ResticSnapshot struct {
 	Time     time.Time `json:"time"`
 	Paths    []string  `json:"paths"`
 	Hostname string    `json:"hostname"`
+	Tags     []string  `json:"tags,omitempty"`
 	Summary  *struct {
 		TotalBytesProcessed int64 `json:"total_bytes_processed"`
 		TotalFilesProcessed int   `json:"total_files_processed"`
+		DataAddedPacked     int64 `json:"data_added_packed"`
 	} `json:"summary,omitempty"`
 }
 
-// Snapshots lists the restic snapshots of a task, newest first.
+// Snapshots lists the restic snapshots of folders of a task, newest first
+// (the snapshots of disk images are listed by ImageBackups).
 func Snapshots(ctx context.Context, t store.BackupTask) ([]ResticSnapshot, error) {
 	if t.Kind != "restic" {
 		return nil, fmt.Errorf("only restic backups keep versions")
 	}
-	out, err := restic(ctx, &t, nil, "snapshots", "--json", "--tag", "strata-"+t.ID)
+	all, err := taskSnapshots(ctx, &t)
 	if err != nil {
 		return nil, err
 	}
-	var snaps []ResticSnapshot
-	if err := json.Unmarshal([]byte(out), &snaps); err != nil {
+	snaps := []ResticSnapshot{}
+	for _, s := range all {
+		if !isImagePart(s) {
+			snaps = append(snaps, s)
+		}
+	}
+	return snaps, nil
+}
+
+// taskSnapshots lists every snapshot of a task, newest first.
+func taskSnapshots(ctx context.Context, t *store.BackupTask, filter ...string) ([]ResticSnapshot, error) {
+	args := []string{"--tag", "strata-" + t.ID}
+	if t.Datastore != "" {
+		args = append(args, "--host", hostname()) // a datastore holds other NAS too
+	}
+	snaps, err := allSnapshots(ctx, t, append(args, filter...)...)
+	if err != nil {
 		return nil, err
 	}
 	sort.Slice(snaps, func(i, j int) bool { return snaps[i].Time.After(snaps[j].Time) })

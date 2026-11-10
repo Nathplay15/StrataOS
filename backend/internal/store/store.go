@@ -231,7 +231,7 @@ type BackupTask struct {
 	KeepDays int  `json:"keepDays,omitempty"`
 	// Synced is set once a two-way sync has been initialised (rclone bisync --resync).
 	Synced bool `json:"synced,omitempty"`
-	// Destination. DestType: local | ssh (rsync, zfs) ; local | sftp | s3 | rest (restic) ; sftp (sync).
+	// Destination. DestType: local | ssh (rsync, zfs) ; local | sftp | s3 | rest | strataos | datastore (restic) ; sftp (sync).
 	DestType   string `json:"destType"`
 	DestPath   string `json:"destPath"` // folder, remote path, ZFS dataset, bucket path or REST URL
 	Host       string `json:"host,omitempty"`
@@ -272,6 +272,14 @@ type BackupTask struct {
 	Offsite bool `json:"offsite,omitempty"`
 	// RestoreTest is the outcome of the last automatic restore test.
 	RestoreTest *RestoreTest `json:"restoreTest,omitempty"`
+
+	// Datastore: the backup repository of a restic task whose DestType is
+	// "datastore" (store/datastore.go); its VMs and containers are then
+	// stored as deduplicated disk images. KeepHourly and KeepYearly add to
+	// the restic retention.
+	Datastore  string `json:"datastore,omitempty"`
+	KeepHourly int    `json:"keepHourly,omitempty"`
+	KeepYearly int    `json:"keepYearly,omitempty"`
 }
 
 // Directory is the domain the NAS belongs to: Active Directory (Samba/winbind
@@ -383,6 +391,9 @@ type Vault struct {
 	AppendOnly bool          `json:"appendOnly"` // clients can add, never delete
 	Created    time.Time     `json:"created"`
 	Clients    []VaultClient `json:"clients"`
+	// Shared: every paired NAS writes to one repository (Path/shared), so
+	// identical data of several NAS is stored once (backup datastores).
+	Shared bool `json:"shared,omitempty"`
 }
 
 // VaultClient is a NAS allowed to write to a vault.
@@ -636,6 +647,9 @@ type State struct {
 	CatalogSources []*CatalogSource `json:"catalogSources,omitempty"`
 	// Protection: 3-2-1 assistant and restore tests.
 	Protection Protection `json:"protection,omitzero"`
+
+	// Datastores: backup repositories shared by tasks (store/datastore.go).
+	Datastores []*Datastore `json:"datastores,omitempty"`
 }
 
 const maxEvents = 2000

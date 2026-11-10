@@ -68,7 +68,7 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 	var found bool
 	s.store.Read(func(st *store.State) {
 		if x := st.Backup(id); x != nil {
-			t, found = *x, true
+			t, found = resolveTask(st, x), true
 		}
 	})
 	if !found {
@@ -101,6 +101,9 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 			run.Status, run.Message = "failed", err.Error()
 		} else {
 			j.Logf("%s", msg)
+		}
+		if t.Datastore != "" {
+			s.refreshDatastoreStats(ctx, t.Datastore, j.Logf)
 		}
 		if uerr := s.store.Update(func(st *store.State) error {
 			if x := st.Backup(id); x != nil {
@@ -212,6 +215,9 @@ func (s *Server) backupRoutes() {
 			}
 		}
 		err := s.store.Update(func(st *store.State) error {
+			if req.DestType == "datastore" && st.Datastore(req.Datastore) == nil {
+				return badRequest("choose a backup repository")
+			}
 			if id == "" {
 				req.ID, req.CreatedAt, req.History, req.Synced = shortID(), time.Now(), []store.ScheduleRun{}, false
 				c := req
@@ -293,6 +299,7 @@ func (s *Server) backupRoutes() {
 		if err := backup.Validate(&req); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		s.store.Read(func(st *store.State) { req = resolveTask(st, &req) })
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 		defer cancel()
 		msg, err := backup.Test(ctx, req)
@@ -307,7 +314,7 @@ func (s *Server) backupRoutes() {
 		var found bool
 		s.store.Read(func(st *store.State) {
 			if x := st.Backup(r.PathValue("id")); x != nil {
-				t, found = *x, true
+				t, found = resolveTask(st, x), true
 			}
 		})
 		if !found {
@@ -335,7 +342,7 @@ func (s *Server) backupRoutes() {
 		var found bool
 		s.store.Read(func(st *store.State) {
 			if x := st.Backup(r.PathValue("id")); x != nil {
-				t, found = *x, true
+				t, found = resolveTask(st, x), true
 			}
 		})
 		if !found {

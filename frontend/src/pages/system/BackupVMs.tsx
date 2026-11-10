@@ -25,7 +25,7 @@ export function BackupVMPicker({ b, set }: { b: BackupTask; set: (k: Partial<Bac
         ))}
       </div>
       {chosen.length > 0 && (
-        <Field label={tr("Running VMs")} className="mt-3" hint={tr("The definition, the disks and the UEFI variables are copied into a \"vms\" folder at the destination.")}>
+        <Field label={tr("Running VMs")} className="mt-3" hint={b.destType === "datastore" ? tr("Each disk is read as an image while the VM is held still, then the definition and the UEFI variables are stored with it.") : tr("The definition, the disks and the UEFI variables are copied into a \"vms\" folder at the destination.")}>
           <Select value={b.vmMode ?? ""} onChange={(e) => set({ vmMode: e.target.value as BackupTask["vmMode"] })}>
             <option value="">{tr("Live snapshot (file systems frozen by the guest agent when available)")}</option>
             <option value="suspend">{tr("Pause the VM during the copy")}</option>
@@ -51,7 +51,7 @@ function BackupContainerPicker({ b, set, list }: { b: BackupTask; set: (k: Parti
           <Checkbox key={c.name} checked={chosen.includes(c.name)} onChange={(v) => set({ containers: v ? [...chosen, c.name] : chosen.filter((x) => x !== c.name) })} label={<span className="text-[13px]">{c.name}</span>} />
         ))}
       </div>
-      {chosen.length > 0 && <div className="text-muted mt-2 text-[12px]">{tr("Each container is written as lxc/<name>.tar.zst at the destination (from a snapshot when it runs on Btrfs, ZFS or a disk image).")}</div>}
+      {chosen.length > 0 && <div className="text-muted mt-2 text-[12px]">{b.destType === "datastore" ? tr("Each container is stored as an archive cut into blocks (from a snapshot when it runs on Btrfs, ZFS or a disk image).") : tr("Each container is written as lxc/<name>.tar.zst at the destination (from a snapshot when it runs on Btrfs, ZFS or a disk image).")}</div>}
     </div>
   );
 }

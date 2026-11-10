@@ -496,7 +496,9 @@ export interface BackupTask {
   versions?: boolean;
   keepDays?: number;
   synced?: boolean;
-  destType: "local" | "ssh" | "sftp" | "s3" | "rest" | "strataos";
+  destType: "local" | "ssh" | "sftp" | "s3" | "rest" | "strataos" | "datastore";
+  // Backup repository of a "datastore" destination (pages/system/Datastores.tsx).
+  datastore?: string;
   vaultUrl?: string;
   vaultToken?: string;
   vaultCert?: string;
@@ -513,9 +515,11 @@ export interface BackupTask {
   excludes?: string[];
   recursive?: boolean;
   keepLast?: number;
+  keepHourly?: number;
   keepDaily?: number;
   keepWeekly?: number;
   keepMonthly?: number;
+  keepYearly?: number;
   cron: string;
   enabled: boolean;
   history: ScheduleRun[];

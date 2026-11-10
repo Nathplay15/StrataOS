@@ -87,112 +87,20 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 	if strings.ContainsAny(file, "/\n") || !strings.HasSuffix(file, ".tar.zst") {
 		return "", 0, fmt.Errorf("invalid file name")
 	}
-	unlock := lock(name)
-	if unlock == nil {
-		return "", 0, busy(name)
-	}
-	defer func() { unlock() }()
-	s, err := Load(name)
-	if err != nil {
-		return "", 0, err
-	}
-	be, err := BackendFor(s.Storage.Backend)
-	if err != nil {
-		return "", 0, err
-	}
-	if err := be.Prepare(ctx, &s.Storage); err != nil {
-		return "", 0, err
-	}
-	tree := s.Storage.Rootfs()
-	running := State(name) == "running"
-	consistency := "stopped"
-	if running {
-		switch {
-		case o.Mode == "stop":
-			logf("Stopping %s for the copy", name)
-			if err := Stop(name); err != nil {
-				return "", 0, err
-			}
-			if !WaitState(ctx, name, "stopped", 3*time.Minute) {
-				return "", 0, fmt.Errorf("%s did not stop", name)
-			}
-			defer func() {
-				logf("Starting %s again", name)
-				unlock()
-				unlock = func() {}
-				if err := Start(context.Background(), name); err != nil {
-					logf("%s did not start again: %v", name, err)
-				}
-			}()
-		case o.Mode == "" && s.Storage.Backend != "dir":
-			const snap = "strata-backup"
-			_ = be.DeleteSnapshot(ctx, &s.Storage, snap)
-			if err := os.MkdirAll(s.Storage.snapDir(), 0o711); err != nil {
-				return "", 0, err
-			}
-			_ = os.Chmod(s.Storage.snapDir(), 0o711)
-			if err := be.Snapshot(ctx, &s.Storage, snap); err != nil {
-				return "", 0, err
-			}
-			defer func() { _ = be.DeleteSnapshot(context.Background(), &s.Storage, snap) }()
-			tree = be.SnapshotTree(&s.Storage, snap)
-			if s.Storage.Backend == "image" {
-				mnt := filepath.Join(s.Storage.Base, ".backup-mnt")
-				_ = os.MkdirAll(mnt, 0o711)
-				if _, err := sys.Run("mount", "-o", "loop,ro,noload", filepath.Join(s.Storage.snapDir(), snap+".img"), mnt); err != nil {
-					return "", 0, err
-				}
-				defer func() { _, _ = sys.Run("umount", mnt); _ = os.Remove(mnt) }()
-				tree = mnt
-			}
-			consistency = "snapshot"
-		default:
-			consistency = "live"
-		}
-	}
-	logf("Backing up %s (%s copy) to %s", name, consistency, filepath.Join(dir, file))
-
-	// container.json, readable from inside the user namespace. The rename to
-	// rootfs/ applies to member names only (S: never to symbolic link targets
-	// such as ../lib/systemd/systemd).
-	stage, err := os.MkdirTemp(s.Storage.Base, ".export-")
-	if err != nil {
-		return "", 0, err
-	}
-	defer os.RemoveAll(stage)
-	_ = os.Chmod(stage, 0o755)
-	b, err := os.ReadFile(filepath.Join(Dir(name), specFile))
-	if err != nil {
-		return "", 0, err
-	}
-	if err := os.WriteFile(filepath.Join(stage, specFile), b, 0o644); err != nil {
-		return "", 0, err
-	}
 	final := filepath.Join(dir, file)
 	part := final + ".partial"
 	out, err := os.OpenFile(part, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", 0, err
 	}
-	argv := append(usernsArgs(s), "tar", "--create", "--format=posix")
-	argv = append(argv, tarCommon...)
-	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,S`, "--exclude=./dev/*", "--exclude=./lost+found", ".")
-	cmd := command(ctx, argv)
-	cmd.Stdout = out
-	errb := &limitedText{max: 8 << 10}
-	cmd.Stderr = errb
-	err = cmd.Run()
+	logf("Backing up %s to %s", name, final)
+	_, err = ExportStream(ctx, name, o.Mode, out, true, logf)
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
-	// tar exits with 1 when files changed while it read them (live copy).
-	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 && consistency == "live" {
-		logf("Some files changed during the copy: %s", strings.TrimSpace(errb.String()))
-		err = nil
-	}
 	if err != nil {
 		_ = os.Remove(part)
-		return "", 0, fmt.Errorf("tar: %v %s", err, strings.TrimSpace(errb.String()))
+		return "", 0, err
 	}
 	if err := os.Rename(part, final); err != nil {
 		return "", 0, err
@@ -214,6 +122,118 @@ func Export(ctx context.Context, name string, o ExportOpts, logf func(string, ..
 		}
 	}
 	return final, size, nil
+}
+
+// ExportStream writes a backup of a container to w as a tar archive
+// (zstd-compressed when compress; image backups send it uncompressed so the
+// repository can deduplicate it) and returns how consistent it is:
+// stopped, snapshot or live.
+func ExportStream(ctx context.Context, name, mode string, w io.Writer, compress bool, logf func(string, ...any)) (string, error) {
+	if !ValidMode(mode) {
+		return "", fmt.Errorf("unknown backup mode %q", mode)
+	}
+	unlock := lock(name)
+	if unlock == nil {
+		return "", busy(name)
+	}
+	defer func() { unlock() }()
+	s, err := Load(name)
+	if err != nil {
+		return "", err
+	}
+	be, err := BackendFor(s.Storage.Backend)
+	if err != nil {
+		return "", err
+	}
+	if err := be.Prepare(ctx, &s.Storage); err != nil {
+		return "", err
+	}
+	tree := s.Storage.Rootfs()
+	running := State(name) == "running"
+	consistency := "stopped"
+	if running {
+		switch {
+		case mode == "stop":
+			logf("Stopping %s for the copy", name)
+			if err := Stop(name); err != nil {
+				return "", err
+			}
+			if !WaitState(ctx, name, "stopped", 3*time.Minute) {
+				return "", fmt.Errorf("%s did not stop", name)
+			}
+			defer func() {
+				logf("Starting %s again", name)
+				unlock()
+				unlock = func() {}
+				if err := Start(context.Background(), name); err != nil {
+					logf("%s did not start again: %v", name, err)
+				}
+			}()
+		case mode == "" && s.Storage.Backend != "dir":
+			const snap = "strata-backup"
+			_ = be.DeleteSnapshot(ctx, &s.Storage, snap)
+			if err := os.MkdirAll(s.Storage.snapDir(), 0o711); err != nil {
+				return "", err
+			}
+			_ = os.Chmod(s.Storage.snapDir(), 0o711)
+			if err := be.Snapshot(ctx, &s.Storage, snap); err != nil {
+				return "", err
+			}
+			defer func() { _ = be.DeleteSnapshot(context.Background(), &s.Storage, snap) }()
+			tree = be.SnapshotTree(&s.Storage, snap)
+			if s.Storage.Backend == "image" {
+				mnt := filepath.Join(s.Storage.Base, ".backup-mnt")
+				_ = os.MkdirAll(mnt, 0o711)
+				if _, err := sys.Run("mount", "-o", "loop,ro,noload", filepath.Join(s.Storage.snapDir(), snap+".img"), mnt); err != nil {
+					return "", err
+				}
+				defer func() { _, _ = sys.Run("umount", mnt); _ = os.Remove(mnt) }()
+				tree = mnt
+			}
+			consistency = "snapshot"
+		default:
+			consistency = "live"
+		}
+	}
+	logf("Backing up %s (%s copy)", name, consistency)
+
+	// container.json, readable from inside the user namespace. The rename to
+	// rootfs/ applies to member names only (S: never to symbolic link targets
+	// such as ../lib/systemd/systemd).
+	stage, err := os.MkdirTemp(s.Storage.Base, ".export-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(stage)
+	_ = os.Chmod(stage, 0o755)
+	b, err := os.ReadFile(filepath.Join(Dir(name), specFile))
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(stage, specFile), b, 0o644); err != nil {
+		return "", err
+	}
+	argv := append(usernsArgs(s), "tar", "--create", "--format=posix")
+	if compress {
+		argv = append(argv, tarCommon...)
+	} else {
+		argv = append(argv, tarCommon[:len(tarCommon)-1]...)
+	}
+	argv = append(argv, "--file=-", "-C", stage, specFile, "-C", tree, `--transform=s,^\.,rootfs,S`, "--exclude=./dev/*", "--exclude=./lost+found", ".")
+	cmd := command(ctx, argv)
+	cmd.Stdout = w
+	errb := &limitedText{max: 8 << 10}
+	cmd.Stderr = errb
+	err = cmd.Run()
+	// tar exits with 1 when files changed while it read them (live copy).
+	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 && consistency == "live" {
+		logf("Some files changed during the copy: %s", strings.TrimSpace(errb.String()))
+		err = nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("tar: %v %s", err, strings.TrimSpace(errb.String()))
+	}
+	return consistency, nil
 }
 
 type limitedText struct {

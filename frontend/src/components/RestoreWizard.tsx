@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArchiveRestore, Camera, ChevronRight, Cloud, DatabaseBackup, Download, File, Folder, FolderOpen, HardDrive, Server } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, Camera, ChevronRight, Cloud, DatabaseBackup, Disc, Download, File, Folder, FolderOpen, HardDrive, Lock, Server } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { ago, bytes, cx, dateTime } from "../lib/format";
@@ -9,7 +9,8 @@ import { Badge, Button, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, 
 import { tr } from "../lib/i18n";
 import { ImportModal, JobLog, type Doc } from "../pages/system/ConfigBackup";
 
-type Info = { id: string; kind: "snapshot" | "backup" | "cloud"; name: string; detail: string; downloadDirs: boolean };
+type Info = { id: string; kind: "snapshot" | "backup" | "cloud" | "image"; name: string; detail: string; downloadDirs: boolean };
+type DiskState = { state: "closed" | "opening" | "open" | "failed"; open?: number; max?: number; idleMinutes?: number; session?: { error?: string; size: number; roots: { path: string; fsType: string; label?: string }[]; skipped?: string[] } };
 type Point = { id: string; time: string; label?: string; files?: number; bytes?: number; roots: string[] };
 type Entry = { path: string; name: string; dir: boolean; link?: boolean; size: number; mtime: string };
 type Item = { path: string; action: "overwrite" | "conflict"; size: number; curSize: number; mtime: string; curMtime: string };
@@ -18,11 +19,11 @@ type Scope = "files" | "share" | "nas";
 type Mode = "inplace" | "folder" | "download";
 type Policy = "overwrite" | "skip" | "rename";
 
-const kindIcon = { snapshot: <Camera size={16} />, backup: <DatabaseBackup size={16} />, cloud: <Cloud size={16} /> };
+const kindIcon = { snapshot: <Camera size={16} />, backup: <DatabaseBackup size={16} />, cloud: <Cloud size={16} />, image: <Disc size={16} /> };
 const dirname = (p: string) => p.slice(0, p.lastIndexOf("/")) || "/";
 
 /** Points in time grouped by day, newest first: a simple timeline. */
-function Timeline({ points, value, onPick }: { points: Point[]; value: string; onPick: (p: Point) => void }) {
+function Timeline({ points, value, onPick, labels }: { points: Point[]; value: string; onPick: (p: Point) => void; labels?: boolean }) {
   const days = useMemo(() => {
     const m = new Map<string, Point[]>();
     for (const p of [...points].sort((a, b) => b.time.localeCompare(a.time))) {
@@ -42,11 +43,55 @@ function Timeline({ points, value, onPick }: { points: Point[]; value: string; o
               <button key={p.id} type="button" onClick={() => onPick(p)} title={p.label} className={cx("rounded-lg px-2.5 py-1 text-[12px]", value === p.id ? "bg-accent text-white" : "bg-panel-2 hover:bg-accent-soft")}>
                 {new Date(p.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 {p.files ? <span className="ml-1 opacity-70">· {p.files}</span> : null}
+                {labels && p.label ? <span className="mono ml-1 opacity-70">· {p.label}</span> : null}
               </button>
             ))}
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** A VM disk backup must be opened (read back, mounted read-only) before its files can be browsed. */
+function DiskPanel({ source, point }: { source: string; point: Point }) {
+  const st = useQuery({
+    queryKey: ["restore-disk", source, point.id],
+    queryFn: () => api.get<DiskState>(`/api/restore/disk${q({ source, point: point.id })}`),
+    refetchInterval: (x) => (x.state.data?.state === "opening" ? 2000 : 30000),
+  });
+  const open = useAction(() => api.post("/api/restore/disk/open", { source, point: point.id }), { onDone: () => setTimeout(() => st.refetch(), 800) });
+  const close = useAction(() => api.post("/api/restore/disk/close", { source, point: point.id }), { success: tr("Disk closed") });
+  const d = st.data;
+  if (!d) return <Spinner />;
+  if (d.state === "open") {
+    return (
+      <Notice>
+        <div className="flex flex-wrap items-center gap-2">
+          <Lock size={14} />
+          <span className="flex-1">{tr("Disk {0} open read-only: {1}. It closes by itself after {2} idle minutes.", point.label ?? "", d.session?.roots.map((r) => `${r.path.slice(1)} (${r.fsType}${r.label ? ` “${r.label}”` : ""})`).join(", ") ?? "", d.idleMinutes ?? 30)}</span>
+          <Button size="sm" loading={close.isPending} onClick={() => close.mutate()}>{tr("Close the disk")}</Button>
+        </div>
+        {!!d.session?.skipped?.length && <div className="mt-1 text-muted text-[12px]">{tr("Not opened: {0}", d.session.skipped.join("; "))}</div>}
+      </Notice>
+    );
+  }
+  return (
+    <div className="space-y-3 rounded-xl border border-line p-4">
+      <div className="flex items-start gap-3">
+        <Disc size={18} className="mt-0.5 text-accent" />
+        <div className="flex-1 text-[13px]">
+          <div className="font-medium">{tr("Disk {0} of {1}", point.label ?? "", dateTime(point.time))}{point.bytes ? ` · ${bytes(point.bytes)}` : ""}</div>
+          <div className="text-muted text-[12.5px]">{tr("To browse it, the disk is read back from the backup onto a volume, then its partitions are mounted read-only (ext4, XFS, Btrfs, NTFS, FAT, LVM). The backup itself is never modified. This takes a while for a large disk.")}</div>
+        </div>
+      </div>
+      {d.state === "opening" ? <Spinner label={tr("Opening the disk…")} /> : (
+        <div className="flex items-center justify-end gap-2">
+          {d.open !== undefined && d.max !== undefined && d.open >= d.max && <span className="text-warn text-[12px]">{tr("{0} disks are open already: close one first.", d.max)}</span>}
+          <Button variant="primary" loading={open.isPending} onClick={() => open.mutate()}>{tr("Open the disk")}</Button>
+        </div>
+      )}
+      <ErrorBox error={open.error || close.error} />
     </div>
   );
 }
@@ -73,10 +118,18 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
   const sources = useQuery({ queryKey: ["restore-sources", initialPath ?? ""], queryFn: () => api.get<Info[]>(`/api/restore/sources${q({ path: initialPath })}`) });
   const info = sources.data?.find((s) => s.id === source);
   const points = useQuery({ queryKey: ["restore-points", source], queryFn: () => api.get<Point[]>(`/api/restore/points${q({ source })}`), enabled: !!source && step >= 1 });
+  const isImage = info?.kind === "image";
+  const disk = useQuery({
+    queryKey: ["restore-disk", source, point?.id],
+    queryFn: () => api.get<DiskState>(`/api/restore/disk${q({ source, point: point?.id })}`),
+    enabled: isImage && !!point && step === 2,
+    refetchInterval: (x) => (x.state.data?.state === "opening" ? 2000 : 30000),
+  });
+  const diskOpen = !isImage || disk.data?.state === "open";
   const browse = useQuery({
-    queryKey: ["restore-browse", source, point?.id, dir],
+    queryKey: ["restore-browse", source, point?.id, dir, diskOpen],
     queryFn: () => api.get<{ entries: Entry[] }>(`/api/restore/browse${q({ source, point: point?.id, path: dir })}`),
-    enabled: !!point && step === 2,
+    enabled: !!point && step === 2 && diskOpen,
   });
   const body = () => ({ source, point: point?.id, paths: sel.map((e) => e.path), mode, target: mode === "folder" ? target : "", policy });
   const doPreview = useAction(() => api.post<Preview>("/api/restore/preview", body()), { onDone: setPreview });
@@ -105,6 +158,7 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
     }
   }, [browse.data]);
   useEffect(() => setPreview(null), [mode, target, sel, policy]);
+  useEffect(() => { if (isImage && mode === "inplace") setMode("folder"); }, [isImage, mode]);
 
   const crumbs = useMemo(() => {
     if (!dir || !point) return [];
@@ -165,11 +219,11 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
             <Empty icon={<ArchiveRestore />} title={tr("Nothing to restore from")} text={tr("Restores read snapshots (Btrfs, ZFS, LVM thin), versioned backups, file copies to a local folder and cloud uploads.")} />
           ) : (
             <div className="space-y-1.5">
-              {sources.data.filter((s) => scope !== "nas" || s.kind !== "snapshot").map((s) => (
+              {sources.data.filter((s) => (scope !== "nas" || s.kind !== "snapshot") && (scope === "files" || s.kind !== "image")).map((s) => (
                 <button key={s.id} type="button" onClick={() => { setSource(s.id); setPoint(null); }} className={cx("flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left", source === s.id ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2")}>
                   <span className="text-accent">{kindIcon[s.kind]}</span>
                   <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">{s.name}</span><span className="mono block truncate text-muted text-[11.5px]">{s.detail}</span></span>
-                  <Badge>{{ snapshot: tr("Snapshots"), backup: tr("Backup"), cloud: tr("Cloud copy") }[s.kind]}</Badge>
+                  <Badge>{{ snapshot: tr("Snapshots"), backup: tr("Backup"), cloud: tr("Cloud copy"), image: tr("VM disks") }[s.kind]}</Badge>
                 </button>
               ))}
             </div>
@@ -183,14 +237,15 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
           <ErrorBox error={points.error} />
           {points.isLoading ? <Spinner label={tr("Reading the versions…")} /> : !points.data?.length ? <Empty icon={<ArchiveRestore />} title={tr("No versions")} text={tr("Run the backup or the snapshot task once first.")} /> : (
             <>
-              <Timeline points={points.data} value={point?.id ?? ""} onPick={pickPoint} />
+              <Timeline points={points.data} value={point?.id ?? ""} onPick={pickPoint} labels={isImage} />
               {point && <div className="text-[12.5px] text-muted">{tr("Version of {0} ({1})", dateTime(point.time), ago(point.time))}{point.bytes ? ` · ${bytes(point.bytes)}` : ""}</div>}
             </>
           )}
         </div>
       )}
 
-      {step === 2 && (
+      {step === 2 && isImage && point && <div className="mb-3"><DiskPanel source={source} point={point} /></div>}
+      {step === 2 && diskOpen && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-1 text-[12.5px]">
             <button className="rounded px-1.5 py-0.5 hover:bg-panel-2" onClick={() => setDir("")}><HardDrive size={14} /></button>
@@ -226,7 +281,7 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
           <div className="text-[12.5px] text-muted">{tr("{0} item(s) from the version of {1}", sel.length, dateTime(point?.time ?? ""))}</div>
           <div className="grid gap-2 sm:grid-cols-3">
             {([["inplace", tr("In place"), tr("Where they were")], ["folder", tr("To another folder"), tr("Nothing existing is touched")], ["download", tr("Download"), tr("One file, or a folder as a zip")]] as [Mode, string, string][]).map(([k, l, sub]) => (
-              <button key={k} type="button" disabled={k === "download" && !canDownload} onClick={() => setMode(k)} className={cx("rounded-xl border px-3 py-2.5 text-left disabled:opacity-50", mode === k ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
+              <button key={k} type="button" disabled={(k === "download" && !canDownload) || (k === "inplace" && isImage)} onClick={() => setMode(k)} className={cx("rounded-xl border px-3 py-2.5 text-left disabled:opacity-50", mode === k ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
                 <div className="text-[13px] font-medium">{l}</div><div className="text-muted text-[11.5px]">{sub}</div>
               </button>
             ))}

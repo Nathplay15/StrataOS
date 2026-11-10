@@ -82,6 +82,7 @@ func (s *Server) schedulerLoop() {
 		if s.restoreTestDue(tick) {
 			_, _ = s.runRestoreTests("", "")
 		}
+		s.datastoreTick(tick)
 	}
 }
 

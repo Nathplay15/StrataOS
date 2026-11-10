@@ -45,6 +45,8 @@ type Disk struct {
 	Bus    string `json:"bus"`
 	Source string `json:"source"`
 	Size   int64  `json:"size,omitempty"` // virtual size in bytes
+	// Format: the image format of the definition (qcow2, raw…).
+	Format string `json:"format,omitempty"`
 }
 
 type NIC struct {
@@ -115,6 +117,9 @@ type domainXML struct {
 				Dev string `xml:"dev,attr"`
 				Bus string `xml:"bus,attr"`
 			} `xml:"target"`
+			Driver struct {
+				Type string `xml:"type,attr"`
+			} `xml:"driver"`
 		} `xml:"disk"`
 		Interfaces []struct {
 			Type   string `xml:"type,attr"`
@@ -193,7 +198,7 @@ func Get(name string) (*VM, error) {
 		vm.OS = "linux"
 	}
 	for _, dk := range d.Devices.Disks {
-		disk := Disk{Device: dk.Device, Target: dk.Target.Dev, Bus: dk.Target.Bus, Source: dk.Source.File}
+		disk := Disk{Device: dk.Device, Target: dk.Target.Dev, Bus: dk.Target.Bus, Source: dk.Source.File, Format: dk.Driver.Type}
 		if dk.Source.Protocol == "rbd" {
 			disk.Source = "rbd:" + dk.Source.Name
 		}
