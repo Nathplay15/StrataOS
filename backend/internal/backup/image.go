@@ -177,7 +177,8 @@ func runDatastore(ctx context.Context, t *store.BackupTask, p Progress) (string,
 	if len(failed) > 0 {
 		return "", fmt.Errorf("%s", strings.Join(failed, "; "))
 	}
-	return fmt.Sprintf("%s (%s)", msg, time.Since(start).Round(time.Second)), nil
+	p.Log("Finished in %s", time.Since(start).Round(time.Second))
+	return msg, nil
 }
 
 // backupVMImage stores the disks of a VM, then its definition.
