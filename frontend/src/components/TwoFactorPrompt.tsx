@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellOff, FingerprintPattern, LogOut, ShieldAlert, Smartphone } from "lucide-react";
+import { BellOff, FingerprintPattern, KeyRound, LogOut, ShieldAlert, Smartphone } from "lucide-react";
 import { api } from "../lib/api";
 import type { Me, TwoFactorPrompt as Prompt } from "../lib/types";
 import { dateTime } from "../lib/format";
@@ -10,8 +10,9 @@ import { passkeysSupported } from "../lib/webauthn";
 import { Button, ErrorBox, Modal, Notice } from "./ui";
 import { TwoFactorModal } from "./TwoFactor";
 import { PasskeysModal } from "./Passkeys";
+import { SecurityKeysModal } from "./SecurityKeys";
 
-function Choices({ prompt, onApp, onPasskey }: { prompt: Prompt; onApp: () => void; onPasskey: () => void }) {
+function Choices({ prompt, onApp, onPasskey, onKey }: { prompt: Prompt; onApp: () => void; onPasskey: () => void; onKey: () => void }) {
   const choice = "flex w-full items-start gap-3 rounded-xl border border-line p-4 text-left transition hover:border-accent hover:bg-accent-soft";
   return (
     <div className="space-y-3">
@@ -21,10 +22,17 @@ function Choices({ prompt, onApp, onPasskey }: { prompt: Prompt; onApp: () => vo
       ) : prompt.required && prompt.deadline ? (
         <Notice tone="warn">{tr("Two-factor authentication is required for administrators: set it up before {0}.", dateTime(prompt.deadline))}</Notice>
       ) : null}
-      <button className={choice} onClick={onApp}>
+      {prompt.keyRequired && <Notice>{tr("Administrators must use a security key or a passkey on this NAS.")}</Notice>}
+      {!prompt.keyRequired && <button className={choice} onClick={onApp}>
         <Smartphone size={22} className="mt-0.5 shrink-0 text-accent" />
         <span><span className="block font-medium">{tr("An authenticator app")}</span><span className="block text-muted text-[12.5px]">{tr("Scan a QR code with Google Authenticator, Microsoft Authenticator, Bitwarden… then type its 6-digit code at each sign-in.")}</span></span>
-      </button>
+      </button>}
+      {passkeysSupported() && (
+        <button className={choice} onClick={onKey}>
+          <KeyRound size={22} className="mt-0.5 shrink-0 text-accent" />
+          <span><span className="block font-medium">{tr("A security key")}</span><span className="block text-muted text-[12.5px]">{tr("A YubiKey or another FIDO2/U2F key, touched after your password.")}</span></span>
+        </button>
+      )}
       {passkeysSupported() && (
         <button className={choice} onClick={onPasskey}>
           <FingerprintPattern size={22} className="mt-0.5 shrink-0 text-accent" />
@@ -48,6 +56,7 @@ export function TwoFactorPrompt({ me }: { me: Me }) {
   const [hidden, setHidden] = useState(false);
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [keys, setKeys] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   // A sub-dialog closed: the account may be protected now.
@@ -56,9 +65,10 @@ export function TwoFactorPrompt({ me }: { me: Me }) {
   const subs = <>
     <TwoFactorModal open={tfa} onClose={() => { setTfa(false); refresh(); }} />
     <PasskeysModal open={passkeys} onClose={() => { setPasskeys(false); refresh(); }} />
+    <SecurityKeysModal open={keys} onClose={() => { setKeys(false); refresh(); }} />
   </>;
   // Once protected, the sub-dialog stays until closed (recovery codes).
-  if (!prompt?.show || (hidden && !prompt.enforced)) return tfa || passkeys ? subs : null;
+  if (!prompt?.show || (hidden && !prompt.enforced)) return tfa || passkeys || keys ? subs : null;
 
   const postpone = async () => {
     setBusy(true);
@@ -78,7 +88,7 @@ export function TwoFactorPrompt({ me }: { me: Me }) {
       <div className="fixed inset-0 z-[9400] flex items-center justify-center bg-black/70 p-4 backdrop-blur">
         <div className="card w-full max-w-lg">
           <header className="border-b border-line px-5 py-3.5 font-semibold">{title}</header>
-          <div className="p-5"><Choices prompt={prompt} onApp={() => setTfa(true)} onPasskey={() => setPasskeys(true)} /></div>
+          <div className="p-5"><Choices prompt={prompt} onApp={() => setTfa(true)} onPasskey={() => setPasskeys(true)} onKey={() => setKeys(true)} /></div>
           <footer className="flex justify-between gap-2 border-t border-line px-5 py-3.5">
             <Button variant="ghost" icon={<LogOut size={15} />} onClick={logout}>{tr("Sign out")}</Button>
           </footer>
@@ -90,10 +100,10 @@ export function TwoFactorPrompt({ me }: { me: Me }) {
   }
   return (
     <>
-      <Modal open={!tfa && !passkeys} onClose={() => setHidden(true)} title={title} footer={<>
+      <Modal open={!tfa && !passkeys && !keys} onClose={() => setHidden(true)} title={title} footer={<>
         {prompt.canPostpone && <Button icon={<BellOff size={15} />} loading={busy} onClick={postpone}>{tr("Remind me in 7 days")}</Button>}
       </>}>
-        <Choices prompt={prompt} onApp={() => setTfa(true)} onPasskey={() => setPasskeys(true)} />
+        <Choices prompt={prompt} onApp={() => setTfa(true)} onPasskey={() => setPasskeys(true)} onKey={() => setKeys(true)} />
         <div className="mt-3"><ErrorBox error={err} /></div>
       </Modal>
       {subs}

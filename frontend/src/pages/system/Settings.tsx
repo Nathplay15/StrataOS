@@ -11,6 +11,7 @@ import { OfficeSettingsCard } from "../../components/OfficeSettings";
 import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
 import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
 import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
+import { SignInProviders } from "../../components/SignInProviders";
 import { revealElement } from "../../lib/intent";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
@@ -157,6 +158,7 @@ export default function SettingsPage() {
           <p className="mt-3 text-[12.5px] text-muted">{tr("The interface is available over HTTPS on port 7443 (self-signed certificate generated on first boot). Do not expose it directly to the Internet: use a VPN.")}</p>
         </Card>
         <AdminTwoFactorPolicy />
+        <SignInProviders />
         <Card id="settings-notifications" title={<span className="flex items-center gap-2"><Bell size={16} /> {" "}{tr("Notifications")}</span>} actions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>{tr("Test")}</Button>}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TelegramFields s={s} set={set} />

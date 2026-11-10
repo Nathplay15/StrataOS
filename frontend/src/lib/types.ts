@@ -6,6 +6,8 @@ export interface Me {
   /** Interface language last reported by a browser (PUT /api/me/lang). */
   lang?: string;
   twoFactorPrompt?: TwoFactorPrompt;
+  /** Account created by an identity provider, without a password yet. */
+  noPassword?: boolean;
 }
 
 /** Setup step of administrators without a second factor (api/h_access.go). */
@@ -13,6 +15,8 @@ export interface TwoFactorPrompt {
   show: boolean;
   canPostpone: boolean;
   required: boolean;
+  /** Only a security key or a passkey satisfies the policy. */
+  keyRequired?: boolean;
   enforced: boolean;
   deadline?: string;
   postponedUntil?: string;

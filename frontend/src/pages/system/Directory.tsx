@@ -7,7 +7,7 @@ import { dateTime } from "../../lib/format";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, Switch, Tabs } from "../../components/ui";
 import { tr, srv } from "../../lib/i18n";
 
-type Config = { adminGroup?: string; type: "" | "ad" | "ldap"; realm: string; workgroup: string; server: string; uri?: string; baseDn?: string; bindDn?: string; bindPassword?: string; startTls?: boolean; joinedAt: string };
+type Config = { adminGroup?: string; type: "" | "ad" | "ldap"; realm: string; workgroup: string; server: string; uri?: string; baseDn?: string; bindDn?: string; bindPassword?: string; startTls?: boolean; tlsVerify?: boolean; caCert?: string; joinedAt: string };
 type Data = { config: Config; adInstalled: boolean; ldapInstalled: boolean; joined: boolean; status?: { connected: boolean; message: string } };
 
 export default function Directory() {
@@ -15,7 +15,7 @@ export default function Directory() {
   const install = useAction(() => api.post("/api/system/components/directory/install"));
   const [kind, setKind] = useState<"ad" | "ldap">("ad");
   const [ad, setAD] = useState({ realm: "", workgroup: "", server: "", admin: "Administrator", password: "", adminGroup: "" });
-  const [ldap, setLDAP] = useState({ uri: "ldap://", baseDn: "", bindDn: "", bindPassword: "", startTls: true, adminGroup: "" });
+  const [ldap, setLDAP] = useState({ uri: "ldap://", baseDn: "", bindDn: "", bindPassword: "", startTls: true, adminGroup: "", tlsVerify: true, caCert: "" });
   const [leaving, setLeaving] = useState(false);
   const join = useAction(() => api.post("/api/directory/join", kind === "ad" ? { type: "ad", ...ad } : { type: "ldap", ...ldap }), { onDone: () => setAD((x) => ({ ...x, password: "" })) });
   const header = <PageHeader title={tr("Domain / LDAP")} subtitle={tr("Use accounts from an Active Directory or LDAP directory")} icon={<BookUser size={20} />} />;
@@ -39,6 +39,7 @@ export default function Directory() {
               <div><div className="text-muted text-[12px]">{tr("Since")}</div><div>{dateTime(c.joinedAt)}</div></div>
             </div>
             <AdminGroup initial={c.adminGroup ?? ""} />
+            {c.type === "ldap" && <LdapTLS config={c} />}
             <Notice>{tr("Directory accounts sign in to the web interface and WebDAV with their usual username and password (for example marie, or DOMAIN\\marie for Active Directory). Their StrataOS profile is created at the first sign-in.")}</Notice>
             {c.type === "ad" ? (
               <Notice>{tr("Domain users and groups are added to shared folder permissions (Control Panel → Shared Folders), in the form")}{" "}<span className="mono">{c.workgroup}\{tr("user")}</span>. {tr("They connect over SMB with their domain account.")}</Notice>
@@ -79,11 +80,41 @@ export default function Directory() {
               <Field label={tr("Account password")}><Input type="password" value={ldap.bindPassword} onChange={(e) => setLDAP({ ...ldap, bindPassword: e.target.value })} autoComplete="new-password" /></Field>
               <Field label={tr("StrataOS administrators group (optional)")} hint={tr("Its members administer the NAS")} className="sm:col-span-2"><Input value={ldap.adminGroup} onChange={(e) => setLDAP({ ...ldap, adminGroup: e.target.value })} /></Field>
               <div className="sm:col-span-2"><Switch checked={ldap.startTls} onChange={(v) => setLDAP({ ...ldap, startTls: v })} label={tr("Encrypt with StartTLS")} hint={tr("Not needed with ldaps://")} /></div>
+              <div className="sm:col-span-2"><LdapTLSFields verify={ldap.tlsVerify} ca={ldap.caCert} encrypted={ldap.startTls || ldap.uri.startsWith("ldaps://")} onChange={(tlsVerify, caCert) => setLDAP({ ...ldap, tlsVerify, caCert })} /></div>
             </div>
           )}
           <div className="flex justify-end"><Button variant="primary" loading={join.isPending} disabled={kind === "ad" ? !ad.realm || !ad.admin || !ad.password : !ldap.baseDn} onClick={() => join.mutate()}>{kind === "ad" ? tr("Join the domain") : tr("Sign in to the directory")}</Button></div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+/** Certificate checks of the LDAP server: the system CAs, or a CA given here. */
+function LdapTLSFields({ verify, ca, encrypted, onChange }: { verify: boolean; ca: string; encrypted: boolean; onChange: (verify: boolean, ca: string) => void }) {
+  if (!encrypted) return <Notice tone="warn">{tr("Without ldaps:// or StartTLS, passwords travel unencrypted on the network.")}</Notice>;
+  return (
+    <div className="space-y-3">
+      <Switch checked={verify} onChange={(v) => onChange(v, ca)} label={tr("Check the server certificate")} hint={tr("Recommended: otherwise another machine could pretend to be the directory and receive the passwords.")} />
+      {verify && (
+        <Field label={tr("CA certificate (optional)")} hint={tr("PEM, for a certificate from a private authority; empty: the system's authorities")}>
+          <textarea className="input mono h-28 w-full text-[12px]" value={ca} onChange={(e) => onChange(verify, e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+function LdapTLS({ config }: { config: Config }) {
+  const [verify, setVerify] = useState(!!config.tlsVerify);
+  const [ca, setCA] = useState(config.caCert ?? "");
+  const save = useAction(() => api.put("/api/directory/settings", { adminGroup: config.adminGroup ?? "", tlsVerify: verify, caCert: ca }), { success: tr("Saved") });
+  const dirty = verify !== !!config.tlsVerify || ca !== (config.caCert ?? "");
+  return (
+    <div className="space-y-2">
+      <LdapTLSFields verify={verify} ca={ca} encrypted={!!config.startTls || !!config.uri?.startsWith("ldaps://")} onChange={(v, c) => { setVerify(v); setCA(c); }} />
+      {dirty && <Button loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}
+      <ErrorBox error={save.error} />
     </div>
   );
 }

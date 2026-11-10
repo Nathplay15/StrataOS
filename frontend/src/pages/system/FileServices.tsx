@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Button, Card, ErrorBox, Field, IconButton, Input, Notice, PageHeader, Spinner, Switch, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
+import { S3Service } from "../../components/S3Service";
 
 type Config = { webdav: boolean; ftp: boolean; ftpRequireTls: boolean; ftpPassiveMin: number; ftpPassiveMax: number; sftp: boolean };
 type Data = { config: Config; ftpInstalled: boolean; sftpInstalled: boolean; httpsPort: string };
@@ -32,7 +33,7 @@ export default function FileServices() {
 
   return (
     <div>
-      <PageHeader title={tr("File services")} subtitle={tr("Access to shared folders via WebDAV, FTP and SFTP (in addition to SMB and NFS)")} icon={<FolderTree size={20} />} actions={<Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>{tr("Apply")}</Button>} />
+      <PageHeader title={tr("File services")} subtitle={tr("Access to shared folders via WebDAV, FTP, SFTP and S3 (in addition to SMB and NFS)")} icon={<FolderTree size={20} />} actions={<Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>{tr("Apply")}</Button>} />
       <ErrorBox error={error || save.error} />
       <div className="mb-4"><Notice>{tr("Each user sees the shared folders they have access to, read-only or read-write, as with SMB. Disabled accounts have no access.")}</Notice></div>
       <div className="space-y-5">
@@ -80,6 +81,7 @@ export default function FileServices() {
             </div>
           )}
         </Card>
+        <S3Service />
       </div>
     </div>
   );

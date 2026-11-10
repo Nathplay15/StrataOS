@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LayoutPanelLeft, LogOut, Monitor as MonitorIcon, Moon, Palette, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone } from "lucide-react";
+import { Database, ExternalLink, FingerprintPattern, Image as ImageIcon, KeyRound, LayoutGrid, LayoutPanelLeft, LogOut, Monitor as MonitorIcon, Moon, Palette, Power, RefreshCcw, Search, ShieldCheck, Sun, TabletSmartphone } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
 import type { AppStoreData, Me, Overview } from "../lib/types";
@@ -9,6 +9,8 @@ import { useUI } from "../components/ui";
 import { JobsMenu, PasswordModal, useTheme } from "../components/Layout";
 import { TwoFactorModal } from "../components/TwoFactor";
 import { PasskeysModal } from "../components/Passkeys";
+import { SecurityKeysModal } from "../components/SecurityKeys";
+import { S3KeysModal } from "../components/S3Keys";
 import { TwoFactorPrompt } from "../components/TwoFactorPrompt";
 import { MobileDevicesModal } from "../components/MobileDevices";
 import { APPS, AppIcon, appById, type AppDef } from "./apps";
@@ -105,6 +107,8 @@ function UserMenu({ me }: { me: Me }) {
   const [pw, setPw] = useState(false);
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [keys, setKeys] = useState(false);
+  const [s3, setS3] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [look, setLook] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -116,6 +120,8 @@ function UserMenu({ me }: { me: Me }) {
     else if (d === "password") setPw(true);
     else if (d === "2fa") setTfa(true);
     else if (d === "passkeys") setPasskeys(true);
+    else if (d === "securitykeys") setKeys(true);
+    else if (d === "s3") setS3(true);
     else if (d === "devices") setMobile(true);
   });
   const qc = useQueryClient();
@@ -137,6 +143,8 @@ function UserMenu({ me }: { me: Me }) {
           <button role="menuitem" className={item} onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setKeys(true); }}><KeyRound size={15} /> {" "}{tr("Security keys and sign-in")}</button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); setS3(true); }}><Database size={15} /> {" "}{tr("S3 access keys")}</button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
           <button role="menuitem" className={item} onClick={() => setUIMode("classic")}><MonitorIcon size={15} /> {" "}{tr("Classic interface")}</button>
           {me.role === "admin" && (
@@ -153,6 +161,8 @@ function UserMenu({ me }: { me: Me }) {
       <PasswordModal open={pw} onClose={() => setPw(false)} />
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
+      <SecurityKeysModal open={keys} onClose={() => setKeys(false)} />
+      <S3KeysModal open={s3} onClose={() => setS3(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
       <AppearanceModal open={look} onClose={() => setLook(false)} />
     </div>
