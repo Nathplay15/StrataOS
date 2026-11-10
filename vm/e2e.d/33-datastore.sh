@@ -17,6 +17,7 @@ for comp in vms restic; do
   fi
 done
 
+vm "sudo rm -rf $DSVM/pbs-a $DSVM/pbs-b $DSVM/pbs-a2 $DSREPO" # left by an interrupted run
 # Guest disk: GPT, an ext4 partition and an LVM group (e2egvg/data, ext4),
 # 40 MB of random data both guests share, and one file of their own.
 vm "sudo bash -s" <<EOF >/dev/null 2>&1
@@ -46,13 +47,15 @@ EOF
 check "guest disks prepared" "$(vm "sudo ls $DSWORK" | tr '\n' ' ')" "a.qcow2 b.qcow2"
 for g in a b; do
   check "VM pbs-$g imported" "$(job "$(c POST /api/vms/import -d "{\"name\":\"pbs-$g\",\"source\":\"$DSWORK/$g.qcow2\",\"os\":\"linux\",\"vcpus\":1,\"memoryMb\":256,\"storage\":\"$DSVM\",\"network\":\"nat\",\"firmware\":\"bios\"}")")" "success"
+  c POST /api/vms/pbs-$g/destroy >/dev/null # imports start; the guests have no system
 done
 
 check "repository password checked" "$(c POST /api/datastores -d '{"name":"x","destType":"local","destPath":"'$DSREPO'","password":"short","verify":{}}')" "at least 8"
 check "repository outside the volumes refused" "$(c POST /api/datastores -d '{"name":"x","destType":"local","destPath":"/etc/ds","password":"Datastore-E2E-1","verify":{}}')" "inside a volume"
-DS=$(c POST /api/datastores -d '{"name":"e2e repository","destType":"local","destPath":"'$DSREPO'","password":"Datastore-E2E-1","verify":{"subsets":2}}' | py 'print(d["id"])')
+DSR=$(c POST /api/datastores -d '{"name":"e2e repository","destType":"local","destPath":"'$DSREPO'","password":"Datastore-E2E-1","verify":{"subsets":2}}')
+DS=$(echo "$DSR" | py 'print(d["id"])' 2>/dev/null) || echo "    datastore not created: ${DSR:0:300}"
 check "repository created (restic init)" "$(vm "sudo ls $DSREPO")" "config"
-check "repository listed, secrets masked, never checked" "$(c GET /api/datastores | py "x=[s for s in d if s['id']=='$DS'][0]; print(x['password'], x['subsets'], len(x['verifies']), bool(x.get('nextVerify')))")" "******** 2 0 True"
+check "repository listed, secrets masked, never checked" "$(c GET /api/datastores | py "x=[s for s in d if s['id']=='$DS'][0]; print(x['password'], x['subsets'], len(x.get('verifies') or []), bool(x.get('nextVerify')))")" "******** 2 0 True"
 check "task needs an existing repository" "$(c POST /api/backups -d '{"name":"x","kind":"restic","sources":[],"vms":["pbs-a"],"destType":"datastore","datastore":"nope","cron":"","enabled":true}')" "choose a backup repository"
 DT=$(c POST /api/backups -d '{"name":"e2e images","kind":"restic","sources":["'$DSFILES'"],"vms":["pbs-a","pbs-b"],"destType":"datastore","datastore":"'$DS'","keepLast":3,"keepYearly":2,"cron":"","enabled":true}' | py 'print(d["id"])')
 check "image backup of two VMs and a folder" "$(job "$(c POST /api/backups/$DT/run)")" "success"
@@ -87,11 +90,11 @@ check "disk closed: mounts, loop and image gone" "$(c POST /api/restore/disk/clo
 # Whole VM restores.
 AID=$(c GET /api/datastores/$DS/contents | py "print([i['id'] for i in d['items'] if i['name']=='pbs-a'][0])")
 check "VM restored under a new name" "$(job "$(c POST /api/datastores/$DS/restore -d "{\"snapshot\":\"$AID\",\"name\":\"pbs-a2\",\"storage\":\"$DSVM\"}")")" "success"
-check "restored disk identical to the original" "$(vm "sudo qemu-img compare -q $DSVM/pbs-a/disk0.qcow2 $DSVM/pbs-a2/disk0.qcow2 && echo same")" "same"
+check "restored disk identical to the original" "$(vm "sudo qemu-img compare -U -q $DSVM/pbs-a/disk0.qcow2 $DSVM/pbs-a2/disk0.qcow2 && echo same")" "same"
 check "existing name refused without replace" "$(job "$(c POST /api/datastores/$DS/restore -d "{\"snapshot\":\"$AID\",\"name\":\"pbs-a\",\"storage\":\"$DSVM\"}")")" "already exists"
 vm "echo changed | sudo dd of=$DSVM/pbs-a/disk0.qcow2 bs=1 seek=300000000 conv=notrunc 2>/dev/null; true" >/dev/null
 check "VM replaced by its backup" "$(job "$(c POST /api/datastores/$DS/restore -d "{\"snapshot\":\"$AID\",\"name\":\"pbs-a\",\"storage\":\"$DSVM\",\"replace\":true}")")" "success"
-check "replaced VM back to the backed-up disk" "$(vm "sudo qemu-img compare -q $DSVM/pbs-a/disk0.qcow2 $DSVM/pbs-a2/disk0.qcow2 && echo same")" "same"
+check "replaced VM back to the backed-up disk" "$(vm "sudo qemu-img compare -U -q $DSVM/pbs-a/disk0.qcow2 $DSVM/pbs-a2/disk0.qcow2 && echo same")" "same"
 
 # Integrity checks.
 check "verify now passes (part 1/2)" "$(job "$(c POST /api/datastores/$DS/verify -d '{}')"; c GET /api/datastores | py "x=[s for s in d if s['id']=='$DS'][0]; print(x['verifies'][0]['status'], x['verifies'][0]['subset'], x['verifyNext'], bool(x.get('lastVerified')))")" "success 1/2 2 True"
@@ -108,6 +111,6 @@ check "failure in the event log" "$(c GET /api/system/events | py 'print([e["mes
 check "repository in use cannot be removed" "$(c DELETE /api/datastores/$DS)" "uses this repository"
 c DELETE /api/backups/$DT >/dev/null
 check "repository removed (data kept)" "$(c DELETE /api/datastores/$DS; c GET /api/datastores | py "print(len([s for s in d if s['id']=='$DS']))")" "0"
-for g in pbs-a pbs-b pbs-a2; do c DELETE "/api/vms/$g?disks=1" >/dev/null; done
-vm "sudo rm -rf $DSREPO $DSWORK $DSFILES"
+for g in pbs-a pbs-b pbs-a2; do c POST /api/vms/$g/destroy >/dev/null; c DELETE "/api/vms/$g?disks=1" >/dev/null; done
+vm "sudo rm -rf $DSREPO $DSWORK $DSFILES $DSVM/pbs-a $DSVM/pbs-b $DSVM/pbs-a2"
 c POST /api/security/advisor/run >/dev/null
