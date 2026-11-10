@@ -178,7 +178,7 @@ func RemoveVG(name string) error {
 			return err
 		}
 		for _, pv := range vg.PVs {
-			_, _ = sys.Run("pvremove", "-ff", "-y", pv.Name)
+			pvRemove(pv.Name)
 		}
 		return nil
 	}
@@ -281,4 +281,12 @@ func SnapshotLV(vg, lv, name string, size int64) error {
 	defer Lock.Unlock()
 	_, err := sys.Run("lvcreate", "-y", "-s", "-n", name, "-L", fmt.Sprintf("%db", size), "/dev/"+vg+"/"+lv)
 	return err
+}
+
+// pvRemove erases the LVM label of a device and refreshes its udev entry:
+// on Debian 14 (systemd 262) no change event follows pvremove, and udev (so
+// lsblk) would keep reporting LVM2_member, the disk "in use", until a reboot.
+func pvRemove(dev string) {
+	_, _ = sys.Run("pvremove", "-ff", "-y", dev)
+	_, _ = sys.Run("udevadm", "trigger", "--action=change", "--settle", dev)
 }

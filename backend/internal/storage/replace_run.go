@@ -110,14 +110,14 @@ func (o ReplaceOp) Start(ctx context.Context, logf func(string, ...any)) error {
 		}
 		logf("vgextend %s %s", o.Group, o.New)
 		if _, err := sys.Run("vgextend", o.Group, o.New); err != nil {
-			_, _ = sys.Run("pvremove", "-ff", "-y", o.New)
+			pvRemove(o.New)
 			return err
 		}
 		// -b: the move runs in lvmpolld, and survives a restart of StrataOS.
 		logf("pvmove -b %s %s", o.Old, o.New)
 		if _, err := sys.Run("pvmove", "-b", "-i", "0", o.Old, o.New); err != nil {
 			_, _ = sys.Run("vgreduce", o.Group, o.New)
-			_, _ = sys.Run("pvremove", "-ff", "-y", o.New)
+			pvRemove(o.New)
 			return err
 		}
 		return nil
@@ -270,7 +270,7 @@ func (o ReplaceOp) Finish(logf func(string, ...any)) error {
 		if _, err := sys.Run("vgreduce", o.Group, o.Old); err != nil {
 			return err
 		}
-		_, _ = sys.Run("pvremove", "-ff", "-y", o.Old)
+		pvRemove(o.Old)
 		return nil
 	}
 	return nil

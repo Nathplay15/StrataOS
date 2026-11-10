@@ -65,10 +65,10 @@ func AttachCache(vg, lv, dev, mode string) error {
 	undo := func() {
 		_, _ = sys.Run("lvremove", "-f", vg+"/"+lv+"_ssd")
 		_, _ = sys.Run("vgreduce", vg, dev)
-		_, _ = sys.Run("pvremove", "-ff", "-y", dev)
+		pvRemove(dev)
 	}
 	if _, err := sys.Run("vgextend", vg, dev); err != nil {
-		_, _ = sys.Run("pvremove", "-ff", "-y", dev)
+		pvRemove(dev)
 		return err
 	}
 	// Room is left on the SSD for the pool metadata and its spare copy.
@@ -104,7 +104,7 @@ func DetachCache(vg, lv string) error {
 		_, _ = sys.Run("lvchange", "--deltag", strings.TrimSpace(t), name)
 		if dev := pvByUUID(uuid); dev != "" {
 			if _, err := sys.Run("vgreduce", vg, dev); err == nil {
-				_, _ = sys.Run("pvremove", "-y", dev)
+				pvRemove(dev)
 			}
 		}
 	}
@@ -185,7 +185,7 @@ func RemoveManagedVG(vg string) error {
 	}
 	for _, r := range rows {
 		if r["vg_name"] == vg {
-			_, _ = sys.Run("pvremove", "-ff", "-y", r["pv_name"])
+			pvRemove(r["pv_name"])
 		}
 	}
 	return nil
