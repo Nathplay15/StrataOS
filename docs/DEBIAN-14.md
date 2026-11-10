@@ -15,6 +15,22 @@ day, so re-run the checks below before trusting it.
 | VM smoke test | `vm/debian14-test.sh` (`VM_DEBIAN=13` for the same subset on 13) | A VM from the **daily forky cloud image** (`vm/vm.sh` with `VM_DEBIAN=14`), the package deployed, then the first sections of the end-to-end suite: setup, mdadm RAID 5 + ext4, Btrfs RAID 1, LVM with an SSD cache, users, SMB/NFS shares and ACLs, file manager security, Docker with an app, ZFS built by DKMS (mirror pool, snapshots, scrub, share), plus Windows discovery, directory clients, `testparm`, nftables. |
 | Generated configuration | (done once, see below) | `smb.conf` written by StrataOS (standalone and AD member, every VFS module used) checked with `testparm` of Samba 4.25; the address blocking nftables table checked with `nft -c` 1.1.7. Same output as on trixie. |
 
+## Packages that come and go
+
+Debian testing drops a package while it has a release-critical bug and takes
+it back once fixed. Seen during this work:
+
+| Package | 5 Nov 2026 | 10 Nov 2026 | In sid |
+|---|---|---|---|
+| wsdd2 (Windows discovery) | missing | missing | yes |
+| sssd (LDAP directories) | missing | back (2.13) | yes |
+| rclone (cloud sync) | missing | missing | yes (1.75) |
+| restic (backups) | 0.19 | **missing** | yes (0.19) |
+
+This is why `packaging/test-install.sh` reports these as "known missing" (not
+a failure) on forky, and why the CI job runs it: a new one shows up as a
+failure there. None of them is expected to be missing from the released Debian 14.
+
 ## Verdict per area
 
 Versions: trixie → forky at the time of the check.
@@ -30,9 +46,9 @@ Versions: trixie → forky at the time of the check.
 | cgroup v2, systemd units and options | systemd 257 → 262 | **OK** (cgroup v2 only on both; no StrataOS unit uses removed options) |
 | Network (systemd-networkd, `ifdown` to take over from ifupdown) | isc-dhcp-client removed from forky | **OK**: StrataOS writes systemd-networkd files and never uses dhclient |
 | Directory clients: Active Directory (winbind, Kerberos) | samba 4.25, krb5 1.22 | **OK** |
-| Directory clients: LDAP (sssd) | sssd **not in forky** (still in sid: removed from testing for a release-critical bug) | **Blocked upstream**. Needs change, done: the component installs the AD part and warns; the LDAP join says the LDAP client is not installed. Fallback if sssd does not come back before the freeze: nslcd (`libnss-ldapd`, `libpam-ldapd`), which is in forky |
+| Directory clients: LDAP (sssd) | 2.10 → 2.13; was out of testing until early November | **OK now**; when sssd is missing, the component (changed) installs the AD part and warns, and the LDAP join says the LDAP client is not installed. Fallback if it goes again before the freeze: nslcd (`libnss-ldapd`, `libpam-ldapd`) |
 | Cloud sync (rclone) | rclone 1.60 → **not in forky** (1.75 in sid) | **Blocked upstream**. The installer now says so instead of apt's error. A NAS upgraded from 13 keeps its installed rclone 1.60 (obsolete but working: a static binary) |
-| restic | 0.18 → 0.19 | OK (in containers; same commands) |
+| Backups (restic) | 0.18 → 0.19 | **Blocked upstream** while restic is out of testing (Recommends: the package installs, backups fail with "restic not found"). 0.19 installed on 5 Nov worked with the same commands in containers |
 | Virtual machines (QEMU, libvirt, OVMF, swtpm, virt-install) | qemu 10.0 → 11.1, libvirt 11.3 → 12.8 | **OK** for installation. Not run on forky: machine types are not pinned by StrataOS (libvirt picks the newest `pc-q35-*`), so existing VMs keep their recorded machine type, which QEMU 11.1 still provides |
 | LXC | lxc 6.0 → 7.0, lxcfs 6 → 7 | Installs. **Not verified** on forky (config keys written by StrataOS not run against LXC 7) |
 | Ceph | 18.2 (reef) → 20.2 (tentacle) | Installs. **Not verified**. A cluster must not mix: see the upgrade risks below |

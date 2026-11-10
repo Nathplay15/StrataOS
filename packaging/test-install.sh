@@ -14,7 +14,7 @@ DEB=${2:-$(ls dist/strataos_*_amd64.deb 2>/dev/null | sort -V | tail -1)}
 [ -f "$DEB" ] || { echo "missing .deb (make deb)"; exit 1; }
 # Packages known to be missing from a suite (temporarily removed from Debian
 # testing, see docs/DEBIAN-14.md): reported, not failed. Anything else fails.
-KNOWN_MISSING=${KNOWN_MISSING:-$([ "$SUITE" = trixie ] && echo "" || echo "wsdd2 rclone sssd-ldap libnss-sss libpam-sss")}
+KNOWN_MISSING=${KNOWN_MISSING:-$([ "$SUITE" = trixie ] && echo "" || echo "wsdd2 rclone restic sssd-ldap libnss-sss libpam-sss")}
 # Images from Docker Hub (debian:<suite>); IMAGE overrides it (mirror, cache).
 IMAGE=${IMAGE:-debian:$SUITE}
 

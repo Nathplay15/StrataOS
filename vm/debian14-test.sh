@@ -19,6 +19,18 @@ export STRATA_URL=${STRATA_URL:-http://localhost:${VM_WEB_PORT:-7070}}
 [ "${KEEP_VM:-}" = 1 ] || trap './vm/vm.sh destroy >/dev/null 2>&1' EXIT
 ./vm/vm.sh ssh 'echo "== $(. /etc/os-release; echo $PRETTY_NAME), kernel $(uname -r)"'
 ./vm/vm.sh deploy "$DEB" || exit 1
+# ZFS first: a daily image can run a kernel whose headers already left the
+# archive; install-zfs.sh then installs the current kernel and asks for a
+# restart, done here (the end-to-end ZFS section then finds it installed).
+if ! ./vm/vm.sh ssh 'sudo /usr/lib/strata/scripts/install-zfs.sh' >"${VM_STATE:-vm/state}/zfs-install.log" 2>&1; then
+  if grep -q "restart the NAS" "${VM_STATE:-vm/state}/zfs-install.log"; then
+    echo "== ZFS built for a newer kernel: restarting the VM"
+    ./vm/vm.sh stop && ./vm/vm.sh start || exit 1
+    ./vm/vm.sh ssh 'echo "== kernel $(uname -r), ZFS $(sudo modprobe zfs && cat /sys/module/zfs/version)"'
+  else
+    echo "== ZFS install failed:"; tail -20 "${VM_STATE:-vm/state}/zfs-install.log"
+  fi
+fi
 
 # The end-to-end test up to (not including) its Notifications section, then
 # the checks below, in one script so they share its helpers and session.
