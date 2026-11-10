@@ -21,6 +21,7 @@ check "headless accounts list" "$("$S" --config "$AC" accounts 2>&1)" "main"
 ATOK=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
 coproc AGENT { STRATAOS_AGENT_TOKEN=$ATOK exec "$S" --config "$AC" agent 2>"$TMP/agent.log"; }
 read -r -t 20 HELLO <&"${AGENT[0]}"
+APID=$AGENT_PID AIN=${AGENT[1]}
 APORT=$(echo "$HELLO" | py 'print(d["port"])' 2>/dev/null)
 check "agent started (first line)" "$HELLO" '"agent":1'
 A="http://127.0.0.1:$APORT"
@@ -73,8 +74,9 @@ check "outside synchronized folders" "$(ag POST /v1/resolve -d "{\"path\":\"$AL/
 check "signed out" "$(ag POST /v1/accounts/main/signout)" '"ok":true'
 check "NAS proxy closed" "$(ag GET "/v1/accounts/main/nas/api/files?path=$P" -o /dev/null -w '%{http_code}')" "404"
 check "web session ended" "$(curl -s -b "$WJ" -o /dev/null -w '%{http_code}' "$WB/api/me")" "40"
-exec {AGENT[1]}>&-
-wait "$AGENT_PID" 2>/dev/null
-check "agent quits when the app closes its input" "$(kill -0 "$AGENT_PID" 2>&1 || echo gone)" "gone"
+eval "exec $AIN>&-"
+for _ in $(seq 1 20); do kill -0 "$APID" 2>/dev/null || break; sleep 0.5; done
+check "agent quits when the app closes its input" "$(kill -0 "$APID" 2>/dev/null && echo running || echo gone)" "gone"
+kill "$APID" 2>/dev/null
 u POST /api/files/delete -d "{\"paths\":[\"$P/up\"]}" >/dev/null
 rm -rf "$AC" "$AL" "$S"
