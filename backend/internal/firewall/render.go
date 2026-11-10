@@ -368,7 +368,7 @@ func (r *renderer) bridge(c Config, env Env) string {
 		if g.MACFilter && len(ifaces) > 0 && len(macs) > 0 {
 			fmt.Fprintf(&chains, "\t\tiifname { %s } ether saddr != { %s } %s\n", quoted(ifaces), strings.Join(macs, ", "), "drop")
 		}
-		chains.WriteString("\t\tct state established,related accept\n\t\tct state invalid drop\n\t\tether type arp accept\n")
+		chains.WriteString(guestHead)
 		chains.WriteString("\t\ticmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept\n")
 		chains.WriteString("\t\tudp sport 68 udp dport 67 accept\n\t\tudp sport 546 udp dport 547 accept\n")
 		r.rules(&chains, g.Rules, "out", true, tag+":out")
@@ -386,7 +386,7 @@ func (r *renderer) bridge(c Config, env Env) string {
 
 		// To the guest.
 		fmt.Fprintf(&chains, "\tchain %s {\n", in)
-		chains.WriteString("\t\tct state established,related accept\n\t\tct state invalid drop\n\t\tether type arp accept\n")
+		chains.WriteString(guestHead)
 		chains.WriteString("\t\ticmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect } accept\n")
 		chains.WriteString("\t\tudp sport 67 udp dport 68 accept\n\t\tudp sport 547 udp dport 546 accept\n")
 		r.rules(&chains, g.Rules, "in", false, tag+":in")
@@ -477,6 +477,10 @@ func (r *renderer) bridge(c Config, env Env) string {
 	b.WriteString("}\n")
 	return b.String()
 }
+
+// guestHead starts each guest chain. ARP comes first: a frame without
+// connection tracking (anything but IP) counts as "ct state invalid".
+const guestHead = "\t\tether type arp accept\n\t\tct state established,related accept\n\t\tmeta protocol { ip, ip6 } ct state invalid drop\n"
 
 // Internal bridges of guests: their traffic to the NAS is the business of
 // each guest's firewall and of the virtual networks' isolation.

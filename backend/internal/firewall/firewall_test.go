@@ -146,7 +146,7 @@ func TestRenderGuests(t *testing.T) {
 		`oifname vmap { "veth1A2B3C" : jump g0_in, "vnet4" : jump g1_in }`,
 		"ether daddr vmap { 00:16:3e:aa:bb:cc : jump g0_in, 52:54:00:11:22:33 : jump g1_in }",
 		// lxc:ha: its rules, then the isolation, then the policy
-		"chain g0_out {",
+		"chain g0_out {\n\t\tether type arp accept\n\t\tct state established,related accept\n\t\tmeta protocol { ip, ip6 } ct state invalid drop\n",
 		"ip daddr @nas4 tcp dport { 445 } accept",
 		"meta l4proto { tcp, udp } th dport { 123 } accept",
 		"meta l4proto { tcp, udp } th dport 53 accept",

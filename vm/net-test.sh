@@ -83,7 +83,10 @@ check "LAN between the NAS" "$(B ssh 'ping -c1 -W2 10.96.1.1 >/dev/null && echo 
 # A public address on B, reached from A through B (stands for the Internet:
 # every other address of the test is private).
 B ssh 'sudo ip addr add 203.0.113.5/32 dev lo'
-A ssh 'sudo ip route add 203.0.113.5/32 via 10.96.1.2'
+# systemd-networkd drops routes it did not set when it reconfigures a link it
+# manages (each network change): route203 puts this one back.
+route203() { A ssh 'sudo ip route replace 203.0.113.5/32 via 10.96.1.2'; }
+route203
 for p in $PA $PB; do
   D=$(api $p GET /api/storage/disks | py 'print([x["path"] for x in d if x["usage"]=="free"][0])')
   check "volume on $p" "$(job $p "$(api $p POST /api/storage/volumes -d "{\"name\":\"volume1\",\"fsType\":\"btrfs\",\"devices\":[\"$D\"],\"dataProfile\":\"single\"}")")" "success"
@@ -165,6 +168,7 @@ check "LAN blocked" "$(reach $PA pub1 http://10.96.1.2:7070/api/setup)" "blocked
 check "NAS blocked" "$(reach $PA pub1 http://10.30.0.1:7070/api/setup)" "blocked"
 # Plain HTTP to the HTTPS port: a 400 answer proves the connection went through.
 check "allowed NAS port" "$(ex $PA pub1 'wget -T 4 -O /dev/null http://10.30.0.1:7443/ 2>&1')" "400"
+route203
 check "Internet through the NAS" "$(reach $PA pub1 http://203.0.113.5:7070/api/setup)" "ok"
 check "listed with its guest" "$(api $PA GET /api/system/network/vnets | py 'n=d["networks"][0]; print(n["bridge"], n["status"]["up"], [g["name"] for g in n["guests"]])')" "vn0 True ['pub1']"
 check "deletion refused while used" "$(api $PA DELETE /api/system/network/vnets/pub)" "used by pub1"
