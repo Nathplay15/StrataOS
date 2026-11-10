@@ -12,7 +12,7 @@ let dict: Record<string, string> = {};
 let goDict: Record<string, string> = {};
 
 const appLoaders = import.meta.glob<{ default: Record<string, string> }>("../i18n/*.json");
-const goLoaders = import.meta.glob<{ default: Record<string, string> }>(["../../../internal/i18n/catalog/*.json", "!**/en.json"]);
+const goLoaders = import.meta.glob<{ default: Record<string, string> }>(["../../../internal/i18n/catalog/*.json", "!../../../internal/i18n/catalog/en.json"]);
 
 export async function initTexts() {
   await initI18n();
