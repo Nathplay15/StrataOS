@@ -23,7 +23,8 @@ export STRATA_URL=${STRATA_URL:-http://localhost:${VM_WEB_PORT:-7070}}
 # The end-to-end test up to (not including) its Notifications section, then
 # the checks below, in one script so they share its helpers and session.
 T=$(mktemp --suffix=.sh vm/.debian14-e2e-XXXX) # in vm/: the test cds to its parent folder
-sed -n '1,/^section "Notifications"/p' vm/e2e-test.sh | sed '$d' > "$T"
+# Jobs may wait 30 min instead of 10: the ZFS module build is slower on 14.
+sed -n '1,/^section "Notifications"/p' vm/e2e-test.sh | sed '$d' | sed 's/for _ in $(seq 1 300); do/for _ in $(seq 1 900); do/' > "$T"
 cat >> "$T" <<'EOF'
 
 section "Debian release"
@@ -33,7 +34,7 @@ check "Active Directory client present" "$(c GET /api/directory | py 'print(d["a
 check "Samba configuration valid" "$(vm "sudo testparm -s >/dev/null 2>/tmp/tp; echo rc=\$?")" "rc=0"
 check "nftables address blocking loads" "$(vm "sudo nft list tables" | tr '\n' ' ')" "table"
 echo "  (info) LDAP client: $(c GET /api/directory | py 'print(d["ldapInstalled"])'), rclone: $(vm 'command -v rclone || echo missing')"
-echo "  (info) $(vm 'samba --version; nfsstat --version 2>&1 | head -1; docker --version; zfs version | head -1; systemctl --version | head -1; python3 --version' | tr '\n' ';')"
+echo "  (info) $(vm '/usr/sbin/smbd --version; docker --version; dpkg-query -W -f '${Package} ${Version}\n' sssd-ldap rclone wsdd2 wsdd-server 2>&1; zfs version | head -1; systemctl --version | head -1; python3 --version' | tr '\n' ';')"
 
 printf '\n%s passed, %s failed\n' "$PASSES" "$FAILS"
 [ "$FAILS" -eq 0 ]
