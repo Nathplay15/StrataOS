@@ -76,7 +76,9 @@ fn spawn() -> Result<(Child, AgentInfo), String> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    let mut child = cmd.spawn().map_err(|e| format!("cannot start {}: {e}", sidecar_path().display()))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("cannot start {}: {e}", sidecar_path().display()))?;
     let stdout = child.stdout.take().ok_or("no output")?;
     let stderr = child.stderr.take();
     let (tx, rx) = std::sync::mpsc::channel();
@@ -115,7 +117,11 @@ fn spawn() -> Result<(Child, AgentInfo), String> {
     }
     match rx.recv_timeout(Duration::from_secs(30)) {
         Ok(h) => {
-            let info = AgentInfo { url: format!("http://127.0.0.1:{}", h.port), token, version: h.version };
+            let info = AgentInfo {
+                url: format!("http://127.0.0.1:{}", h.port),
+                token,
+                version: h.version,
+            };
             Ok((child, info))
         }
         Err(_) => {

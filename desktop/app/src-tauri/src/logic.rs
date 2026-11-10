@@ -114,7 +114,11 @@ mod tests {
     fn handshake() {
         assert_eq!(
             parse_handshake("{\"agent\":1,\"port\":4567,\"version\":\"0.11.0\"}\n"),
-            Some(Handshake { agent: 1, port: 4567, version: "0.11.0".into() })
+            Some(Handshake {
+                agent: 1,
+                port: 4567,
+                version: "0.11.0".into()
+            })
         );
         assert_eq!(parse_handshake("{\"agent\":2,\"port\":4567}"), None);
         assert_eq!(parse_handshake("{\"agent\":1,\"port\":0}"), None);
@@ -144,9 +148,15 @@ mod tests {
         assert_eq!(
             got,
             vec![
-                Action::ShareLink { path: "/home/a/Docs/x y.txt".into() },
-                Action::OpenOnNas { path: "C:\\Users\\a\\Docs".into() },
-                Action::DeepLink { url: "strataos://pair?url=https%3A%2F%2Fnas&code=1".into() },
+                Action::ShareLink {
+                    path: "/home/a/Docs/x y.txt".into()
+                },
+                Action::OpenOnNas {
+                    path: "C:\\Users\\a\\Docs".into()
+                },
+                Action::DeepLink {
+                    url: "strataos://pair?url=https%3A%2F%2Fnas&code=1".into()
+                },
             ]
         );
         assert!(actions_from_args(args(&["x", "strataos://pair"])).len() == 1);
@@ -163,7 +173,9 @@ mod tests {
 
     #[test]
     fn web_windows() {
-        assert!(web_window_allowed("http://127.0.0.1:5123/__strataos/enter?k=ab"));
+        assert!(web_window_allowed(
+            "http://127.0.0.1:5123/__strataos/enter?k=ab"
+        ));
         assert!(!web_window_allowed("https://127.0.0.1:5123/"));
         assert!(!web_window_allowed("http://127.0.0.1/"));
         assert!(!web_window_allowed("http://localhost:5123/"));

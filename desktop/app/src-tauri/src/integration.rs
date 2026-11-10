@@ -32,7 +32,13 @@ pub struct Status {
 pub fn safe_name(label: &str) -> String {
     label
         .chars()
-        .map(|c| if c == '/' || c == '\\' || c == '\0' || c.is_control() { ' ' } else { c })
+        .map(|c| {
+            if c == '/' || c == '\\' || c == '\0' || c.is_control() {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect::<String>()
         .trim()
         .to_string()
@@ -54,7 +60,10 @@ mod imp {
         PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
     }
     fn data_home() -> PathBuf {
-        std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()).map(PathBuf::from).unwrap_or_else(|| home().join(".local/share"))
+        std::env::var_os("XDG_DATA_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home().join(".local/share"))
     }
     fn nautilus_dir() -> PathBuf {
         data_home().join("nautilus/scripts/StrataOS")
@@ -65,13 +74,22 @@ mod imp {
 
     fn exe() -> String {
         // An AppImage runs from a temporary mount: the menu must start the AppImage file itself.
-        std::env::var("APPIMAGE").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| {
-            std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "strataos-desktop".into())
-        })
+        std::env::var("APPIMAGE")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| {
+                std::env::current_exe()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|_| "strataos-desktop".into())
+            })
     }
 
     pub fn status() -> Status {
-        Status { supported: true, enabled: nautilus_dir().exists() || dolphin_file().exists(), how: "nautilus+dolphin" }
+        Status {
+            supported: true,
+            enabled: nautilus_dir().exists() || dolphin_file().exists(),
+            how: "nautilus+dolphin",
+        }
     }
 
     pub fn set(on: bool, labels: &Labels) -> Result<(), String> {
@@ -83,7 +101,10 @@ mod imp {
         let exe = exe();
         let dir = nautilus_dir();
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        for (label, flag) in [(&labels.share, "--share-link"), (&labels.open, "--open-on-nas")] {
+        for (label, flag) in [
+            (&labels.share, "--share-link"),
+            (&labels.open, "--open-on-nas"),
+        ] {
             let script = format!(
                 "#!/bin/sh\n# Written by the StrataOS app (Settings, file manager menu).\nfor f in \"$@\"; do\n  case \"$f\" in /*) ;; *) f=\"$PWD/$f\" ;; esac\n  exec {} {} \"$f\"\ndone\n",
                 sh_quote(&exe),
@@ -92,7 +113,8 @@ mod imp {
             let p = dir.join(safe_name(label));
             fs::write(&p, script).map_err(|e| e.to_string())?;
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&p, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+            fs::set_permissions(&p, fs::Permissions::from_mode(0o755))
+                .map_err(|e| e.to_string())?;
         }
         let d = dolphin_file();
         if let Some(parent) = d.parent() {
@@ -117,13 +139,22 @@ mod imp {
     use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
 
-    const KEYS: [&str; 2] = [r"Software\Classes\*\shell", r"Software\Classes\Directory\shell"];
+    const KEYS: [&str; 2] = [
+        r"Software\Classes\*\shell",
+        r"Software\Classes\Directory\shell",
+    ];
     const VERBS: [&str; 2] = ["StrataOS.ShareLink", "StrataOS.OpenOnNas"];
 
     pub fn status() -> Status {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let on = hkcu.open_subkey(format!(r"{}\{}", KEYS[0], VERBS[0])).is_ok();
-        Status { supported: true, enabled: on, how: "explorer" }
+        let on = hkcu
+            .open_subkey(format!(r"{}\{}", KEYS[0], VERBS[0]))
+            .is_ok();
+        Status {
+            supported: true,
+            enabled: on,
+            how: "explorer",
+        }
     }
 
     pub fn set(on: bool, labels: &Labels) -> Result<(), String> {
@@ -136,14 +167,23 @@ mod imp {
         if !on {
             return Ok(());
         }
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?.to_string_lossy().into_owned();
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .into_owned();
         for k in KEYS {
-            for (v, label, flag) in [(VERBS[0], &labels.share, "--share-link"), (VERBS[1], &labels.open, "--open-on-nas")] {
-                let (key, _) = hkcu.create_subkey(format!(r"{k}\{v}")).map_err(|e| e.to_string())?;
+            for (v, label, flag) in [
+                (VERBS[0], &labels.share, "--share-link"),
+                (VERBS[1], &labels.open, "--open-on-nas"),
+            ] {
+                let (key, _) = hkcu
+                    .create_subkey(format!(r"{k}\{v}"))
+                    .map_err(|e| e.to_string())?;
                 key.set_value("", label).map_err(|e| e.to_string())?;
                 key.set_value("Icon", &exe).map_err(|e| e.to_string())?;
                 let (cmd, _) = key.create_subkey("command").map_err(|e| e.to_string())?;
-                cmd.set_value("", &format!("\"{exe}\" {flag} \"%1\"")).map_err(|e| e.to_string())?;
+                cmd.set_value("", &format!("\"{exe}\" {flag} \"%1\""))
+                    .map_err(|e| e.to_string())?;
             }
         }
         Ok(())
@@ -154,7 +194,11 @@ mod imp {
 mod imp {
     use super::*;
     pub fn status() -> Status {
-        Status { supported: false, enabled: false, how: "" }
+        Status {
+            supported: false,
+            enabled: false,
+            how: "",
+        }
     }
     pub fn set(_on: bool, _labels: &Labels) -> Result<(), String> {
         Err("not available on this system".into())

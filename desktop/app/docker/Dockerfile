@@ -7,3 +7,4 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
       build-essential file patchelf xdg-utils desktop-file-utils \
       xvfb xauth x11-apps imagemagick dbus-x11 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+RUN rustup component add rustfmt clippy && chmod -R a+rX /usr/local/rustup /usr/local/cargo

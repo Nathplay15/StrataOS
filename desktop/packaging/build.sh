@@ -1,62 +1,80 @@
 #!/bin/bash
-# Builds the StrataOS Sync packages into dist/ (of the repository):
-#   desktop/packaging/build.sh linux     .deb (amd64, arm64) and .tar.gz (amd64), here (no cgo)
-#   desktop/packaging/build.sh windows   portable .zip here; the .msi on Windows (WiX, see windows/)
-#   desktop/packaging/build.sh macos     universal .app in a .dmg, on macOS only (the menu bar icon needs cgo)
-# Version: the VERSION file ("~" becomes "-" in file names, as for releases).
+# Builds the desktop app (desktop/app: Tauri shell + the Go sync engine as
+# its sidecar) and the headless engine into dist/ (of the repository):
+#   desktop/packaging/build.sh app      the app for this system (Linux: .deb and
+#                                       .AppImage; Windows: setup .exe and .msi;
+#                                       macOS: universal .dmg and the updater .app.tar.gz)
+#   desktop/packaging/build.sh cli      the headless engine alone: Linux .tar.gz
+#                                       (amd64, arm64) and Windows .zip, cross-compiled here
+#   desktop/packaging/build.sh latest-json   latest.json of the Tauri updater, from the
+#                                       .sig files in dist/ (release job)
+# Files: strataos-sync-<version>-<system>-<arch>.<ext> ("~" becomes "-", as for
+# releases). The updater signatures (.sig) are made when TAURI_SIGNING_PRIVATE_KEY
+# (and its _PASSWORD) are set; without them the app is built without them.
 set -euo pipefail
 umask 022
 cd "$(dirname "$0")/.."
 ROOT=$(cd .. && pwd)
 V=$(cat "$ROOT/VERSION")
 FV=${V//\~/-}
+MSIV=${V%%~*} # MSI versions are numbers only: 0.8.0~beta.1 is 0.8.0
 DIST="$ROOT/dist"
 B="$ROOT/build/desktop"
 mkdir -p "$DIST" "$B"
 LDFLAGS="-s -w -X main.version=$V"
-go run ./cmd/mkicons "$B/icons"
 
-linux_bin() { CGO_ENABLED=0 GOOS=linux GOARCH=$1 go build -trimpath -ldflags "$LDFLAGS" -o "$B/linux-$1/strataos-sync" ./cmd/strataos-sync; }
-
-deb() { # deb ARCH
-  local a=$1 root="$B/deb-$1"
-  rm -rf "$root"
-  mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/share/applications" "$root/usr/share/icons/hicolor/256x256/apps" "$root/usr/share/doc/strataos-sync"
-  cp "$B/linux-$a/strataos-sync" "$root/usr/bin/"
-  cp packaging/linux/strataos-sync.desktop "$root/usr/share/applications/"
-  cp "$B/icons/icon.png" "$root/usr/share/icons/hicolor/256x256/apps/strataos-sync.png"
-  cp packaging/README.txt "$root/usr/share/doc/strataos-sync/"
-  cat > "$root/DEBIAN/control" <<CTRL
-Package: strataos-sync
-Version: $V
-Architecture: $a
-Maintainer: StrataOS <noreply@github.com>
-Section: net
-Priority: optional
-Recommends: zenity
-Homepage: https://github.com/Nathplay15/StrataOS
-Description: two-way folder synchronization with a StrataOS NAS
- StrataOS Sync keeps folders of this computer and of a StrataOS NAS
- identical, in both directions, in the background (tray icon, settings
- page, and a headless mode: strataos-sync --help).
-CTRL
-  dpkg-deb --root-owner-group --build "$root" "$DIST/strataos-sync-$FV-linux-$a.deb" >/dev/null
+copy() { # copy SRC NAME: the file and its updater signature
+  cp "$1" "$DIST/$2"
+  if [ -f "$1.sig" ]; then cp "$1.sig" "$DIST/$2.sig"; fi
 }
 
-case "${1:-}" in
-linux)
-  for a in amd64 arm64; do linux_bin "$a"; deb "$a"; done
-  t="$B/tar/strataos-sync-$FV"
-  rm -rf "$B/tar" && mkdir -p "$t"
-  cp "$B/linux-amd64/strataos-sync" packaging/linux/strataos-sync.desktop packaging/README.txt "$t/"
-  cp "$B/icons/icon.png" "$t/strataos-sync.png"
-  tar -C "$B/tar" -czf "$DIST/strataos-sync-$FV-linux-amd64.tar.gz" "strataos-sync-$FV"
-  ;;
-windows)
-  w="$B/windows"
-  mkdir -p "$w"
-  CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS -H=windowsgui" -o "$w/strataos-sync.exe" ./cmd/strataos-sync
-  cp "$B/icons/icon.ico" "$w/strataos-sync.ico"
+app() {
+  local os triple bundles conf sign=false
+  case "$(uname -s)" in
+    Linux) os=linux; triple=$(rustc -vV | sed -n 's/^host: //p'); bundles=deb,appimage ;;
+    Darwin) os=macos; triple=universal-apple-darwin; bundles=app,dmg ;;
+    MINGW* | MSYS* | CYGWIN*) os=windows; triple=x86_64-pc-windows-msvc; bundles=nsis,msi ;;
+    *) echo "unknown system" >&2; exit 2 ;;
+  esac
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then sign=true; fi
+  conf=$(printf '{"version":"%s","bundle":{"createUpdaterArtifacts":%s,"windows":{"wix":{"version":"%s"}}}}' "$FV" "$sign" "$MSIV")
+  if [ "$triple" = universal-apple-darwin ]; then
+    # Tauri looks for the sidecar of each architecture it builds, and the universal one.
+    app/scripts/sidecar.sh aarch64-apple-darwin >/dev/null
+    app/scripts/sidecar.sh x86_64-apple-darwin >/dev/null
+  fi
+  app/scripts/sidecar.sh "$triple" >/dev/null
+  (cd app && npm ci --no-audit --no-fund && npx tauri build --ci --bundles "$bundles" --target "$triple" --config "$conf")
+  local out="app/src-tauri/target/$triple/release/bundle"
+  case $os in
+    linux)
+      local a=amd64
+      if [ "${triple%%-*}" = aarch64 ]; then a=arm64; fi
+      copy "$(ls "$out"/deb/*.deb)" "strataos-sync-$FV-linux-$a.deb"
+      copy "$(ls "$out"/appimage/*.AppImage)" "strataos-sync-$FV-linux-$a.AppImage"
+      ;;
+    windows)
+      copy "$(ls "$out"/nsis/*-setup.exe)" "strataos-sync-$FV-windows-x64-setup.exe"
+      copy "$(ls "$out"/msi/*.msi)" "strataos-sync-$FV-windows-x64.msi"
+      ;;
+    macos)
+      copy "$(ls "$out"/dmg/*.dmg)" "strataos-sync-$FV-macos.dmg"
+      if ls "$out"/macos/*.app.tar.gz >/dev/null 2>&1; then copy "$(ls "$out"/macos/*.app.tar.gz)" "strataos-sync-$FV-macos.app.tar.gz"; fi
+      ;;
+  esac
+}
+
+cli() {
+  local t="$B/cli/strataos-sync-$FV" a
+  for a in amd64 arm64; do
+    rm -rf "$B/cli" && mkdir -p "$t"
+    CGO_ENABLED=0 GOOS=linux GOARCH=$a go build -trimpath -ldflags "$LDFLAGS" -o "$t/strataos-sync" ./cmd/strataos-sync
+    cp packaging/README.txt "$t/"
+    tar -C "$B/cli" -czf "$DIST/strataos-sync-$FV-linux-$a.tar.gz" "strataos-sync-$FV"
+  done
+  local w="$B/cli-windows"
+  rm -rf "$w" && mkdir -p "$w"
+  CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "$w/strataos-sync.exe" ./cmd/strataos-sync
   cp packaging/README.txt "$w/README.txt"
   rm -f "$DIST/strataos-sync-$FV-windows-x64.zip"
   if command -v zip >/dev/null; then
@@ -64,26 +82,46 @@ windows)
   else # Git Bash on Windows
     powershell -NoProfile -Command "Compress-Archive -Path '$(cygpath -w "$w")\strataos-sync.exe','$(cygpath -w "$w")\README.txt' -DestinationPath '$(cygpath -w "$DIST")\strataos-sync-$FV-windows-x64.zip'"
   fi
-  ;;
-macos)
-  m="$B/macos"
-  rm -rf "$m" && mkdir -p "$m"
-  for a in amd64 arm64; do
-    CGO_ENABLED=1 GOOS=darwin GOARCH=$a MACOSX_DEPLOYMENT_TARGET=11.0 go build -trimpath -ldflags "$LDFLAGS" -o "$m/strataos-sync-$a" ./cmd/strataos-sync
-  done
-  app="$m/dmg/StrataOS Sync.app"
-  mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-  lipo -create -output "$app/Contents/MacOS/strataos-sync" "$m/strataos-sync-amd64" "$m/strataos-sync-arm64"
-  sed "s/@VERSION@/$V/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
-  cp "$B/icons/icon.icns" "$app/Contents/Resources/strataos-sync.icns"
-  codesign --force --deep --sign - "$app" 2>/dev/null || true # ad-hoc: arm64 refuses unsigned code
-  ln -s /Applications "$m/dmg/Applications"
-  cp packaging/README.txt "$m/dmg/README.txt"
-  rm -f "$DIST/strataos-sync-$FV-macos.dmg"
-  hdiutil create -quiet -volname "StrataOS Sync" -srcfolder "$m/dmg" -ov -format UDZO "$DIST/strataos-sync-$FV-macos.dmg"
-  ;;
+}
+
+# latest.json: for each system, the package the updater installs and its
+# signature ("linux-x86_64" the AppImage, "linux-x86_64-deb" the .deb,
+# "windows-x86_64" the setup, "windows-x86_64-msi", "darwin-*" the universal
+# .app.tar.gz). The updater looks for <os>-<arch>-<installer> first.
+latest_json() {
+  local url="https://github.com/Nathplay15/StrataOS/releases/download/v$FV" entries=()
+  add() { # add KEY FILE
+    if [ -f "$DIST/$2.sig" ]; then
+      entries+=("$(printf '"%s":{"signature":"%s","url":"%s/%s"}' "$1" "$(tr -d '\n' < "$DIST/$2.sig")" "$url" "$2")")
+    fi
+  }
+  add linux-x86_64 "strataos-sync-$FV-linux-amd64.AppImage"
+  add linux-x86_64-appimage "strataos-sync-$FV-linux-amd64.AppImage"
+  add linux-x86_64-deb "strataos-sync-$FV-linux-amd64.deb"
+  add linux-aarch64 "strataos-sync-$FV-linux-arm64.AppImage"
+  add linux-aarch64-appimage "strataos-sync-$FV-linux-arm64.AppImage"
+  add linux-aarch64-deb "strataos-sync-$FV-linux-arm64.deb"
+  add windows-x86_64 "strataos-sync-$FV-windows-x64-setup.exe"
+  add windows-x86_64-nsis "strataos-sync-$FV-windows-x64-setup.exe"
+  add windows-x86_64-msi "strataos-sync-$FV-windows-x64.msi"
+  add darwin-aarch64 "strataos-sync-$FV-macos.app.tar.gz"
+  add darwin-x86_64 "strataos-sync-$FV-macos.app.tar.gz"
+  if [ ${#entries[@]} -eq 0 ]; then
+    echo "no updater signatures in dist/: latest.json not written" >&2
+    return 0
+  fi
+  local IFS=,
+  printf '{"version":"%s","notes":"https://github.com/Nathplay15/StrataOS/releases/tag/v%s","pub_date":"%s","platforms":{%s}}\n' \
+    "$FV" "$FV" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${entries[*]}" > "$DIST/latest.json"
+  cat "$DIST/latest.json"
+}
+
+case "${1:-}" in
+app) app ;;
+cli) cli ;;
+latest-json) latest_json ;;
 *)
-  echo "usage: $0 linux|windows|macos" >&2
+  echo "usage: $0 app|cli|latest-json" >&2
   exit 2
   ;;
 esac

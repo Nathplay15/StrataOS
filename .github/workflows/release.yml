@@ -3,9 +3,12 @@
 # Raspberry Pi image, the Android app (strataos-<version>.apk, signed with the
 # release key from the ANDROID_* secrets; left out with a warning when they are
 # missing), and their SHA-256 checksums signed with the archive key
-# (SHA256SUMS.asc), and the desktop sync app (strataos-sync-<version>-*: Windows
-# .msi and .zip, macOS .dmg, Linux .deb and .tar.gz, built by the desktop-*
-# jobs below and downloaded by the release job). Release notes: packaging/release-notes/<version>.md,
+# (SHA256SUMS.asc), and the desktop app (strataos-sync-<version>-*: Windows
+# setup .exe and .msi, macOS .dmg, Linux .deb and .AppImage for amd64 and
+# arm64, the headless engine as .tar.gz and .zip, and latest.json for the
+# app's own updater, built by the desktop-* jobs below and downloaded by the
+# release job; the updater signatures need the TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets, see docs/DEVELOPMENT.md). Release notes: packaging/release-notes/<version>.md,
 # followed by packaging/release-notes/footer.md (checking the download).
 # Pre-releases: VERSION 0.8.0~beta.1 (or ~alpha.N, ~rc.N), tag v0.8.0-beta.1,
 # notes packaging/release-notes/0.8.0-beta.1.md; published as a GitHub
@@ -28,43 +31,66 @@ env:
   REPO_URL: https://nathplay15.github.io/StrataOS/apt
 
 jobs:
-  # ---- Desktop sync app: one job per system, files handed over as artifacts. ----
+  # ---- Desktop app: one job per system, files handed over as artifacts. ----
   desktop-linux:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+          command -v rustc >/dev/null || { curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH=$HOME/.cargo/bin:$PATH; }
           (cd desktop && go test ./...)
-          desktop/packaging/build.sh linux
-          desktop/packaging/build.sh windows
+          desktop/packaging/build.sh app
+          if [ "$(uname -m)" = x86_64 ]; then desktop/packaging/build.sh cli; fi
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-linux
+          name: desktop-linux-${{ matrix.runner }}
           path: dist/strataos-sync-*
 
   desktop-macos:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - run: desktop/packaging/build.sh macos
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-macos
-          path: dist/strataos-sync-*.dmg
+          path: dist/strataos-sync-*
 
   desktop-windows:
     runs-on: windows-2025
-    timeout-minutes: 25
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     defaults:
       run:
         shell: bash
@@ -74,14 +100,14 @@ jobs:
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - run: |
-          desktop/packaging/build.sh windows
-          dotnet tool install --global wix --version 5.0.2
-          desktop/packaging/windows/build-msi.sh
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-windows
-          path: dist/strataos-sync-*.msi
+          path: dist/strataos-sync-*
 
   release:
     needs: [desktop-linux, desktop-macos, desktop-windows]
@@ -195,7 +221,11 @@ jobs:
             done
           fi
           APK=$(ls "strataos-${FV}.apk" 2>/dev/null || true)
-          DESKTOP=$(ls strataos-sync-"${FV}"-* 2>/dev/null || true)
+          # The app's updater: latest.json lists the signed packages (the .sig files
+          # stay out of the release, their contents are in latest.json).
+          (cd .. && desktop/packaging/build.sh latest-json)
+          rm -f strataos-sync-"${FV}"-*.sig
+          DESKTOP=$(ls strataos-sync-"${FV}"-* latest.json 2>/dev/null || true)
           sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" $APK $DESKTOP > SHA256SUMS
           cat SHA256SUMS
 
@@ -217,7 +247,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS $FV" --notes-file release-notes.md \
             "dist/strataos_${FV}_amd64.deb" "dist/strataos_${FV}_arm64.deb" \
             "dist/strataos-${FV}-amd64.iso" "dist/strataos-${FV}-arm64.iso" "dist/strataos-${FV}-raspberrypi.img.xz" \
-            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) $(ls dist/strataos-sync-"${FV}"-* 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
+            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) $(ls dist/strataos-sync-"${FV}"-* dist/latest.json 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
 
       - name: Update the website and APT repository
         env:

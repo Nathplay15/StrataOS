@@ -59,8 +59,14 @@ fn dispatch(app: &AppHandle, actions: Vec<Action>) {
     if actions.is_empty() {
         return;
     }
-    let show = actions.iter().any(|a| !matches!(a, Action::ShareLink { .. }));
-    app.state::<Pending>().0.lock().unwrap().extend(actions.iter().cloned());
+    let show = actions
+        .iter()
+        .any(|a| !matches!(a, Action::ShareLink { .. }));
+    app.state::<Pending>()
+        .0
+        .lock()
+        .unwrap()
+        .extend(actions.iter().cloned());
     let _ = app.emit("actions", ());
     if show {
         show_main(app);
@@ -72,7 +78,12 @@ fn agent_info(state: tauri::State<'_, Arc<AgentState>>) -> Result<AgentInfo, Str
     if let Some(i) = state.info.lock().unwrap().clone() {
         return Ok(i);
     }
-    Err(state.error.lock().unwrap().clone().unwrap_or_else(|| "starting".into()))
+    Err(state
+        .error
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or_else(|| "starting".into()))
 }
 
 #[tauri::command]
@@ -103,10 +114,16 @@ struct TrayTexts {
 fn tray_update(holder: tauri::State<'_, TrayHolder>, t: TrayTexts) -> Result<(), String> {
     let g = holder.0.lock().unwrap();
     let Some(tr) = g.as_ref() else { return Ok(()) };
-    let _ = tr.icon.set_icon(Some(tray_png(logic::tray_icon_name(&t.state))));
-    let _ = tr.icon.set_tooltip(Some(format!("StrataOS · {}", t.status)));
+    let _ = tr
+        .icon
+        .set_icon(Some(tray_png(logic::tray_icon_name(&t.state))));
+    let _ = tr
+        .icon
+        .set_tooltip(Some(format!("StrataOS · {}", t.status)));
     let _ = tr.status.set_text(&t.status);
-    let _ = tr.pause.set_text(if t.paused { &t.resume } else { &t.pause });
+    let _ = tr
+        .pause
+        .set_text(if t.paused { &t.resume } else { &t.pause });
     let _ = tr.pause.set_enabled(t.paired);
     let _ = tr.sync.set_text(&t.sync);
     let _ = tr.sync.set_enabled(t.paired && !t.paused);
@@ -119,22 +136,37 @@ fn tray_update(holder: tauri::State<'_, TrayHolder>, t: TrayTexts) -> Result<(),
 
 /// Opens the NAS web interface (through the agent's proxy) in a window.
 #[tauri::command]
-async fn open_web_window(app: AppHandle, url: String, title: String, key: String) -> Result<(), String> {
+async fn open_web_window(
+    app: AppHandle,
+    url: String,
+    title: String,
+    key: String,
+) -> Result<(), String> {
     if !logic::web_window_allowed(&url) {
         return Err("address refused".into());
     }
-    let label: String = format!("web-{}", key.chars().filter(|c| c.is_ascii_alphanumeric()).take(32).collect::<String>());
+    let label: String = format!(
+        "web-{}",
+        key.chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .take(32)
+            .collect::<String>()
+    );
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.navigate(url.parse().map_err(|_| "invalid address")?);
         let _ = w.set_focus();
         return Ok(());
     }
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url.parse().map_err(|_| "invalid address")?))
-        .title(title)
-        .inner_size(1280.0, 820.0)
-        .min_inner_size(640.0, 420.0)
-        .build()
-        .map_err(|e| e.to_string())?;
+    WebviewWindowBuilder::new(
+        &app,
+        label,
+        WebviewUrl::External(url.parse().map_err(|_| "invalid address")?),
+    )
+    .title(title)
+    .inner_size(1280.0, 820.0)
+    .min_inner_size(640.0, 420.0)
+    .build()
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -172,11 +204,20 @@ fn build_tray(app: &AppHandle) -> tauri::Result<Tray> {
     let open = MenuItem::with_id(app, "open", "Open StrataOS", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "Pause", false, None::<&str>)?;
     let sync = MenuItem::with_id(app, "sync", "Sync now", false, None::<&str>)?;
-    let web = MenuItem::with_id(app, "web", "Open the NAS web interface", false, None::<&str>)?;
+    let web = MenuItem::with_id(
+        app,
+        "web",
+        "Open the NAS web interface",
+        false,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&status, &sep1, &open, &pause, &sync, &web, &sep2, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[&status, &sep1, &open, &pause, &sync, &web, &sep2, &quit],
+    )?;
     let icon = TrayIconBuilder::with_id("main")
         .icon(tray_png("idle"))
         .tooltip("StrataOS")
@@ -194,14 +235,27 @@ fn build_tray(app: &AppHandle) -> tauri::Result<Tray> {
             }
         })
         .on_tray_icon_event(|tray, ev| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = ev
+            {
                 if !cfg!(target_os = "macos") {
                     show_main(tray.app_handle());
                 }
             }
         })
         .build(app)?;
-    Ok(Tray { icon, status, pause, sync, web, open, quit })
+    Ok(Tray {
+        icon,
+        status,
+        pause,
+        sync,
+        web,
+        open,
+        quit,
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -225,7 +279,10 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--background"])))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--background"]),
+        ))
         .manage(state.clone())
         .manage(Pending::default())
         .manage(TrayHolder(Mutex::new(None)))
@@ -251,7 +308,11 @@ pub fn run() {
             // Pairing links (strataos://pair?…) opened while running.
             let h = handle.clone();
             app.deep_link().on_open_url(move |ev| {
-                let actions = ev.urls().into_iter().map(|u| Action::DeepLink { url: u.to_string() }).collect();
+                let actions = ev
+                    .urls()
+                    .into_iter()
+                    .map(|u| Action::DeepLink { url: u.to_string() })
+                    .collect();
                 dispatch(&h, actions);
             });
             #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
@@ -278,7 +339,14 @@ pub fn run() {
         .on_window_event(|w, ev| {
             // Closing the main window keeps the app in the tray.
             if let WindowEvent::CloseRequested { api, .. } = ev {
-                if w.label() == "main" && w.app_handle().state::<TrayHolder>().0.lock().unwrap().is_some() {
+                if w.label() == "main"
+                    && w.app_handle()
+                        .state::<TrayHolder>()
+                        .0
+                        .lock()
+                        .unwrap()
+                        .is_some()
+                {
                     api.prevent_close();
                     let _ = w.hide();
                 }
