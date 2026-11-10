@@ -9,17 +9,17 @@ import type { Pairing } from "./MobileDevices";
 
 const repo = "https://github.com/Nathplay15/StrataOS";
 
-/** The release files of the desktop sync app for this NAS version ("0.8.0~beta.1" is tagged v0.8.0-beta.1). */
+/** The release files of the desktop app for this NAS version ("0.8.0~beta.1" is tagged v0.8.0-beta.1). */
 function assets(version: string) {
   const v = version.replace(/~/g, "-");
   const base = `${repo}/releases/download/v${v}/strataos-sync-${v}`;
   return [
+    { os: "Windows", label: tr("Installer (.exe)"), url: `${base}-windows-x64-setup.exe` },
     { os: "Windows", label: tr("Installer (.msi)"), url: `${base}-windows-x64.msi` },
-    { os: "Windows", label: tr("Portable (.zip)"), url: `${base}-windows-x64.zip` },
     { os: "macOS", label: tr("Disk image (.dmg)"), url: `${base}-macos.dmg` },
     { os: "Linux", label: "Debian/Ubuntu amd64 (.deb)", url: `${base}-linux-amd64.deb` },
     { os: "Linux", label: "Debian/Ubuntu arm64 (.deb)", url: `${base}-linux-arm64.deb` },
-    { os: "Linux", label: tr("Other distributions (.tar.gz)"), url: `${base}-linux-amd64.tar.gz` },
+    { os: "Linux", label: tr("Other distributions (.AppImage)"), url: `${base}-linux-amd64.AppImage` },
   ];
 }
 
@@ -84,6 +84,8 @@ export function DesktopApp() {
             <Notice>{tr("The code works once, for 10 minutes, and signs the computer in as {0}. The app shows the certificate fingerprint: check it matches before accepting.", pair.user)}</Notice>
             <div className="flex flex-wrap gap-2">
               <Button icon={<Copy size={14} />} onClick={() => copy(pair.link)}>{tr("Copy the pairing link")}</Button>
+              {/* The desktop app registers strataos:// links: on the computer being paired, one click fills it in. */}
+              <a href={pair.link}><Button icon={<Laptop size={14} />}>{tr("Open in the desktop app")}</Button></a>
               <Button onClick={() => setPair(null)}>{tr("Done")}</Button>
             </div>
           </div>

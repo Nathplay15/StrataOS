@@ -35,9 +35,9 @@ The StrataOS app (APK on the [Releases page](https://github.com/Nathplay15/Strat
 
 <img src="docs/screenshots/android-files.png" alt="Files" width="200"> <img src="docs/screenshots/android-backup.png" alt="Photo backup" width="200"> <img src="docs/screenshots/android-status.png" alt="NAS status" width="200"> <img src="docs/screenshots/android-certificate.png" alt="Certificate check at the first connection" width="200">
 
-### Desktop sync app
+### Desktop app
 
-**StrataOS Sync** (Windows, macOS, Linux) keeps folders of your computer and of the NAS identical, in both directions, in the background: real local copies, changes from SMB or the web interface picked up within seconds, conflict copies instead of overwrites, deletions to the trash and the NAS recycle bin, and a safety brake before mass deletions. Pair it with a code or a link from the web interface (account menu → **Phones and computers**); it also runs headless (`strataos-sync daemon`). See the [guide](docs/GUIDE.md#23-the-desktop-sync-app).
+The **StrataOS desktop app** (Windows, macOS, Linux; native, built with Tauri) browses, shares and manages your NAS (several of them) and keeps folders of your computer and of the NAS identical, in both directions, in the background: real local copies, changes from SMB or the web interface picked up within seconds, conflict copies instead of overwrites, deletions to the trash and the NAS recycle bin, and a safety brake before mass deletions. Pair it with a code or a link from the web interface (account menu → **Phones and computers**); it also runs headless (`strataos-sync daemon`). See the [guide](docs/GUIDE.md#23-the-desktop-app).
 
 ## Requirements
 
