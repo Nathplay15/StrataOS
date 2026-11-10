@@ -59,6 +59,8 @@ trap 'diag; cleanup_vms; exit 1' INT TERM
 
 section "Two NAS on a shared LAN"
 A destroy >/dev/null 2>&1; B destroy >/dev/null 2>&1
+# Both VMs would download the base image at the same time: fetch it once first.
+[ -f vm/images/debian-13-generic-amd64.qcow2 ] || { A create >"$T/ca0.log" 2>&1; A destroy >/dev/null 2>&1; }
 (A create >"$T/ca.log" 2>&1 && A deploy "$DEB" >>"$T/ca.log" 2>&1; echo $? >"$T/ca.rc") &
 (B create >"$T/cb.log" 2>&1 && B deploy "$DEB" >>"$T/cb.log" 2>&1; echo $? >"$T/cb.rc") &
 wait
