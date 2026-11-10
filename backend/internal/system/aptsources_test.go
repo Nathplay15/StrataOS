@@ -102,3 +102,28 @@ func TestMadisonVersions(t *testing.T) {
 		t.Errorf("empty: %s", got)
 	}
 }
+
+func TestCodenameAndSuites(t *testing.T) {
+	if got := codenameOf("PRETTY_NAME=\"Debian GNU/Linux forky/sid\"\nVERSION_CODENAME=forky\n"); got != "forky" {
+		t.Fatalf("codename %q", got)
+	}
+	if got := codenameOf("VERSION_CODENAME=\"tri xie;\"\n"); got != "" {
+		t.Fatalf("invalid codename accepted: %q", got)
+	}
+	if got := SuiteCandidates("forky", "trixie"); strings.Join(got, ",") != "forky,trixie" {
+		t.Fatalf("candidates %v", got)
+	}
+	if got := SuiteCandidates("trixie", "trixie"); strings.Join(got, ",") != "trixie" {
+		t.Fatalf("candidates %v", got)
+	}
+	if got := SuiteCandidates("", "trixie"); strings.Join(got, ",") != "trixie" {
+		t.Fatalf("candidates %v", got)
+	}
+	src := "Types: deb\nURIs: https://archive.raspberrypi.com/debian\nSuites: trixie\nComponents: main\n"
+	if SourcesSuite(src) != "trixie" {
+		t.Fatal("suite not read")
+	}
+	if got := WithSuite(src, "forky"); !strings.Contains(got, "\nSuites: forky\nComponents: main\n") || SourcesSuite(got) != "forky" {
+		t.Fatalf("suite not set: %q", got)
+	}
+}

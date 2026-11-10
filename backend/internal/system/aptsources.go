@@ -275,14 +275,72 @@ func SecurityOptions() []string {
 	}
 }
 
-func osCodename() string {
+func osCodename() string { return Codename() }
+
+// Codename is the Debian release running ("trixie", "forky"), "" if unknown.
+func Codename() string {
 	b, _ := os.ReadFile("/etc/os-release")
-	for _, l := range strings.Split(string(b), "\n") {
+	return codenameOf(string(b))
+}
+
+func codenameOf(osRelease string) string {
+	for _, l := range strings.Split(osRelease, "\n") {
 		if v, ok := strings.CutPrefix(l, "VERSION_CODENAME="); ok {
-			return strings.Trim(v, `"`)
+			v = strings.Trim(strings.TrimSpace(v), `"'`)
+			if validCodename(v) {
+				return v
+			}
 		}
 	}
 	return ""
+}
+
+func validCodename(s string) bool {
+	if s == "" || len(s) > 32 {
+		return false
+	}
+	for _, c := range s {
+		if c < 'a' || c > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+// SuiteCandidates lists the suites to try for a vendor repository that names
+// its suites after Debian releases: the running release first, then the one
+// StrataOS shipped (the vendor may not publish the next release yet).
+func SuiteCandidates(running, shipped string) []string {
+	var out []string
+	for _, s := range []string{running, shipped} {
+		if validCodename(s) && !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// SourcesSuite reads the Suites field of a deb822 source.
+func SourcesSuite(sources string) string {
+	for _, l := range strings.Split(sources, "\n") {
+		if v, ok := strings.CutPrefix(l, "Suites:"); ok {
+			if f := strings.Fields(v); len(f) > 0 {
+				return f[0]
+			}
+		}
+	}
+	return ""
+}
+
+// WithSuite sets the Suites field of a deb822 source.
+func WithSuite(sources, suite string) string {
+	lines := strings.Split(sources, "\n")
+	for i, l := range lines {
+		if strings.HasPrefix(l, "Suites:") {
+			lines[i] = "Suites: " + suite
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // MadisonVersions lists the versions `apt-cache madison` offers from a
