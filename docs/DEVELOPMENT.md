@@ -17,6 +17,7 @@ StrataOS/
 │   │   ├── scheduler/  Scheduled tasks (snapshots and retention, scrubs, SMART…)
 │   │   ├── cluster/    Cluster of NAS: members, their addresses, authenticated peer calls
 │   │   ├── ceph/       Ceph: ceph.conf and keys, daemons of the node, status parsing, CephFS/RBD clients
+│   │   ├── firewall/   Distributed firewall: nftables rules of guests, virtual networks and the NAS (pure, tested)
 │   │   ├── health/     SMART/SSD cache/volume history, trends, wear estimates, security advisor checks (pure, tested)
 │   │   ├── i18n/       Translation of notifications and reports
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
@@ -73,6 +74,7 @@ Details in [vm/README.md](../vm/README.md).
 | `make vm-test` | Full end-to-end suite on a fresh VM (about 360 checks, ~40 min) |
 | `make ha-test` | High availability with three VMs |
 | `make cluster-test` | VM cluster of three VMs (1280 MB each, about 15 minutes): Ceph, a CirrOS VM on RBD with nested KVM, cluster view and relayed console, live migration while pinging, HA after killing a NAS (fencing, no double run when it comes back), maintenance, a container moved (`NO_LXC=1` skips it) |
+| `vm/net-test.sh` | Networking with two VMs (1.75 GB each, about 25 minutes): NAS firewall (trial, anti-lockout, rollback on timeout), guest firewall of Alpine containers (isolation, NAS port, logged drops, restart), virtual networks NAT/DHCP, isolated, VLAN and VXLAN between the two NAS |
 | `vm/fleet010-test.sh` | Multi-NAS console with two VMs (2 GB each, about 20 minutes): health dashboard, a VM copied both ways (bridge mapped, live copy), a cancelled transfer, a container moved (`NO_LXC=1` skips it) |
 | `make ceph-test` | Ceph cluster of three VMs (1280 MB each, about 15 minutes): wizard API, CephFS/RBD volumes, VM storage, external key, disk removal, a NAS down and back |
 | `make upgrade-test` | Installs the previous release, fills it, upgrades to the current code |
@@ -122,6 +124,33 @@ Tests: `go test ./internal/gate ./internal/remote ./internal/api`; end to end `v
 | `GET /api/schedules/{id}/snapshots` | Snapshots of a task and whether retention keeps them |
 
 State: `Schedule.KeepHourly/KeepDaily/KeepWeekly/KeepMonthly`, `TargetKind` `lvm` (`vg/lv`); `BackupTask.Offsite` (a local destination kept off site), `BackupTask.RestoreTest` and `CloudSync.RestoreTest` (`store.RestoreTest`); `State.Protection` (`RestoreTestOff`, `LastRestoreTest`). Restore tests run at 5:20 on the 1st (or once more than 35 days passed), in `/var/tmp/strata-restore-test-*`, 12 files / 128 MB per backup; a file is "verified" when the original has the same size and date and the same SHA-256. `GET /api/schedules/targets` also returns `shares` (the snapshot target of each shared folder). SMB previous versions: `.strata-versions/<base>/` holds the `@GMT` links of a Btrfs sub-volume snapshotted on its own, and a share on that sub-volume points `shadow:basedir/snapdir` there (`storage.ShareVersionsDir`); `versionLinksLoop` rewrites smb.conf when that changes. End-to-end test: `vm/e2e.d/32-restore.sh`.
+
+## Firewall and virtual networks
+
+`internal/firewall` is pure apart from `apply.go`: `Config` (`State.Firewall`: `Host`, `Guests` keyed `vm|lxc|docker:<name>`, `Groups`, `IPSets`), `Validate`, and `Render(Config, Env) Ruleset` which writes two nftables tables, loaded together by `Script` (`table X` / `delete table X` / definition, one `nft -f -` transaction):
+
+- `bridge strata_fw`: guests and virtual networks. `guests_pre` (prerouting: what a guest sends, `out`) and `guests_post` (postrouting: what reaches it, `in`) classify frames with `iifname/oifname vmap` (host side of its tap/veth, found at run time) then `ether saddr/daddr vmap` (its MAC addresses, known before it starts), jumping to `g<i>_out` / `g<i>_in`: conntrack (`nf_conntrack_bridge`, loaded by `Apply`), ARP, ND and DHCP, the rules (groups expanded in place, one rule per address family when addresses are involved), the isolation preset (DNS, then `@nas`, `@lan` dropped), the policy. `reject` only exists in prerouting: it becomes `drop` in `in` chains. `vnets_in` (input hook: to the NAS and what it routes) and `vnets_fwd` (forward to an uplink: VLAN or VXLAN link) jump to `n<i>` for isolated virtual networks (`meta ibrname`), which only drop or return. Priority 0, after bridge conntrack (-200).
+- `inet strata_host`: the NAS firewall (input, `filter + 5`), only when on: loopback, established, the guest bridges (`lxcbr*`, `virbr*`, `docker*`, `br-*`, `vn*`), anti-lockout (`Env.WebPorts`: HTTP port, 7070, 7443, 22 from `@lan`), `@peers` (cluster members, VXLAN peers), ICMP/ND, DHCP client, the rules, the policy. It lives next to `inet strata_guard`: a drop in any base chain is final.
+
+Drops are logged with `limit rate 10/minute` and the prefix `strata-fw:<scope>:<dir> ` (`host`, `vm.web`, `lxc.ha`, `vnet.iot`); `ReadLog` parses `journalctl -k`. `api/h_firewall.go`: `fwLoop` applies at start, when the list of links changes (a guest starts: checked every 2 s), on `fwKick` (network confirmed or rolled back, Docker container connected) and every minute (addresses of the NAS, tables flushed by another tool); `guestBinding` finds MACs and interfaces (`virsh domiflist`; LXC spec MAC and Docker inspect, then `nsenter -t <pid> -n ip -j -d link` → `link_index` of the veth → host interface). A change of the host table is a trial (`fwState.trial`, token, 3 s settle, 30 s–10 min, 90 s by default; other firewall changes are refused meanwhile; a daemon restart re-applies the saved configuration, i.e. rolls back).
+
+| Request | Does |
+|---|---|
+| `GET /api/system/network/firewall` | Config, trial, load error, guests (`fwGuestInfo`), web ports, NAS addresses, peers, rendered `ruleset`, `defaultHost` |
+| `PUT /api/system/network/firewall` `{config, timeout}` | Saves; `{applied}` or, when the host table changes, `{token, deadline}` |
+| `POST /api/system/network/firewall/confirm` `{token}` / `…/rollback` | Ends the trial (admin session: a lock-out cannot confirm) |
+| `GET/PUT /api/system/network/firewall/guest/{kind}/{name}` | One guest's firewall, its binding, group and set names |
+| `GET /api/system/network/firewall/log?scope=&limit=` | Logged drops, newest first |
+
+Virtual networks are `network.Config.Virtual` (`network/vnet.go`, `VNet`): rendered with the other `05-strata-*` systemd-networkd files, so they go through `network.Apply` (trial, rollback, `networkctl reload/reconfigure`, removed links deleted). Bridge `vnN` (`RequiredForOnline=no`, `ConfigureWithoutCarrier=yes`); NAT: `Address=`, `IPMasquerade=ipv4`, `IPv4Forwarding=yes`; DHCP: networkd's own `DHCPServer` (pool = middle half of the subnet, last quarter kept for Docker; `EmitRouter`, `DNS`), not dnsmasq; VLAN: `<parent>.<id>` declared on the managed parent and enslaved; VXLAN: `vnNvx` (`Independent=yes`, port 4789, MTU 1450 by default) with one `[BridgeFDB]` all-zero entry per peer (head-end replication); Docker: veth pair `vnNdk` (bridge port) / `vnNdkp` (parent of the macvlan network `strata-<id>`, label `strata.vnet`, created and removed by `vnetDockerSync`). LXC writes `lxc.net.0.mtu` and virt-install `mtu.size` when the bridge MTU is not 1500.
+
+| Request | Does |
+|---|---|
+| `GET /api/system/network/vnets` | Networks with status and guests, VLAN parents, cluster/fleet peers, host DNS, `nextBridge` |
+| `POST /api/system/network/vnets` · `PUT …/{id}` · `DELETE …/{id}` | On trial: `{token, deadline, links}`, confirmed with `POST /api/system/network/confirm` (deletion refused while guests use it) |
+| `POST /api/system/network/vnets/{id}/docker` `{container, address}` | Connects a Docker container to `strata-<id>` |
+
+Tests: `go test ./internal/firewall ./internal/network` (rule text, validation, networkd files, pools), `vm/net-test.sh`. Not covered end to end: Docker containers (macvlan) and libvirt VMs.
 
 ## Desktop, search and appearance
 
