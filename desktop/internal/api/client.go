@@ -128,6 +128,23 @@ func (c *Client) req(ctx context.Context, method, p string, q url.Values, body i
 	return r, nil
 }
 
+// Request builds a request to the NAS carrying the device token (the
+// desktop app's proxy, internal/agent).
+func (c *Client) Request(ctx context.Context, method, p string, q url.Values, body io.Reader) (*http.Request, error) {
+	return c.req(ctx, method, p, q, body)
+}
+
+// Transport is the pinned transport of the client.
+func (c *Client) Transport() http.RoundTripper { return c.hc.Transport }
+
+// Call sends JSON (in may be nil) and decodes the answer into out (may be nil).
+func (c *Client) Call(ctx context.Context, method, p string, q url.Values, in, out any) error {
+	return c.call(ctx, method, p, q, in, out)
+}
+
+// ReadError turns an error answer of the NAS into an *Error.
+func ReadError(resp *http.Response) error { return readErr(resp) }
+
 // readErr turns an error answer into an *Error.
 func readErr(resp *http.Response) error {
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

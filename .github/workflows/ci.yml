@@ -69,7 +69,7 @@ jobs:
           node scripts/docs-site.mjs ../build/site
 
       - name: Shell scripts
-        run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh desktop/packaging/*.sh desktop/packaging/*/*.sh; do bash -n "$f" || exit 1; done
+        run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh desktop/packaging/*.sh desktop/app/scripts/*.sh; do bash -n "$f" || exit 1; done
 
       - name: Debian packages (amd64, arm64)
         run: |
@@ -101,31 +101,44 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
           cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease
 
-  # ---- Desktop sync app (desktop/): tests and every package. ----
+  # ---- Desktop app (desktop/): the Go sync engine, the Tauri shell and its
+  # window, and the packages of each system (Rust and Node on the runners). ----
   desktop:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - name: Format, vet, unit tests
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: "Sync engine (Go): format, vet, unit tests, every system"
         run: |
           cd desktop
           out=$(gofmt -l .)
           test -z "$out" || { echo "not formatted: $out"; exit 1; }
           go vet ./...
           go test ./...
-          # Windows and macOS compile here too (macOS without its menu bar icon: cgo).
           GOOS=windows go vet ./...
           GOOS=darwin CGO_ENABLED=0 go vet ./...
-          GOOS=darwin CGO_ENABLED=0 go build -o /dev/null ./cmd/strataos-sync
-      - name: Linux packages and Windows zip
+      - name: Window (TypeScript) and its translations
         run: |
-          desktop/packaging/build.sh linux
-          desktop/packaging/build.sh windows
+          cd desktop/app
+          npm ci --no-audit --no-fund
+          npx tsc -b
+          node scripts/i18n-check.mjs
+      - name: "Shell (Rust): format, lints, unit tests, Linux packages"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+          rustup component add rustfmt clippy
+          (cd desktop/app && npx vite build)
+          (cd desktop/app/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+          desktop/packaging/build.sh app
+          desktop/packaging/build.sh cli
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-linux
@@ -134,17 +147,21 @@ jobs:
 
   desktop-macos:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - name: Unit tests and universal app
         run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
-          .github/scripts/annotate.sh desktop/packaging/build.sh macos
+          .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-macos
@@ -153,7 +170,7 @@ jobs:
 
   desktop-windows:
     runs-on: windows-2025
-    timeout-minutes: 25
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -163,16 +180,19 @@ jobs:
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - name: Unit tests, installer
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Unit tests, installers
         run: |
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
-          .github/scripts/annotate.sh desktop/packaging/build.sh windows
-          dotnet tool install --global wix --version 5.0.2
-          .github/scripts/annotate.sh desktop/packaging/windows/build-msi.sh
+          (cd desktop/app && npm ci --no-audit --no-fund && npx vite build)
+          (cd desktop/app/src-tauri && cargo test)
+          .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-windows
-          path: dist/strataos-sync-*.msi
+          path: dist/strataos-sync-*
           retention-days: 7
 
   e2e:

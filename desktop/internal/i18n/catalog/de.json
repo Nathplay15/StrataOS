@@ -23,6 +23,7 @@
   "brake.remote": "{0} auf diesem Computer gelöschte Datei(en) würden in den Papierkorb des NAS gelangen.",
   "brake.restore": "Behalten (wiederherstellen)",
   "brake.text": "{0} von {1} Dateien würden gelöscht. Die Synchronisierung wartet auf Ihre Entscheidung.",
+  "err.alreadypaired": "Dieser Computer ist bereits mit diesem NAS gekoppelt.",
   "err.certchanged": "Das Zertifikat des NAS hat sich geändert (jetzt {0}). Falls Sie es nicht erneuert haben, könnte jemand die Verbindung abfangen; andernfalls melden Sie sich ab und koppeln Sie erneut.",
   "err.certuntrusted": "Dem Zertifikat des NAS ({0}) wird noch nicht vertraut: Prüfen Sie seinen Fingerabdruck.",
   "err.e2e.header": "Der Header des verschlüsselten Ordners fehlt auf dem NAS oder hat sich geändert.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "Dieser Ordner überschneidet sich mit einem bereits synchronisierten Ordner: {0}",
   "err.notpaired": "Koppeln Sie diesen Computer zuerst mit dem NAS.",
   "err.remote.choose": "Wählen Sie einen Ordner des NAS.",
+  "err.resolve.encrypted": "Diese Datei liegt in einem Ende-zu-Ende-verschlüsselten Ordner: Das NAS kann sie nicht teilen.",
+  "err.resolve.outside": "Diese Datei liegt nicht in einem mit einem NAS synchronisierten Ordner.",
   "err.twofactor": "Geben Sie den Code Ihrer Authenticator-App ein (Zwei-Faktor-Authentifizierung).",
   "err.unauthorized": "Das NAS hat die Anmeldung abgelehnt",
   "err.unreachable": "{0} ist nicht erreichbar: {1}",
+  "err.upload.empty": "Nichts zu senden: keine Dateien.",
+  "err.upload.exists": "bereits auf dem NAS",
   "folders.add": "Ordner synchronisieren",
   "folders.addbutton": "Synchronisieren",
   "folders.changepass": "Passphrase ändern",
@@ -131,5 +136,6 @@
   "tray.quit": "Beenden",
   "tray.resume": "Fortsetzen",
   "tray.settings": "Einstellungen …",
-  "tray.syncnow": "Jetzt synchronisieren"
+  "tray.syncnow": "Jetzt synchronisieren",
+  "web.reopen": "Öffnen Sie die Weboberfläche erneut über die StrataOS-App."
 }

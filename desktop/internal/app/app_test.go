@@ -1,16 +1,10 @@
 package app
 
 import (
-	"context"
-	"io"
-	"net/http"
-	"net/http/cookiejar"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 
-	"strataos-sync/internal/config"
 	"strataos-sync/internal/i18n"
 )
 
@@ -30,67 +24,17 @@ func TestParseLinkAndURL(t *testing.T) {
 	}
 }
 
-func TestSettingsServer(t *testing.T) {
-	a, err := New(&config.Store{Dir: t.TempDir()}, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	ui, err := a.ServeUI(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	base := "http://" + ui.addr
-	// Without the token: refused.
-	if r, err := http.Get(base + "/"); err != nil || r.StatusCode != 403 {
-		t.Fatalf("no token: %v %v", r.StatusCode, err)
-	}
-	jar, _ := cookiejar.New(nil)
-	c := &http.Client{Jar: jar}
-	r, err := c.Get(ui.URL())
-	if err != nil || r.StatusCode != 200 {
-		t.Fatalf("with the token: %v", err)
-	}
-	body, _ := io.ReadAll(r.Body)
-	if !strings.Contains(string(body), "app.js") {
-		t.Fatal("page not served")
-	}
-	// The API needs the header (no cross-site posts) and the cookie.
-	if r, _ := c.Post(base+"/api/pause", "application/json", strings.NewReader(`{"on":true}`)); r.StatusCode != 403 {
-		t.Fatalf("API without the header: %d", r.StatusCode)
-	}
-	req, _ := http.NewRequest("GET", base+"/api/state", nil)
-	req.Header.Set("X-Strata-Sync", "1")
-	r, err = c.Do(req)
-	if err != nil || r.StatusCode != 200 {
-		t.Fatalf("state: %v %v", r.StatusCode, err)
-	}
-	b, _ := io.ReadAll(r.Body)
-	if !strings.Contains(string(b), `"paired":false`) {
-		t.Fatalf("state: %s", b)
-	}
-	// Another host name (DNS rebinding): refused.
-	req, _ = http.NewRequest("GET", base+"/api/state", nil)
-	req.Host = "evil.example:80"
-	req.Header.Set("X-Strata-Sync", "1")
-	if r, _ := c.Do(req); r.StatusCode != 403 {
-		t.Fatalf("other host: %d", r.StatusCode)
-	}
-}
-
-// Every text the page and the Go code use is in the English catalog.
 func TestTextsInCatalog(t *testing.T) {
 	en := i18n.Catalog("en")
 	var src string
-	for _, f := range []string{"web/index.html", "web/app.js", "app.go", "server.go", "../tray/tray.go", "../tray/tray_systray.go"} {
+	for _, f := range []string{"app.go", "e2e.go", "../agent/agent.go", "../agent/routes.go", "../agent/proxy.go", "../agent/transfers.go"} {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
 		src += string(b)
 	}
-	re := regexp.MustCompile(`(?:data-t="|\bt\(|\.T\(|\bT\()"?([a-z]+\.[a-z.]+|about)"`)
+	re := regexp.MustCompile(`(?:\.T\(|\bT\()"([a-z0-9]+\.[a-z0-9.]+)"`)
 	n := 0
 	for _, m := range re.FindAllStringSubmatch(src, -1) {
 		n++
@@ -103,7 +47,7 @@ func TestTextsInCatalog(t *testing.T) {
 			t.Errorf("text %q missing", id)
 		}
 	}
-	if n < 50 {
+	if n < 15 {
 		t.Fatalf("only %d texts found: the pattern is wrong", n)
 	}
 }

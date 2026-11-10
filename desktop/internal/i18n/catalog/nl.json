@@ -23,6 +23,7 @@
   "brake.remote": "{0} bestand(en) die op deze computer zijn verwijderd, gaan naar de prullenbak van de NAS.",
   "brake.restore": "Behouden (herstellen)",
   "brake.text": "{0} van {1} bestanden zouden worden verwijderd. De synchronisatie wacht op uw beslissing.",
+  "err.alreadypaired": "Deze computer is al gekoppeld aan deze NAS.",
   "err.certchanged": "Het certificaat van de NAS is gewijzigd (nu {0}). Als u het niet hebt vernieuwd, onderschept iemand mogelijk de verbinding; meld u anders af en koppel opnieuw.",
   "err.certuntrusted": "Het certificaat van de NAS ({0}) wordt nog niet vertrouwd: controleer de vingerafdruk.",
   "err.e2e.header": "De header van de versleutelde map op de NAS ontbreekt of is gewijzigd.",
@@ -39,9 +40,13 @@
   "err.local.overlap": "Deze map overlapt een map die al wordt gesynchroniseerd: {0}",
   "err.notpaired": "Koppel deze computer eerst aan de NAS.",
   "err.remote.choose": "Kies een map van de NAS.",
+  "err.resolve.encrypted": "Dit bestand staat in een end-to-end versleutelde map: de NAS kan het niet delen.",
+  "err.resolve.outside": "Dit bestand staat niet in een map die met een NAS wordt gesynchroniseerd.",
   "err.twofactor": "Typ de code van uw authenticator-app (tweestapsverificatie).",
   "err.unauthorized": "De NAS heeft de aanmelding geweigerd",
   "err.unreachable": "Kan {0} niet bereiken: {1}",
+  "err.upload.empty": "Niets te verzenden: geen bestanden.",
+  "err.upload.exists": "staat al op de NAS",
   "folders.add": "Een map synchroniseren",
   "folders.addbutton": "Synchroniseren",
   "folders.changepass": "De wachtzin wijzigen",
@@ -131,5 +136,6 @@
   "tray.quit": "Afsluiten",
   "tray.resume": "Hervatten",
   "tray.settings": "Instellingen…",
-  "tray.syncnow": "Nu synchroniseren"
+  "tray.syncnow": "Nu synchroniseren",
+  "web.reopen": "Open de webinterface opnieuw vanuit de StrataOS-app."
 }

@@ -1,25 +1,20 @@
-StrataOS Sync
-=============
+StrataOS sync engine (strataos-sync), headless
+==============================================
 
-Keeps folders of this computer and of a StrataOS NAS identical, in both
-directions, in the background.
+This archive holds the sync engine of the StrataOS desktop app alone, for
+servers and scripts: it keeps folders of this computer and of a StrataOS NAS
+identical, in both directions, without a window.
 
-1. In the NAS web interface: account menu > Phones and computers >
-   Pair a computer. Copy the pairing link (or note the address and code).
-2. Start StrataOS Sync: its settings open in your web browser. Paste the
-   link (Account tab), check the certificate fingerprint, then choose the
-   folders to synchronize (Folders tab).
+  strataos-sync pair --link 'strataos://pair?...'      (copied from the NAS web
+                                                      interface: account menu >
+                                                      Phones and computers)
+  strataos-sync add --local ~/Documents --remote /srv/strata/VOLUME/SHARE
+  strataos-sync daemon                                (or sync-once)
+  strataos-sync --help
 
-The icon in the notification area (menu bar on macOS) shows the state and
-opens the menu. Deleted files go to the trash of the computer, or to the
-recycle bin of the shared folder on the NAS. When both sides changed a
-file, both versions are kept: "name (conflict from <computer> <date>).ext".
-
-macOS: the app is not signed. The first time, right-click it in
-Applications and choose Open (or System Settings > Privacy & Security >
-Open Anyway).
-Windows: SmartScreen may warn about an unknown app: More info > Run anyway.
-
-Headless mode (servers, scripts): strataos-sync --help
+For a computer with a desktop, install the StrataOS desktop app instead
+(strataos-sync-<version>-windows-x64-setup.exe, -macos.dmg, -linux-*.deb or
+.AppImage): it includes this engine, files, photos and the management of
+the NAS.
 
 Guide: https://nathplay15.github.io/StrataOS/docs/

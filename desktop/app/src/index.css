@@ -1,0 +1,31 @@
+/* The design tokens and base styles of the NAS web interface. */
+@import "../../../frontend/src/index.css";
+
+/* Shared components of the web interface used by the app (their classes). */
+@source "../../../frontend/src/components/ui.tsx";
+@source "../../../frontend/src/components/ShareLinkModal.tsx";
+@source "../../../frontend/src/lib/jobs.tsx";
+
+html,
+body {
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
