@@ -48,7 +48,10 @@ reach() { ex "$1" "$2" "wget -q -T 4 -O /dev/null $3 && echo ok || echo blocked"
 tcp() { $1 ssh "timeout 4 bash -c '</dev/tcp/$2/$3' 2>/dev/null && echo open || echo closed"; }
 ct() { # ct PORT NAME NETWORK-JSON: creates and starts an Alpine container
   local r; r=$(job "$1" "$(api "$1" POST /api/lxc -d "{\"name\":\"$2\",\"image\":{\"distro\":\"alpine\",\"release\":\"3.22\"},\"location\":\"/srv/strata/volume1\",\"backend\":\"dir\",\"network\":$3}")" 600)
-  api "$1" POST "/api/lxc/$2/start" >/dev/null; sleep 6; echo "$r"; }
+  api "$1" POST "/api/lxc/$2/start" >/dev/null; sleep 3
+  # Wait for its address (DHCP) and a route before testing anything.
+  for _ in $(seq 1 20); do [ -n "$(ex "$1" "$2" "ip -4 route | grep -m1 -E 'default|dev eth0'")" ] && break; sleep 2; done
+  echo "$r" | head -1; }
 ipof() { for _ in $(seq 1 15); do a=$(ex "$1" "$2" "ip -4 -o addr show eth0 | awk '{print \$4}' | cut -d/ -f1"); [ -n "$a" ] && { echo "$a"; return; }; sleep 2; done; }
 cleanup_vms() { [ -n "${KEEP:-}" ] && return; A destroy >/dev/null 2>&1; B destroy >/dev/null 2>&1; }
 diag() {
@@ -138,7 +141,8 @@ check "NAS port opened by a rule" "$(reach $PA web http://10.0.3.1:7070/api/setu
 check "LAN still blocked" "$(reach $PA web http://10.96.1.2:7070/api/setup)" "blocked"
 check "drops logged for the guest" "$(api $PA GET '/api/system/network/firewall/log?scope=lxc.web' | py 'print(set(e["dir"] for e in d), any(e.get("dst")=="10.96.1.2" for e in d))')" "{'out'} True"
 OLD=$(api $PA GET /api/system/network/firewall/guest/lxc/web | py 'print(d["binding"]["ifaces"][0])')
-api $PA POST /api/lxc/web/stop >/dev/null; sleep 3; api $PA POST /api/lxc/web/start >/dev/null; sleep 8
+api $PA POST /api/lxc/web/stop >/dev/null; sleep 3; api $PA POST /api/lxc/web/start >/dev/null; sleep 4
+for _ in $(seq 1 20); do [ -n "$(ex $PA web "ip -4 route | grep -m1 default")" ] && break; sleep 2; done
 check "still blocked after a restart" "$(reach $PA web http://10.96.1.2:7070/api/setup)" "blocked"
 NEW=$(api $PA GET /api/system/network/firewall | py 'print([g["binding"]["ifaces"] for g in d["guests"] if g["name"]=="web"][0])')
 check "new interface followed" "$( [ -n "$NEW" ] && [ "$NEW" != "['$OLD']" ] && echo followed)" "followed"

@@ -317,6 +317,15 @@ func NextBridge(c Config, taken []string) string {
 // CheckVNetAddrs refuses a network whose addresses overlap those of the NAS
 // elsewhere (addrs: CIDR addresses of the other links).
 func CheckVNetAddrs(v VNet, addrs []string) error {
+	if v.Kind == "vxlan" {
+		for _, peer := range v.Peers {
+			for _, a := range addrs {
+				if q, err := netip.ParsePrefix(a); err == nil && q.Addr().String() == strings.TrimSpace(peer) {
+					return fmt.Errorf("%s is an address of this NAS: list the other NAS", peer)
+				}
+			}
+		}
+	}
 	p, ok := v.Prefix()
 	if !ok {
 		return nil
@@ -328,15 +337,6 @@ func CheckVNetAddrs(v VNet, addrs []string) error {
 		}
 		if q.Masked().Overlaps(p) {
 			return fmt.Errorf("%s overlaps a network the NAS is already on (%s)", p, a)
-		}
-	}
-	if v.Kind == "vxlan" {
-		for _, peer := range v.Peers {
-			for _, a := range addrs {
-				if q, err := netip.ParsePrefix(a); err == nil && q.Addr().String() == peer {
-					return fmt.Errorf("%s is an address of this NAS: list the other NAS", peer)
-				}
-			}
 		}
 	}
 	return nil

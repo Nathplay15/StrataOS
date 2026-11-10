@@ -121,7 +121,7 @@ func TestVNetHelpers(t *testing.T) {
 	if err := CheckVNetAddrs(c.Virtual[0], []string{"10.20.0.50/16"}); err == nil {
 		t.Error("overlap with the LAN accepted")
 	}
-	if err := CheckVNetAddrs(c.Virtual[3], []string{"192.168.1.11/24"}); err == nil {
+	if err := CheckVNetAddrs(VNet{Kind: "vxlan", Peers: []string{"192.168.1.11"}}, []string{"192.168.1.11/24"}); err == nil {
 		t.Error("own address as peer accepted")
 	}
 	if err := CheckVNetAddrs(c.Virtual[0], []string{"192.168.1.10/24"}); err != nil {
