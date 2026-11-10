@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { FingerprintPattern, Lock, ShieldCheck } from "lucide-react";
+import { FingerprintPattern, KeyRound, Lock, LogIn, ShieldCheck } from "lucide-react";
 import logo from "../logo.svg";
 import { api, ApiError } from "../lib/api";
 import type { Me } from "../lib/types";
-import { Button, Checkbox, ErrorBox, Field, Input } from "../components/ui";
+import { Button, Checkbox, ErrorBox, Field, Input, Notice } from "../components/ui";
 import { useTheme } from "../components/Layout";
 import { srv, tr } from "../lib/i18n";
 import { LangSwitch } from "../components/LangSwitch";
@@ -28,20 +28,39 @@ function Shell({ children, subtitle }: { children: ReactNode; subtitle: string }
   );
 }
 
+type Methods = { totp: boolean; key: boolean; recovery: boolean; keyHere: boolean; keyReason?: string };
+type Provider = { id: string; name: string };
+
 export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [code, setCode] = useState("");
-  const [needCode, setNeedCode] = useState(false);
+  // Second step: the methods of the account (after the password or a provider).
+  const [methods, setMethods] = useState<Methods | null>(null);
+  const [via, setVia] = useState("");
+  const needCode = methods !== null;
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [keyBusy, setKeyBusy] = useState(false);
   const [recover, setRecover] = useState(false);
+  const [providers, setProviders] = useState<Provider[]>([]);
   // Passkeys: only offered when the browser has WebAuthn and the page is open on a name.
   const [pk, setPk] = useState<{ available: boolean; reason?: string } | null>(null);
   const [pkBusy, setPkBusy] = useState(false);
   useEffect(() => {
     if (passkeysSupported()) api.get<{ available: boolean; reason?: string }>("/api/login/passkey").then(setPk, () => setPk(null));
+    api.get<Provider[]>("/api/login/providers").then(setProviders, () => {});
+    // Back from a provider: its error, or the account's own second factor.
+    const q = new URLSearchParams(location.search);
+    const e = q.get("oidc_error");
+    if (e) api.get<{ error: string }>(`/api/login/oidc/error?id=${encodeURIComponent(e)}`).then((r) => r.error && setErr(new Error(srv(r.error))), () => {});
+    if (q.get("signin") === "2fa") {
+      api.get<{ pending: boolean; methods?: Methods; via?: string }>("/api/login/2fa").then((r) => {
+        if (r.pending && r.methods) { setMethods(r.methods); setVia(r.via ?? ""); }
+      }, () => {});
+    }
+    if (e || q.get("signin")) history.replaceState(null, "", "/");
   }, []);
   const passkey = async () => {
     setPkBusy(true);
@@ -56,28 +75,43 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
       setPkBusy(false);
     }
   };
+  const securityKey = async () => {
+    setKeyBusy(true);
+    setErr(null);
+    try {
+      const b = await api.post<{ flow: string; publicKey: unknown }>("/api/login/key/begin");
+      const credential = await getPasskey(b.publicKey);
+      onLogin(await api.post<Me>("/api/login/key/finish", { flow: b.flow, credential }));
+    } catch (e) {
+      if (!cancelled(e)) setErr(e);
+    } finally {
+      setKeyBusy(false);
+    }
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setErr(null);
     try {
-      onLogin(await api.post<Me>("/api/login", { username, password, remember, code: needCode ? code : "" }));
+      if (needCode) onLogin(await api.post<Me>("/api/login/2fa", { code }));
+      else onLogin(await api.post<Me>("/api/login", { username, password, remember }));
     } catch (e) {
-      // Right password, second factor required: ask for the code without showing an error.
+      // Right password, second factor required: ask for it without showing an error.
       if (e instanceof ApiError && e.data.twoFactor) {
         if (needCode) setErr(e);
-        setNeedCode(true);
+        else if (e.data.methods) setMethods(e.data.methods as Methods);
         setCode("");
       } else setErr(e);
     } finally {
       setBusy(false);
     }
   };
+  const back = () => { setMethods(null); setVia(""); setErr(null); };
   if (recover) return <Shell subtitle={tr("Connecting to {0}", hostname)}><RecoveryForm onBack={() => { setRecover(false); setErr(null); }} /></Shell>;
   return (
     <Shell subtitle={tr("Connecting to {0}", hostname)}>
       <form onSubmit={submit} className="space-y-4">
-        {!needCode ? (
+        {!methods ? (
           <>
             <Field label={tr("Username")}>
               <Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -90,16 +124,29 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
         ) : (
           <>
             <div className="flex items-center gap-2 font-medium"><ShieldCheck size={17} className="text-accent" /> {" "}{tr("Two-factor authentication")}</div>
-            <Field label={tr("Code from your authenticator app")} hint={tr("6 digits, or a recovery code (xxxxx-xxxxx)")}>
-              <Input autoFocus inputMode="numeric" autoComplete="one-time-code" className="mono text-center text-[18px] tracking-[0.3em]" value={code} onChange={(e) => setCode(e.target.value)} />
-            </Field>
-            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={() => { setNeedCode(false); setErr(null); }}>{tr("← Back")}</button>
+            {via && <p className="text-muted text-[12.5px]">{tr("Signed in with {0}. Your account also asks for its second factor.", via)}</p>}
+            {methods.key && (methods.keyHere && passkeysSupported() ? (
+              <Button type="button" variant={methods.totp ? "secondary" : "primary"} className="w-full" loading={keyBusy} icon={<KeyRound size={15} />} onClick={securityKey}>{tr("Use my security key")}</Button>
+            ) : (
+              <Notice tone="warn">{!window.isSecureContext ? tr("Security keys need a secure connection: open the NAS over HTTPS (port 7443) by its name.") : methods.keyReason ? srv(methods.keyReason) : tr("This browser does not support security keys.")}</Notice>
+            ))}
+            {(methods.totp || methods.recovery) && (
+              <Field label={methods.totp ? tr("Code from your authenticator app") : tr("Recovery code")} hint={methods.totp ? tr("6 digits, or a recovery code (xxxxx-xxxxx)") : tr("One of the codes given when you added your first security key (xxxxx-xxxxx)")}>
+                <Input autoFocus={!methods.key} inputMode={methods.totp ? "numeric" : "text"} autoComplete="one-time-code" className="mono text-center text-[18px] tracking-[0.3em]" value={code} onChange={(e) => setCode(e.target.value)} />
+              </Field>
+            )}
+            <button type="button" className="text-muted text-[12.5px] hover:text-fg" onClick={back}>{tr("← Back")}</button>
           </>
         )}
         <ErrorBox error={err} />
-        <Button variant="primary" className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
-          {needCode ? tr("Check") : tr("Sign in")}
-        </Button>
+        {(!methods || methods.totp || methods.recovery) && (
+          <Button variant={methods?.key && !methods.totp ? "secondary" : "primary"} className="w-full" loading={busy} icon={<Lock size={15} />} type="submit" disabled={needCode && code.trim().length < 6}>
+            {needCode ? tr("Check") : tr("Sign in")}
+          </Button>
+        )}
+        {!needCode && providers.map((p) => (
+          <Button key={p.id} type="button" className="w-full" icon={<LogIn size={15} />} onClick={() => { window.location.href = `/api/login/oidc/${encodeURIComponent(p.id)}`; }}>{tr("Sign in with {0}", p.name)}</Button>
+        ))}
         {!needCode && pk?.available && (
           <Button type="button" className="w-full" loading={pkBusy} icon={<FingerprintPattern size={15} />} onClick={passkey}>{tr("Sign in with a passkey")}</Button>
         )}

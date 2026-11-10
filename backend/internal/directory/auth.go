@@ -78,7 +78,7 @@ func Authenticate(ctx context.Context, c store.Directory, name, password string)
 		}
 		defer cleanup()
 		args := append(ldapBase(c), "-D", dn, "-y", pw)
-		if _, err := sys.RunOpts(ctx, sys.Opts{Env: ldapEnv}, "ldapwhoami", args...); err != nil {
+		if _, err := sys.RunOpts(ctx, sys.Opts{Env: ldapEnv(c)}, "ldapwhoami", args...); err != nil {
 			return ErrBadCredentials
 		}
 		return nil
@@ -86,8 +86,22 @@ func Authenticate(ctx context.Context, c store.Directory, name, password string)
 	return ErrBadCredentials
 }
 
-// Same certificate policy as sssd (ldap_tls_reqcert = allow).
-var ldapEnv = []string{"LDAPTLS_REQCERT=allow"}
+// LDAPCAFile holds the CA certificate given for the LDAP server.
+var LDAPCAFile = "/etc/strata/ldap-ca.pem"
+
+// ldapEnv applies the certificate policy of sssd to the OpenLDAP tools:
+// checked against the system CAs (or the CA given) with TLSVerify,
+// otherwise accepted as is (ldap_tls_reqcert = allow).
+func ldapEnv(c store.Directory) []string {
+	if !c.TLSVerify {
+		return []string{"LDAPTLS_REQCERT=allow"}
+	}
+	env := []string{"LDAPTLS_REQCERT=demand"}
+	if c.CACert != "" {
+		env = append(env, "LDAPTLS_CACERT="+LDAPCAFile)
+	}
+	return env
+}
 
 func ldapBase(c store.Directory) []string {
 	args := []string{"-x", "-H", c.URI}
@@ -110,7 +124,7 @@ func findDN(ctx context.Context, c store.Directory, name string) (string, error)
 		args = append(args, "-D", c.BindDN, "-y", pw)
 	}
 	args = append(args, "(&(objectClass=posixAccount)(uid="+filterEscape.Replace(name)+"))", "dn")
-	out, err := sys.RunOpts(ctx, sys.Opts{Env: ldapEnv}, "ldapsearch", args...)
+	out, err := sys.RunOpts(ctx, sys.Opts{Env: ldapEnv(c)}, "ldapsearch", args...)
 	if err != nil {
 		return "", fmt.Errorf("directory unreachable")
 	}
@@ -127,6 +141,58 @@ func findDN(ctx context.Context, c store.Directory, name string) (string, error)
 		}
 	}
 	return "", ErrBadCredentials
+}
+
+// TestLDAP connects to the server with the bind account (or anonymously)
+// and reads the base, so a wrong address, certificate or password is
+// reported before sssd is configured.
+func TestLDAP(ctx context.Context, c store.Directory) error {
+	if err := writeCA(c); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	args := append(ldapBase(c), "-LLL", "-s", "base", "-b", c.BaseDN)
+	if c.BindDN != "" {
+		pw, cleanup, err := secretFile(c.BindPassword)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		args = append(args, "-D", c.BindDN, "-y", pw)
+	}
+	args = append(args, "(objectClass=*)", "dn")
+	out, err := sys.RunOpts(ctx, sys.Opts{Env: ldapEnv(c)}, "ldapsearch", args...)
+	if err == nil {
+		return nil
+	}
+	msg := strings.ToLower(out + " " + err.Error())
+	// OpenLDAP reports a refused certificate as "can't contact": the same
+	// request without the check tells the two apart.
+	certRefused := false
+	if c.TLSVerify && strings.Contains(msg, "contact ldap server") {
+		_, errNoCheck := sys.RunOpts(ctx, sys.Opts{Env: []string{"LDAPTLS_REQCERT=allow"}}, "ldapsearch", args...)
+		certRefused = errNoCheck == nil
+	}
+	switch {
+	case certRefused || strings.Contains(msg, "certificate") || strings.Contains(msg, "tls") || strings.Contains(msg, "ssl"):
+		return fmt.Errorf("the certificate of the LDAP server could not be verified: give its CA certificate, or turn certificate checks off")
+	case strings.Contains(msg, "invalid credentials"):
+		return fmt.Errorf("the bind account or its password is wrong")
+	case strings.Contains(msg, "no such object"):
+		return fmt.Errorf("the base DN does not exist on this server")
+	}
+	return fmt.Errorf("cannot reach the LDAP server: %s", firstLine(out+" "+err.Error()))
+}
+
+// writeCA writes (or removes) the CA certificate of the LDAP server.
+func writeCA(c store.Directory) error {
+	if !c.TLSVerify || c.CACert == "" {
+		_ = os.Remove(LDAPCAFile)
+		return nil
+	}
+	_ = os.MkdirAll("/etc/strata", 0o755)
+	return sys.WriteFileAtomic(LDAPCAFile, []byte(c.CACert), 0o644)
 }
 
 // secretFile writes a secret without trailing newline (ldap -y reads it raw).

@@ -10,6 +10,11 @@ type TwoFactorPolicy struct {
 	Since   time.Time `json:"since,omitzero"`
 	// GraceDays before it is enforced: 0 = 7 days, -1 = at once.
 	GraceDays int `json:"graceDays,omitempty"`
+	// RequireKey: only a security key or a passkey counts (not TOTP).
+	RequireKey bool `json:"requireKey,omitempty"`
+	// KeyUV: user verification asked of security keys: "" (preferred) or
+	// "discouraged" (old U2F keys without PIN).
+	KeyUV string `json:"keyUv,omitempty"`
 }
 
 // LinkUpload is one file received by a share link (newest last).

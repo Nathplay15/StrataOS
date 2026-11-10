@@ -37,6 +37,7 @@ func (s *Server) applyShares() error {
 		}
 		err = shares.Apply(st)
 	})
+	s.s3Changed() // bucket rights follow the share permissions
 	var skipped shares.SkippedError
 	if errors.As(err, &skipped) {
 		// The configuration was applied without these shares: report, don't fail.

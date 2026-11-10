@@ -98,7 +98,7 @@ func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthC
 	u, found := lookup(login)
 	key := cache.id(login, pass, u.PasswordHash)
 	if name, hit := cache.check(key); hit {
-		if cu, ok := lookup(name); ok && !cu.Disabled && cu.TOTPSecret == "" {
+		if cu, ok := lookup(name); ok && !cu.Disabled && !hasSecondFactor(&cu) {
 			return cu, true
 		}
 	}
@@ -121,7 +121,7 @@ func (s *Server) davAuth(w http.ResponseWriter, r *http.Request, cache *davAuthC
 		s.guardFail(ip, "WebDAV", login)
 		return deny(http.StatusUnauthorized, "invalid credentials")
 	}
-	if u.TOTPSecret != "" {
+	if hasSecondFactor(&u) {
 		// Basic authentication cannot carry the second factor.
 		return deny(http.StatusForbidden, "two-factor authentication is enabled for this account: WebDAV is not available")
 	}

@@ -64,7 +64,10 @@ func (s *Server) directoryRoutes() {
 			if c.Type == "ad" {
 				err = directory.JoinAD(ctx, c, admin, password, s.applyShares, j.Logf)
 			} else {
-				err = directory.ApplyLDAP(c, true)
+				j.Logf("Connecting to %s", c.URI)
+				if err = directory.TestLDAP(ctx, c); err == nil {
+					err = directory.ApplyLDAP(c, true)
+				}
 			}
 			if err != nil {
 				// Back to a standalone server.
@@ -124,6 +127,9 @@ func (s *Server) directoryRoutes() {
 	s.admin("PUT /api/directory/settings", func(r *http.Request) (any, error) {
 		var req struct {
 			AdminGroup string `json:"adminGroup"`
+			// LDAP certificate checks (absent: unchanged).
+			TLSVerify *bool   `json:"tlsVerify"`
+			CACert    *string `json:"caCert"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -131,17 +137,55 @@ func (s *Server) directoryRoutes() {
 		if strings.ContainsAny(req.AdminGroup, "\n\r:,") || len(req.AdminGroup) > 128 {
 			return nil, badRequest("invalid group")
 		}
+		var c, before store.Directory
+		s.store.Read(func(st *store.State) { c = st.Directory })
+		if c.JoinedAt.IsZero() {
+			return nil, badRequest("not in a directory")
+		}
+		before = c
+		c.AdminGroup = strings.TrimSpace(req.AdminGroup)
+		if c.Type == "ldap" && req.TLSVerify != nil {
+			c.TLSVerify = *req.TLSVerify
+			if req.CACert != nil {
+				c.CACert = *req.CACert
+			}
+			if err := directory.ValidCACert(&c); err != nil {
+				return nil, badRequest(err.Error())
+			}
+		}
+		tlsChanged := c.TLSVerify != before.TLSVerify || c.CACert != before.CACert
+		if tlsChanged {
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+			if err := directory.TestLDAP(ctx, c); err != nil {
+				_ = directory.ApplyLDAP(before, true) // put the CA file back
+				return nil, badRequest(err.Error())
+			}
+		}
 		err := s.store.Update(func(st *store.State) error {
 			if st.Directory.JoinedAt.IsZero() {
 				return badRequest("not in a directory")
 			}
-			st.Directory.AdminGroup = strings.TrimSpace(req.AdminGroup)
+			st.Directory.AdminGroup, st.Directory.TLSVerify, st.Directory.CACert = c.AdminGroup, c.TLSVerify, c.CACert
 			return nil
 		})
-		if err == nil {
-			s.audit(r, "directory", "Directory admin group set to "+req.AdminGroup)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+		if before.AdminGroup != c.AdminGroup {
+			s.audit(r, "directory", "Directory admin group set to "+c.AdminGroup)
+		}
+		if tlsChanged {
+			if err := directory.ApplyLDAP(c, true); err != nil {
+				return nil, err
+			}
+			if c.TLSVerify {
+				s.audit(r, "directory", "LDAP server certificate checked")
+			} else {
+				s.audit(r, "directory", "LDAP server certificate no longer checked")
+			}
+		}
+		return nil, nil
 	})
 
 	s.admin("GET /api/directory/search", func(r *http.Request) (any, error) {

@@ -34,6 +34,9 @@ type session struct {
 	// Device: a web session opened from the mobile app (mobile_websession.go),
 	// which ends with the device and keeps its restrictions.
 	Device string `json:"device,omitempty"`
+	// MFA: a second factor checked by the identity provider of an OIDC
+	// sign-in (oidc_login.go), which the two-factor policy may accept.
+	MFA string `json:"mfa,omitempty"`
 }
 
 // sessions are keyed by the SHA-256 of the cookie token and persisted to disk
@@ -266,7 +269,7 @@ func (s *Server) authenticate(next http.Handler, adminOnly bool) http.Handler {
 		s.store.Read(func(st *store.State) {
 			u := st.User(ss.User)
 			ok = u != nil && !u.Disabled && (ss.Device == "" || u.MobileDevice(ss.Device) != nil)
-			setup = ok && setupOnly(st, u, time.Now())
+			setup = ok && setupOnly(st, u, time.Now(), ss.MFA)
 		})
 		if !ok {
 			s.sessions.delete(c.Value)

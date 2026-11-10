@@ -370,7 +370,7 @@ func (s *Server) advisorFacts() health.Facts {
 	var acmeDomain string
 	s.store.Read(func(st *store.State) {
 		for _, u := range st.Users {
-			if u.Role == "admin" && !u.Disabled && u.Source == "" && u.TOTPSecret == "" && len(u.Passkeys) == 0 {
+			if u.Role == "admin" && !u.Disabled && u.Source == "" && !hasSecondFactor(u) && len(u.Passkeys) == 0 {
 				f.AdminsNo2FA = append(f.AdminsNo2FA, u.Username)
 			}
 		}

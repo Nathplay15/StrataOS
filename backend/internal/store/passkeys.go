@@ -29,3 +29,13 @@ func (u *User) PasskeyByID(id string) *Passkey {
 	}
 	return nil
 }
+
+// SecurityKeyByID returns the security key of the user with that credential ID.
+func (u *User) SecurityKeyByID(id string) *Passkey {
+	for i := range u.SecurityKeys {
+		if u.SecurityKeys[i].ID == id {
+			return &u.SecurityKeys[i]
+		}
+	}
+	return nil
+}

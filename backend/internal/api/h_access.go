@@ -19,24 +19,44 @@ import (
 
 func policyOf(st *store.State) gate.Policy {
 	p := st.TwoFactor
-	return gate.Policy{Require: p.Require, Since: p.Since, GraceDays: p.GraceDays}
+	return gate.Policy{Require: p.Require, Since: p.Since, GraceDays: p.GraceDays, RequireKey: p.RequireKey}
 }
 
 func accountOf(u *store.User) gate.Account {
-	return gate.Account{Admin: u.Role == "admin", TOTP: u.TOTPSecret != "", Passkeys: len(u.Passkeys), Prompted: u.TwoFactorPrompted, Postponed: u.TwoFactorPostponed}
+	return gate.Account{Admin: u.Role == "admin", TOTP: u.TOTPSecret != "", Passkeys: len(u.Passkeys), Keys: len(u.SecurityKeys), Prompted: u.TwoFactorPrompted, Postponed: u.TwoFactorPostponed}
+}
+
+// hasSecondFactor: the password alone does not sign this account in (TOTP
+// or security key; passkeys are a separate, passwordless way in).
+func hasSecondFactor(u *store.User) bool { return u.TOTPSecret != "" || len(u.SecurityKeys) > 0 }
+
+// idpSatisfies reports whether the second factor checked by an identity
+// provider (session.MFA, oidc_login.go) meets the policy: any second factor,
+// or a hardware key when the policy requires one.
+func idpSatisfies(st *store.State, mfa string) bool {
+	if mfa == "" {
+		return false
+	}
+	return !st.TwoFactor.RequireKey || mfa == mfaIdPHardware
 }
 
 // twoFactorPrompt computes the setup step of a user; mark records the first
 // time an administrator without a second factor is prompted (the grace
-// period of a required policy starts there at the earliest).
-func (s *Server) twoFactorPrompt(name string, mark bool) *gate.Prompt {
+// period of a required policy starts there at the earliest). mfa is the
+// session's second factor checked by an identity provider, if any.
+func (s *Server) twoFactorPrompt(name string, mark bool, mfa string) *gate.Prompt {
 	now := time.Now()
+	var idp bool
+	s.store.Read(func(st *store.State) { idp = idpSatisfies(st, mfa) })
+	if idp {
+		return nil
+	}
 	if mark {
 		var first bool
 		s.store.Read(func(st *store.State) {
 			if u := st.User(name); u != nil {
 				a := accountOf(u)
-				first = a.Admin && !a.Protected() && a.Prompted.IsZero()
+				first = a.Admin && !policyOf(st).Satisfied(a) && a.Prompted.IsZero()
 			}
 		})
 		if first {
@@ -61,8 +81,8 @@ func (s *Server) twoFactorPrompt(name string, mark bool) *gate.Prompt {
 }
 
 // setupOnly reports whether a session may only set up its second factor.
-func setupOnly(st *store.State, u *store.User, now time.Time) bool {
-	return u.Role == "admin" && gate.Enforced(policyOf(st), accountOf(u), now)
+func setupOnly(st *store.State, u *store.User, now time.Time, mfa string) bool {
+	return u.Role == "admin" && gate.Enforced(policyOf(st), accountOf(u), now) && !idpSatisfies(st, mfa)
 }
 
 // passkeyOnlyBlocked: with the policy enforced, an administrator protected by
@@ -70,18 +90,25 @@ func setupOnly(st *store.State, u *store.User, now time.Time) bool {
 func passkeyOnlyBlocked(st *store.State, u *store.User, now time.Time) bool {
 	p := policyOf(st)
 	a := accountOf(u)
-	return a.Admin && p.Require && !a.TOTP && a.Passkeys > 0 && !now.Before(gate.Deadline(p, a, now))
+	if !a.Admin || !p.Require || a.Passkeys == 0 || now.Before(gate.Deadline(p, a, now)) {
+		return false
+	}
+	// A security key completes a password sign-in; TOTP too unless a key is required.
+	return a.Keys == 0 && (!a.TOTP || p.RequireKey)
 }
 
-var errSecondFactorKept = badRequest("two-factor authentication is required for administrators: add another passkey or an authenticator app first")
+var errSecondFactorKept = badRequest("two-factor authentication is required for administrators: add another passkey, security key or an authenticator app first")
 
 // keepsSecondFactor refuses removing the last second factor of an
-// administrator while the policy requires one.
-func keepsSecondFactor(st *store.State, u *store.User, totp bool, passkeys int) error {
+// administrator while the policy requires one (the last key or passkey when
+// it requires a key), given what the account keeps.
+func keepsSecondFactor(st *store.State, u *store.User, totp bool, passkeys, keys int) error {
 	if u.Role != "admin" || !st.TwoFactor.Require {
 		return nil
 	}
-	if !totp && passkeys == 0 {
+	p := policyOf(st)
+	after := gate.Account{Admin: true, TOTP: totp, Passkeys: passkeys, Keys: keys}
+	if !after.Protected() || (p.Satisfied(accountOf(u)) && !p.Satisfied(after)) {
 		return errSecondFactorKept
 	}
 	return nil
@@ -91,6 +118,7 @@ type adminFactor struct {
 	Username  string    `json:"username"`
 	TOTP      bool      `json:"totp"`
 	Passkeys  int       `json:"passkeys"`
+	Keys      int       `json:"securityKeys"`
 	Deadline  time.Time `json:"deadline,omitzero"`
 	Postponed time.Time `json:"postponedUntil,omitzero"`
 	Enforced  bool      `json:"enforced"`
@@ -98,7 +126,7 @@ type adminFactor struct {
 
 func (s *Server) accessRoutes() {
 	s.user("GET /api/me/2fa/prompt", func(r *http.Request) (any, error) {
-		p := s.twoFactorPrompt(userOf(r), true)
+		p := s.twoFactorPrompt(userOf(r), true, sessionFrom(r.Context()).MFA)
 		if p == nil {
 			return gate.Prompt{}, nil
 		}
@@ -133,23 +161,26 @@ func (s *Server) accessRoutes() {
 	s.admin("GET /api/security/2fa-policy", func(r *http.Request) (any, error) {
 		now := time.Now()
 		var out struct {
-			Require   bool          `json:"require"`
-			GraceDays int           `json:"graceDays"`
-			Since     time.Time     `json:"since,omitzero"`
-			Recovery  bool          `json:"consoleRecovery"`
-			Admins    []adminFactor `json:"admins"`
+			Require    bool          `json:"require"`
+			RequireKey bool          `json:"requireKey"`
+			KeyUV      string        `json:"keyUv"`
+			GraceDays  int           `json:"graceDays"`
+			Since      time.Time     `json:"since,omitzero"`
+			Recovery   bool          `json:"consoleRecovery"`
+			Admins     []adminFactor `json:"admins"`
 		}
 		out.Admins = []adminFactor{}
 		s.store.Read(func(st *store.State) {
 			p := policyOf(st)
 			out.Require, out.GraceDays, out.Since, out.Recovery = p.Require, st.TwoFactor.GraceDays, p.Since, !st.Console.NoRecovery
+			out.RequireKey, out.KeyUV = p.RequireKey, st.TwoFactor.KeyUV
 			for _, u := range st.Users {
 				if u.Role != "admin" || u.Disabled {
 					continue
 				}
 				a := accountOf(u)
-				f := adminFactor{Username: u.Username, TOTP: a.TOTP, Passkeys: a.Passkeys, Enforced: gate.Enforced(p, a, now)}
-				if !a.Protected() {
+				f := adminFactor{Username: u.Username, TOTP: a.TOTP, Passkeys: a.Passkeys, Keys: a.Keys, Enforced: gate.Enforced(p, a, now)}
+				if !p.Satisfied(a) {
 					pr := gate.TwoFactorPrompt(p, a, now)
 					f.Deadline, f.Postponed = pr.Deadline, pr.Postponed
 				}
@@ -161,8 +192,10 @@ func (s *Server) accessRoutes() {
 
 	s.admin("PUT /api/security/2fa-policy", func(r *http.Request) (any, error) {
 		var req struct {
-			Require   bool `json:"require"`
-			GraceDays int  `json:"graceDays"`
+			Require    bool   `json:"require"`
+			RequireKey bool   `json:"requireKey"`
+			KeyUV      string `json:"keyUv"`
+			GraceDays  int    `json:"graceDays"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -170,12 +203,19 @@ func (s *Server) accessRoutes() {
 		if req.GraceDays < -1 || req.GraceDays > 90 {
 			return nil, badRequest("the grace period is 0 to 90 days")
 		}
+		if req.KeyUV != "" && req.KeyUV != "discouraged" {
+			return nil, badRequest("invalid user verification setting")
+		}
+		req.RequireKey = req.RequireKey && req.Require
 		me := userOf(r)
 		var turnedOn, changed bool
 		err := s.store.Update(func(st *store.State) error {
 			u := st.User(me)
 			if req.Require && (u == nil || !accountOf(u).Protected()) {
 				return badRequest("set up two-factor authentication or a passkey for your own account first")
+			}
+			if req.RequireKey && (u == nil || accountOf(u).Keys+accountOf(u).Passkeys == 0) {
+				return badRequest("register a security key or a passkey for your own account first")
 			}
 			if req.Require && st.Console.NoRecovery {
 				// Never lock out the last administrator: without recovery
@@ -186,8 +226,9 @@ func (s *Server) accessRoutes() {
 				}
 			}
 			turnedOn = req.Require && !st.TwoFactor.Require
-			changed = req.Require != st.TwoFactor.Require || req.GraceDays != st.TwoFactor.GraceDays
+			changed = req.Require != st.TwoFactor.Require || req.GraceDays != st.TwoFactor.GraceDays || req.RequireKey != st.TwoFactor.RequireKey || req.KeyUV != st.TwoFactor.KeyUV
 			st.TwoFactor.Require, st.TwoFactor.GraceDays = req.Require, req.GraceDays
+			st.TwoFactor.RequireKey, st.TwoFactor.KeyUV = req.RequireKey, req.KeyUV
 			if turnedOn {
 				st.TwoFactor.Since = time.Now()
 			}
@@ -200,7 +241,9 @@ func (s *Server) accessRoutes() {
 			return nil, err
 		}
 		if changed {
-			if req.Require {
+			if req.RequireKey {
+				s.audit(r, "auth", "Security key required for administrators")
+			} else if req.Require {
 				s.audit(r, "auth", "Two-factor authentication required for administrators")
 			} else {
 				s.audit(r, "auth", "Two-factor authentication no longer required for administrators")

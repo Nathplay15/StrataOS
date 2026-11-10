@@ -26,6 +26,10 @@ type userView struct {
 	TwoFactor bool      `json:"twoFactor"`
 	Passkeys  int       `json:"passkeys"`
 	Source    string    `json:"source,omitempty"`
+	// SecurityKeys and S3Keys counts, OIDC: providers linked (oidc_login.go).
+	SecurityKeys int      `json:"securityKeys"`
+	S3Keys       int      `json:"s3Keys"`
+	OIDC         []string `json:"oidc,omitempty"`
 }
 
 func (s *Server) addToDockerGroup(name string) error {
@@ -54,7 +58,10 @@ func (s *Server) userRoutes() {
 		out := []userView{}
 		for _, u := range users {
 			groups := accounts.UserGroups(u.Username)
-			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != "", Passkeys: len(u.Passkeys), Source: u.Source}
+			v := userView{Username: u.Username, FullName: u.FullName, Email: u.Email, Role: u.Role, Disabled: u.Disabled, SSH: u.SSH, CreatedAt: u.CreatedAt, Groups: []string{}, TwoFactor: u.TOTPSecret != "", Passkeys: len(u.Passkeys), Source: u.Source, SecurityKeys: len(u.SecurityKeys), S3Keys: len(u.S3Keys)}
+			for _, l := range u.OIDC {
+				v.OIDC = append(v.OIDC, l.Provider)
+			}
 			for _, g := range groups {
 				if g == "docker" {
 					v.Docker = true

@@ -8,6 +8,8 @@ import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
 import { TwoFactorModal } from "./TwoFactor";
 import { PasskeysModal } from "./Passkeys";
+import { SecurityKeysModal } from "./SecurityKeys";
+import { S3KeysModal } from "./S3Keys";
 import { TwoFactorPrompt } from "./TwoFactorPrompt";
 import { MobileDevicesModal } from "./MobileDevices";
 import { api } from "../lib/api";
@@ -197,6 +199,8 @@ export function Layout({ me }: { me: Me }) {
   const [pwModal, setPwModal] = useState(false);
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
+  const [keys, setKeys] = useState(false);
+  const [s3, setS3] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [look, setLook] = useState(false);
   useAccent();
@@ -205,6 +209,8 @@ export function Layout({ me }: { me: Me }) {
     else if (d === "password") setPwModal(true);
     else if (d === "2fa") setTfa(true);
     else if (d === "passkeys") setPasskeys(true);
+    else if (d === "securitykeys") setKeys(true);
+    else if (d === "s3") setS3(true);
     else if (d === "devices") setMobile(true);
   });
   const loc = useLocation();
@@ -292,6 +298,8 @@ export function Layout({ me }: { me: Me }) {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTfa(true); }}><ShieldCheck size={15} /> {" "}{tr("Two-factor authentication")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPasskeys(true); }}><FingerprintPattern size={15} /> {" "}{tr("Passkeys")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setKeys(true); }}><KeyRound size={15} /> {" "}{tr("Security keys and sign-in")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setS3(true); }}><Database size={15} /> {" "}{tr("S3 access keys")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/vpn"); }}><Smartphone size={15} /> {" "}{tr("My VPN devices")}</button>
                   <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> {" "}{tr("Desktop mode")}</button>
@@ -319,6 +327,8 @@ export function Layout({ me }: { me: Me }) {
       <PasswordModal open={pwModal} onClose={() => setPwModal(false)} />
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
+      <SecurityKeysModal open={keys} onClose={() => setKeys(false)} />
+      <S3KeysModal open={s3} onClose={() => setS3(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
       <AppearanceModal open={look} onClose={() => setLook(false)} />
       <TwoFactorPrompt me={me} />

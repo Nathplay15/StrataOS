@@ -9,18 +9,19 @@ import { openAccountDialog } from "../lib/intent";
 import { tr } from "../lib/i18n";
 import { Badge, Button, Card, ErrorBox, Field, Notice, Select, Spinner, Switch } from "./ui";
 
-type Admin = { username: string; totp: boolean; passkeys: number; deadline?: string; postponedUntil?: string; enforced: boolean };
-type Policy = { require: boolean; graceDays: number; since?: string; consoleRecovery: boolean; admins: Admin[] };
+type Admin = { username: string; totp: boolean; passkeys: number; securityKeys: number; deadline?: string; postponedUntil?: string; enforced: boolean };
+type Policy = { require: boolean; requireKey: boolean; keyUv: string; graceDays: number; since?: string; consoleRecovery: boolean; admins: Admin[] };
+type Form = { require: boolean; requireKey: boolean; keyUv: string; graceDays: number };
 
 /** Settings card "Two-factor for administrators" (api/h_access.go). */
 export function AdminTwoFactorPolicy() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me") }).data?.username;
   const { data, error } = useQuery({ queryKey: ["2fa-policy"], queryFn: () => api.get<Policy>("/api/security/2fa-policy") });
-  const [f, setF] = useState<{ require: boolean; graceDays: number } | null>(null);
-  useEffect(() => { if (data) setF({ require: data.require, graceDays: data.graceDays }); }, [data]);
+  const [f, setF] = useState<Form | null>(null);
+  useEffect(() => { if (data) setF({ require: data.require, requireKey: data.requireKey, keyUv: data.keyUv, graceDays: data.graceDays }); }, [data]);
   const save = useAction(() => api.put("/api/security/2fa-policy", f), { success: tr("Saved") });
   const mine = data?.admins.find((a) => a.username === me);
-  const unprotected = !!mine && !mine.totp && !mine.passkeys;
+  const unprotected = !!mine && !mine.totp && !mine.passkeys && !mine.securityKeys;
   return (
     <Card id="settings-2fa" className="xl:col-span-2" title={<span className="flex items-center gap-2"><ShieldCheck size={16} /> {" "}{tr("Two-factor authentication for administrators")}</span>}
       actions={f && <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
@@ -29,6 +30,16 @@ export function AdminTwoFactorPolicy() {
           <p className="text-[13px] text-muted">{tr("Administrators without an authenticator app or a passkey are invited to set one up when they sign in; they may postpone it by 7 days.")}</p>
           <Switch checked={f.require} onChange={(v) => setF({ ...f, require: v })} label={tr("Require two-factor for administrators")}
             hint={tr("After the grace period, an administrator without a second factor can still sign in, but may only set one up. Nobody is locked out.")} />
+          {f.require && (
+            <Switch checked={f.requireKey} onChange={(v) => setF({ ...f, requireKey: v })} label={tr("Require a security key or a passkey")}
+              hint={tr("The authenticator app alone no longer signs an administrator in (after the grace period). Recovery codes keep working.")} />
+          )}
+          <Field label={tr("User verification of security keys")} className="max-w-md" hint={tr("Old U2F keys without a PIN may need \"Not asked\".")}>
+            <Select value={f.keyUv} onChange={(e) => setF({ ...f, keyUv: e.target.value })}>
+              <option value="">{tr("Preferred (PIN or fingerprint when the key has one)")}</option>
+              <option value="discouraged">{tr("Not asked (touch only)")}</option>
+            </Select>
+          </Field>
           {f.require && (
             <Field label={tr("Grace period")} className="max-w-xs">
               <Select value={f.graceDays} onChange={(e) => setF({ ...f, graceDays: +e.target.value })}>
@@ -44,6 +55,7 @@ export function AdminTwoFactorPolicy() {
                 <span className="flex gap-2">
                   <Button size="sm" onClick={() => openAccountDialog("2fa")}>{tr("Authenticator app")}</Button>
                   <Button size="sm" onClick={() => openAccountDialog("passkeys")}>{tr("Passkey")}</Button>
+                  <Button size="sm" onClick={() => openAccountDialog("securitykeys")}>{tr("Security key")}</Button>
                 </span>
               </div>
             </Notice>
@@ -59,7 +71,8 @@ export function AdminTwoFactorPolicy() {
                       <div className="flex flex-wrap gap-1">
                         {a.totp && <Badge tone="ok">{tr("Authenticator app")}</Badge>}
                         {a.passkeys > 0 && <Badge tone="ok">{tr("{0} passkey(s)", a.passkeys)}</Badge>}
-                        {!a.totp && !a.passkeys && <Badge tone={a.enforced ? "danger" : "warn"}>{tr("None")}</Badge>}
+                        {a.securityKeys > 0 && <Badge tone="ok">{tr("{0} security key(s)", a.securityKeys)}</Badge>}
+                        {!a.totp && !a.passkeys && !a.securityKeys && <Badge tone={a.enforced ? "danger" : "warn"}>{tr("None")}</Badge>}
                       </div>
                     </td>
                     <td className="text-muted text-[12.5px]">
