@@ -101,7 +101,7 @@ R=$(api $PA PUT /api/system/network/firewall -d "{\"config\":$FW,\"timeout\":60}
 check "host change applied on trial" "$R" '"token"'
 check "trial shown" "$(api $PA GET /api/system/network/firewall | py 'print(d["trial"] is not None)')" "True"
 check "confirmed" "$(trial $PA "$R" /api/system/network/firewall/confirm)" "confirmed"
-check "table loaded" "$(A ssh 'sudo nft list table inet strata_host' | grep -c 's_blocked4')" "2"
+check "table loaded" "$(A ssh 'sudo nft list table inet strata_host' | grep -m1 -o 'ip saddr @s_blocked4 tcp dport 445')" "@s_blocked4"
 check "SMB from B dropped" "$(tcp B 10.96.1.1 445)" "closed"
 check "web interface from B still open" "$(tcp B 10.96.1.1 7070)" "open"
 check "SSH from B (accepted from the LAN)" "$(tcp B 10.96.1.1 22)" "open"
@@ -184,6 +184,9 @@ for x in "$PA 21" "$PB 22"; do set -- $x
   check "VLAN network on $1" "$(trial $1 "$R")" "confirmed"
   check "container on $1" "$(ct $1 cam$2 "{\"mode\":\"bridge\",\"bridge\":\"$(api $1 GET /api/system/network/vnets | py 'print([n["bridge"] for n in d["networks"] if n["id"]=="cams"][0])')\",\"address\":\"10.42.0.$2/24\"}")" "success"
 done
+# QEMU's multicast LAN sends every frame back to its sender: a bridge would
+# learn its own containers' MACs on the uplink. Not learning there avoids it.
+for w in A B; do $w ssh "sudo ip link set dev $LINK.42 type bridge_slave learning off"; done
 check "VLAN link on A" "$(A ssh "ip -d link show $LINK.42")" "vlan protocol 802.1Q id 42"
 check "containers talk over the VLAN" "$(ex $PA cam21 'ping -c2 -W2 10.42.0.22 >/dev/null && echo up || echo down')" "up"
 check "untagged LAN does not see them" "$(B ssh 'sudo ip addr add 10.42.0.99/24 dev '"$LINK"'; ping -c1 -W2 10.42.0.21 >/dev/null && echo up || echo down; sudo ip addr del 10.42.0.99/24 dev '"$LINK")" "down"
