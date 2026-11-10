@@ -24,7 +24,7 @@ StrataOS/
 ├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode; see "Desktop, search and appearance" below)
 ├── docs/               User guide and FAQ (English and French), hardware, this file
 ├── android/            Android app (Kotlin, Jetpack Compose), see below
-├── desktop/            Desktop sync app (Go, its own module), see below
+├── desktop/            Desktop app: Tauri shell + React window (app/) and the Go sync engine (its own module), see below
 ├── packaging/          .deb package, installer ISO, Raspberry Pi image, APT repository, website
 └── vm/                 QEMU/KVM test machines and end-to-end tests
 ```
@@ -254,31 +254,60 @@ printf %s "$K_keyPassword" | gh secret set ANDROID_KEY_PASSWORD
 
 Without these secrets the release still publishes everything else, and the workflow shows a warning instead of `strataos-<version>.apk`.
 
-## Desktop sync app
+## Desktop app
 
-`desktop/` is a Go module of its own (`strataos-sync`): one binary per system, the sync engine in pure Go (no cgo, state in bbolt), except the macOS menu bar icon (fyne.io/systray needs cgo there, so the macOS build runs on a macOS runner). The version follows `VERSION`.
+`desktop/` is the desktop app for Windows, macOS and Linux: a **Tauri 2** shell (Rust, `app/src-tauri`) showing a **React + TypeScript** window (Vite, `app/src`), and the **sync engine** in Go (module `strataos-sync`, the rest of `desktop/`), run by the shell as its sidecar. The engine keeps its tested code (pure Go, no cgo, state in bbolt) and still runs alone in headless mode (`strataos-sync --help`). The version follows `VERSION`.
+
+```
+ window (React, tauri://localhost) ──fetch, Bearer <launch token>──▶ agent (Go, 127.0.0.1:<port>) ──HTTPS, pinned, device token──▶ NAS
+        │ invoke / events                                               ├─ /v1/…               accounts, sync folders, transfers, events
+        ▼                                                               ├─ /v1/accounts/{id}/nas/api/…   the NAS API, device token added
+ shell (Rust): tray, windows, autostart, deep links, single instance,   └─ 127.0.0.1:<port2>   web interface proxy (one per NAS), web
+ updater, file manager menus; starts and supervises the agent                                   session kept by the agent
+```
 
 | Folder | What |
 |---|---|
-| `cmd/strataos-sync/` | Entry point: the tray app without a command, the headless commands (`pair`, `add`, `sync-once`, `daemon`…) otherwise |
+| `cmd/strataos-sync/` | Entry point: `agent` (the sidecar, `agent.go`), the headless commands (`pair`, `add`, `sync-once`, `daemon`, `accounts`…; `--account ID` for another NAS); without a command it starts the app installed next to it (old start-at-login entries) |
+| `internal/agent/` | The sidecar: accounts (one `app.App` per NAS: the main one in the settings folder itself, others in `accounts/<id>/`), its API, the NAS API proxy, the web interface proxy, downloads and uploads of the file browser, events (long poll), path → NAS path for the file manager menus |
 | `internal/engine/` | Sync engine: local scan, NAS change feed, three-way plan (local / NAS / last synchronized state), transfers with resume, moves, conflicts, deletion brake |
-| `internal/api/` | Client of the Sync API, certificate pinning (same rules as the Android app) |
-| `internal/e2e/` | End-to-end encryption of folders: header (Argon2id, wrapped master key), recovery key, names, chunked contents (below) |
-| `internal/app/` | Ties settings, client and engine together; the settings page (`web/`, served on 127.0.0.1 with a per-launch token) |
-| `internal/tray/`, `internal/platform/`, `internal/trash/` | Tray icon and menu; opening folders, notifications, start at login per system; the system trash |
-| `internal/i18n/catalog/` | Texts, one JSON file per language (`en`, `fr`; add `de.json`… with the same keys: a missing key shows in English) |
-| `internal/mdns/` | LAN discovery of `_strataos._tcp` |
-| `packaging/` | `build.sh linux|windows|macos`, the WiX source of the `.msi` (`windows/`), the macOS `Info.plist` |
+| `internal/api/` | Client of the NAS (Sync API, uploads, pairing), certificate pinning (same rules as the Android app) |
+| `internal/e2e/` | End-to-end encryption of folders (below) |
+| `internal/app/` | One account: settings, client and engine together (used by the agent and by the headless commands) |
+| `internal/platform/`, `internal/trash/`, `internal/mdns/` | Opening folders, the legacy autostart entry; the system trash; LAN discovery of `_strataos._tcp` |
+| `internal/i18n/catalog/` | Texts of the engine (notifications, errors, sync screens), one JSON per language, also read by the window (`tk("state.paused")`) |
+| `internal/icon/`, `cmd/mkicons/` | The icon drawn in code; `go run ./cmd/mkicons app/src-tauri/icons` writes the app and tray icons |
+| `app/src-tauri/` | Shell: `lib.rs` (plugins: single instance, deep link `strataos://`, notification, dialog, opener, clipboard, process, updater, autostart; tray; commands), `agent.rs` (starts the sidecar with a new token, reads its port, restarts it), `integration.rs` (file manager menus), `logic.rs` (pure, unit tested) |
+| `app/src/` | Window: `lib/agent.ts` (calls to the agent), `lib/nasapi.ts` (the NAS API of the current account), `lib/state.tsx` (accounts, events, NAS notification feed), `lib/shell.ts` (tray, outside actions), `pages/` (one per area), `i18n/<lang>.json` |
+| `packaging/` | `build.sh app` (the app of this system), `build.sh cli` (the headless engine), `build.sh latest-json` (the updater manifest) |
+
+**Agent API.** The shell creates a random token at each launch and passes it in `STRATAOS_AGENT_TOKEN`; the agent listens on a free port of `127.0.0.1`, prints `{"agent":1,"port":N}` and quits when its standard input closes (the shell quit or died). Every call needs `Authorization: Bearer <token>` (pictures and videos the webview loads by itself: `?st=<token>`, GET only), the host `127.0.0.1` (no DNS rebinding) and, from a browser, the origin of the app's window (`tauri://localhost`, `http(s)://tauri.localhost`; CORS for those only). The window never sees a device token: `/v1/accounts/{id}/nas/api/…` forwards to the NAS with the account's device token and pinned certificate, passing only a few request headers (no cookies, no origin) and no `Set-Cookie` back. Routes: `GET /v1/state`, `GET /v1/events?after=&wait=`, `POST /v1/probe`, `/v1/discover`, `/v1/accounts` (pair; into a free main account or a new one), `/v1/accounts/{id}/signout`, `…/remote/shares`, `…/remote/list`, `…/pairs` (`POST`, `PUT`/`DELETE /{pair}`, `/recovery`, `/passphrase`), `…/settings`, `…/pause`, `…/sync-now`, `…/brake`, `…/web`, `…/download`, `…/upload`, `GET /v1/transfers`, `DELETE /v1/transfers/{id}`, `/v1/transfers/clear`, `/v1/resolve`, `/v1/open`, `/v1/pause`, `/v1/sync-now`, `/v1/settings` (language).
+
+**Web interface window.** `POST …/web {path}` starts (once per account) a reverse proxy on another free port and returns a one-time address (a minute). Opening it, the agent trades the device token for a web session (`POST /api/mobile/websession`, like the Android app), keeps the session cookie itself and gives the webview only a cookie for the proxy (named after its port: cookies do not separate ports). The proxy rewrites `Host`, `Origin` and `Referer` to the NAS address (its CSRF check), strips `Set-Cookie` and HSTS, and forwards websockets (consoles). The shell's `open_web_window` only opens `http://127.0.0.1:<port>` addresses, and those windows get no Tauri permission (the capability names the main window only).
+
+**Sharing code with the web interface.** The window imports from `frontend/src` (alias `@nas`): the design tokens (`index.css`), `components/ui.tsx`, the share link fields, `lib/jobs.tsx`, `lib/hooks.ts`, `lib/format.ts`, `lib/types.ts` and the translations (`lib/i18n.ts` and its dictionaries). A Vite plugin (`vite.config.ts`) replaces their `lib/api.ts` with `src/lib/nasapi.ts`, which sends the same calls to the current NAS through the agent; `resolve.dedupe` and the `paths` of `tsconfig.json` keep one copy of React and the other libraries. The app's texts are English in `t("…")`: `src/i18n/<lang>.json` first, then the web interface's dictionaries; `node scripts/i18n-check.mjs` lists the missing ones (CI fails on French).
+
+**Updates of the app**: Tauri's updater (minisign signatures, public key in `tauri.conf.json`), chosen over the Android approach (`SHA256SUMS`) because it also installs each format properly (NSIS/MSI, the `.app`, AppImage, `.deb` with pkexec) and signs every package, not a checksum list fetched from the same place. The release publishes `latest.json` (`build.sh latest-json`, from the `.sig` files). The private key is `desktop/app/keys/updater.key` with its password in `updater.password` (ignored by git, generated once with `npx tauri signer generate`): **keep a copy outside the repository**, and give them to GitHub Actions as the secrets `TAURI_SIGNING_PRIVATE_KEY` (the file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Without them the release still builds the packages, unsigned for the updater, and no `latest.json`.
+
+### Building
+
+Requirements: Go, Node ≥ 20, Rust (stable) and, on Linux, `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev`.
 
 ```bash
 cd desktop
-go test ./...                                   # engine (fake NAS), pinning, settings server, catalogs, trash
-go run ./cmd/strataos-sync --config /tmp/s      # tray app with a throwaway configuration
-GOOS=windows go build ./cmd/strataos-sync       # cross-compiling checks (macOS: CGO_ENABLED=0, no tray)
-../desktop/packaging/build.sh linux             # dist/strataos-sync-<version>-linux-{amd64,arm64}.deb, -linux-amd64.tar.gz
+go test ./...                                   # engine (fake NAS), agent (auth, proxies, web session, resolve), pinning, catalogs, trash
+cd app && npm ci
+npx tsc -b && node scripts/i18n-check.mjs       # window types, translations
+scripts/sidecar.sh                              # the engine as src-tauri/binaries/strataos-sync-<triple>
+npx tauri dev                                   # the app, window from Vite (agent with STRATAOS_AGENT_DEV=1: Vite's origin allowed)
+(cd src-tauri && cargo test)                    # shell logic
+../packaging/build.sh app                       # dist/strataos-sync-<version>-<system>-…
+scripts/docker-build.sh --bundles deb,appimage  # Linux without Rust here: in Docker (docker/Dockerfile)
 ```
 
-`.msi` (WiX 4+, `packaging/windows/build-msi.sh`) and `.dmg` (`build.sh macos`) are built on Windows and macOS runners by `ci.yml` and `release.yml` (jobs `desktop-*`, whose files the release job downloads and publishes). End-to-end test: `vm/e2e.d/97-desktop-sync.sh` (builds the client with Go on the host).
+`STRATAOS_CONFIG_DIR` points the app to another settings folder (tests). `.github/workflows/ci.yml` (job `desktop`) runs the Go, TypeScript and Rust checks and builds the Linux packages; `desktop-macos` and `desktop-windows` build theirs; `release.yml` builds Linux (amd64 and arm64 runners), macOS (universal) and Windows, then the release job adds `latest.json` and the checksums. End-to-end tests: `vm/e2e.d/97-desktop-sync.sh` and `97c-sync-e2e.sh` (the engine headless), `97d-desktop-agent.sh` (the agent: proxies, web session, transfers, resolve).
+
+**Release files**: the names stay `strataos-sync-<version>-…`: `-windows-x64-setup.exe` (NSIS, per user) and `-windows-x64.msi` (per machine), `-macos.dmg` (universal) and `-macos.app.tar.gz` (updater), `-linux-<arch>.deb` and `.AppImage`, and the headless engine as `-linux-<arch>.tar.gz` and `-windows-x64.zip`. The former per-user `.msi` of 0.10 is gone (no upgrade path from it: the new installer lives next to it, see the guide).
 
 ### Sync API
 
