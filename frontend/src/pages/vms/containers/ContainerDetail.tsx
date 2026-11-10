@@ -9,12 +9,13 @@ import { AreaChart } from "../../../components/charts";
 import { Terminal } from "../../../components/Terminal";
 import { tr } from "../../../lib/i18n";
 import { StorageSelect } from "../panels";
+import { GuestFirewall } from "../../system/firewall/GuestFirewall";
 import type { Container, LXCArchive, LXCMount, LXCSettings, LXCSnapshot, LXCStats } from "./types";
 import { settingsOf } from "./types";
 import { backendLabel, lxcState, memLabel, useLXCAction } from "./ContainerCard";
 import { FeatureFields, MountFields, NetworkFields } from "./CreateContainer";
 
-export type DetailTab = "summary" | "console" | "resources" | "network" | "mounts" | "snapshots" | "backups" | "options";
+export type DetailTab = "summary" | "console" | "resources" | "network" | "mounts" | "snapshots" | "backups" | "options" | "firewall";
 const enc = encodeURIComponent;
 
 /** Detail page of a container, inside the Virtual machines app. */
@@ -22,7 +23,7 @@ export function ContainerDetail({ name, bridges, tab, setTab, onBack }: { name: 
   const q = useQuery({ queryKey: ["lxc", name], queryFn: () => api.get<Container>(`/api/lxc/${enc(name)}`), refetchInterval: 3000 });
   const c = q.data;
   const tabs: { id: DetailTab; label: string }[] = [
-    { id: "summary", label: tr("Summary") }, { id: "console", label: tr("Console") }, { id: "resources", label: tr("Resources") }, { id: "network", label: tr("Network") },
+    { id: "summary", label: tr("Summary") }, { id: "console", label: tr("Console") }, { id: "resources", label: tr("Resources") }, { id: "network", label: tr("Network") }, { id: "firewall", label: tr("Firewall") },
     { id: "mounts", label: tr("Shared folders") }, { id: "snapshots", label: tr("Snapshots") }, { id: "backups", label: tr("Backups") }, { id: "options", label: tr("Options") },
   ];
   const [label, tone] = c ? lxcState[c.state] ?? [c.state, "neutral"] : ["", "neutral"];
@@ -46,6 +47,7 @@ export function ContainerDetail({ name, bridges, tab, setTab, onBack }: { name: 
           {tab === "console" && <ConsoleTab c={c} />}
           {tab === "resources" && <Resources c={c} />}
           {tab === "network" && <NetworkTab c={c} bridges={bridges} />}
+          {tab === "firewall" && <GuestFirewall kind="lxc" name={c.name} />}
           {tab === "mounts" && <MountsTab c={c} />}
           {tab === "snapshots" && <SnapshotsTab c={c} />}
           {tab === "backups" && <BackupsTab c={c} />}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useBridgeLabel } from "../../system/firewall/useVNets";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Check, FileInput, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { api } from "../../../lib/api";
@@ -27,6 +28,7 @@ export const backendHint: Record<string, string> = {
 /** Network settings, shared by the wizard and the Network tab. */
 export function NetworkFields({ n, set, bridges }: { n: LXCNetwork; set: (n: LXCNetwork) => void; bridges: string[] }) {
   const [dns, setDns] = useState((n.dns ?? []).join(" "));
+  const bridgeLabel = useBridgeLabel();
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label={tr("Network")} className="sm:col-span-2">
@@ -35,7 +37,7 @@ export function NetworkFields({ n, set, bridges }: { n: LXCNetwork; set: (n: LXC
           set(v.startsWith("bridge:") ? { ...n, mode: "bridge", bridge: v.slice(7) } : { ...n, mode: v as LXCNetwork["mode"], bridge: "" });
         }}>
           <option value="nat">{tr("NAT (private network behind the NAS)")}</option>
-          {bridges.map((b) => <option key={b} value={`bridge:${b}`}>{tr("Bridge")}{" "}{b} {" "}{tr("(on the local network)")}</option>)}
+          {bridges.map((b) => <option key={b} value={`bridge:${b}`}>{bridgeLabel(b)}</option>)}
           <option value="none">{tr("No network")}</option>
         </Select>
       </Field>
