@@ -110,10 +110,7 @@ func (s *Server) systemRoutes() {
 		return j, nil
 	})
 	s.admin("POST /api/jobs/{id}/cancel", func(r *http.Request) (any, error) {
-		if !s.jobs.Cancel(r.PathValue("id")) {
-			return nil, notFound("job not found")
-		}
-		return nil, nil
+		return nil, s.cancelJob(r, r.PathValue("id"))
 	})
 
 	s.admin("GET /api/system/updates", func(r *http.Request) (any, error) {

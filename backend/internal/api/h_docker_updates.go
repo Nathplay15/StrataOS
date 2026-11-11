@@ -534,6 +534,7 @@ func (s *Server) dockerUpdateRoutes() {
 			return nil, busy
 		}
 		return s.jobs.Start("docker", "Check for container updates", userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.SetCancellable(true, "")
 			defer dockerUpdating.Unlock()
 			list, err := s.checkDockerUpdates(ctx, j.Logf)
 			if err != nil {

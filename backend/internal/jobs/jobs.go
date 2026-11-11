@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,6 +19,8 @@ const (
 	Running Status = "running"
 	Success Status = "success"
 	Failed  Status = "failed"
+	// Cancelled: stopped by an administrator (not an error of the task).
+	Cancelled Status = "cancelled"
 )
 
 const maxLog = 64 * 1024
@@ -33,8 +36,13 @@ type Job struct {
 	Error    string     `json:"error,omitempty"`
 	Started  time.Time  `json:"started"`
 	Finished *time.Time `json:"finished,omitempty"`
-	log      strings.Builder
-	cancel   context.CancelFunc
+	// Cancellable says whether an administrator may stop the job now;
+	// CancelReason explains why not (English, translated by the UI).
+	Cancellable  bool   `json:"cancellable"`
+	CancelReason string `json:"cancelReason,omitempty"`
+	CancelledBy  string `json:"cancelledBy,omitempty"`
+	log          strings.Builder
+	cancel       context.CancelFunc
 }
 
 // Snapshot is a lock-free copy suitable for JSON encoding.
@@ -49,6 +57,10 @@ type Snapshot struct {
 	Started  time.Time  `json:"started"`
 	Finished *time.Time `json:"finished,omitempty"`
 	Log      string     `json:"log,omitempty"`
+
+	Cancellable  bool   `json:"cancellable"`
+	CancelReason string `json:"cancelReason,omitempty"`
+	CancelledBy  string `json:"cancelledBy,omitempty"`
 }
 
 // Write appends to the job log (implements io.Writer).
@@ -71,10 +83,29 @@ func (j *Job) SetProgress(p float64) {
 	j.mu.Unlock()
 }
 
+// SetCancellable changes whether the job may be stopped, for jobs whose
+// phases differ (a copy can stop, a RAID rebuild cannot).
+func (j *Job) SetCancellable(ok bool, reason string) {
+	j.mu.Lock()
+	j.Cancellable, j.CancelReason = ok, ""
+	if !ok {
+		j.CancelReason = reason
+	}
+	j.mu.Unlock()
+}
+
+// Cancelled reports whether an administrator stopped the job (and who).
+func (j *Job) Cancelled() (string, bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.CancelledBy, j.CancelledBy != ""
+}
+
 func (j *Job) snapshot(withLog bool) Snapshot {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	s := Snapshot{ID: j.ID, Type: j.Type, Title: j.Title, User: j.User, Status: j.Status, Progress: j.Progress, Error: j.Error, Started: j.Started, Finished: j.Finished}
+	s := Snapshot{ID: j.ID, Type: j.Type, Title: j.Title, User: j.User, Status: j.Status, Progress: j.Progress, Error: j.Error, Started: j.Started, Finished: j.Finished,
+		Cancellable: j.Cancellable && j.Status == Running, CancelReason: j.CancelReason, CancelledBy: j.CancelledBy}
 	if withLog {
 		s.Log = j.log.String()
 	}
@@ -86,7 +117,21 @@ type Manager struct {
 	jobs map[string]*Job
 	// OnFinish is called after each job completes.
 	OnFinish func(Snapshot)
+	// Policy says whether jobs of a type may be stopped by an administrator,
+	// and why not (nil: every job can be stopped).
+	Policy func(typ string) (bool, string)
 }
+
+// Errors of Cancel.
+var (
+	ErrNotFound = errors.New("job not found")
+	ErrFinished = errors.New("this task has already finished")
+)
+
+// NotCancellable is returned by Cancel for a job that must not be stopped.
+type NotCancellable struct{ Reason string }
+
+func (e *NotCancellable) Error() string { return e.Reason }
 
 func NewManager() *Manager {
 	return &Manager{jobs: map[string]*Job{}}
@@ -101,7 +146,11 @@ func newID() string {
 // Start launches fn in a goroutine and returns the job immediately.
 func (m *Manager) Start(typ, title, user string, fn func(ctx context.Context, j *Job) error) Snapshot {
 	ctx, cancel := context.WithCancel(context.Background())
-	j := &Job{ID: newID(), Type: typ, Title: title, User: user, Status: Running, Progress: -1, Started: time.Now(), cancel: cancel}
+	j := &Job{ID: newID(), Type: typ, Title: title, User: user, Status: Running, Progress: -1, Started: time.Now(), cancel: cancel, Cancellable: true}
+	if m.Policy != nil {
+		ok, reason := m.Policy(typ)
+		j.SetCancellable(ok, reason)
+	}
 	m.mu.Lock()
 	m.jobs[j.ID] = j
 	m.gcLocked()
@@ -120,7 +169,13 @@ func (m *Manager) Start(typ, title, user string, fn func(ctx context.Context, j 
 		now := time.Now()
 		j.mu.Lock()
 		j.Finished = &now
-		if err != nil {
+		if by := j.CancelledBy; by != "" && (err != nil || ctx.Err() != nil) {
+			j.Status = Cancelled
+			j.Error = ""
+			if j.log.Len() < maxLog {
+				j.log.WriteString("Stopped by " + by + "\n")
+			}
+		} else if err != nil {
 			j.Status = Failed
 			j.Error = err.Error()
 		} else {
@@ -158,6 +213,19 @@ func (m *Manager) List() []Snapshot {
 	return out
 }
 
+// Running reports whether a job exists and is still running.
+func (m *Manager) Running(id string) bool {
+	m.mu.Lock()
+	j, ok := m.jobs[id]
+	m.mu.Unlock()
+	if !ok {
+		return false
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.Status == Running
+}
+
 func (m *Manager) Get(id string) (Snapshot, bool) {
 	m.mu.Lock()
 	j, ok := m.jobs[id]
@@ -168,7 +236,43 @@ func (m *Manager) Get(id string) (Snapshot, bool) {
 	return j.snapshot(true), true
 }
 
-func (m *Manager) Cancel(id string) bool {
+// Cancel stops a running job on behalf of user: its context is cancelled
+// (the commands it runs are terminated) and it ends with status Cancelled.
+func (m *Manager) Cancel(id, user string) error {
+	m.mu.Lock()
+	j, ok := m.jobs[id]
+	m.mu.Unlock()
+	if !ok {
+		return ErrNotFound
+	}
+	j.mu.Lock()
+	switch {
+	case j.Status != Running:
+		j.mu.Unlock()
+		return ErrFinished
+	case !j.Cancellable:
+		reason := j.CancelReason
+		j.mu.Unlock()
+		if reason == "" {
+			reason = "this task cannot be stopped"
+		}
+		return &NotCancellable{Reason: reason}
+	}
+	if user == "" {
+		user = "an administrator"
+	}
+	if j.CancelledBy == "" {
+		j.CancelledBy = user
+	}
+	j.mu.Unlock()
+	j.cancel()
+	return nil
+}
+
+// Abort cancels a job whatever its policy, for StrataOS itself (a transfer
+// or migration cancelled through its own flow). It reports whether the job
+// exists; the job ends as failed unless it was also cancelled by a user.
+func (m *Manager) Abort(id string) bool {
 	m.mu.Lock()
 	j, ok := m.jobs[id]
 	m.mu.Unlock()

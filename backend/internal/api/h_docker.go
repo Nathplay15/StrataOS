@@ -171,6 +171,7 @@ func (s *Server) dockerRoutes() {
 			return nil, badRequest("invalid image name")
 		}
 		return s.jobs.Start("docker", "Pull "+req.Image, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.SetCancellable(true, "") // a pull stops cleanly (layers already fetched are kept)
 			return s.docker.Pull(ctx, req.Image, func(line string, pct float64) {
 				if line != "" {
 					j.Logf("%s", line)

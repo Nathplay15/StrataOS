@@ -1,0 +1,19 @@
+[
+  ["Arrêté par {0}", "Stopped by {0}"],
+  ["{0} : arrêté par {1}", "{0}: stopped by {1}"],
+  ["Tâche {0} arrêtée", "Stopped the task {0}"],
+  ["cette tâche est déjà terminée", "this task has already finished"],
+  ["cette tâche ne peut pas être arrêtée", "this task cannot be stopped"],
+  ["un administrateur", "an administrator"],
+  ["Une mise à jour ne peut pas être arrêtée : interrompre le gestionnaire de paquets pourrait laisser le système hors d'usage", "An update cannot be stopped: interrupting the package manager could leave the system broken"],
+  ["L'installation ou la suppression d'un composant ne peut pas être arrêtée : interrompre le gestionnaire de paquets pourrait laisser le système hors d'usage", "Installing or removing a component cannot be stopped: interrupting the package manager could leave the system broken"],
+  ["Le changement de noyau ne peut pas être arrêté : le NAS pourrait ne plus démarrer", "Changing the kernel cannot be stopped: the NAS could fail to start"],
+  ["Une opération de stockage ne peut pas être arrêtée en cours de route : les disques pourraient rester dans un état incohérent", "A storage operation cannot be stopped half-way: the disks could be left in an inconsistent state"],
+  ["Arrêter maintenant pourrait laisser la machine virtuelle, le conteneur ou l'application à moitié créé : attendez la fin, puis supprimez-le si besoin", "Stopping now could leave the virtual machine, container or app half created: wait for the end, then delete it if needed"],
+  ["Cette opération s'annule depuis sa propre page", "This operation is cancelled from its own page"],
+  ["Cette tâche ne peut pas être arrêtée sans risque : attendez qu'elle se termine", "This task cannot be stopped safely: wait for it to finish"],
+  ["Le nouveau disque est en cours d'ajout et la grappe RAID se reconstruit : une reconstruction ne peut pas être arrêtée (elle continue en arrière-plan)", "The new disk is being added and the RAID rebuilt: a rebuild cannot be stopped (it goes on in the background)"],
+  ["Les fichiers sont en train d'être remis en place : arrêter maintenant laisserait le dossier à moitié restauré", "Files are being put back in place: stopping now would leave the folder half restored"],
+  ["Verrou du dépôt supprimé", "Repository lock removed"],
+  ["attention : impossible de supprimer le verrou du dépôt : {0}", "warning: could not remove the repository lock: {0}"]
+]

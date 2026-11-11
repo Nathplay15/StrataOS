@@ -484,6 +484,8 @@ func (s *Server) vmMoreRoutes() {
 			msg, err := backup.RestoreVM(ctx, t, req.VM, req.Snapshot, req.RestoreReq, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 			if err == nil {
 				j.Logf("%s", msg)
+			} else if ctx.Err() != nil && t.Kind == "restic" {
+				backup.Unlock(t, j.Logf)
 			}
 			return err
 		}), nil

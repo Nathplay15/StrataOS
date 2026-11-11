@@ -8,6 +8,7 @@ import type { Job } from "../../lib/types";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Notice, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, srv, locale } from "../../lib/i18n";
 import { TrialModal, type Pending } from "./Network";
+import { StopJobButton } from "../../components/StopJob";
 
 type Item = { key: string; name: string; action: "create" | "update" | "same" | "skip" | "report"; detail?: string; changes?: string[] };
 type Section = { id: string; items: Item[] };
@@ -112,7 +113,8 @@ export function JobLog({ id, onEnd, label }: { id: string; onEnd: (j: Job) => vo
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-[13px]">
-        {data.status === "running" ? <Spinner label={label ?? tr("Importing…")} /> : data.status === "success" ? <Badge tone="ok">{tr("Completed")}</Badge> : <Badge tone="danger">{srv(data.error) || tr("failed")}</Badge>}
+        {data.status === "running" ? <Spinner label={label ?? tr("Importing…")} /> : data.status === "success" ? <Badge tone="ok">{tr("Completed")}</Badge> : data.status === "cancelled" ? <Badge tone="warn">{tr("Stopped by {0}", data.cancelledBy ?? "")}</Badge> : <Badge tone="danger">{srv(data.error) || tr("failed")}</Badge>}
+        {data.status === "running" && <StopJobButton job={data} className="ml-auto" />}
       </div>
       <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[11.5px]">{data.log ?? ""}</pre>
     </div>
