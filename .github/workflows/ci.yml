@@ -157,6 +157,8 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
           rustup component add rustfmt clippy
           (cd desktop/app && npx vite build)
+          # The shell bundles the sync engine: build it before compiling the shell.
+          desktop/app/scripts/sidecar.sh
           (cd desktop/app/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
           desktop/packaging/build.sh app
           desktop/packaging/build.sh cli
@@ -208,6 +210,7 @@ jobs:
         run: |
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
           (cd desktop/app && npm ci --no-audit --no-fund && npx vite build)
+          desktop/app/scripts/sidecar.sh
           (cd desktop/app/src-tauri && cargo test)
           .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7

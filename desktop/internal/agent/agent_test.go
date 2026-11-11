@@ -55,13 +55,17 @@ func newFakeNAS(t *testing.T) *fakeNAS {
 	return f
 }
 
-func (f *fakeNAS) last() *http.Request {
+// lastTo is the latest request to path: the agent's own background calls
+// (device check, events) may come after the one a test made.
+func (f *fakeNAS) lastTo(path string) *http.Request {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.seen) == 0 {
-		return nil
+	for i := len(f.seen) - 1; i >= 0; i-- {
+		if f.seen[i].URL.Path == path {
+			return f.seen[i]
+		}
 	}
-	return f.seen[len(f.seen)-1]
+	return nil
 }
 
 // newTestAgent runs an agent whose main account is paired with nas.
@@ -154,8 +158,8 @@ func TestNASProxy(t *testing.T) {
 	if r.Header.Get("Set-Cookie") != "" {
 		t.Fatal("cookie of the NAS passed to the window")
 	}
-	seen := nas.last()
-	if seen.URL.Path != "/api/files" || seen.URL.Query().Get("path") != "/srv" || seen.URL.Query().Has("st") {
+	seen := nas.lastTo("/api/files")
+	if seen == nil || seen.URL.Query().Get("path") != "/srv" || seen.URL.Query().Has("st") {
 		t.Fatalf("request: %v", seen.URL)
 	}
 	if seen.Header.Get("Authorization") != "Bearer stdev_x" || seen.Header.Get("Origin") != "" || seen.Header.Get("X-Strata") != "1" {
@@ -207,7 +211,10 @@ func TestWebProxy(t *testing.T) {
 	if r.Header.Get("Set-Cookie") != "" {
 		t.Fatal("NAS cookie passed to the webview")
 	}
-	seen := nas.last()
+	seen := nas.lastTo("/api/x")
+	if seen == nil {
+		t.Fatal("request not proxied")
+	}
 	if c, err := seen.Cookie("strata_session"); err != nil || c.Value != "sess1" {
 		t.Fatalf("session not attached: %v", seen.Header)
 	}
