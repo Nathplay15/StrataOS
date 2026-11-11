@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Sparkles, ChevronLeft, ChevronRight, Copy, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
@@ -10,6 +10,8 @@ import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, P
 import { ShareLinkModal } from "../components/ShareLinkModal";
 import { CastButton } from "../components/Cast";
 import { locale, tr } from "../lib/i18n";
+import { tagLabel, tagOf } from "../lib/photoTags";
+import { Memories, PeopleView, PersonTools, PlacesView, SmartProgress, SmartSettings, ThingsView, placeLabel, useSmart, type Filter, type Memory, type Person } from "./photos/Smart";
 
 type Item = { path: string; date: number; mtime: number; size: number; video?: boolean };
 type Album = { id: string; name: string; count: number; cover?: string; created: string; shared: boolean };
@@ -191,19 +193,41 @@ function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
 export default function Photos({ me }: { me: Me }) {
   const admin = me.role === "admin";
   const { confirm } = useUI();
-  const [tab, setTab] = useState<"all" | "albums" | "dupes">("all");
+  const [tab, setTab] = useState<"all" | "albums" | "dupes" | "people" | "places" | "things">("all");
   const [album, setAlbum] = useState<Album | null>(null);
+  // A person, a thing or a place chosen in the smart views; a memory.
+  const [filter, setFilter] = useState<Filter | null>(null);
+  const [person, setPerson] = useState<Person | null>(null);
+  const [memory, setMemory] = useState<Memory | null>(null);
+  const smart = useSmart();
+  const [smartSettings, setSmartSettings] = useState(false);
+  const smartSearch = !!smart.data?.objects && !album && !filter;
   const [search, setSearch] = useState("");
   const [qText, setQText] = useState("");
   useEffect(() => { const t = setTimeout(() => setQText(search.trim()), 350); return () => clearTimeout(t); }, [search]);
   const [limit, setLimit] = useState(PAGE);
-  const showGrid = tab === "all" || !!album;
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["photos", limit, album?.id ?? "", album ? "" : qText],
-    queryFn: () => api.get<Page>(`/api/photos${q({ offset: 0, limit, album: album?.id, q: album ? undefined : qText })}`),
+  const showGrid = tab === "all" || !!album || !!filter || !!memory;
+  const searching = smartSearch && !!qText && tab === "all" && !memory;
+  const fq = filter ? { [filter.kind]: filter.id } : {};
+  const timeline = useQuery({
+    queryKey: ["photos", limit, album?.id ?? "", album || filter ? "" : qText, filter?.kind ?? "", filter?.id ?? ""],
+    queryFn: () => api.get<Page>(`/api/photos${q({ offset: 0, limit, album: album?.id, q: album || filter ? undefined : qText, ...fq })}`),
     refetchInterval: (d) => (d.state.data?.running ? 4000 : 60000),
-    enabled: showGrid,
+    enabled: showGrid && !searching && !memory,
   });
+  // Search by description, tags and names (smart features on): best first.
+  const found = useQuery({
+    queryKey: ["photo-search", qText],
+    queryFn: () => api.get<{ items: Item[] }>(`/api/photos/search${q({ q: tagOf(qText) ?? qText })}`),
+    enabled: searching,
+  });
+  const data: Page | undefined = memory
+    ? { installed: true, total: memory.items.length, items: memory.items, running: false, updated: "" }
+    : searching
+      ? found.data && { installed: true, total: found.data.items.length, items: found.data.items, running: false, updated: "", folders: timeline.data?.folders }
+      : timeline.data;
+  const isLoading = memory ? false : searching ? found.isLoading : timeline.isLoading;
+  const error = searching ? found.error : timeline.error;
   const install = useAction(() => api.post("/api/system/components/photos/install"));
   const reindex = useAction(() => api.post("/api/photos/reindex"));
   const [folders, setFolders] = useState(false);
@@ -219,7 +243,8 @@ export default function Photos({ me }: { me: Me }) {
   const items = useMemo(() => data?.items ?? [], [data]);
   const more = data && items.length < data.total;
 
-  useEffect(() => { setSelected(null); setLimit(PAGE); }, [tab, album?.id, qText]);
+  useEffect(() => { setSelected(null); setLimit(PAGE); }, [tab, album?.id, qText, filter?.id, memory?.year]);
+  const back = () => { setFilter(null); setPerson(null); setMemory(null); };
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !more) return;
@@ -229,6 +254,7 @@ export default function Photos({ me }: { me: Me }) {
   }, [more, items.length]);
 
   const groups = useMemo(() => {
+    if (searching) return items.length ? [{ label: tr("Best matches"), start: 0, items }] : [];
     const fmt = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" });
     const out: { label: string; start: number; items: Item[] }[] = [];
     items.forEach((it, i) => {
@@ -237,29 +263,37 @@ export default function Photos({ me }: { me: Me }) {
       out[out.length - 1].items.push(it);
     });
     return out;
-  }, [items]);
+  }, [items, searching]);
   const onIndex = useCallback((i: number) => setOpen(i), []);
   const toggle = (p: string) => setSelected((s) => (s ? (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]) : [p]));
 
-  const header = <PageHeader title={album ? album.name : tr("Photos")} subtitle={data && showGrid ? tr("{0} photos and videos", data.total) : undefined} icon={<Images size={20} />} actions={<>
+  const title = album ? album.name : memory ? (memory.yearsAgo === 1 ? tr("1 year ago") : tr("{0} years ago", memory.yearsAgo)) : filter ? filter.label : tr("Photos");
+  const header = <PageHeader title={title} subtitle={data && showGrid ? tr("{0} photos and videos", data.total) : undefined} icon={<Images size={20} />} actions={<>
     {album && <>
       <Button size="sm" icon={<ArrowLeft size={14} />} onClick={() => setAlbum(null)}>{tr("Albums")}</Button>
       <Button size="sm" icon={<Link2 size={14} />} onClick={() => setSharing(true)}>{tr("Share")}</Button>
       <Button size="sm" icon={<Pencil size={14} />} onClick={() => setRenaming(album.name)} title={tr("Rename")} />
       <Button size="sm" icon={<Trash2 size={14} />} title={tr("Delete album")} onClick={async () => { if (await confirm({ title: tr("Delete album?"), text: tr("Photos stay in their folders; only the album and its share links are deleted."), danger: true })) delAlbum.mutate(); }} />
     </>}
-    {!album && admin && data && tab === "all" && <>
+    {(filter || memory) && <>
+      <Button size="sm" icon={<ArrowLeft size={14} />} onClick={back}>{tr("Back")}</Button>
+      {person && <PersonTools person={person} onGone={() => { back(); }} />}
+    </>}
+    {!album && !filter && !memory && admin && (data || tab !== "all") && <Button size="sm" icon={<Sparkles size={14} />} onClick={() => setSmartSettings(true)}>{tr("Smart features")}</Button>}
+    {!album && !filter && !memory && admin && data && tab === "all" && <>
       <Button size="sm" icon={<RefreshCcw size={14} />} loading={reindex.isPending || data.running} onClick={() => reindex.mutate()}>{data.running ? tr("Indexing…") : tr("Reindex")}</Button>
       <Button size="sm" icon={<Settings2 size={14} />} onClick={() => setFolders(true)}>{tr("Folders")}</Button>
     </>}
   </>} />;
 
-  const tabs = !album && (
+  const tabList = (["all", "albums", ...(smart.data?.faces ? ["people" as const] : []), "places", ...(smart.data?.objects ? ["things" as const] : []), "dupes"] as const);
+  const tabLabel = { all: tr("Timeline"), albums: tr("Albums"), people: tr("People"), places: tr("Places"), things: tr("Things"), dupes: tr("Duplicates") };
+  const tabs = !album && !filter && !memory && (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <div className="flex rounded-lg border border-line p-0.5 text-[13px]">
-        {(["all", "albums", "dupes"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{t === "all" ? tr("Timeline") : t === "albums" ? tr("Albums") : tr("Duplicates")}</button>)}
+      <div className="flex flex-wrap rounded-lg border border-line p-0.5 text-[13px]">
+        {tabList.map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{tabLabel[t]}</button>)}
       </div>
-      {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="!pl-8" placeholder={tr("Search for a folder or file")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
+      {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="!pl-8" placeholder={smartSearch ? tr("Search: dog, beach, car, a folder…") : tr("Search for a folder or file")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
     </div>
   );
 
@@ -276,6 +310,12 @@ export default function Photos({ me }: { me: Me }) {
     </div>
   );
 
+  const smartViews = !album && !filter && !memory && <>
+    {tab === "people" && <PeopleView onOpen={(p) => { setPerson(p); setFilter({ kind: "person", id: String(p.id), label: p.name || tr("Unnamed person") }); }} />}
+    {tab === "places" && <PlacesView onOpen={(p) => setFilter({ kind: "place", id: String(p.id), label: placeLabel(p) })} />}
+    {tab === "things" && <ThingsView onOpen={(t) => setFilter({ kind: "tag", id: t.tag, label: tagLabel(t.tag) })} />}
+  </>;
+  if (!showGrid) return <div>{header}{tabs}{smart.data && <SmartProgress s={smart.data} />}{smartViews}{smartSettings && <SmartSettings onClose={() => setSmartSettings(false)} />}</div>;
   if (showGrid && (isLoading || !data)) return <div>{header}{tabs}<ErrorBox error={error} /><Spinner /></div>;
   if (showGrid && data && !data.installed && admin) return <div>{header}<Card><Empty icon={<Plug />} title={tr("Thumbnail tools are not installed")} text={tr("libvips (with the iPhone HEIC format) and ffmpeg for videos.")} action={<Button variant="primary" loading={install.isPending} onClick={() => install.mutate()}>{tr("Install")}</Button>} /></Card></div>;
 
@@ -284,8 +324,9 @@ export default function Photos({ me }: { me: Me }) {
       {header}
       {tabs}
       <ErrorBox error={error} />
-      {tab === "albums" && !album && <AlbumsView onOpen={(a) => setAlbum(a)} />}
-      {tab === "dupes" && <DuplicatesView />}
+      {tab === "albums" && !album && !filter && <AlbumsView onOpen={(a) => setAlbum(a)} />}
+      {tab === "all" && !album && !filter && !memory && !qText && <>{smart.data && <SmartProgress s={smart.data} />}<Memories onOpen={setMemory} /></>}
+      {tab === "dupes" && !album && !filter && <DuplicatesView />}
       {showGrid && data && <>
         {!album && admin && data.folders?.length === 0 && <Card><Empty icon={<Images />} title={tr("No photo folders")} text={tr("Choose the shared folders that contain your photos.")} action={<Button variant="primary" onClick={() => setFolders(true)}>{tr("Choose folders")}</Button>} /></Card>}
         {data.total === 0 && !(admin && data.folders?.length === 0 && !album) && <Card><Empty icon={<Images />} title={album ? tr("Empty album") : qText ? tr("No results") : data.running ? tr("Indexing…") : tr("No photos")} text={album ? tr("Add photos from the timeline with \"Select\".") : qText ? undefined : tr("Drop photos into a photo folder (Files, SMB, WebDAV…); they appear here after indexing.")} /></Card>}
@@ -295,6 +336,7 @@ export default function Photos({ me }: { me: Me }) {
         {!admin && !album && data.total > 0 && <div className="mt-6"><Notice>{tr("To back up phone photos automatically, use a sync app (PhotoSync, FolderSync…) to WebDAV or SFTP, into a photo folder.")}</Notice></div>}
       </>}
       {open !== null && <Viewer items={items} index={open} onIndex={onIndex} onClose={() => setOpen(null)} />}
+      {smartSettings && <SmartSettings onClose={() => setSmartSettings(false)} />}
       {folders && <FoldersModal current={data?.folders ?? []} onClose={() => setFolders(false)} />}
       {adding && selected && <AddToAlbum items={selected} onClose={() => { setAdding(false); setSelected(null); }} />}
       {sharing && album && <ShareLinkModal album={album.id} name={album.name} onClose={() => setSharing(false)} />}
