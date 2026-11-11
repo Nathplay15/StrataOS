@@ -55,6 +55,9 @@ type syncEntry struct {
 	Hash    string `json:"hash,omitempty"`
 	ID      string `json:"id,omitempty"` // inode: the same file after a move
 	Deleted bool   `json:"deleted,omitempty"`
+	// E2E: the folder is end-to-end encrypted (files on demand of the
+	// desktop app leaves it out: names and contents are ciphertext).
+	E2E bool `json:"e2e,omitempty"`
 }
 
 func viewEntry(e syncjournal.Entry) syncEntry {
@@ -252,7 +255,7 @@ func (s *Server) syncRoutes() {
 	s.user("GET /api/sync/info", func(r *http.Request) (any, error) {
 		host, _ := hostname()
 		return map[string]any{"hostname": host, "version": s.version, "time": time.Now().UnixMilli(), "api": 1,
-			"features": []string{"changes", "longpoll", "hashes", "conditional-upload", "recycle", "e2e"}, "maxUpload": maxUploadSize}, nil
+			"features": []string{"changes", "longpoll", "hashes", "conditional-upload", "recycle", "e2e", "e2e-mark", "range"}, "maxUpload": maxUploadSize}, nil
 	})
 
 	// The shared folders the user may follow.
@@ -307,6 +310,7 @@ func (s *Server) syncRoutes() {
 				for i, c := range p.Changes {
 					out[i] = viewEntry(c)
 				}
+				markE2EDirs(f.abs, out)
 				return map[string]any{"cursor": p.Cursor, "reset": p.Reset, "more": p.More, "changes": out}, nil
 			}
 			select {
@@ -569,6 +573,24 @@ func (s *Server) syncRoutes() {
 	})
 
 	s.syncDeviceRoutes()
+}
+
+// markE2EDirs marks the encrypted folders of a page of changes (looked
+// up inside the followed folder only).
+func markE2EDirs(abs string, out []syncEntry) {
+	rt, err := os.OpenRoot(abs)
+	if err != nil {
+		return
+	}
+	defer rt.Close()
+	for i := range out {
+		if !out[i].Dir || out[i].Deleted {
+			continue
+		}
+		if fi, err := rt.Lstat(path.Join(out[i].Path, e2eMarker)); err == nil && fi.Mode().IsRegular() {
+			out[i].E2E = true
+		}
+	}
 }
 
 // inodeOf returns the inode number of a file (0 when unknown).

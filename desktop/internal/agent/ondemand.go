@@ -114,13 +114,31 @@ func (a *Agent) resolveOnDemand(p string, dir bool) (Resolved, bool) {
 	return Resolved{}, false
 }
 
-// publishFP gives the macOS extensions the agent's address and their token.
+// publishFP gives the macOS extensions the agent's address, their token
+// and the synchronized folders (Finder Sync menus), again when they change.
 func (a *Agent) publishFP(port int) {
+	a.mu.Lock()
+	if port == 0 {
+		port = a.fpPort
+	}
+	a.fpPort = port
+	a.mu.Unlock()
+	if port == 0 {
+		return
+	}
 	var folders []string
 	for _, x := range a.sorted() {
 		for _, pr := range x.app.Config().Pairs {
 			folders = append(folders, pr.Local)
 		}
+	}
+	key := strings.Join(folders, "\x00")
+	a.mu.Lock()
+	same := a.fpFolders == key && a.fpDone
+	a.fpFolders, a.fpDone = key, true
+	a.mu.Unlock()
+	if same {
+		return
 	}
 	if err := ondemand.PublishAgent(port, a.FPToken, folders); err != nil {
 		log.Printf("files on demand: %v", err)

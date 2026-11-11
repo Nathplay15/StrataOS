@@ -8,8 +8,10 @@
 //!   menu of the new style needs a packaged shell extension: not done).
 //! - Linux: a Nautilus (GNOME Files) script folder and a Dolphin (KDE)
 //!   service menu.
-//! - macOS: not done (it needs a Finder Sync extension, a separate signed
-//!   target).
+//! - macOS: the Finder Sync extension of the app (desktop/macos), always
+//!   installed with it; it opens strataos://share-link?path=… and
+//!   strataos://open-on-nas?path=… (logic::action_from_url). The user turns
+//!   it on in System Settings (Login Items & Extensions), not here.
 
 use serde::{Deserialize, Serialize};
 

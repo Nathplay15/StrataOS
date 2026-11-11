@@ -155,6 +155,12 @@ func (a *App) OnDemandStatus() OnDemandStatus {
 
 // SetOnDemand turns files on demand on or off, or changes its folder or cache.
 func (a *App) SetOnDemand(enabled *bool, path *string, cacheMB *int64) error {
+	if s, _ := a.OnDemand(); s != nil && (enabled != nil && !*enabled || path != nil) {
+		// The cache holds them: turning off would lose them.
+		if _, dirty := s.Counts(); dirty > 0 {
+			return &ErrNotSent{N: dirty}
+		}
+	}
 	_, err := a.update(func(c *config.Config) error {
 		od := config.OnDemand{}
 		if c.OnDemand != nil {
@@ -191,10 +197,31 @@ func (a *App) SetOnDemand(enabled *bool, path *string, cacheMB *int64) error {
 	}
 	a.mu.Lock()
 	a.stopOnDemandLocked()
-	if a.cfg.Paired() {
+	on := a.cfg.Paired() && a.cfg.OnDemand != nil && a.cfg.OnDemand.Enabled
+	if on {
 		a.startOnDemandLocked()
 	}
 	a.mu.Unlock()
+	if !on {
+		a.dropOnDemand()
+	}
 	go a.fire()
 	return nil
+}
+
+// dropOnDemand forgets what files on demand kept (off, or signed out): the
+// macOS domain and its downloads, the Linux cache. Windows: the window has
+// the shell unregister the sync root (its placeholders stay as files).
+func (a *App) dropOnDemand() {
+	if err := ondemand.RemoveDomain(a.Account); err != nil {
+		log.Printf("files on demand: remove domain: %v", err)
+	}
+	_ = os.RemoveAll(filepath.Join(a.Store.Dir, "ondemand"))
+}
+
+// ErrNotSent: files changed in the on-demand folder are not on the NAS yet.
+type ErrNotSent struct{ N int }
+
+func (e *ErrNotSent) Error() string {
+	return "files changed here are not on the NAS yet: wait for them to be sent"
 }

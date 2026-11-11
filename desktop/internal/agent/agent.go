@@ -57,8 +57,11 @@ type Agent struct {
 	enter    map[string]enterKey // one-time keys of the web interface windows
 	// FPToken: the token of the macOS File Provider and Finder Sync
 	// extensions (written in their app group folder), for /v1/fp/ only.
-	FPToken string
-	lang    string
+	FPToken   string
+	fpPort    int
+	fpFolders string
+	fpDone    bool
+	lang      string
 }
 
 type account struct {
@@ -103,7 +106,10 @@ func (a *Agent) load(id, dir string) error {
 	x.Account, x.Shell = id, true
 	acc := &account{id: id, app: x}
 	x.Notify = func(title, body string) { a.events.add(Event{Kind: "notify", Account: id, Title: title, Body: body}) }
-	x.OnChange(func() { a.events.add(Event{Kind: "changed", Account: id}) })
+	x.OnChange(func() {
+		a.events.add(Event{Kind: "changed", Account: id})
+		go a.publishFP(0) // the synchronized folders may have changed (Finder menus)
+	})
 	if err := x.Start(a.ctx); err != nil {
 		log.Printf("account %s: start: %v", id, err)
 	}

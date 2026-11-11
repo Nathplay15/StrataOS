@@ -58,11 +58,35 @@ pub fn actions_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<Action>
                     });
                 }
             }
-            _ if a.starts_with("strataos://") => out.push(Action::DeepLink { url: a }),
+            _ if a.starts_with("strataos://") => out.push(action_from_url(&a)),
             _ => {}
         }
     }
     out
+}
+
+/// Reads a strataos:// link: the Finder menu (macOS Finder Sync extension)
+/// opens strataos://share-link?path=… and strataos://open-on-nas?path=…;
+/// any other link goes to the window as it is (pairing links).
+pub fn action_from_url(u: &str) -> Action {
+    if let Ok(url) = url::Url::parse(u) {
+        let kind = url.host_str().unwrap_or_default();
+        if kind == "share-link" || kind == "open-on-nas" {
+            let path = url
+                .query_pairs()
+                .find(|(k, _)| k == "path")
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default();
+            if !path.is_empty() {
+                return if kind == "share-link" {
+                    Action::ShareLink { path }
+                } else {
+                    Action::OpenOnNas { path }
+                };
+            }
+        }
+    }
+    Action::DeepLink { url: u.to_string() }
 }
 
 /// Whether the app was started at login (hidden window).
@@ -163,6 +187,29 @@ mod tests {
         assert!(actions_from_args(args(&["strataos://pair"])).is_empty()); // the program name
         assert!(is_background(args(&["x", "--background"])));
         assert!(!is_background(args(&["x"])));
+    }
+
+    #[test]
+    fn finder_links() {
+        assert_eq!(
+            action_from_url("strataos://share-link?path=/Users/a/Sync/r%26d%2B1%20x.pdf"),
+            Action::ShareLink {
+                path: "/Users/a/Sync/r&d+1 x.pdf".into()
+            }
+        );
+        assert_eq!(
+            action_from_url("strataos://open-on-nas?path=/Users/a/Sync"),
+            Action::OpenOnNas {
+                path: "/Users/a/Sync".into()
+            }
+        );
+        for u in [
+            "strataos://share-link",
+            "strataos://share-link?path=",
+            "strataos://pair?code=1",
+        ] {
+            assert_eq!(action_from_url(u), Action::DeepLink { url: u.into() });
+        }
     }
 
     #[test]

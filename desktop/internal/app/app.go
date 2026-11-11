@@ -367,10 +367,11 @@ func (a *App) SignOut(ctx context.Context) error {
 	}
 	a.Stop()
 	_, err := a.update(func(c *config.Config) error {
-		c.Token, c.Pairs = "", nil
+		c.Token, c.Pairs, c.OnDemand = "", nil, nil
 		return nil
 	})
 	os.Remove(a.Store.StateFile())
+	a.dropOnDemand()
 	if err == nil {
 		err = a.restart()
 	}

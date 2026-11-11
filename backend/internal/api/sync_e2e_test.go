@@ -107,3 +107,20 @@ func TestE2EFolderReadOnly(t *testing.T) {
 		t.Errorf("plain client: %v", err)
 	}
 }
+
+// TestMarkE2EDirs: the change feed marks encrypted folders (files on demand
+// of the desktop app leaves them out).
+func TestMarkE2EDirs(t *testing.T) {
+	top := t.TempDir()
+	os.MkdirAll(filepath.Join(top, "a", "secret"), 0o755)
+	os.MkdirAll(filepath.Join(top, "plain"), 0o755)
+	os.WriteFile(filepath.Join(top, "a", "secret", e2eMarker), []byte("{}"), 0o644)
+	os.Symlink(filepath.Join(top, "a", "secret"), filepath.Join(top, "link"))
+	out := []syncEntry{{Path: "a", Dir: true}, {Path: "a/secret", Dir: true}, {Path: "plain", Dir: true}, {Path: "a/secret", Dir: true, Deleted: true}, {Path: "link", Dir: true}}
+	markE2EDirs(top, out)
+	for i, want := range []bool{false, true, false, false, false} {
+		if out[i].E2E != want {
+			t.Errorf("%s: e2e %v", out[i].Path, out[i].E2E)
+		}
+	}
+}
