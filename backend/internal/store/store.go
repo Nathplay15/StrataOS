@@ -710,6 +710,10 @@ type State struct {
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`
+	// SysDiskOps: mirroring of the system disk and moves of the system to
+	// another disk, newest last; SysBackups: system backups (store/sysdisk.go).
+	SysDiskOps []*SysDiskOp `json:"sysDiskOps,omitempty"`
+	SysBackups []*SysBackup `json:"sysBackups,omitempty"`
 
 	// Cluster of NAS and Ceph storage (store/cluster.go).
 	Cluster Cluster `json:"cluster,omitzero"`

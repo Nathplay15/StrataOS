@@ -1,0 +1,16 @@
+Template: strata/mirror-disks
+Type: multiselect
+Choices-C: ${DEVS}
+Choices: ${CHOICES}
+Description: The two system disks (mirror)
+ StrataOS is installed on both disks at once (RAID 1): the NAS keeps
+ starting and running when one of them fails.
+ .
+ Choose exactly two disks, ideally of the same size. Both are completely
+ erased. Data disks are added later from the web interface: do not select
+ them here.
+
+Template: strata/mirror-wrong
+Type: error
+Description: Choose two disks
+ The system mirror needs exactly two disks.
