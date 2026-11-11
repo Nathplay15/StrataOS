@@ -19,6 +19,7 @@ import (
 	"strataos-sync/internal/config"
 	"strataos-sync/internal/engine"
 	"strataos-sync/internal/i18n"
+	"strataos-sync/internal/ondemand"
 	"strataos-sync/internal/platform"
 	"strataos-sync/internal/ratelimit"
 	"strataos-sync/internal/trash"
@@ -33,6 +34,10 @@ type App struct {
 	// Manual: the engine makes no rounds by itself (commands such as
 	// sync-once drive it with SyncOnce).
 	Manual bool
+	// Account is the ID of the account in the agent (Windows sync root,
+	// macOS File Provider domain); Shell: run by the desktop app's shell.
+	Account string
+	Shell   bool
 
 	mu        sync.Mutex
 	cfg       config.Config
@@ -45,6 +50,9 @@ type App struct {
 	ctx       context.Context
 	lastErr   map[string]time.Time
 	changed   []func()
+	od        *ondemand.Service
+	odProv    ondemand.Provider
+	odErr     string
 }
 
 // New loads the configuration of the app folder.
@@ -111,6 +119,7 @@ func (a *App) Stop() {
 }
 
 func (a *App) stopLocked() {
+	a.stopOnDemandLocked()
 	if a.engCancel != nil {
 		a.engCancel()
 		<-a.engDone
@@ -174,6 +183,7 @@ func (a *App) restart() error {
 		}
 		eng.Run(ctx)
 	}()
+	a.startOnDemandLocked()
 	cl := a.client
 	go func() {
 		// Tell the NAS which app and system this is (device list).

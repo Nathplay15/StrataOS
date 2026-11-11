@@ -37,3 +37,10 @@ var ErrUnsupported = errors.New("files on demand is not available on this system
 
 // Supported tells whether StartProvider can work here (Kind: which one).
 func Supported() (bool, string) { return supported() }
+
+// UsesCache tells whether the Service keeps the downloaded bytes itself
+// (Linux) or the system does (Windows placeholders, macOS File Provider).
+func UsesCache() bool {
+	_, k := supported()
+	return k == "fuse"
+}

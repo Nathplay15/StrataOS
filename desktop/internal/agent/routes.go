@@ -102,6 +102,8 @@ func (a *Agent) routes(handle func(string, func(*http.Request) (any, error))) {
 		})
 	}
 
+	a.onDemandRoutes(acc)
+
 	acc("GET /v1/accounts/{id}/remote/shares", func(r *http.Request, x *account) (any, error) {
 		c := x.app.Client()
 		if c == nil {
@@ -462,6 +464,9 @@ func (a *Agent) resolve(p string) (Resolved, error) {
 	st, err := os.Stat(p)
 	if err != nil {
 		return Resolved{}, err
+	}
+	if r, ok := a.resolveOnDemand(p, st.IsDir()); ok {
+		return r, nil
 	}
 	for _, x := range a.sorted() {
 		for _, pr := range x.app.Config().Pairs {

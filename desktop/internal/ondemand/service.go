@@ -289,6 +289,19 @@ func (s *Service) Walk(dir string, f func(Item)) {
 	}
 }
 
+// RemotePath is the absolute NAS path of "Share/rel".
+func (s *Service) RemotePath(p string) (string, error) {
+	name, rel := Split(p)
+	x := s.src(name)
+	if x == nil || x.share.Path == "" {
+		return "", ErrNotFound
+	}
+	if rel == "" {
+		return x.share.Path, nil
+	}
+	return x.share.Path + "/" + rel, nil
+}
+
 // Hidden lists the encrypted folders left out, as "Share/path".
 func (s *Service) Hidden() []string {
 	s.mu.Lock()
