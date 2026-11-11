@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/tlstrust"
 )
 
 // KeyDir holds the SSH identity StrataOS uses for remote destinations.
@@ -73,6 +75,9 @@ func Validate(t *store.BackupTask) error {
 	}
 	if len(t.Sources) == 0 && len(t.VMs) == 0 && len(t.Containers) == 0 {
 		return fmt.Errorf("choose at least one source")
+	}
+	if t.Kind != "restic" || t.DestType == "datastore" {
+		t.TLSTrust = store.TLSTrust{} // only S3 and REST repositories use it
 	}
 	if err := validateVMs(t); err != nil {
 		return err
@@ -207,6 +212,13 @@ func validateResticDest(t *store.BackupTask) error {
 		}
 	default:
 		return fmt.Errorf("unsupported restic destination")
+	}
+	if t.DestType == "s3" || t.DestType == "rest" {
+		if err := tlstrust.Normalize(&t.TLSTrust, true); err != nil {
+			return err
+		}
+	} else {
+		t.TLSTrust = store.TLSTrust{}
 	}
 	if len(t.Password) < 8 {
 		return fmt.Errorf("the repository password must be at least 8 characters (keep it safe: without it the backup cannot be restored)")
@@ -346,7 +358,42 @@ func resticArgs(t *store.BackupTask, args ...string) []string {
 		cmd := fmt.Sprintf("ssh %s %s@%s -s sftp", strings.Join(sshArgs(t), " "), t.User, t.Host)
 		args = append([]string{"-o", "sftp.command=" + cmd}, args...)
 	}
-	return args
+	return append(resticTLS(t), args...)
+}
+
+// resticTLS are the certificate options of an S3 or REST repository.
+func resticTLS(t *store.BackupTask) []string {
+	if (t.DestType != "s3" && t.DestType != "rest") || !t.TLSTrust.Set() {
+		return nil
+	}
+	ca, err := tlstrust.CAFile(t.TLSTrust)
+	if err != nil {
+		slog.Warn("restic CA file", "err", err)
+	}
+	return tlstrust.ResticFlags(t.TLSTrust, ca)
+}
+
+// tlsAddress is the server whose certificate a repository depends on.
+func tlsAddress(t *store.BackupTask) string {
+	switch t.DestType {
+	case "s3":
+		return t.S3Endpoint
+	case "rest":
+		return t.DestPath
+	}
+	return ""
+}
+
+// explainTLS replaces a certificate error of restic by what to do about it
+// (trust the certificate, or the certificate changed); nil otherwise.
+func explainTLS(t *store.BackupTask, err error) error {
+	addr := tlsAddress(t)
+	if err == nil || addr == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return tlstrust.Explain(ctx, addr, t.TLSTrust, err.Error())
 }
 
 func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...string) (string, error) {
@@ -364,7 +411,11 @@ func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...s
 	if out != nil {
 		o.Output = out
 	}
-	return sys.RunOpts(ctx, o, "restic", resticArgs(t, args...)...)
+	res, err := sys.RunOpts(ctx, o, "restic", resticArgs(t, args...)...)
+	if ex := explainTLS(t, err); ex != nil {
+		return res, ex
+	}
+	return res, err
 }
 
 // ensureRepo initialises the restic repository on first use.

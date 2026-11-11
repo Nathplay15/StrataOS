@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { dateTime } from "../../lib/format";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, Switch, Tabs } from "../../components/ui";
+import { TLSTrustField } from "../../components/TLSTrust";
 import { tr, srv } from "../../lib/i18n";
 
 type Config = { adminGroup?: string; type: "" | "ad" | "ldap"; realm: string; workgroup: string; server: string; uri?: string; baseDn?: string; bindDn?: string; bindPassword?: string; startTls?: boolean; tlsVerify?: boolean; caCert?: string; joinedAt: string };
@@ -80,7 +81,7 @@ export default function Directory() {
               <Field label={tr("Account password")}><Input type="password" value={ldap.bindPassword} onChange={(e) => setLDAP({ ...ldap, bindPassword: e.target.value })} autoComplete="new-password" /></Field>
               <Field label={tr("StrataOS administrators group (optional)")} hint={tr("Its members administer the NAS")} className="sm:col-span-2"><Input value={ldap.adminGroup} onChange={(e) => setLDAP({ ...ldap, adminGroup: e.target.value })} /></Field>
               <div className="sm:col-span-2"><Switch checked={ldap.startTls} onChange={(v) => setLDAP({ ...ldap, startTls: v })} label={tr("Encrypt with StartTLS")} hint={tr("Not needed with ldaps://")} /></div>
-              <div className="sm:col-span-2"><LdapTLSFields verify={ldap.tlsVerify} ca={ldap.caCert} encrypted={ldap.startTls || ldap.uri.startsWith("ldaps://")} onChange={(tlsVerify, caCert) => setLDAP({ ...ldap, tlsVerify, caCert })} /></div>
+              <div className="sm:col-span-2"><LdapTLSFields verify={ldap.tlsVerify} ca={ldap.caCert} encrypted={ldap.startTls || ldap.uri.startsWith("ldaps://")} address={ldap.uri} onChange={(tlsVerify, caCert) => setLDAP({ ...ldap, tlsVerify, caCert })} /></div>
             </div>
           )}
           <div className="flex justify-end"><Button variant="primary" loading={join.isPending} disabled={kind === "ad" ? !ad.realm || !ad.admin || !ad.password : !ldap.baseDn} onClick={() => join.mutate()}>{kind === "ad" ? tr("Join the domain") : tr("Sign in to the directory")}</Button></div>
@@ -91,16 +92,18 @@ export default function Directory() {
 }
 
 /** Certificate checks of the LDAP server: the system CAs, or a CA given here. */
-function LdapTLSFields({ verify, ca, encrypted, onChange }: { verify: boolean; ca: string; encrypted: boolean; onChange: (verify: boolean, ca: string) => void }) {
+function LdapTLSFields({ verify, ca, encrypted, address, onChange }: { verify: boolean; ca: string; encrypted: boolean; address: string; onChange: (verify: boolean, ca: string) => void }) {
+  const [fp, setFp] = useState("");
+  const [paste, setPaste] = useState(false);
   if (!encrypted) return <Notice tone="warn">{tr("Without ldaps:// or StartTLS, passwords travel unencrypted on the network.")}</Notice>;
   return (
-    <div className="space-y-3">
-      <Switch checked={verify} onChange={(v) => onChange(v, ca)} label={tr("Check the server certificate")} hint={tr("Recommended: otherwise another machine could pretend to be the directory and receive the passwords.")} />
-      {verify && (
+    <div className="space-y-2">
+      <TLSTrustField address={address} value={{ tlsCert: ca, tlsFingerprint: fp, tlsInsecure: !verify }} onChange={(v) => { setFp(v.tlsFingerprint ?? ""); onChange(!v.tlsInsecure, v.tlsCert ?? ""); }} note={tr("A directory whose certificate is self-signed or comes from a private authority is refused: check its certificate and trust it, or paste the certificate of the authority.")} />
+      {verify && (paste || (ca && !fp) ? (
         <Field label={tr("CA certificate (optional)")} hint={tr("PEM, for a certificate from a private authority; empty: the system's authorities")}>
-          <textarea className="input mono h-28 w-full text-[12px]" value={ca} onChange={(e) => onChange(verify, e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+          <textarea className="input mono h-28 w-full text-[12px]" value={ca} onChange={(e) => { setFp(""); onChange(verify, e.target.value); }} placeholder="-----BEGIN CERTIFICATE-----" />
         </Field>
-      )}
+      ) : <Button size="sm" variant="ghost" onClick={() => setPaste(true)}>{tr("Paste a CA certificate instead")}</Button>)}
     </div>
   );
 }
@@ -112,7 +115,7 @@ function LdapTLS({ config }: { config: Config }) {
   const dirty = verify !== !!config.tlsVerify || ca !== (config.caCert ?? "");
   return (
     <div className="space-y-2">
-      <LdapTLSFields verify={verify} ca={ca} encrypted={!!config.startTls || !!config.uri?.startsWith("ldaps://")} onChange={(v, c) => { setVerify(v); setCA(c); }} />
+      <LdapTLSFields verify={verify} ca={ca} encrypted={!!config.startTls || !!config.uri?.startsWith("ldaps://")} address={config.uri ?? ""} onChange={(v, c) => { setVerify(v); setCA(c); }} />
       {dirty && <Button loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}
       <ErrorBox error={save.error} />
     </div>

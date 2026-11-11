@@ -1,10 +1,12 @@
 package cloudsync
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"strataos/internal/store"
+	"strataos/internal/tlstrust"
 )
 
 func TestValidate(t *testing.T) {
@@ -48,5 +50,39 @@ func TestValidate(t *testing.T) {
 	sftp := store.CloudSync{Name: "s", Provider: "sftp", Params: map[string]string{"host": "-oProxyCommand=x", "user": "u"}, LocalPath: "/srv/strata/a", Direction: "upload"}
 	if err := Validate(&sftp); err == nil {
 		t.Error("option injection in host accepted")
+	}
+}
+
+func TestRcloneTLSArgs(t *testing.T) {
+	tlstrust.Dir = t.TempDir()
+	dav := store.CloudSync{Name: "x", Provider: "webdav", Params: map[string]string{"url": "https://nas2.lan/dav", "vendor": "other"}, LocalPath: "/srv/strata/main/a", Direction: "upload",
+		TLSTrust: store.TLSTrust{TLSInsecure: true}}
+	if err := Validate(&dav); err != nil {
+		t.Fatal(err)
+	}
+	if got := rcArgs(&dav, "/c.conf", "lsf", "strata:"); !slices.Equal(got, []string{"--config", "/c.conf", "--no-check-certificate", "lsf", "strata:"}) {
+		t.Fatalf("insecure: %v", got)
+	}
+	if got := commonArgs("/c.conf", &dav); got[2] != "--no-check-certificate" {
+		t.Fatalf("sync args: %v", got)
+	}
+	dav.TLSTrust = store.TLSTrust{TLSCert: "not a certificate"}
+	if err := Validate(&dav); err == nil {
+		t.Fatal("invalid certificate accepted")
+	}
+	// Public clouds never get certificate options, whatever the browser sends.
+	drive := store.CloudSync{Name: "x", Provider: "s3", Params: map[string]string{"provider": "AWS", "access_key_id": "AK"}, Secrets: map[string]string{"secret_access_key": "S"}, LocalPath: "/srv/strata/main/a", RemotePath: "b", Direction: "upload",
+		TLSTrust: store.TLSTrust{TLSInsecure: true}}
+	if err := Validate(&drive); err != nil || drive.TLSTrust.Set() {
+		t.Fatalf("public S3: %v %+v", err, drive.TLSTrust)
+	}
+	if got := rcArgs(&drive, "/c.conf", "lsf"); len(got) != 3 {
+		t.Fatalf("public S3 args: %v", got)
+	}
+	// A plain HTTP endpoint has no certificate.
+	drive.Params["endpoint"] = "http://minio.lan:9000"
+	drive.TLSInsecure = true
+	if err := Validate(&drive); err != nil || drive.TLSTrust.Set() {
+		t.Fatalf("http endpoint: %v", err)
 	}
 }

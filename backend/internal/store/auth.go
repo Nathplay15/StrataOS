@@ -15,6 +15,9 @@ type OIDCProvider struct {
 	Enabled      bool     `json:"enabled"`
 	// AllowHTTP accepts an issuer over plain HTTP (a test IdP on the LAN).
 	AllowHTTP bool `json:"allowHttp,omitempty"`
+	// TLS: certificate of a self-hosted provider signed by a private CA
+	// (TLSInsecure is never accepted for sign-in).
+	TLSTrust
 	// Claim names: username (default preferred_username), email, groups.
 	UsernameClaim string `json:"usernameClaim,omitempty"`
 	EmailClaim    string `json:"emailClaim,omitempty"`

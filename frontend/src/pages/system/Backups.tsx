@@ -8,6 +8,7 @@ import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { tr, srv } from "../../lib/i18n";
+import { certChanged, TLSTrustField, trustOf } from "../../components/TLSTrust";
 import { TimeMachineCard } from "./TimeMachine";
 import { BackupVMPicker } from "./BackupVMs";
 import { ProtectionCard, RestoreTestBadge } from "./Protection";
@@ -343,6 +344,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
               {b.destType === "local" && b.kind !== "zfs" ? <LocalFolder value={b.destPath} onChange={(v) => set({ destPath: v })} sources={sources} suffix={pull ? "other-nas" : "sauvegardes"} /> : <Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} />}
             </Field>}
             {b.destType === "local" && !pull && <Switch checked={!!b.offsite} onChange={(v) => set({ offsite: v })} label={tr("Kept off-site")} hint={tr("A USB disk you take away from the NAS between backups: it then counts as the off-site copy of the 3-2-1 rule.")} />}
+            {(b.destType === "s3" || b.destType === "rest") && <TLSTrustField address={(b.destType === "s3" ? b.s3Endpoint : b.destPath) ?? ""} value={trustOf(b)} onChange={(v) => set(v)} />}
             {remote && <SSHKey />}
           </div>
         )}
@@ -468,6 +470,7 @@ export default function Backups() {
                   {(b.kind === "restic" || (b.kind === "rsync" && !b.sourceType && b.destType === "local")) && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore({ source: `backup:${b.id}` })}>{tr("Restore")}</Button>}
                   {b.kind === "sync" && b.synced && <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} disabled={b.running} onClick={async () => { if (await confirm({ title: tr("Resynchronise \"{0}\"?", b.name), text: tr("Both folders are merged again, as on the first run: nothing is deleted, and files deleted on one side since the last run come back.") })) resync.mutate(b.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(b)}><History size={15} /></IconButton>
+                  {!b.running && last?.status === "failed" && certChanged(last.message) && (b.destType === "s3" || b.destType === "rest") && <Button size="sm" variant="ghost" disabled={!sources.data} onClick={() => setEdit(b)}>{tr("Review the certificate")}</Button>}
                   <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(b)}><Edit3 size={15} /></IconButton>
                   <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", b.name), text: tr("The task will no longer run. Data already backed up is not deleted."), danger: true })) del.mutate(b.id); }}><Trash2 size={15} /></IconButton>
                 </div>

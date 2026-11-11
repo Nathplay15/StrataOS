@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"strataos/internal/accounts"
 	"strataos/internal/oidc"
 	"strataos/internal/store"
+	"strataos/internal/tlstrust"
 )
 
 var (
@@ -43,6 +45,11 @@ func validProvider(p *store.OIDCProvider) error {
 		return badRequest("invalid acr_values")
 	}
 	if _, err := oidc.CheckURL(p.Issuer, p.AllowHTTP); err != nil {
+		return badRequest(err.Error())
+	}
+	// Sign-in only trusts a certificate the administrator checked: never
+	// "ignore certificate errors", whose ID tokens anyone could forge.
+	if err := normalizeTLS(&p.TLSTrust, p.Issuer, false); err != nil {
 		return badRequest(err.Error())
 	}
 	for _, c := range []string{p.UsernameClaim, p.EmailClaim, p.GroupsClaim} {
@@ -190,6 +197,7 @@ func (s *Server) oidcAdminRoutes() {
 		var req struct {
 			Issuer    string `json:"issuer"`
 			AllowHTTP bool   `json:"allowHttp"`
+			store.TLSTrust
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -198,12 +206,21 @@ func (s *Server) oidcAdminRoutes() {
 		if _, err := oidc.CheckURL(req.Issuer, req.AllowHTTP); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		if err := normalizeTLS(&req.TLSTrust, req.Issuer, false); err != nil {
+			return nil, badRequest(err.Error())
+		}
 		oidcClient.Forget(req.Issuer)
+		// The certificate typed in the form, saved or not.
+		cl := oidc.NewClient()
+		if req.TLSCert != "" {
+			cfg := tlstrust.ClientConfig(req.TLSTrust, "", nil)
+			cl.TLSFor = func(string) *tls.Config { return cfg }
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
-		d, ks, err := oidcClient.Provider(ctx, req.Issuer, req.AllowHTTP, false)
+		d, ks, err := cl.Provider(ctx, req.Issuer, req.AllowHTTP, false)
 		if err != nil {
-			return map[string]any{"ok": false, "error": err.Error()}, nil
+			return map[string]any{"ok": false, "error": tlsHint(req.Issuer, req.TLSTrust, err).Error()}, nil
 		}
 		return map[string]any{"ok": true, "authorization": d.AuthorizationEndpoint, "token": d.TokenEndpoint, "userinfo": d.UserinfoEndpoint,
 			"keys": len(ks.Keys), "pkce": len(d.CodeChallengeMethods) == 0 || slices.Contains(d.CodeChallengeMethods, "S256")}, nil

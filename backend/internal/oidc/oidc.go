@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -101,8 +102,11 @@ func getJSON(ctx context.Context, hc *http.Client, u string, v any) error {
 // Client fetches and caches the metadata and keys of providers.
 type Client struct {
 	HTTP *http.Client
-	mu   sync.Mutex
-	m    map[string]*cached
+	// TLSFor returns the TLS configuration of an issuer whose certificate
+	// the administrator trusted (a private CA), nil for the system CAs.
+	TLSFor func(issuer string) *tls.Config
+	mu     sync.Mutex
+	m      map[string]*cached
 }
 
 type cached struct {
@@ -113,6 +117,21 @@ type cached struct {
 }
 
 const cacheFor = time.Hour
+
+// httpFor is the HTTP client for the endpoints of issuer.
+func (c *Client) httpFor(issuer string) *http.Client {
+	if c.TLSFor == nil {
+		return c.HTTP
+	}
+	cfg := c.TLSFor(NormalizeIssuer(issuer))
+	if cfg == nil {
+		return c.HTTP
+	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = cfg
+	tr.DisableKeepAlives = true
+	return &http.Client{Timeout: c.HTTP.Timeout, CheckRedirect: c.HTTP.CheckRedirect, Transport: tr}
+}
 
 func NewClient() *Client {
 	return &Client{
@@ -136,15 +155,16 @@ func (c *Client) Provider(ctx context.Context, issuer string, allowHTTP, refresh
 	if _, err := CheckURL(issuer, allowHTTP); err != nil {
 		return nil, KeySet{}, err
 	}
+	hc := c.httpFor(issuer)
 	var d Discovery
-	if err := getJSON(ctx, c.HTTP, issuer+"/.well-known/openid-configuration", &d); err != nil {
+	if err := getJSON(ctx, hc, issuer+"/.well-known/openid-configuration", &d); err != nil {
 		return nil, KeySet{}, err
 	}
 	if err := ValidateDiscovery(&d, issuer, allowHTTP); err != nil {
 		return nil, KeySet{}, err
 	}
 	var raw json.RawMessage
-	if err := getJSON(ctx, c.HTTP, d.JWKSURI, &raw); err != nil {
+	if err := getJSON(ctx, hc, d.JWKSURI, &raw); err != nil {
 		return nil, KeySet{}, err
 	}
 	ks, err := ParseJWKS(raw)
@@ -243,7 +263,7 @@ func (c *Client) Exchange(ctx context.Context, d *Discovery, clientID, secret, c
 	if secret != "" && !post {
 		req.SetBasicAuth(url.QueryEscape(clientID), url.QueryEscape(secret))
 	}
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.httpFor(d.Issuer).Do(req)
 	if err != nil {
 		return Tokens{}, fmt.Errorf("provider unreachable: %w", err)
 	}
@@ -276,7 +296,7 @@ func (c *Client) Userinfo(ctx context.Context, d *Discovery, accessToken, subjec
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.httpFor(d.Issuer).Do(req)
 	if err != nil {
 		return nil, err
 	}

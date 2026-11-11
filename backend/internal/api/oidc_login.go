@@ -10,6 +10,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 	"strataos/internal/accounts"
 	"strataos/internal/oidc"
 	"strataos/internal/store"
+	"strataos/internal/tlstrust"
 )
 
 const (
@@ -37,6 +39,24 @@ const (
 )
 
 var oidcClient = oidc.NewClient()
+
+// oidcTLS is the TLS configuration of a provider whose certificate the
+// administrator trusted (oidc.Client.TLSFor).
+func (s *Server) oidcTLS(issuer string) *tls.Config {
+	var t store.TLSTrust
+	s.store.Read(func(st *store.State) {
+		for _, p := range st.OIDC {
+			if oidc.NormalizeIssuer(p.Issuer) == issuer && p.TLSCert != "" {
+				t = p.TLSTrust
+			}
+		}
+	})
+	if t.TLSCert == "" {
+		return nil
+	}
+	t.TLSInsecure = false
+	return tlstrust.ClientConfig(t, "", nil)
+}
 
 // oidcFlow is a sign-in started on this NAS, keyed by its state.
 type oidcFlow struct {

@@ -27,6 +27,7 @@ func ApplyDatastore(t *store.BackupTask, ds *store.Datastore) {
 	t.DestType, t.DestPath, t.Host, t.User, t.Port = ds.DestType, ds.DestPath, ds.Host, ds.User, ds.Port
 	t.S3Endpoint, t.AccessKey, t.SecretKey, t.Password = ds.S3Endpoint, ds.AccessKey, ds.SecretKey, ds.Password
 	t.VaultURL, t.VaultToken, t.VaultCert, t.AppendOnly = ds.VaultURL, ds.VaultToken, ds.VaultCert, ds.AppendOnly
+	t.TLSTrust = ds.TLSTrust
 	t.Datastore = ds.ID
 }
 
@@ -62,7 +63,7 @@ func ValidateDatastore(ds *store.Datastore) error {
 	if err := validateResticDest(&t); err != nil {
 		return err
 	}
-	ds.DestPath = t.DestPath
+	ds.DestPath, ds.TLSTrust = t.DestPath, t.TLSTrust
 	if ds.Verify.Subsets < 0 || ds.Verify.Subsets > 100 {
 		return fmt.Errorf("the data is read over 1 to 100 checks")
 	}

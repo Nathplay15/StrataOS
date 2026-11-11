@@ -11,6 +11,7 @@ import { HistoryModal } from "./Backups";
 import { RunIcon, runTone, StopJobButton } from "../../components/StopJob";
 import { FolderPicker } from "../../components/FolderPicker";
 import { tr, srv } from "../../lib/i18n";
+import { certChanged, TLSTrustField, trustOf, type TLSTrust } from "../../components/TLSTrust";
 
 type ProviderField = { key: string; label: string; secret?: boolean; required?: boolean; options?: string[]; hint?: string };
 type Provider = { id: string; label: string; fields: ProviderField[]; authorize?: string; bucket?: boolean };
@@ -19,7 +20,7 @@ type Task = {
   localPath: string; remotePath: string; direction: "upload" | "download" | "bisync"; mirror: boolean;
   excludes?: string[]; bwLimit?: string; cron: string; enabled: boolean; synced?: boolean;
   history: ScheduleRun[]; nextRun?: string | null; running?: boolean; jobId?: string;
-};
+} & TLSTrust;
 type Data = { installed: boolean; tasks: Task[]; providers: Provider[] };
 type Sources = { folders: { path: string; label: string }[] };
 
@@ -103,6 +104,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
             {p.fields.map((f) => <Field key={f.key} label={srv(f.label) + (f.required ? "" : tr(" (optional)"))} hint={srv(f.hint)} className={f.key === "token" || f.key === "url" ? "sm:col-span-2" : ""}>{field(f)}</Field>)}
           </div>
           {p.id === "sftp" && !t.secrets.pass && <div className="text-muted text-[12px]">{tr("Without a password, the StrataOS SSH key is used (shown in Backup → new backup → SSH server).")}</div>}
+          {(p.id === "webdav" || p.id === "s3") && <TLSTrustField address={t.params.url || t.params.endpoint || ""} value={trustOf(t)} onChange={(v) => set(v)} />}
         </div>
 
         <div>
@@ -207,6 +209,7 @@ export default function CloudSync() {
                   {t.running && t.jobId ? <StopJobButton id={t.jobId} /> : <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={t.running} onClick={() => run.mutate(t.id)}>{tr("Sync")}</Button>}
                   {t.direction === "bisync" && (failedBisync || t.synced) && <Button size="sm" variant="ghost" icon={<RefreshCcw size={14} />} disabled={t.running} onClick={async () => { if (await confirm({ title: tr("Resync?"), text: tr("The two folders are merged again: files present on only one side are copied to the other, nothing is deleted. Files deleted since the last sync will reappear."), confirm: tr("Resync") })) resync.mutate(t.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(t)}><History size={15} /></IconButton>
+                  {!t.running && last?.status === "failed" && certChanged(last.message) && <Button size="sm" variant="ghost" disabled={!sources.data} onClick={() => setEdit(t)}>{tr("Review the certificate")}</Button>}
                   <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(t)}><Edit3 size={15} /></IconButton>
                   <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", t.name), text: tr("Synchronization will stop. No files are deleted, either on the NAS or in the cloud."), danger: true })) del.mutate(t.id); }}><Trash2 size={15} /></IconButton>
                 </div>

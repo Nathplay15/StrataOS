@@ -4,6 +4,7 @@ import { Copy, Edit3, LogIn, Plus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { srv, tr } from "../lib/i18n";
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Notice, Spinner, Switch, useUI } from "./ui";
+import { TLSTrustField } from "./TLSTrust";
 
 interface Provider {
   id: string;
@@ -26,6 +27,8 @@ interface Provider {
   mfaValues?: string[];
   acrValues?: string;
   accounts?: number;
+  tlsCert?: string;
+  tlsFingerprint?: string;
 }
 
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -71,7 +74,7 @@ export function SignInProviders() {
   const check = async () => {
     if (!edit) return;
     setTest(null);
-    try { setTest(await api.post("/api/security/oidc/test", { issuer: edit.p.issuer, allowHttp: edit.p.allowHttp })); } catch (e) { setTest({ ok: false, error: String((e as Error).message) }); }
+    try { setTest(await api.post("/api/security/oidc/test", { issuer: edit.p.issuer, allowHttp: edit.p.allowHttp, tlsCert: edit.p.tlsCert })); } catch (e) { setTest({ ok: false, error: String((e as Error).message) }); }
   };
   const remove = async (p: Provider) => {
     if (!(await confirm({ title: tr("Remove {0}?", p.name), text: tr("Accounts linked to it can no longer sign in with it (their password keeps working)."), danger: true }))) return;
@@ -118,6 +121,7 @@ export function SignInProviders() {
               <Field label={tr("Issuer URL")} className="sm:col-span-2" hint={tr("e.g. https://auth.example.com/application/o/nas/ or https://login.microsoftonline.com/<tenant>/v2.0")}>
                 <div className="flex gap-2"><Input value={edit.p.issuer} onChange={(e) => set({ issuer: e.target.value })} /><Button onClick={check}>{tr("Test")}</Button></div>
               </Field>
+              <div className="sm:col-span-2"><TLSTrustField address={edit.p.issuer} value={{ tlsCert: edit.p.tlsCert, tlsFingerprint: edit.p.tlsFingerprint }} onChange={(v) => set({ tlsCert: v.tlsCert, tlsFingerprint: v.tlsFingerprint })} allowInsecure={false} note={tr("A self-hosted provider whose certificate comes from a private authority is refused: check its certificate, then trust it for this provider only. Certificate errors can never be ignored for sign-in.")} /></div>
               {test && <div className="sm:col-span-2">{test.ok ? <Notice>{tr("Provider found: {0} signing key(s).", test.keys ?? 0)}</Notice> : <Notice tone="warn">{srv(test.error)}</Notice>}</div>}
               <Field label={tr("Client ID")}><Input value={edit.p.clientId} onChange={(e) => set({ clientId: e.target.value })} /></Field>
               <Field label={tr("Client secret")} hint={edit.p.hasSecret ? tr("Saved; leave blank to keep it, \"-\" to remove it") : tr("Blank for a public client (PKCE only)")}><Input type="password" autoComplete="new-password" value={edit.p.clientSecret ?? ""} onChange={(e) => set({ clientSecret: e.target.value })} /></Field>

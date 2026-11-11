@@ -9,6 +9,7 @@ import { tr, srv } from "../../lib/i18n";
 import { StorageSelect } from "../vms/panels";
 import { FolderPicker } from "../../components/FolderPicker";
 import { StopJobButton } from "../../components/StopJob";
+import { TLSTrustField, trustOf } from "../../components/TLSTrust";
 import type { LXCLocation } from "../vms/containers/types";
 
 // Backup repositories (datastores): restic repositories that several tasks
@@ -19,6 +20,7 @@ export type Datastore = {
   id: string; name: string; destType: "local" | "sftp" | "s3" | "rest" | "strataos"; destPath: string;
   host?: string; user?: string; port?: number; s3Endpoint?: string; accessKey?: string; secretKey?: string; password?: string;
   vaultUrl?: string; vaultToken?: string; vaultCert?: string; appendOnly?: boolean; offsite?: boolean; created?: string;
+  tlsCert?: string; tlsFingerprint?: string; tlsInsecure?: boolean;
   verify: { off?: boolean; cron?: string; subsets?: number }; pruneCron?: string; lastPrune?: string;
   verifies?: VerifyRun[];
   stats?: { updated: string; snapshots: number; logical: number; unique: number; stored: number; dedup: number; ratio: number };
@@ -104,6 +106,7 @@ function Editor({ initial, volumes, onClose }: { initial: Datastore | null; volu
           </div>
         )}
         {d.destType === "rest" && <Field label={tr("REST server URL")}><Input className="mono" value={d.destPath} onChange={(e) => set({ destPath: e.target.value })} /></Field>}
+        {(d.destType === "s3" || d.destType === "rest") && <TLSTrustField address={(d.destType === "s3" ? d.s3Endpoint : d.destPath) ?? ""} value={trustOf(d)} onChange={(v) => set(v)} />}
         {d.destType === "strataos" && (
           <div className="space-y-3">
             {d.vaultUrl && <Notice>{tr("Paired with {0}", d.vaultUrl.replace(/^https:\/\//, "").split("/")[0])}{d.appendOnly ? ` · ${tr("append-only vault: older versions are never deleted")}` : ""}</Notice>}

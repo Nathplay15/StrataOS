@@ -25,6 +25,8 @@ type Datastore struct {
 	// Offsite: a local destination kept away from the NAS (USB disk).
 	Offsite bool      `json:"offsite,omitempty"`
 	Created time.Time `json:"created"`
+	// TLS: certificate of an S3 endpoint or REST server.
+	TLSTrust
 
 	// Verify: scheduled integrity checks; VerifyNext is the data subset
 	// (1..Subsets) the next check reads, so that every pack file is read

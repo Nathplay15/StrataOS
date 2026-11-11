@@ -58,7 +58,7 @@ func List(ctx context.Context, t store.CloudSync, rel string, recursive bool) ([
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"--config", conf, "lsjson", "--no-mimetype", "--exclude", ".recycle/**", "--exclude", "#recycle/**"}
+	args := rcArgs(&t, conf, "lsjson", "--no-mimetype", "--exclude", ".recycle/**", "--exclude", "#recycle/**")
 	if recursive {
 		args = append(args, "-R")
 	}
@@ -67,7 +67,7 @@ func List(ctx context.Context, t store.CloudSync, rel string, recursive bool) ([
 		if strings.Contains(err.Error(), "directory not found") {
 			return []Item{}, nil
 		}
-		return nil, fmt.Errorf("%s", lastLine(err.Error()))
+		return nil, failure(&t, err)
 	}
 	var items []Item
 	if err := json.Unmarshal([]byte(out), &items); err != nil {
@@ -94,8 +94,8 @@ func Fetch(ctx context.Context, t store.CloudSync, rels []string, dirs []bool, d
 		if i < len(dirs) && dirs[i] {
 			to := filepath.Join(dest, filepath.FromSlash(rel))
 			p.Log("rclone copy %s", rel)
-			if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 48 * time.Hour}, "rclone", "--config", conf, "copy", remotePath(&t, rel), to); err != nil {
-				return fmt.Errorf("%s", lastLine(err.Error()))
+			if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 48 * time.Hour}, "rclone", rcArgs(&t, conf, "copy", remotePath(&t, rel), to)...); err != nil {
+				return failure(&t, err)
 			}
 			continue
 		}
@@ -116,8 +116,8 @@ func Fetch(ctx context.Context, t store.CloudSync, rels []string, dirs []bool, d
 	if err != nil {
 		return err
 	}
-	if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 48 * time.Hour}, "rclone", "--config", conf, "copy", "--files-from-raw", list.Name(), "--no-traverse", target(&t), dest); err != nil {
-		return fmt.Errorf("%s", lastLine(err.Error()))
+	if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 48 * time.Hour}, "rclone", rcArgs(&t, conf, "copy", "--files-from-raw", list.Name(), "--no-traverse", target(&t), dest)...); err != nil {
+		return failure(&t, err)
 	}
 	return nil
 }
@@ -131,5 +131,5 @@ func Cat(ctx context.Context, t store.CloudSync, rel string, w io.Writer) error 
 	if err != nil {
 		return err
 	}
-	return sys.Stream(ctx, sys.Opts{Timeout: 12 * time.Hour}, w, "rclone", "--config", conf, "cat", remotePath(&t, rel))
+	return sys.Stream(ctx, sys.Opts{Timeout: 12 * time.Hour}, w, "rclone", rcArgs(&t, conf, "cat", remotePath(&t, rel))...)
 }

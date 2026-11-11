@@ -291,6 +291,15 @@ func (s *Server) systemRoutes() {
 		if err := validNotifyPrefs(req); err != nil {
 			return nil, err
 		}
+		smtpAddr := ""
+		if req.SMTPHost != "" && req.SMTPSecurity != "none" {
+			smtpAddr = smtpAddress(req.SMTPHost, req.SMTPPort, req.SMTPSecurity)
+		}
+		for t, addr := range map[*store.TLSTrust]string{&req.WebhookTLS: req.WebhookURL, &req.NtfyTLS: req.NtfyURL, &req.SMTPTLS: smtpAddr} {
+			if err := normalizeTLS(t, addr, true); err != nil {
+				return nil, badRequest(err.Error())
+			}
+		}
 		switch req.SMBMinProto {
 		case "", "SMB2", "SMB2_10", "SMB3", "SMB3_11":
 		default:

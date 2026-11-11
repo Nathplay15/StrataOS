@@ -1,3 +1,4 @@
+import type { TLSTrust } from "../components/TLSTrust";
 export interface Me {
   username: string;
   fullName: string;
@@ -444,6 +445,10 @@ export interface Settings {
   notifyLangAuto?: string;
   ntfyUrl?: string;
   ntfyToken?: string;
+  /** Certificates of a self-hosted webhook, ntfy or mail server (components/TLSTrust). */
+  webhookTls?: TLSTrust;
+  ntfyTls?: TLSTrust;
+  smtpTls?: TLSTrust;
   notifyChannels?: Partial<Record<NotifyChannelId, NotifyChannel>>;
   quietHours?: QuietHours;
   smbMinProtocol: string;
@@ -492,6 +497,10 @@ export interface ScheduleTarget {
 }
 
 export interface BackupTask {
+  /** Certificate of an S3 endpoint or REST server (components/TLSTrust). */
+  tlsCert?: string;
+  tlsFingerprint?: string;
+  tlsInsecure?: boolean;
   id: string;
   name: string;
   kind: "rsync" | "restic" | "zfs" | "sync";
