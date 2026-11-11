@@ -35,9 +35,20 @@ pub fn new_token() -> String {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Action {
-    ShareLink { path: String },
-    OpenOnNas { path: String },
-    DeepLink { url: String },
+    ShareLink {
+        path: String,
+    },
+    OpenOnNas {
+        path: String,
+    },
+    /// Files on demand (Linux menus): keep on this device / free up space.
+    Pin {
+        path: String,
+        pinned: bool,
+    },
+    DeepLink {
+        url: String,
+    },
 }
 
 /// Reads the actions of a command line (the program name first).
@@ -55,6 +66,14 @@ pub fn actions_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<Action>
                         Action::ShareLink { path: p }
                     } else {
                         Action::OpenOnNas { path: p }
+                    });
+                }
+            }
+            "--keep-here" | "--free-up" => {
+                if let Some(p) = it.next().filter(|p| !p.is_empty()) {
+                    out.push(Action::Pin {
+                        path: p,
+                        pinned: a == "--keep-here",
                     });
                 }
             }
@@ -236,5 +255,29 @@ mod tests {
         assert_eq!(tray_icon_name("syncing"), "syncing");
         assert_eq!(tray_icon_name("whatever"), "idle");
         assert_eq!(semver_of("0.11.0~beta.1\n"), "0.11.0-beta.1");
+    }
+
+    #[test]
+    fn pin_actions() {
+        assert_eq!(
+            actions_from_args(args(&[
+                "app",
+                "--keep-here",
+                "/h/S/a",
+                "--free-up",
+                "/h/S/b",
+                "--free-up"
+            ])),
+            vec![
+                Action::Pin {
+                    path: "/h/S/a".into(),
+                    pinned: true
+                },
+                Action::Pin {
+                    path: "/h/S/b".into(),
+                    pinned: false
+                },
+            ]
+        );
     }
 }

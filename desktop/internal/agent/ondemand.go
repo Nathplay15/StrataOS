@@ -114,6 +114,23 @@ func (a *Agent) resolveOnDemand(p string, dir bool) (Resolved, bool) {
 	return Resolved{}, false
 }
 
+// pinLocal pins or frees a path of an account's on-demand folder.
+func (a *Agent) pinLocal(p string, on bool) error {
+	if !filepath.IsAbs(p) {
+		return &httpError{http.StatusBadRequest, "absolute path required"}
+	}
+	for _, x := range a.sorted() {
+		_, prov := x.app.OnDemand()
+		if prov == nil || prov.Info().Root == "" {
+			continue
+		}
+		if rel, err := onDemandRel(prov, p); err == nil && rel != "" {
+			return prov.Pin(rel, on)
+		}
+	}
+	return &httpError{http.StatusNotFound, a.T("err.resolve.outside")}
+}
+
 // publishFP gives the macOS extensions the agent's address, their token
 // and the synchronized folders (Finder Sync menus), again when they change.
 func (a *Agent) publishFP(port int) {

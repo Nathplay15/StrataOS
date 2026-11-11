@@ -46,6 +46,10 @@ jobs:
           go test ./...
           GOOS=windows go vet ./...
           GOOS=darwin CGO_ENABLED=0 go vet ./...
+      - name: "Files on demand: the FUSE mount (skipped when the runner cannot mount)"
+        run: |
+          sudo apt-get install -y fuse3 || true
+          cd desktop && go test -count=1 -v -run 'TestFUSE' ./internal/ondemand
       - name: Window (TypeScript) and its translations
         run: |
           cd desktop/app
@@ -85,6 +89,10 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
+          # Files on demand: logic of the extensions, then the extensions themselves
+          # (also built inside the app below; ad hoc signed without certificates).
+          (cd desktop/macos && swift test)
+          desktop/macos/build.sh build/macos-ext
           .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
@@ -112,7 +120,9 @@ jobs:
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
           (cd desktop/app && npm ci --no-audit --no-fund && npx vite build)
           desktop/app/scripts/sidecar.sh
-          (cd desktop/app/src-tauri && cargo test)
+          # Files on demand: the sync root's registration (syncroot.rs) is Windows-only code.
+          rustup component add clippy
+          (cd desktop/app/src-tauri && cargo clippy --all-targets -- -D warnings && cargo test)
           .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:

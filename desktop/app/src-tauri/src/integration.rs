@@ -20,6 +20,11 @@ use serde::{Deserialize, Serialize};
 pub struct Labels {
     pub share: String,
     pub open: String,
+    /// Files on demand (Linux): "Keep on this device", "Free up space".
+    #[serde(default)]
+    pub keep: String,
+    #[serde(default)]
+    pub free: String,
 }
 
 #[derive(Serialize)]
@@ -106,9 +111,14 @@ mod imp {
         for (label, flag) in [
             (&labels.share, "--share-link"),
             (&labels.open, "--open-on-nas"),
+            (&labels.keep, "--keep-here"),
+            (&labels.free, "--free-up"),
         ] {
+            if label.trim().is_empty() {
+                continue;
+            }
             let script = format!(
-                "#!/bin/sh\n# Written by the StrataOS app (Settings, file manager menu).\nfor f in \"$@\"; do\n  case \"$f\" in /*) ;; *) f=\"$PWD/$f\" ;; esac\n  exec {} {} \"$f\"\ndone\n",
+                "#!/bin/sh\n# Written by the StrataOS app (Settings, file manager menu).\nfor f in \"$@\"; do\n  case \"$f\" in /*) ;; *) f=\"$PWD/$f\" ;; esac\n  {} {} \"$f\"\ndone\n",
                 sh_quote(&exe),
                 flag
             );
@@ -123,11 +133,19 @@ mod imp {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let q = exe.replace('"', "\\\"");
-        let menu = format!(
-            "[Desktop Entry]\nType=Service\nMimeType=application/octet-stream;inode/directory;\nActions=share;open\nX-KDE-Submenu=StrataOS\n\n[Desktop Action share]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --share-link %f\n\n[Desktop Action open]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --open-on-nas %f\n",
+        let mut menu = format!(
+            "[Desktop Entry]\nType=Service\nMimeType=application/octet-stream;inode/directory;\nActions=share;open{}\nX-KDE-Submenu=StrataOS\n\n[Desktop Action share]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --share-link %f\n\n[Desktop Action open]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --open-on-nas %f\n",
+            if labels.keep.trim().is_empty() { "" } else { ";keep;free" },
             labels.share.replace('\n', " "),
             labels.open.replace('\n', " ")
         );
+        if !labels.keep.trim().is_empty() {
+            menu += &format!(
+                "\n[Desktop Action keep]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --keep-here %f\n\n[Desktop Action free]\nName={}\nIcon=strataos-desktop\nExec=\"{q}\" --free-up %f\n",
+                labels.keep.replace('\n', " "),
+                labels.free.replace('\n', " ")
+            );
+        }
         fs::write(&d, menu).map_err(|e| e.to_string())?;
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&d, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;

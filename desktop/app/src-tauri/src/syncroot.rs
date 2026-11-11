@@ -74,7 +74,7 @@ mod imp {
     pub fn register(id: &str, path: &str, name: &str) -> Result<(), String> {
         let folder = StorageFolder::GetFolderFromPathAsync(&HSTRING::from(path))
             .map_err(e)?
-            .get()
+            .join()
             .map_err(e)?;
         let info = StorageProviderSyncRootInfo::new().map_err(e)?;
         info.SetId(&HSTRING::from(id)).map_err(e)?;

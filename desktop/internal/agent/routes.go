@@ -314,6 +314,18 @@ func (a *Agent) routes(handle func(string, func(*http.Request) (any, error))) {
 		return a.resolve(req.Path)
 	})
 
+	// Keep on this device / free up space from a file manager menu (Linux).
+	handle("POST /v1/ondemand/pin", func(r *http.Request) (any, error) {
+		var req struct {
+			Path   string `json:"path"`
+			Pinned bool   `json:"pinned"`
+		}
+		if err := decodeBody(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, a.pinLocal(req.Path, req.Pinned)
+	})
+
 	handle("POST /v1/open", func(r *http.Request) (any, error) {
 		var req struct{ Account, Pair string }
 		if err := decodeBody(r, &req); err != nil {
@@ -322,6 +334,12 @@ func (a *Agent) routes(handle func(string, func(*http.Request) (any, error))) {
 		x, err := a.account(req.Account)
 		if err != nil {
 			return nil, err
+		}
+		if req.Pair == "ondemand" {
+			if _, prov := x.app.OnDemand(); prov != nil && prov.Info().Root != "" {
+				return nil, platform.Open(prov.Info().Root)
+			}
+			return nil, errors.New("files on demand is off")
 		}
 		for _, p := range x.app.Config().Pairs {
 			if req.Pair == "" || p.ID == req.Pair {
