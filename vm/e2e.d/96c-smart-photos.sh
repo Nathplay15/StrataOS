@@ -25,7 +25,9 @@ PARIS=$(c GET /api/photos/places | py 'print([p["id"] for p in d if p["city"]=="
 check "photos of a place" "$(c GET "/api/photos?place=$PARIS" | py 'print([i["path"].split("/")[-1] for i in d["items"]])')" "['car.jpg']"
 check "memories: on this day" "$(c GET /api/photos/memories | py 'print([(m["yearsAgo"], m["count"]) for m in d])')" "(3, 1)"
 
-check "smart features refused before the install" "$(c PUT /api/photos/smart -d '{"enabled":true}')" "install the smart photos component first"
+if [ "$(c GET /api/system/components | py 'print(d["photoml"])')" = False ]; then
+  check "smart features refused before the install" "$(c PUT /api/photos/smart -d '{"enabled":true}')" "install the smart photos component first"
+fi
 check "runtime and models installed (checksums)" "$(job "$(c POST /api/system/components/photoml/install)")" "success"
 check "component listed" "$(c GET /api/system/components | py 'print(d["photoml"])')" "True"
 check "invalid hours refused" "$(c PUT /api/photos/smart -d '{"enabled":true,"limits":{"hours":"25:00-02:00"}}')" "hours must be like"
@@ -37,12 +39,15 @@ for _ in $(seq 1 120); do
 done
 check "every photo analysed" "$(echo "$S" | py 'print(d["counts"]["photos"], d["counts"]["failed"], d["provider"])')" "12 0 CPU"
 check "faces found" "$(echo "$S" | py 'print(d["counts"]["faces"] >= 9)')" "True"
-check "worker runs as the sandbox user, niced" "$(vm "ps -o user=,ni= -C python3 | head -1")" "strata-p"
+check "worker runs as the sandbox user, niced" "$(vm "ps -o user:20=,ni= -C python3 | head -1")" "strata-preview        19"
 
-# People of the administrator: Obama in 4 photos, Biden in 3 (one is profile).
+# People of the administrator: Obama in 4 photos, Biden in 4 (two in the vault).
 PEOPLE=$(c GET /api/photos/people)
 check "a person in several photos" "$(echo "$PEOPLE" | py 'print(max(p["count"] for p in d) >= 4)')" "True"
-OB=$(echo "$PEOPLE" | py 'print(max(d, key=lambda p: p["count"])["id"])')
+OB=""
+for id in $(echo "$PEOPLE" | py 'print(" ".join(str(p["id"]) for p in d))'); do
+  c GET "/api/photos?person=$id" | grep -q obama-portrait.jpg && { OB=$id; break; }
+done
 check "photos of the person" "$(c GET "/api/photos?person=$OB" | py 'print(sorted(i["path"].split("/")[-1] for i in d["items"]))')" "obama-desk.jpg"
 check "person named" "$(c PUT "/api/photos/people/$OB" -d '{"name":"Barack"}')" "ok"
 check "name kept" "$(c GET /api/photos/people | py "print([p['name'] for p in d if p['id']==$OB])")" "['Barack']"

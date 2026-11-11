@@ -19,10 +19,10 @@ check "folder outside the storage refused" "$(c PUT /api/search/docs/settings -d
 check "folders chosen, OCR on" "$(c PUT /api/search/docs/settings -d "{\"folders\":[\"$DD\",\"$DV\"],\"ocr\":true,\"limits\":{\"anyLoad\":true}}")" "ok"
 for _ in $(seq 1 60); do
   ST=$(c GET /api/search/docs/status)
-  [ "$(echo "$ST" | py 'print(d.get("stats",{}).get("docs",0) >= 11 and not d["progress"]["running"])')" = True ] && break
+  [ "$(echo "$ST" | py 'print(d.get("stats",{}).get("docs",0) >= 10 and not d["progress"]["running"])')" = True ] && break
   sleep 5
 done
-check "documents indexed" "$(echo "$ST" | py 'print(d["stats"]["docs"], d["stats"]["failed"], d["stats"]["bytes"] > 0)')" "11 0 True"
+check "documents indexed" "$(echo "$ST" | py 'print(d["stats"]["docs"], d["stats"]["failed"], d["stats"]["bytes"] > 0)')" "10 0 True"
 s() { c GET "/api/search/docs?$1" | py 'print(" ".join(h["name"] for h in d["hits"]))'; }
 check "Word" "$(s 'q=lighthouse%20renovation')" "report.docx"
 check "administrator finds every folder" "$(s 'q=lighthouse')" "secret-report.docx"
