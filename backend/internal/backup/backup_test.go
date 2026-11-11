@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -8,7 +9,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -115,4 +118,24 @@ func testCertPEM(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
+// restic retries a refused certificate for minutes: the first x509 line
+// stops it and the error says what to do.
+func TestResticStopsOnCertError(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\necho 'Stat(<config/>) returned error, retrying after 1m: tls: failed to verify certificate: x509: certificate signed by unknown authority' >&2\nsleep 60\n"
+	if err := os.WriteFile(filepath.Join(dir, "restic"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	task := store.BackupTask{ID: "x", DestType: "rest", DestPath: "https://127.0.0.1:1/", Password: "12345678"}
+	start := time.Now()
+	_, err := restic(context.Background(), &task, nil, "cat", "config")
+	if err == nil || !strings.Contains(err.Error(), "x509") && !strings.Contains(err.Error(), "certificate") {
+		t.Fatalf("error: %v", err)
+	}
+	if time.Since(start) > 20*time.Second {
+		t.Fatalf("restic was not stopped at the first certificate error (%s)", time.Since(start))
+	}
 }

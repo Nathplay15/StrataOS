@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -408,10 +409,28 @@ func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...s
 		t = &c
 	}
 	o := sys.Opts{Env: resticEnv(t), Timeout: 48 * time.Hour}
-	if out != nil {
-		o.Output = out
+	// restic retries a refused certificate for many minutes: stop at the
+	// first one and say what to do instead.
+	rctx, stop := context.WithCancel(ctx)
+	defer stop()
+	var certErr string
+	watch := &lineWriter{fn: func(l string) {
+		if certErr == "" && tlsAddress(t) != "" && tlstrust.IsCertError(l) {
+			certErr = l
+			stop()
+		}
+		if out != nil {
+			out.fn(l)
+		}
+	}}
+	o.Output = watch
+	res, err := sys.RunOpts(rctx, o, "restic", resticArgs(t, args...)...)
+	if certErr != "" && ctx.Err() == nil {
+		if ex := explainTLS(t, errors.New(certErr)); ex != nil {
+			return res, ex
+		}
+		return res, fmt.Errorf("%s", certErr)
 	}
-	res, err := sys.RunOpts(ctx, o, "restic", resticArgs(t, args...)...)
 	if ex := explainTLS(t, err); ex != nil {
 		return res, ex
 	}
