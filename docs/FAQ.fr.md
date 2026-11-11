@@ -23,6 +23,10 @@ Seulement le disque système. Quand la machine a plusieurs disques, l'installati
 
 Non. StrataOS est conçu pour Debian 13 (trixie) et ses paquets. Sur un système Debian 13 existant, installez le paquet `.deb` avec `sudo apt install ./strataos_<version>_<arch>.deb`.
 
+### Et Debian 14 ?
+
+Debian 14 (forky) n'est pas encore sortie. Le même paquet StrataOS s'installe et fonctionne déjà sur sa version de test, à part quelques paquets qui manquent pour l'instant dans Debian elle-même (par exemple rclone, utilisé par la synchronisation cloud). Quand Debian 14 sortira, le passage de 13 à 14 se fera à la main, en suivant [DEBIAN-14.md](DEBIAN-14.md) ; il n'y a pas de bouton pour cela. D'ici là, restez sur Debian 13.
+
 ### Où est l'interface web ?
 
 À l'adresse `http://<adresse>:7070`, ou `https://<adresse>:7443` en HTTPS. L'écran de la machine affiche l'adresse au démarrage. En HTTPS, le certificat est auto-signé tant que vous n'importez pas le vôtre ou n'en obtenez pas un de Let's Encrypt : le navigateur vous avertit la première fois.
@@ -55,7 +59,7 @@ Oui. Une grappe mdadm s'agrandit : ajoutez le nouveau disque comme disque de sec
 
 ### Comment remplacer un disque en panne ?
 
-Stockage → RAID (ou ZFS) → **Remplacer**, puis choisissez le nouveau disque. La reconstruction démarre d'elle-même, et vous recevez une notification à son début et une à sa fin. Lancez un **test de burn-in** sur les disques neufs avant de leur confier des données.
+Stockage → Disques → **Remplacer** sur la carte du disque (le même assistant s'ouvre depuis un avertissement SMART, une grappe dégradée ou le conseiller de sécurité). Il vous dit ce que contient le disque et combien d'autres disques peuvent encore tomber en panne, ajoute d'abord le nouveau disque quand l'ancien fonctionne encore, montre la reconstruction avec le temps restant, puis vous indique quel disque retirer (numéro de série, et le voyant de sa baie quand le boîtier le permet). Vous recevez une notification au début de la reconstruction et une à la fin. Lancez un **test de burn-in** sur les disques neufs avant de leur confier des données.
 
 ### Puis-je utiliser des disques USB ?
 
@@ -73,12 +77,13 @@ Gardez **3** copies de vos données, sur **2** types de supports différents, do
 - **Copie de fichiers** (rsync) : un miroir simple, lisible partout, mais sans historique.
 - **Réplication ZFS** : pour les datasets ZFS, vers un autre pool ou un autre hôte ZFS. Le mode « récupérer » met les sauvegardes hors de portée de la source.
 - **Sauvegarder un autre NAS** : ce NAS récupère les dossiers d'un autre NAS (rsync, SSH ou SMB).
+- **Dépôt de sauvegarde** : une sauvegarde versionnée dont la destination est partagée par plusieurs tâches et plusieurs NAS. Les machines virtuelles et les conteneurs y sont rangés en images dédupliquées (une deuxième VM créée depuis le même modèle coûte peu), le dépôt est vérifié selon un planning, et on peut récupérer des fichiers isolés depuis le disque d'une VM.
 
 La synchronisation bidirectionnelle et la synchronisation cloud gardent des dossiers identiques, mais propagent aussi les suppressions : elles ne remplacent pas une sauvegarde.
 
 ### Que se passe-t-il si je perds le mot de passe restic ?
 
-La sauvegarde ne peut pas être restaurée : personne, StrataOS compris, ne peut la déchiffrer. Gardez le mot de passe en lieu sûr, hors du NAS. Testez une restauration de temps en temps avec le bouton **Restaurer**.
+La sauvegarde ne peut pas être restaurée : personne, StrataOS compris, ne peut la déchiffrer. Gardez le mot de passe en lieu sûr, hors du NAS. StrataOS teste aussi chaque mois la restauration de quelques fichiers de chaque sauvegarde, et **Restaurer…** dans Sauvegarde vous permet de vérifier vous-même.
 
 ### Les sauvegardes contiennent-elles mes réglages ?
 
@@ -96,7 +101,7 @@ Un **point de restauration** est créé avant chaque mise à jour. Mises à jour
 
 ### Les applications sont-elles aussi mises à jour ?
 
-Les applications de l'App Center se mettent à jour séparément, à la main ou selon un planning (Tâches planifiées).
+Les applications et les conteneurs se mettent à jour séparément de StrataOS. Toutes les 12 heures, StrataOS regarde si une image plus récente existe ; l'application ou le conteneur affiche alors **Mise à jour disponible**, et **Mettre à jour** (ou **Tout mettre à jour**) le recrée avec les mêmes réglages, en remettant la version précédente si la nouvelle ne démarre pas. Les mises à jour peuvent aussi suivre un planning (Tâches planifiées).
 
 ## Accès à distance
 
@@ -123,6 +128,16 @@ Les Raspberry Pi 5, 500, CM5, 4, 400 et CM4 gèrent le partage de fichiers, les 
 
 L'image est une Debian 13 avec le noyau et le firmware Raspberry Pi. Docker n'est pas préinstallé (App Center → **Installer Docker**), et la cible iSCSI n'est pas disponible car le noyau Raspberry Pi ne l'inclut pas. La [page matériel](HARDWARE.md) donne des conseils sur l'alimentation, les SSD NVMe du Pi 5 et les pages mémoire de 16 Ko.
 
+## Téléphones et ordinateurs
+
+### J'utilise StrataOS Sync de la 0.10. Que se passe-t-il avec la nouvelle application pour ordinateur ?
+
+La nouvelle application StrataOS pour ordinateur la remplace et garde le même dossier de réglages : vos dossiers synchronisés, vos réglages et l'appairage sont repris à son premier lancement. Elle désactive aussi le démarrage de l'ancienne application à l'ouverture de session. Sous Linux, le nouveau `.deb` remplace le paquet `strataos-sync`. Sous Windows et macOS, l'ancienne application reste installée à côté de la nouvelle : quittez-la et désinstallez-la (Windows : Paramètres → Applications ; macOS : mettez-la à la corbeille). Ne laissez pas les deux tourner en même temps.
+
+### Faut-il les services Google pour l'application Android ?
+
+Non. L'application est un APK de la page des versions et se met à jour toute seule depuis les versions signées publiées sur GitHub ; les notifications instantanées passent par UnifiedPush (par exemple l'application ntfy), sinon l'application interroge le NAS toutes les 15 minutes.
+
 ## Applications Docker
 
 ### Faut-il connaître Docker ?
@@ -133,6 +148,10 @@ Non. L'App Center installe des applications prêtes à l'emploi (Jellyfin, Nextc
 
 Oui : **Ajouter une app personnalisée** à partir de votre propre fichier compose, ou ajoutez une pile Compose existante à Mes apps. N'utilisez que des fichiers compose de confiance : les conteneurs ont les droits que vous leur donnez.
 
+### L'App Center propose MinIO, et les Services de fichiers ont un service S3. Lequel choisir ?
+
+Le **service S3 intégré** (Services de fichiers → S3) présente vos dossiers partagés existants comme des buckets : ce que vous envoyez en S3 est un fichier ordinaire, que vous voyez aussi dans Fichiers et en SMB, et l'accès suit les comptes du NAS et les droits des dossiers partagés (chaque utilisateur crée ses clés d'accès depuis le menu du compte). Prenez-le pour un logiciel de sauvegarde, rclone ou des scripts qui doivent écrire dans vos dossiers partagés. **MinIO** est un stockage objet à part, avec son propre dossier de stockage, ses utilisateurs, ses buckets et sa console : prenez-le quand une application a besoin d'un vrai serveur S3 à elle (versions, verrouillage d'objets), ce que le service intégré n'offre pas.
+
 ### Où les applications gardent-elles leurs données ?
 
 Dans les dossiers indiqués dans le formulaire d'installation (par exemple `/srv/strata/apps/<application>` pour les réglages, et vos dossiers de médias pour le contenu). Gardez-les sur un volume sauvegardé.
@@ -141,11 +160,20 @@ Dans les dossiers indiqués dans le formulaire d'installation (par exemple `/srv
 
 ### Comment protéger le NAS ?
 
-- Un compte par personne, des administrateurs avec la double authentification ou une clé d'accès.
+- Un compte par personne, des administrateurs avec la double authentification (application d'authentification, clé d'accès ou clé de sécurité). Paramètres → Double authentification pour les administrateurs peut l'exiger.
+- Le **conseiller de sécurité** (Panneau de configuration → Conseiller de sécurité), qui note les réglages et corrige d'un clic ceux qui sont sans risque.
 - Les notifications activées, pour être prévenu d'un disque défaillant ou d'une attaque bloquée.
 - Des snapshots sur Btrfs ou ZFS, verrouillés pour les mettre à l'abri des rançongiciels, et des sauvegardes hors du NAS.
 - La protection contre les rançongiciels avec les fichiers pièges, l'antivirus et le blocage d'adresses (pages Antivirus et Blocage d'adresses).
 - Des mises à jour installées régulièrement.
+
+### Pourquoi ma clé de sécurité ou ma clé d'accès ne fonctionne-t-elle pas ?
+
+Les navigateurs n'acceptent les clés de sécurité et les clés d'accès que sur une page sécurisée : ouvrez le NAS **par son nom, en HTTPS**, avec un certificat accepté par le navigateur (par exemple `https://strataos.local:7443` ou votre propre domaine), pas en `http://` ni par son adresse IP. Une clé ne fonctionne aussi que sur le nom avec lequel elle a été enregistrée. La page de connexion indique quand c'est l'adresse qui pose problème. Enregistrez deux clés et gardez en lieu sûr les codes de récupération que StrataOS vous donne.
+
+### Peut-on se connecter avec les comptes de l'entreprise ou de la maison (OpenID Connect) ?
+
+Oui. Paramètres → **Connexion avec un fournisseur d'identité** ajoute un fournisseur OpenID Connect (Authentik, Keycloak, Authelia, Google Workspace, Microsoft Entra ID…) : un bouton « Se connecter avec … » apparaît sur la page de connexion. StrataOS peut créer les comptes à la première connexion, donner le rôle d'administrateur à un groupe, faire correspondre les groupes et faire confiance au second facteur du fournisseur. La connexion locale par mot de passe reste toujours possible, pour qu'un administrateur puisse entrer quand le fournisseur est en panne. Les comptes créés ainsi n'ont pas de mot de passe tant que leur propriétaire n'en a pas choisi un, ce qui est nécessaire pour SMB et les applications. Les annuaires Active Directory et LDAP se règlent dans Paramètres → Domaine / LDAP.
 
 ### StrataOS envoie-t-il des données quelque part ?
 

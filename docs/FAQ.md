@@ -23,6 +23,10 @@ Only the system disk. When the machine has several disks, the installer asks whi
 
 No. StrataOS is built for Debian 13 (trixie) and its packages. On an existing Debian 13 system, install the `.deb` package with `sudo apt install ./strataos_<version>_<arch>.deb`.
 
+### What about Debian 14?
+
+Debian 14 (forky) is not released yet. The same StrataOS package already installs and runs on its testing version, apart from a few packages Debian itself is missing for now (for example rclone, used by cloud sync). When Debian 14 is released, the move from 13 to 14 will be done by hand, following [DEBIAN-14.md](DEBIAN-14.md); there is no button for it. Stay on Debian 13 until then.
+
 ### Where is the web interface?
 
 At `http://<address>:7070`, or `https://<address>:7443` over HTTPS. The machine's screen shows the address when it starts. HTTPS uses a self-signed certificate until you import your own or get a Let's Encrypt one, so the browser warns you the first time.
@@ -55,7 +59,7 @@ Yes. An mdadm array grows: add the new disk as a spare, then **Expand** the arra
 
 ### How do I replace a failed disk?
 
-Storage → RAID (or ZFS) → **Replace**, then pick the new disk. The rebuild starts by itself, and you get one notification when it starts and one when it ends. Run a **Burn-in test** on new disks before you trust them with data.
+Storage → Disks → **Replace** on the disk's card (the same wizard opens from a SMART warning, a degraded array or the security advisor). It tells you what the disk holds and how many more disks can fail, adds the new disk first when the old one still works, shows the rebuild with the time left, then tells you which disk to pull (serial number, and the bay LED when the enclosure supports it). You get one notification when the rebuild starts and one when it ends. Run a **Burn-in test** on new disks before you trust them with data.
 
 ### Can I use USB disks?
 
@@ -73,12 +77,13 @@ Keep **3** copies of your data, on **2** different kinds of media, with **1** co
 - **File copy** (rsync): a plain mirror you can read anywhere, but with no history.
 - **ZFS replication**: for ZFS datasets, to another pool or another ZFS host. Pull mode keeps the backups out of the source's reach.
 - **Back up another NAS**: this NAS fetches folders from another NAS (rsync, SSH or SMB).
+- **Backup repository**: a versioned backup whose destination several tasks and several NAS share. Virtual machines and containers are stored there as deduplicated images (a second VM made from the same template costs little), the repository is checked on a schedule, and single files can be taken back from a VM disk.
 
 Two-way sync and cloud sync keep folders identical, but they also propagate deletions: they don't replace a backup.
 
 ### What happens if I lose the restic password?
 
-The backup can't be restored: nobody, StrataOS included, can decrypt it. Keep the password somewhere safe, outside the NAS. Test a restore from time to time with the **Restore** button.
+The backup can't be restored: nobody, StrataOS included, can decrypt it. Keep the password somewhere safe, outside the NAS. StrataOS also tests a restore of a few files of every backup once a month, and **Restore…** in Backup lets you check by hand.
 
 ### Do backups include my settings?
 
@@ -96,7 +101,7 @@ A **restore point** is created before each update. Updates → Restore brings th
 
 ### Are apps updated too?
 
-App Center apps are updated separately, by hand or on a schedule (Scheduled tasks).
+Apps and containers are updated separately from StrataOS. Every 12 hours StrataOS checks whether a newer image exists; the app or container then shows **Update available**, and **Update** (or **Update all**) recreates it with the same settings, putting the previous version back if the new one doesn't start. Updates can also run on a schedule (Scheduled tasks).
 
 ## Remote access
 
@@ -123,6 +128,16 @@ The Raspberry Pi 5, 500, CM5, 4, 400 and CM4 handle file sharing, backups and Do
 
 The image is Debian 13 with the Raspberry Pi kernel and firmware. Docker isn't preinstalled (App Center → **Install Docker**), and the iSCSI target isn't available because the Raspberry Pi kernel doesn't include it. The [hardware page](HARDWARE.md) has tips about power supplies, NVMe SSDs on the Pi 5, and 16K memory pages.
 
+## Phones and computers
+
+### I use StrataOS Sync from 0.10. What happens with the new desktop app?
+
+The new StrataOS desktop app replaces it and keeps the same settings folder, so your synchronized folders, settings and pairing are taken over at its first launch. It also turns off the old app's start at login. On Linux, the new `.deb` replaces the `strataos-sync` package. On Windows and macOS, the former app stays installed next to the new one: quit it and uninstall it (Windows: Settings → Apps; macOS: move it to the Trash). Don't let both run at the same time.
+
+### Do I need Google services for the Android app?
+
+No. The app is an APK from the Releases page and updates itself from the signed GitHub releases; instant notifications use UnifiedPush (for example the ntfy app), otherwise the app checks the NAS every 15 minutes.
+
 ## Docker apps
 
 ### Do I need to know Docker?
@@ -133,6 +148,10 @@ No. The App Center installs ready-made apps (Jellyfin, Nextcloud, Immich, Home A
 
 Yes: **Add a custom app** from your own compose file, or add an existing Compose stack to My apps. Only use compose files you trust: containers run with the rights you give them.
 
+### The App Center has a MinIO app, and File services has an S3 service. Which one should I use?
+
+The built-in **S3 service** (File services → S3) exposes your existing shared folders as buckets: what you upload over S3 is an ordinary file you also see in Files and over SMB, and the access follows the NAS accounts and shared folder permissions (each user creates access keys from the account menu). Use it for backup software, rclone or scripts that should write into your shared folders. **MinIO** is a separate object store with its own storage folder, users, buckets and console: take it when an application needs a full S3 server of its own (versioning, object lock), which the built-in service doesn't offer.
+
 ### Where do apps keep their data?
 
 In the folders shown in the install form (for example `/srv/strata/apps/<app>` for the settings, and your media folders for the content). Keep them on a volume that is backed up.
@@ -141,11 +160,20 @@ In the folders shown in the install form (for example `/srv/strata/apps/<app>` f
 
 ### How do I protect the NAS?
 
-- One account per person, administrators with two-factor authentication or a passkey.
+- One account per person, administrators with two-factor authentication (an authenticator app, a passkey or a security key). Settings → Two-factor authentication for administrators can require it.
+- The **security advisor** (Control Panel → Security advisor), which scores the settings and fixes the safe ones in one click.
 - Notifications turned on, so you hear about a failing disk or a blocked attack.
 - Snapshots on Btrfs or ZFS, locked if you want them safe from ransomware, and backups off the NAS.
 - Ransomware protection with trap files, the antivirus and address blocking (Antivirus and Address blocking pages).
 - Updates installed regularly.
+
+### Why doesn't my security key or passkey work?
+
+Browsers only allow security keys and passkeys on a secure page: open the NAS **by its name over HTTPS** with a certificate the browser accepts (for example `https://strataos.local:7443` or your own domain), not `http://` and not its IP address. A key or passkey also only works on the name it was registered on. The sign-in page says when the address is the problem. Register two keys and keep the recovery codes StrataOS gives you somewhere safe.
+
+### Can people sign in with our company or home accounts (OpenID Connect)?
+
+Yes. Settings → **Sign-in with an identity provider** adds an OpenID Connect provider (Authentik, Keycloak, Authelia, Google Workspace, Microsoft Entra ID…): a "Sign in with …" button appears on the sign-in page. StrataOS can create the accounts at the first sign-in, give the administrator role to a group, map groups, and trust the provider's second factor. The local password sign-in always stays, so an administrator can get in when the provider is down. Accounts created this way have no password until their owner sets one, which they need for SMB and the apps. Active Directory and LDAP directories are set in Settings → Domain / LDAP.
 
 ### Does StrataOS send data anywhere?
 
