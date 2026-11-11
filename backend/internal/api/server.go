@@ -287,6 +287,7 @@ func (s *Server) routes() {
 	s.bridgeRoutes()
 	s.firewallRoutes()
 	s.vnetRoutes()
+	s.vnetShareRoutes()
 	s.wallpaperRoutes()
 	s.shareRoutes()
 	s.dockerRoutes()

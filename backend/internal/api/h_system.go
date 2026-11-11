@@ -203,6 +203,7 @@ func (s *Server) systemRoutes() {
 		})
 		s.store.Log("info", "network", "", "Network configuration confirmed")
 		fwKick() // virtual networks: isolation and Docker networks
+		vnetShareKick()
 		return nil, nil
 	})
 

@@ -72,13 +72,14 @@ type fleetPeerStatus struct {
 }
 
 type fleetAccess struct {
-	Updates bool `json:"updates"`
-	Reboot  bool `json:"reboot"`
-	VMs     bool `json:"vms"`
+	Updates  bool `json:"updates"`
+	Reboot   bool `json:"reboot"`
+	VMs      bool `json:"vms"`
+	Networks bool `json:"networks"`
 }
 
 func accessOf(m store.FleetManager) fleetAccess {
-	return fleetAccess{Updates: m.AllowUpdates, Reboot: m.AllowUpdates && m.AllowReboot, VMs: m.AllowVMs}
+	return fleetAccess{Updates: m.AllowUpdates, Reboot: m.AllowUpdates && m.AllowReboot, VMs: m.AllowVMs, Networks: m.AllowNetworks}
 }
 
 // strataPolicy reads the installed and candidate versions of StrataOS.
@@ -818,6 +819,7 @@ func (s *Server) fleetUpdateRoutes() {
 			AllowUpdates bool  `json:"allowUpdates"`
 			AllowReboot  bool  `json:"allowReboot"`
 			AllowVMs     *bool `json:"allowVms"` // absent: unchanged (older clients)
+			AllowNets    *bool `json:"allowNetworks"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -832,6 +834,9 @@ func (s *Server) fleetUpdateRoutes() {
 					if req.AllowVMs != nil {
 						m.AllowVMs = *req.AllowVMs
 					}
+					if req.AllowNets != nil {
+						m.AllowNetworks = *req.AllowNets
+					}
 					return nil
 				}
 			}
@@ -845,6 +850,9 @@ func (s *Server) fleetUpdateRoutes() {
 		}
 		if req.AllowVMs != nil && before.AllowVMs != *req.AllowVMs {
 			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now copy virtual machines and containers to and from this NAS", false: "The console %s may no longer copy virtual machines and containers"}[*req.AllowVMs], before.Name))
+		}
+		if req.AllowNets != nil && before.AllowNetworks != *req.AllowNets {
+			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now manage shared virtual networks on this NAS", false: "The console %s may no longer manage shared virtual networks"}[*req.AllowNets], before.Name))
 		}
 		if before.AllowReboot != req.AllowReboot {
 			s.audit(r, "fleet", fmt.Sprintf(map[bool]string{true: "The console %s may now restart this NAS after an update", false: "The console %s may no longer restart this NAS"}[req.AllowReboot], before.Name))

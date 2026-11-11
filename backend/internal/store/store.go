@@ -433,6 +433,15 @@ type Fleet struct {
 	// Transfers: VMs and containers copied or moved between NAS through
 	// this console (newest last).
 	Transfers []FleetTransfer `json:"transfers,omitempty"`
+	// VNetSent: the shared VXLAN networks this NAS sent to other NAS
+	// ("fleet:<id>" | "cluster:<id>"), so that a removal reaches them.
+	VNetSent []VNetSent `json:"vnetSent,omitempty"`
+}
+
+// VNetSent is a virtual network applied on another NAS.
+type VNetSent struct {
+	VNet   string `json:"vnet"`
+	Member string `json:"member"`
 }
 
 type FleetMember struct {
@@ -457,6 +466,9 @@ type FleetManager struct {
 	// AllowVMs: the console may copy VMs and containers to and from this
 	// NAS (off by default).
 	AllowVMs bool `json:"allowVms,omitempty"`
+	// AllowNetworks: the console may create, change and remove the shared
+	// VXLAN networks it declared on this NAS (off by default).
+	AllowNetworks bool `json:"allowNetworks,omitempty"`
 }
 
 // Vault receives the backups of other StrataOS NAS (restic REST protocol);

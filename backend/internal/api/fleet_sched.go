@@ -33,6 +33,11 @@ func fleetAllowed(m store.FleetManager, perm string) error {
 			return nil
 		}
 		return forbidden("this NAS does not allow the console to copy virtual machines and containers")
+	case "networks":
+		if m.AllowNetworks {
+			return nil
+		}
+		return forbidden("this NAS does not allow the console to manage shared virtual networks")
 	}
 	return forbidden("action not allowed")
 }

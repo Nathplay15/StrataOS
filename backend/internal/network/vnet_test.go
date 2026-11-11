@@ -156,3 +156,54 @@ func TestDockerForwardRules(t *testing.T) {
 		t.Error(all)
 	}
 }
+
+func TestSharedVXLAN(t *testing.T) {
+	key := "YJqTsXV5pr6hSGBcIPbq1HqzaZhFzZ6vCk1cCUoT5lE="
+	v := VNet{ID: "lab", Kind: "vxlan", Bridge: "vn3", VNI: 4242, Subnet: "10.77.0.0/24", Members: []string{"fleet:abc123", "cluster:m2"}, Encrypt: true,
+		Peers: []string{"fd53:7472:1::2"}, Local: "fd53:7472:1::1",
+		WG: &VNetWG{Port: 51900, Address: "fd53:7472:1::1/64", Peers: []WGPeer{{PublicKey: key, Endpoint: "192.168.1.20:51901", Address: "fd53:7472:1::2"}}}}
+	if err := validVNet(&v); err != nil {
+		t.Fatal(err)
+	}
+	if v.EffectiveMTU() != EncryptedMTU {
+		t.Fatal("MTU", v.EffectiveMTU())
+	}
+	files := map[string]string{}
+	renderVNet(files, v)
+	nd := files[filePrefix+"vn3wg.netdev"]
+	for _, want := range []string{"Kind=wireguard", "MTUBytes=1420", "PrivateKeyFile=" + WGKeyFile("lab"), "ListenPort=51900", "PublicKey=" + key, "Endpoint=192.168.1.20:51901", "AllowedIPs=fd53:7472:1::2/128"} {
+		if !strings.Contains(nd, want) {
+			t.Errorf("netdev lacks %s:\n%s", want, nd)
+		}
+	}
+	if n := files[filePrefix+"vn3wg.network"]; !strings.Contains(n, "Address=fd53:7472:1::1/64") {
+		t.Error(n)
+	}
+	if vx := files[filePrefix+"vn3vx.netdev"]; !strings.Contains(vx, "Local=fd53:7472:1::1") || !strings.Contains(vx, "MTUBytes=1350") {
+		t.Error(vx)
+	}
+	if p := files[filePrefix+"vn3vx.network"]; !strings.Contains(p, "Destination=fd53:7472:1::2") {
+		t.Error(p)
+	}
+	if l := vnetLinks(v); l[1] != "vn3wg" {
+		t.Error(l)
+	}
+	// Members without peers yet (the first exchange fills them).
+	w := VNet{ID: "lab", Kind: "vxlan", Bridge: "vn3", VNI: 9, Members: []string{"fleet:abc"}}
+	if err := validVNet(&w); err != nil {
+		t.Fatal(err)
+	}
+	for name, bad := range map[string]VNet{
+		"member":         {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"ssh:host"}},
+		"twice":          {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"fleet:a", "fleet:a"}},
+		"received+share": {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, OriginKey: "fleet:a", Members: []string{"fleet:b"}},
+		"mtu":            {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"fleet:a"}, Encrypt: true, MTU: 1450},
+		"key":            {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"fleet:a"}, Encrypt: true, WG: &VNetWG{Port: 51900, Address: "fd00::1/64", Peers: []WGPeer{{PublicKey: "nope", Endpoint: "10.0.0.2:51900", Address: "fd00::2"}}}},
+		"endpoint":       {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"fleet:a"}, Encrypt: true, WG: &VNetWG{Port: 51900, Address: "fd00::1/64", Peers: []WGPeer{{PublicKey: key, Endpoint: "10.0.0.2", Address: "fd00::2"}}}},
+		"public mesh":    {ID: "x", Kind: "vxlan", Bridge: "vn1", VNI: 9, Members: []string{"fleet:a"}, Encrypt: true, WG: &VNetWG{Port: 51900, Address: "2001:db8::1/64"}},
+	} {
+		if validVNet(&bad) == nil {
+			t.Error("accepted:", name)
+		}
+	}
+}
