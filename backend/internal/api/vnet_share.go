@@ -240,11 +240,11 @@ type vnetMemberStatus struct {
 	At     time.Time `json:"at"`
 }
 
-var vnetShare struct {
+var vnetShare = struct {
 	sync.Mutex
 	status map[string]map[string]vnetMemberStatus // vnet → member → status
 	kick   chan struct{}
-}
+}{kick: make(chan struct{}, 1)}
 
 func vnetShareKick() {
 	select {
@@ -337,7 +337,6 @@ func localAddrTo(addr string) string {
 }
 
 func (s *Server) vnetShareLoop() {
-	vnetShare.kick = make(chan struct{}, 1)
 	time.Sleep(30 * time.Second)
 	for {
 		s.vnetShareRound(context.Background())
