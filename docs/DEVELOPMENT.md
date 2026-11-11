@@ -21,6 +21,7 @@ StrataOS/
 │   │   ├── firewall/   Distributed firewall: nftables rules of guests, virtual networks and the NAS (pure, tested)
 │   │   ├── health/     SMART/SSD cache/volume history, trends, wear estimates, security advisor checks (pure, tested)
 │   │   ├── i18n/       Translation of notifications and reports
+│   │   ├── photoml/    Smart photos: ONNX worker, faces into people, tags, search by description
 │   │   └── store/      Persistent state (/var/lib/strata/state.json)
 │   └── web/            go:embed of the built frontend
 ├── frontend/           React 19 + TypeScript + Vite + Tailwind CSS 4 (src/desktop/: desktop mode; see "Desktop, search and appearance" below)
@@ -240,6 +241,35 @@ Tests: `go test ./internal/netguard ./internal/api -run 'Assistant|MCP|Token|IsA
 - `proxy.CertStore.Obtain` orders every name of the certificate (`acme.DomainIDs(host, extra...)`) and authorizes each one; a wildcard authorization always uses DNS-01 (refused without a DNS solver). `HTTPClient` and `Propagation` exist for tests. `TestObtainOrdersEveryName` checks the order against a fake ACME server; `TestObtainWildcardPebble` runs the whole exchange against Pebble when `STRATA_PEBBLE` (folder with `pebble` and `pebble-challtestsrv`) and `STRATA_PEBBLE_SRC` (pebble's module folder, for its test certificates) are set — see the comment in `proxy/acme_test.go`.
 - App domains (`api/h_remote.go`): `wildcardServes(base, host)` is true only while a wildcard covering host is valid for 14 more days; otherwise app domains get (and renew) their own certificate. `obtainFor` tries the wildcard and falls back to the single name.
 - Interface DNS-01 certificate (`certs.Manager`): `SetACMEDNS` keeps only the current domain's files, `LoadDNS(domain)` loads the configured domain, and `certLoop` renews whenever `DNSCertFits(domain, 30 days)` is false (other domain, name not covered, or expiring). `GET /api/system/certificates` reads `acmeMode` (and, in DNS mode, the domain) from the state; `PUT …/acme` in DNS mode without a token keeps the saved one. `ACMEToken` is masked in `GET /api/settings` and kept when sent back masked.
+
+## Smart photos (0.13)
+
+**Smart photos** (`internal/photoml`, `api/h_photos_smart.go`, `pages/photos/Smart.tsx`):
+
+- **Runtime**: the optional component `photoml` (`packaging/scripts/install-photoml.sh`) installs `python3-onnxruntime`, `python3-numpy`, `python3-pil` from Debian and downloads the models into `/usr/local/lib/strata/photoml/models` (outside the 0700 `/var/lib/strata`, readable by the sandbox user), each pinned by URL revision and SHA-256: YuNet 2023mar (face detection, MIT, 0.2 MB), SFace 2021dec (128-d face embeddings, Apache 2.0, 37 MB), CLIP ViT-B/32 image and text encoders in Xenova's 8-bit dynamic quantization (MIT, 85 + 62 MB) and its BPE vocabulary. Why these: licences that allow redistribution and commercial use (InsightFace/ArcFace weights do not), small enough for a NAS (~190 MB, ~0.2–0.3 s per photo on two cores), and one CLIP model gives tags (zero-shot) and text search. Debian's ONNX Runtime 1.21 is CPU only; on amd64 with an Intel render node or `/dev/accel`, the script adds the `onnxruntime-openvino` 1.24.1 wheel (pinned) in a venv at `…/photoml/runtime`, which the worker prefers (providers in order CUDA, ROCm, OpenVINO, CoreML, CPU; `STRATA_ML_PROVIDER=cpu` forces the CPU).
+- **Worker** (`photoml/worker.py`, embedded with `go:embed` and written to `…/photoml/worker`): started on demand as `strata-preview` (`sys.Sandboxed`) under `nice -n 19` with `python3 -I -B`, stopped after 3 idle minutes. JSON lines over stdin/stdout (`hello`, `image` + JPEG bytes, `text`); it never opens user files: the daemon sends the 1600 px thumbnail of `photos.Thumb` (any format, rotated). It returns boxes as fractions and L2-normalized embeddings quantized to int8.
+- **Storage**: `/var/lib/strata/photos/ml.db` (SQLite through `modernc.org/sqlite`, pure Go): `photos` (mtime, steps done, CLIP vector, tags), `faces` (box, score, vector), `people` (owner, name, hidden), `assign` (owner, face → person, `manual`), `labels` (cached text vectors of the tag prompts). People are **per user**: `DB.Group(owner, allow)` clusters the faces of the pictures that user can read (`readableRootsFor`), names never cross users, and every view filters faces by the user's current rights.
+- **Grouping** (`photoml.Cluster`, tested): leader clustering on the mean direction of each group, threshold 0.40 (SFace's pair threshold is 0.363), new people from 2 faces; leftover faces form the pool of the next run; faces moved by the user (`manual`) are never moved again. **Tags**: softmax over ~90 prompts (logit scale 100), at most 3 tags with p ≥ 0.2. **Search**: CLIP text vector of "a photo of <q>" against the picture vectors, kept when ≥ 0.235 and within 0.06 of the best, after exact tag matches; file names last.
+- **Queue** (`smartLoop`, every 5 minutes or on a change of settings): pictures of the photo index whose mtime or wanted steps changed; between pictures `backgroundGate` waits outside `Limits.Hours`, while the load average minus our threads is above 70 % of the cores (unless `AnyLoad`) and 15 minutes before an energy schedule shutdown; faces are grouped every 300 pictures and at the end.
+- **Places and memories** (`photos/places.go`, `photos/memories.go`): the index (version 2) keeps `lat`/`lon` from EXIF (JPEG parsed in Go, other formats with `exiftool`). `places.tsv.gz` is generated by `go run gen_places.go cities15000.txt admin1CodesASCII.txt` from GeoNames (CC BY 4.0; sections of towns removed) and embedded (540 KB); `Nearest` looks in 1° cells, 60 km at most, big towns counting as closer. The map is Natural Earth 110m land (public domain) as one SVG path (`frontend/scripts/gen-world-map.mjs` → `lib/worldMap.ts`), equirectangular, zoom and pan in the browser.
+- New state: `Photos.Smart` (`PhotoSmart`: `enabled`, `noFaces`, `noObjects`, `limits` = `BackgroundLimits{threads, hours, anyLoad}`).
+
+| Endpoint | |
+|---|---|
+| `GET /api/photos/smart` | Status (users: enabled features, progress; admins: settings, counts, sizes, provider) |
+| `PUT /api/photos/smart` (admin) `{enabled, noFaces, noObjects, limits}` | Settings; refused before the component is installed |
+| `POST /api/photos/smart/reset` (admin) | Clears the analysis (and the people) |
+| `GET /api/photos/people[?hidden=1]`, `GET /api/photos/people/{id}/faces` | People of the user with count and cover face; faces of one |
+| `PUT /api/photos/people/{id}` `{name?, hidden?}`, `POST /api/photos/people/{id}/merge` `{from:[ids]}` | Name, hide, merge (own people only) |
+| `POST /api/photos/faces/move` `{faces, to, name}` | `to` > 0 a person, 0 a new one, -1 nobody |
+| `GET /api/photos/face?id=` | 160 px JPEG of a face (cached in `thumbs/faces`) |
+| `GET /api/photos/tags`, `GET /api/photos/places`, `GET /api/photos/memories` | Things, towns (with the ISO country code), on this day |
+| `GET /api/photos/search?q=` | Tag matches, CLIP ranking, names: `{items, smart}` |
+| `GET /api/photos?person=|tag=|place=` | The timeline filtered |
+
+Document search is the full-text search above (`internal/ftsearch`); the smart photos reuse only its idea of background limits.
+
+Tests: `go test ./internal/photoml ./internal/photos ./internal/api` (background limits); end to end `vm/smart-test.sh` (one VM, ~20 minutes, section `e2e.d/96c-smart-photos.sh`, also run by the full suite). Test data: `vm/testdata/photos` (public domain and CC0 photos from Wikimedia Commons, listed in its `LICENSE.md`, GPS and dates written by `make-samples.py`).
 
 ## Cluster of NAS and Ceph
 

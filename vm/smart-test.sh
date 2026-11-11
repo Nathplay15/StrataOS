@@ -1,9 +1,8 @@
 #!/bin/bash
-# Smart photos and document search (0.12) on one fresh VM (3 GB, 4 CPUs, one
-# 10 GB data disk), without the whole end-to-end suite: setup, a volume
-# "main", the share Photos and the user alice (group famille) like
-# e2e-test.sh, then the sections e2e.d/96c-smart-photos.sh and
-# e2e.d/97e-doc-search.sh. About 20 minutes (downloads ~300 MB of packages
+# Smart photos on one fresh VM (3 GB, 4 CPUs, one 10 GB data disk), without
+# the whole end-to-end suite: setup, a volume "main", the share Photos and
+# the user alice (group famille) like e2e-test.sh, then the section
+# e2e.d/96c-smart-photos.sh. About 20 minutes (downloads ~300 MB of packages
 # and models). Ports and state folder come from the usual VM_* variables.
 # Usage: make deb && flock -o /home/nathan/Documents/StrataOS-wt/.vm.lock timeout 90m ./vm/smart-test.sh
 #   (KEEP=1 keeps the VM; REUSE=1 runs the sections on a VM already set up)
@@ -50,7 +49,6 @@ c POST /api/login -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"
 u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}" >/dev/null
 P=/srv/strata/main/Photos
 . vm/e2e.d/96c-smart-photos.sh
-. vm/e2e.d/97e-doc-search.sh
 
 if [ "$FAILS" -gt 0 ]; then vm 'sudo journalctl -u strata --no-pager -n 60 -o cat; free -m'; fi
 printf '\n%d passed, %d failed\n' "$PASSES" "$FAILS"
