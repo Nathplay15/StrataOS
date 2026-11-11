@@ -769,6 +769,8 @@ type State struct {
 	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
 	// Advisor: security advisor (ignored items, last run).
 	Advisor Advisor `json:"advisor,omitzero"`
+	// DistUpgrade: the Debian release upgrade (store/distupgrade.go).
+	DistUpgrade DistUpgrade `json:"distUpgrade,omitzero"`
 	// CatalogSources: community app catalogs of the App Center (store/catalog.go).
 	CatalogSources []*CatalogSource `json:"catalogSources,omitempty"`
 	// Protection: 3-2-1 assistant and restore tests.

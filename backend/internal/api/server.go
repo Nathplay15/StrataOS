@@ -326,6 +326,7 @@ func (s *Server) routes() {
 	s.vpnRoutes()
 	s.photoRoutes()
 	s.restoreRoutes()
+	s.distUpgradeRoutes()
 	s.dataProtectRoutes()
 	s.updateRoutes()
 	s.reportRoutes()
