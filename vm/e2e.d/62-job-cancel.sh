@@ -31,9 +31,9 @@ jc_stop() {
 
 # restic, local repository.
 JCR=$(c POST /api/backups -d "{\"name\":\"e2e-cancel-restic\",\"kind\":\"restic\",\"sources\":[\"$JCSRC\"],\"destType\":\"local\",\"destPath\":\"$JCREPO\",\"password\":\"$JCPASS\",\"cron\":\"\",\"enabled\":true}" | py 'print(d["id"])')
-J=$(c POST /api/backups/$JCR/run)
-check "running backup exposes its job" "$(sleep 1; c GET /api/backups | py "print([b.get('jobId','') for b in d if b['id']=='$JCR'][0] == '$(echo "$J" | py 'print(d["id"])')')")" "True"
-jc_stop "$J" "restic.*backup" "restic backup"
+JCJ=$(c POST /api/backups/$JCR/run)
+check "running backup exposes its job" "$(sleep 1; c GET /api/backups | py "print([b.get('jobId','') for b in d if b['id']=='$JCR'][0] == '$(echo "$JCJ" | py 'print(d["id"])')')")" "True"
+jc_stop "$JCJ" "restic.*backup" "restic backup"
 check "restic backup: history says stopped" "$(c GET /api/backups | py "h=[b['history'][0] for b in d if b['id']=='$JCR'][0]; print(h['status'], h['message'])")" "stopped Stopped by $ADMIN_USER"
 check "restic repository unlocked" "$(vm "sudo RESTIC_PASSWORD=$JCPASS restic -r $JCREPO list locks --no-lock 2>&1 | wc -l")" "0"
 check "restic repository still usable" "$(job "$(c POST /api/backups/$JCR/run)")" "success"
@@ -55,10 +55,10 @@ c DELETE /api/cloudsync/$JCC >/dev/null
 vm "sudo systemctl stop e2e-jc-dav 2>/dev/null; sudo rm -rf /tmp/e2e-jc-dav"
 
 # Updates refuse to stop.
-J=$(c POST /api/system/updates/refresh)
-check "update check: not cancellable" "$(echo "$J" | py 'print(d.get("cancellable"), bool(d.get("cancelReason")))')" "False True"
-check "update check: stop refused" "$(c POST /api/jobs/$(echo "$J" | py 'print(d["id"])')/cancel -o /dev/null -w '%{http_code}')" "409"
-job "$J" >/dev/null
+JCJ=$(c POST /api/system/updates/refresh)
+check "update check: not cancellable" "$(echo "$JCJ" | py 'print(d.get("cancellable"), bool(d.get("cancelReason")))')" "False True"
+check "update check: stop refused" "$(c POST /api/jobs/$(echo "$JCJ" | py 'print(d["id"])')/cancel -o /dev/null -w '%{http_code}')" "409"
+job "$JCJ" >/dev/null
 check "unknown job: 404" "$(c POST /api/jobs/nope/cancel -o /dev/null -w '%{http_code}')" "404"
 
 vm "sudo rm -rf $JCSRC $JCREPO /srv/strata/main/e2e-cancel-copy"
