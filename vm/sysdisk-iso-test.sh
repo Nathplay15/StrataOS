@@ -24,7 +24,7 @@ J=$(mktemp)
 FAILS=0
 trap 'rm -f "$J"; ./vm/iso-test.sh stop' EXIT
 mkdir -p "$KEYDIR"
-[ -f "$KEYDIR/id" ] || ssh-keygen -q -t ed25519 -N "" -f "$KEYDIR/id"
+[ -f "$KEYDIR/id" ] || ssh-keygen -q -t ed25519 -N "" -C sysdisk-test -f "$KEYDIR/id"
 c() { local m=$1 p=$2; shift 2; curl -s -m 60 -b "$J" -c "$J" -X "$m" -H 'X-Strata: 1' -H 'Content-Type: application/json' "$B$p" "$@"; }
 py() { python3 -c "import sys,json; d=json.load(sys.stdin); $1"; }
 check() { case "$2" in *"$3"*) printf '  \033[32m✔\033[0m %s\n' "$1" ;; *) FAILS=$((FAILS + 1)); printf '  \033[31m✘ %s\033[0m\n    expected %q, got: %s\n' "$1" "$3" "${2:0:400}" ;; esac; }

@@ -270,7 +270,10 @@ func (r *Run) Prepare(l Layout) error {
 			return err
 		}
 		defer func() { _, _ = r.run("umount", top) }()
-		subs := []string{r.Op.Subvol}
+		var subs []string
+		if r.Op.Subvol != "" {
+			subs = append(subs, r.Op.Subvol)
+		}
 		for _, m := range l.Mounts {
 			if m.Role == "subvol" {
 				subs = append(subs, m.Subvol)
@@ -293,7 +296,7 @@ func (r *Run) mountNew(l Layout) error {
 	}
 	_ = os.MkdirAll(newRoot, 0o700)
 	root := r.rootDev()
-	if r.Op.FSType == "btrfs" {
+	if r.Op.FSType == "btrfs" && r.Op.Subvol != "" {
 		if _, err := r.run("mount", "-t", "btrfs", "-o", "subvol="+r.Op.Subvol, root, newRoot); err != nil {
 			return err
 		}
@@ -647,6 +650,17 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	if err := os.WriteFile(filepath.Join(newRoot, testCfg), []byte("# StrataOS: test start from a new system disk (removed once it started)\nGRUB_CMDLINE_LINUX=\"$GRUB_CMDLINE_LINUX panic=30\"\n"), 0o644); err != nil {
 		return err
 	}
+	// GRUB_FORCE_PARTUUID (cloud images) names the root by partition UUID:
+	// an md array has none.
+	if r.Op.Kind == "mirror" {
+		_ = os.WriteFile(filepath.Join(newRoot, "etc/default/grub.d/zz-strataos-mirror.cfg"), []byte("# StrataOS: the system is on an md array, which has no partition UUID\nGRUB_FORCE_PARTUUID=\n"), 0o644)
+	}
+	// MODULES=dep (cloud images) would pick the drivers of the disk the
+	// chroot runs from, not those of the new disk: take them all.
+	if initramfsDep(newRoot) {
+		r.Logf("The initramfs of the copy uses MODULES=dep: switching it to MODULES=most")
+		_ = os.WriteFile(filepath.Join(newRoot, "etc/initramfs-tools/conf.d/zz-strataos-sysdisk"), []byte("# StrataOS: the system can start from another disk or controller\nMODULES=most\n"), 0o644)
+	}
 	if err := r.bindAll(newRoot); err != nil {
 		return err
 	}
@@ -785,7 +799,7 @@ func (r *Run) oneShot(l Layout) error {
 		file = "/etc/grub.d/42_strataos_sysdisk"
 	}
 	cfg := "/boot/grub/grub.cfg"
-	if r.Op.FSType == "btrfs" {
+	if r.Op.FSType == "btrfs" && r.Op.Subvol != "" {
 		cfg = "/" + r.Op.Subvol + "/boot/grub/grub.cfg"
 	}
 	script := fmt.Sprintf(`#!/bin/sh
@@ -1054,7 +1068,7 @@ func (r *Run) GoBack(l Layout) error {
 	}
 	_ = os.MkdirAll(oldRoot, 0o700)
 	opts := []string{root, oldRoot}
-	if r.Op.FSType == "btrfs" {
+	if r.Op.FSType == "btrfs" && r.Op.Subvol != "" {
 		opts = []string{"-o", "subvol=" + r.Op.Subvol, root, oldRoot}
 	}
 	if _, err := r.run("mount", opts...); err != nil {
@@ -1080,3 +1094,24 @@ func RootUUID() string {
 }
 
 var _ io.Writer = (*progressWriter)(nil)
+
+// initramfsDep tells whether the initramfs of a system keeps only the
+// modules of the disk it runs from (MODULES=dep, the last setting wins).
+func initramfsDep(root string) bool {
+	files := []string{filepath.Join(root, "etc/initramfs-tools/initramfs.conf")}
+	more, _ := filepath.Glob(filepath.Join(root, "etc/initramfs-tools/conf.d/*"))
+	sort.Strings(more)
+	mode := ""
+	for _, f := range append(files, more...) {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		for _, l := range strings.Split(string(b), "\n") {
+			if v, ok := strings.CutPrefix(strings.TrimSpace(l), "MODULES="); ok {
+				mode = strings.Trim(v, `"'`)
+			}
+		}
+	}
+	return mode == "dep"
+}

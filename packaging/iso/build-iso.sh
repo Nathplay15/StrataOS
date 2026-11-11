@@ -78,7 +78,7 @@ grep -q "^$DEFAULT|" "$STAGE/entries" || { echo "unknown ISO_TEST_DEFAULT $DEFAU
 [ "$DEFAULT" = install ] || OUT=${OUT%.iso}-$DEFAULT-test.iso
 
 docker run --rm -v "$PWD:/w" -v "$STAGE:/stage" -w /w -e VERSION="$VERSION" -e SRC="$SRC" -e OUT="$OUT" -e ARCH="$ARCH" -e KDIR="$KDIR" -e DEFAULT="$DEFAULT" \
-  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" debian:trixie bash -euo pipefail -c '
+  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" debian:trixie bash -euo pipefail ${ISO_DEBUG:+-x} -c '
   apt-get update -qq >/dev/null && apt-get install -y -qq xorriso >/dev/null
   BOOT=$(grep "^$DEFAULT|" /stage/entries | cut -d"|" -f3)
   x() { xorriso -osirrox on -indev "$SRC" -extract "$1" "/stage/$2" 2>/dev/null; chmod u+w "/stage/$2"; }
