@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpCircle, Box, ExternalLink, FileText, Pause, Play, Plus, RotateCw, Square, SquareTerminal, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Box, ExternalLink, FileText, Pause, Play, Plus, RotateCw, ShieldCheck, Square, SquareTerminal, Trash2, X } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Container, ContainerStats } from "../../lib/types";
 import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { Terminal } from "../../components/Terminal";
+import { GuestFirewallModal } from "../system/firewall/GuestFirewall";
 import { tr, locale } from "../../lib/i18n";
 import { useIntent } from "../../lib/intent";
 import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
@@ -181,6 +182,7 @@ export default function Containers() {
   const [logs, setLogs] = useState<Container | null>(null);
   const [shell, setShell] = useState<Container | null>(null);
   const [inspect, setInspect] = useState<string | null>(null);
+  const [fw, setFw] = useState<string | null>(null);
   const [create, setCreate] = useState(false);
   const [filter, setFilter] = useState("");
   useIntent("docker", (i) => setFilter(i.name));
@@ -233,6 +235,7 @@ export default function Containers() {
                         <td className="text-[12.5px]">{st ? `${st.cpuPercent.toFixed(1)} %` : "—"}</td>
                         <td className="text-[12.5px]">{st ? bytes(st.memUsage) : "—"}</td>
                         <td className="text-right whitespace-nowrap">
+                          <IconButton title={tr("Firewall")} onClick={() => setFw(name(c))}><ShieldCheck size={15} /></IconButton>
                           {running ? (
                             <>
                               <IconButton title={tr("Stop")} onClick={() => act.mutate({ id: c.Id, action: "stop" })}><Square size={15} /></IconButton>
@@ -262,6 +265,7 @@ export default function Containers() {
       {logs && <LogsModal id={logs.Id} title={name(logs)} onClose={() => setLogs(null)} />}
       {shell && <ShellModal id={shell.Id} title={name(shell)} onClose={() => setShell(null)} />}
       {inspect && <Detail id={inspect} onClose={() => setInspect(null)} />}
+      {fw && <GuestFirewallModal kind="docker" name={fw} onClose={() => setFw(null)} />}
       {create && <CreateModal onClose={() => setCreate(false)} />}
     </div>
   );

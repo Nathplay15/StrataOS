@@ -95,6 +95,7 @@ func New(c Config) *Server {
 		msg := "Network change rolled back (" + reason + "): the previous configuration is active again"
 		s.store.Log("warning", "network", "", msg)
 		s.notify("warning", "Network restored", msg)
+		fwKick()
 	}
 	network.Recover()
 	s.routes()
@@ -131,6 +132,7 @@ func New(c Config) *Server {
 	go s.vmcLoop()
 	go s.dockerUpdatesLoop() // Android app v2 (part A): container updates
 	go s.replaceResume()
+	go s.fwLoop()
 	return s
 }
 
@@ -232,6 +234,8 @@ func (s *Server) routes() {
 	s.desktopRoutes()
 	s.uxRoutes()
 	s.bridgeRoutes()
+	s.firewallRoutes()
+	s.vnetRoutes()
 	s.wallpaperRoutes()
 	s.shareRoutes()
 	s.dockerRoutes()

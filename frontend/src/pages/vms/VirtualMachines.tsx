@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
+import { Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, ShieldCheck, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, cx } from "../../lib/format";
@@ -14,6 +14,8 @@ import { ContainerCard } from "./containers/ContainerCard";
 import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
 import { ContainerDetail, type DetailTab } from "./containers/ContainerDetail";
 import { ClusterPanel, useClusterData } from "./cluster/ClusterPanel";
+import { useBridgeLabel } from "../system/firewall/useVNets";
+import { GuestFirewallModal } from "../system/firewall/GuestFirewall";
 import { AutostartPanel, BackupsPanel, CloneVM, ConsoleLog, PCIPanel, Snapshots, StorageSelect, USBPanel } from "./panels";
 
 type Tab = "vms" | "cluster" | "templates" | "usb" | "autostart" | "backups" | "pci";
@@ -53,6 +55,7 @@ export default function VirtualMachines() {
   const [snaps, setSnaps] = useState<VM | null>(null);
   const [cloning, setCloning] = useState<VM | null>(null);
   const [log, setLog] = useState<VM | null>(null);
+  const [fw, setFw] = useState<VM | null>(null);
   const [tab, setTab] = useState<Tab>("vms");
   const [kind, setKind] = useState<Kind>("all");
   const [detail, setDetail] = useState<{ name: string; tab: DetailTab } | null>(null);
@@ -106,7 +109,7 @@ export default function VirtualMachines() {
     ] : []),
     ...(advanced && vmOK ? [{ id: "pci" as Tab, label: tr("PCI passthrough") }] : []),
   ];
-  const cardProps = (vm: VM) => ({ vm, mem: data?.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm) });
+  const cardProps = (vm: VM) => ({ vm, mem: data?.stats?.[vm.name]?.[1], onConsole: () => setConsole(vm.name), onEdit: () => setEditing(vm), onSnapshots: () => setSnaps(vm), onClone: () => setCloning(vm), onLog: () => setLog(vm), onFirewall: () => setFw(vm) });
   const shownVMs = kind === "lxc" ? [] : machines;
   const shownCTs = kind === "vm" ? [] : containers;
   const ctText = { title: tr("No containers"), text: tr("A container is a light Linux system sharing the NAS's kernel: Debian, Ubuntu, Alpine… ready in seconds.") };
@@ -182,6 +185,7 @@ export default function VirtualMachines() {
       {snaps && <Snapshots vm={snaps} onClose={() => setSnaps(null)} />}
       {cloning && <CloneVM vm={cloning} onClose={() => setCloning(null)} />}
       {log && <ConsoleLog vm={log} onClose={() => setLog(null)} />}
+      {fw && <GuestFirewallModal kind="vm" name={fw.name} onClose={() => setFw(null)} />}
     </div>
   );
 }
@@ -211,7 +215,7 @@ function TemplateCard({ vm, onCreate }: { vm: VM; onCreate: () => void }) {
   );
 }
 
-function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog }: { vm: VM; mem?: number; onConsole: () => void; onEdit: () => void; onSnapshots: () => void; onClone: () => void; onLog: () => void }) {
+function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog, onFirewall }: { vm: VM; mem?: number; onConsole: () => void; onEdit: () => void; onSnapshots: () => void; onClone: () => void; onLog: () => void; onFirewall: () => void }) {
   const { confirm } = useUI();
   const act = useAction((a: string) => api.post(`/api/vms/${encodeURIComponent(vm.name)}/${a}`), { success: tr("Command sent") });
   const del = useAction((disks: boolean) => api.del(`/api/vms/${encodeURIComponent(vm.name)}${disks ? "?disks=1" : ""}`), { success: tr("VM deleted") });
@@ -265,6 +269,7 @@ function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog }: { v
         <IconButton title={tr("Clone")} disabled={vm.state !== "shut off"} onClick={onClone}><Copy size={15} /></IconButton>
         <IconButton title={tr("Convert to template")} disabled={vm.state !== "shut off"} onClick={async () => (await confirm({ title: tr("Convert {0} to a template?", vm.name), text: tr("A template cannot start: it is used to create identical VMs. You can convert it back later."), confirm: tr("Convert") })) && template.mutate()}><LayoutTemplate size={15} /></IconButton>
         <IconButton title={tr("Boot log")} onClick={onLog}><ScrollText size={15} /></IconButton>
+        <IconButton title={tr("Firewall")} onClick={onFirewall}><ShieldCheck size={15} /></IconButton>
         <IconButton title={tr("Settings")} onClick={onEdit}><Settings2 size={15} /></IconButton>
         <IconButton title={tr("Delete")} disabled={running} onClick={remove}><Trash2 size={15} /></IconButton>
       </div>
@@ -281,6 +286,7 @@ const sources: { id: Source; icon: React.ReactNode; label: string; sub: string }
 ];
 
 function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void }) {
+  const bridgeLabel = useBridgeLabel();
   const [source, setSource] = useState<Source>("cloud");
   const [f, setF] = useState({ name: "", os: "linux", vcpus: 2, memoryMb: 2048, diskGb: 20, iso: "", storage: "", network: "nat", firmware: "uefi", autostart: false });
   const [ci, setCi] = useState({ image: "debian13", user: "debian", password: "", sshKeys: "", packages: "", address: "", gateway: "", dns: "" });
@@ -368,7 +374,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
         <Field label={tr("Network")}>
           <Select value={f.network} onChange={(e) => set({ network: e.target.value })}>
             <option value="nat">{tr("NAT (private network behind the NAS)")}</option>
-            {bridges.map((b) => <option key={b} value={b}>{tr("Bridge")}{" "}{b} {" "}{tr("(on the local network)")}</option>)}
+            {bridges.map((b) => <option key={b} value={b}>{bridgeLabel(b)}</option>)}
           </Select>
         </Field>
         <Field label={tr("Firmware")}>

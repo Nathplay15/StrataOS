@@ -65,6 +65,8 @@ type Config struct {
 	Bonds      []Bond   `json:"bonds"`
 	Bridges    []Bridge `json:"bridges"`
 	VLANs      []VLAN   `json:"vlans"`
+	// Virtual: virtual networks for VMs and containers (vnet.go).
+	Virtual []VNet `json:"virtual,omitempty"`
 }
 
 var (
@@ -215,7 +217,7 @@ func Validate(c *Config, physical []string) error {
 			return err
 		}
 	}
-	return nil
+	return validVNets(c, used)
 }
 
 func ipSection(b *strings.Builder, ip IP) {
@@ -267,6 +269,11 @@ func Render(c Config) map[string]string {
 	vlansOf := map[string][]string{}
 	for _, v := range c.VLANs {
 		vlansOf[v.Parent] = append(vlansOf[v.Parent], v.Name())
+	}
+	for _, v := range c.Virtual {
+		if v.Kind == "vlan" {
+			vlansOf[v.Parent] = append(vlansOf[v.Parent], v.VLANLink())
+		}
 	}
 	network := func(name string, ip IP, extra string) {
 		var b strings.Builder
@@ -323,6 +330,9 @@ func Render(c Config) map[string]string {
 	for _, v := range c.VLANs {
 		files[filePrefix+v.Name()+".netdev"] = fmt.Sprintf("# Managed by StrataOS\n[NetDev]\nName=%s\nKind=vlan\n\n[VLAN]\nId=%d\n", v.Name(), v.ID)
 		network(v.Name(), v.IP, "")
+	}
+	for _, v := range c.Virtual {
+		renderVNet(files, v)
 	}
 	return files
 }
@@ -472,6 +482,11 @@ func links(c Config) []string {
 	for _, v := range c.VLANs {
 		set[v.Name()] = true
 		set[v.Parent] = true
+	}
+	for _, v := range c.Virtual {
+		for _, l := range vnetLinks(v) {
+			set[l] = true
+		}
 	}
 	out := make([]string, 0, len(set))
 	for k := range set {
@@ -635,7 +650,7 @@ func activate(names []string, mgr string) {
 	_, _ = sys.Run("systemctl", "enable", "--now", "systemd-networkd.service")
 	// Links that are no longer bonds/VLANs must disappear before reconfiguration.
 	for _, n := range names {
-		if strings.HasPrefix(n, "bond") || bridgeNameRe.MatchString(n) || strings.Contains(n, ".") {
+		if strings.HasPrefix(n, "bond") || bridgeNameRe.MatchString(n) || strings.Contains(n, ".") || vnetLinkRe.MatchString(n) {
 			if _, err := os.Stat(filepath.Join(NetworkdDir, filePrefix+n+".netdev")); err != nil {
 				_, _ = sys.Run("ip", "link", "delete", n)
 			}
@@ -720,6 +735,17 @@ func Current() *Pending {
 	c := *pending
 	c.Token = ""
 	c.Config = nil
+	return &c
+}
+
+// PendingConfig returns a copy of the configuration on trial, if any.
+func PendingConfig() *Config {
+	mu.Lock()
+	defer mu.Unlock()
+	if pending == nil || pending.Config == nil {
+		return nil
+	}
+	c := *pending.Config
 	return &c
 }
 

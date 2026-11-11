@@ -218,6 +218,8 @@ func cleanText(t string, max int) string {
 // ConfigOpts are the host facts the config depends on.
 type ConfigOpts struct {
 	NATBridge string // lxcbr0
+	// MTU of the bridge when it is not 1500 (VXLAN virtual networks).
+	MTU int
 	// KeyctlSeccomp is the seccomp profile without the keyctl rule.
 	KeyctlSeccomp string
 }
@@ -260,6 +262,9 @@ func GenerateConfig(s *Spec, o ConfigOpts) string {
 		kv("lxc.net.0.flags", "up")
 		kv("lxc.net.0.name", "eth0")
 		kv("lxc.net.0.hwaddr", s.Network.MAC)
+		if o.MTU > 0 && o.MTU != 1500 {
+			kv("lxc.net.0.mtu", strconv.Itoa(o.MTU))
+		}
 		if s.Network.Address != "" {
 			kv("lxc.net.0.ipv4.address", s.Network.Address)
 			if s.Network.Gateway != "" {

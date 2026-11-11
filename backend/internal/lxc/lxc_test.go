@@ -132,6 +132,12 @@ func TestGenerateConfig(t *testing.T) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
+	if strings.Contains(got, "lxc.net.0.mtu") {
+		t.Error("MTU 1500 written")
+	}
+	if got := GenerateConfig(p, ConfigOpts{NATBridge: "lxcbr0", MTU: 1450}); !strings.Contains(got, "lxc.net.0.hwaddr = 00:16:3e:0a:0b:0c\nlxc.net.0.mtu = 1450\n") {
+		t.Errorf("VXLAN MTU missing:\n%s", got)
+	}
 	for _, no := range []string{"lxc.idmap", "cgroup2.cpu", "memory.max", "seccomp", "allow_nesting"} {
 		if strings.Contains(got, no) {
 			t.Errorf("%q not expected in:\n%s", no, got)

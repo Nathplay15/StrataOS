@@ -284,15 +284,24 @@ func (s *Server) consoleResetNetwork() (*console.Pending, error) {
 	if len(physical) == 0 {
 		return nil, badRequest("no network interface found")
 	}
-	if err := network.Validate(&next, physical); err != nil {
-		return nil, badRequest(err.Error())
-	}
 	var prev network.Config
 	s.store.Read(func(st *store.State) {
 		if st.Network != nil {
 			prev = *st.Network
 		}
 	})
+	// Virtual networks stay, except VLAN ones (their parent may change).
+	for _, v := range prev.Virtual {
+		if v.Kind != "vlan" {
+			next.Virtual = append(next.Virtual, v)
+		}
+	}
+	if err := network.Validate(&next, physical); err != nil {
+		next.Virtual = nil
+		if err := network.Validate(&next, physical); err != nil {
+			return nil, badRequest(err.Error())
+		}
+	}
 	p, err := network.Apply(next, prev, 3*time.Minute)
 	if err != nil {
 		return nil, badRequest(err.Error())
