@@ -245,8 +245,8 @@ func (s *Server) guestBinding(ctx context.Context, kind, name string, idx map[in
 // fwEnv gathers what the rules depend on.
 func (s *Server) fwEnv(ctx context.Context, c firewall.Config, resolve bool) firewall.Env {
 	env := firewall.Env{NAS: nasAddrs()}
-	if p, err := strconv.Atoi(s.httpPort); err == nil {
-		env.WebPorts = append(env.WebPorts, p)
+	if p, err := strconv.Atoi(s.httpPort); err == nil && p != 7070 && p != 7443 && p != 22 {
+		env.WebPorts = append(env.WebPorts, p) // listed once (the page showed "7070, 7070")
 	}
 	env.WebPorts = append(env.WebPorts, 7070, 7443, 22)
 	s.store.Read(func(st *store.State) {

@@ -97,7 +97,7 @@ the end-to-end suite on it. Never hard-code `trixie` where the running
 release is meant: `system.Codename()`, and `system.SuiteCandidates` for a
 vendor repository that may not publish the new release yet.
 
-`vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, a backup), and `vm/screenshots.cjs` retakes the pictures of `docs/screenshots/` from it with Firefox (instructions at the top of both files).
+`vm/demo-data.sh` fills a fresh VM with believable demo data (accounts, volumes, shared folders, files, apps, backups and a backup repository, virtual networks, a firewall, a few notifications), and `vm/screenshots.cjs` retakes the web pictures of `docs/screenshots/` from it with the Chromium of the Playwright Docker image (instructions at the top of both files; 1440×900, the phone at 390×844, shrunk with pngquant and optipng, each under 400 KB). The pictures of the desktop app (`desktop-app*.png`) come from its Linux build run in the `strataos-desktop-build` image under Xvfb (`xdotool` to click, `import` to capture), paired with the demo VM; the Android ones from the emulator.
 
 CI (`.github/workflows/ci.yml`) runs formatting, vet, unit tests, the TypeScript build, the translation checks, shell syntax checks and both packages on every push.
 

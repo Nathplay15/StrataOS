@@ -6,7 +6,7 @@ import { useAction } from "../lib/hooks";
 import type { Group, Me, Perm, Share, User } from "../lib/types";
 import { bytes, cx } from "../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
-import { tr } from "../lib/i18n";
+import { lang, tr } from "../lib/i18n";
 
 // The Linux group every StrataOS user belongs to (accounts.BaseGroup).
 const ALL_USERS = "@strata";
@@ -261,7 +261,7 @@ export default function Shares() {
                   </div>
                   {!!s.quotaGb && (
                     <div className="mt-3">
-                      <div className="mb-1 flex justify-between text-[12px]"><span className="text-muted">{tr("Quota")}</span><span>{bytes(s.used ?? 0)} / {s.quotaGb} Go</span></div>
+                      <div className="mb-1 flex justify-between text-[12px]"><span className="text-muted">{tr("Quota")}</span><span>{bytes(s.used ?? 0)} / {s.quotaGb} {lang === "fr" ? "Go" : "GB"}</span></div>
                       <Progress value={Math.min(100, ((s.used ?? 0) / (s.quotaGb * 1e9)) * 100)} tone={(s.used ?? 0) >= s.quotaGb * 1e9 ? "danger" : (s.used ?? 0) >= s.quotaGb * 0.9e9 ? "warn" : "ok"} />
                     </div>
                   )}

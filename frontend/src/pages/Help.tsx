@@ -50,6 +50,7 @@ function Markdown({ src }: { src: string }) {
     flush();
     if (!line) continue;
     if (line.startsWith("# ")) continue; // the page header shows the title
+    if (line.startsWith("![")) continue; // screenshots: shown on GitHub and the website only
     if (line.startsWith("## ")) blocks.push(<h2 key={blocks.length} className="mt-6 text-[16px] font-semibold">{inline(line.slice(3))}</h2>);
     else blocks.push(<p key={blocks.length}>{inline(line)}</p>);
   }

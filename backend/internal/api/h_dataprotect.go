@@ -766,8 +766,12 @@ func (s *Server) dataProtectRoutes() {
 				}
 			}
 		})
+		var lastTest *time.Time // absent until the first run (the page showed "739930 d ago")
+		if !pr.LastRestoreTest.IsZero() {
+			lastTest = &pr.LastRestoreTest
+		}
 		return map[string]any{
-			"rule": rule, "restoreTestOff": pr.RestoreTestOff, "lastRestoreTest": pr.LastRestoreTest,
+			"rule": rule, "restoreTestOff": pr.RestoreTestOff, "lastRestoreTest": lastTest,
 			"testable": ids, "tests": tests, "usbVolumes": usb,
 		}, nil
 	})
