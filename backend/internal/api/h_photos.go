@@ -19,10 +19,14 @@ import (
 
 // readableRoots returns the folders a user may read (administrators: all).
 func (s *Server) readableRoots(r *http.Request) []string {
-	if isAdmin(r) {
+	return s.readableRootsFor(userOf(r), isAdmin(r))
+}
+
+// readableRootsFor is readableRoots for an account (background work).
+func (s *Server) readableRootsFor(me string, admin bool) []string {
+	if admin {
 		return []string{storage.MountRoot}
 	}
-	me := userOf(r)
 	groups := accounts.UserGroups(me)
 	var roots []string
 	s.store.Read(func(st *store.State) {
@@ -88,6 +92,13 @@ func (s *Server) photoRoutes() {
 				in[p] = true
 			}
 			allow = func(p string) bool { return in[p] && under(roots, p) }
+		}
+		// People, things and places of the smart features.
+		if f, err := s.photoFilter(r); err != nil {
+			return nil, err
+		} else if f != nil {
+			prev := allow
+			allow = func(p string) bool { return prev(p) && f(p) }
 		}
 		if q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))); q != "" {
 			prev := allow

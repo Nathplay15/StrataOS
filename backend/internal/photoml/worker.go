@@ -42,8 +42,8 @@ const (
 // Dirs: the models and the worker script (root-owned, readable by the
 // sandbox user that runs the worker).
 var (
-	ModelDir  = "/var/lib/strata/photos/models"
-	WorkerDir = "/var/lib/strata/photos/worker"
+	ModelDir  = "/usr/local/lib/strata/photoml/models"
+	WorkerDir = "/usr/local/lib/strata/photoml/worker"
 	python    = "/usr/bin/python3"
 )
 

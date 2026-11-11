@@ -508,6 +508,24 @@ type WakeDevice struct {
 type Photos struct {
 	Folders []string `json:"folders"`
 	Albums  []*Album `json:"albums,omitempty"`
+	// Smart: people, things, search and places computed on the NAS (photoml).
+	Smart PhotoSmart `json:"smart,omitzero"`
+}
+
+// PhotoSmart are the settings of the smart photos analysis.
+type PhotoSmart struct {
+	Enabled   bool `json:"enabled,omitempty"`
+	NoFaces   bool `json:"noFaces,omitempty"`   // no face recognition
+	NoObjects bool `json:"noObjects,omitempty"` // no things nor search by description
+	// Background work limits, shared with the document search.
+	Limits BackgroundLimits `json:"limits,omitzero"`
+}
+
+// BackgroundLimits keep long background analyses out of the way.
+type BackgroundLimits struct {
+	Threads int    `json:"threads,omitempty"` // CPU threads (0: a quarter of the cores, 1 at least)
+	Hours   string `json:"hours,omitempty"`   // "HH:MM-HH:MM" when it may run ("" any time)
+	AnyLoad bool   `json:"anyLoad,omitempty"` // also when the NAS is busy
 }
 
 // Album is a named selection of photos of one user.

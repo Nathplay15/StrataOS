@@ -27,7 +27,7 @@ import onnxruntime as ort
 from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = 80_000_000
-MODELS = sys.argv[1] if len(sys.argv) > 1 else "/var/lib/strata/photos/models"
+MODELS = sys.argv[1] if len(sys.argv) > 1 else "/usr/local/lib/strata/photoml/models"
 THREADS = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 ort.set_default_logger_severity(3)
 

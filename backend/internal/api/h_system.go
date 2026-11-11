@@ -18,6 +18,7 @@ import (
 	"strataos/internal/media"
 	"strataos/internal/netdiag"
 	"strataos/internal/nvr"
+	"strataos/internal/photoml"
 	"strataos/internal/photos"
 	"strataos/internal/preview"
 	"strataos/internal/vpn"
@@ -440,7 +441,7 @@ func (s *Server) systemRoutes() {
 	})
 	s.admin("POST /api/system/components/{name}/install", func(r *http.Request) (any, error) {
 		name := r.PathValue("name")
-		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "lxc": "install-lxc.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ocr": "install-ocr.sh", "ceph": "install-ceph.sh", "s3": "install-s3.sh"}[name]
+		script := map[string]string{"zfs": "install-zfs.sh", "docker": "install-docker.sh", "nut": "install-nut.sh", "vms": "install-vms.sh", "lxc": "install-lxc.sh", "rclone": "install-rclone.sh", "ftp": "install-ftp.sh", "directory": "install-directory.sh", "antivirus": "install-antivirus.sh", "ha": "install-ha.sh", "vpn": "install-vpn.sh", "photos": "install-photos.sh", "tailscale": "install-tailscale.sh", "tunnel": "install-cloudflared.sh", "iscsi": "install-iscsi.sh", "dlna": "install-dlna.sh", "nvr": "install-surveillance.sh", "docpreview": "install-docpreview.sh", "ocr": "install-ocr.sh", "photoml": "install-photoml.sh", "ceph": "install-ceph.sh", "s3": "install-s3.sh"}[name]
 		if script == "" {
 			return nil, badRequest("unknown component")
 		}
@@ -479,6 +480,7 @@ func componentsInstalled() map[string]bool {
 		"ha":         ha.Installed(),
 		"vpn":        vpn.Installed(),
 		"photos":     photos.Installed(),
+		"photoml":    photoml.Installed(),
 		"iscsi":      iscsi.Installed(),
 		"nvr":        nvr.Installed(),
 		"rsync":      sys.Has("rsync"),
