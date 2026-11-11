@@ -309,3 +309,74 @@ func (s *Service) sending(p string, on bool) {
 		delete(s.busy, p)
 	}
 }
+
+// Replace moves from onto an existing to (an editor saving through a
+// temporary file). A new file not sent yet takes the place of the NAS
+// file and is sent as its next version (one conditional upload: the NAS
+// never misses the file); otherwise to is deleted (to the recycle bin)
+// before the move.
+func (s *Service) Replace(ctx context.Context, from, to string) error {
+	x, rf, err := s.writableRel(from)
+	if err != nil {
+		return err
+	}
+	y, rt, err := s.writableRel(to)
+	if err != nil {
+		return err
+	}
+	if x != y {
+		return ErrCrossShare
+	}
+	src, ok := x.tree.Get(rf)
+	if !ok {
+		return ErrNotFound
+	}
+	dst, ok := x.tree.Get(rt)
+	if !ok {
+		return s.Move(ctx, from, to)
+	}
+	if src.Dir != dst.Dir {
+		if dst.Dir {
+			return ErrIsDir
+		}
+		return ErrExists
+	}
+	if !src.Local || dst.Dir || dst.Local {
+		if err := s.Delete(ctx, to); err != nil {
+			return err
+		}
+		return s.Move(ctx, from, to)
+	}
+	ch := x.tree.Remove(rf)
+	_ = s.db.saveTree(x.share.Name, x.tree, ch, false)
+	s.mu.Lock()
+	if old := s.files[to]; old != nil {
+		s.used -= old.Ranges.Total()
+		_ = os.Remove(s.cacheFile(old.Key))
+	}
+	f := s.files[from]
+	delete(s.files, from)
+	s.unsaved[from] = true
+	if f != nil {
+		f.Version, f.Dirty = dst.Version, true
+		f.Gen++
+		s.files[to] = f
+		s.markLocked(to)
+	}
+	for h := range s.handles {
+		if h.p == from {
+			h.p = to
+		}
+	}
+	s.mu.Unlock()
+	s.changed([]Change{{Path: from, Kind: Removed}, {Path: to, Kind: Modified}})
+	s.kickUploads()
+	return nil
+}
+
+// pinnedDir tells whether a folder is kept on this device.
+func (s *Service) pinnedDir(p string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.files["\x01dir:"+p] != nil
+}

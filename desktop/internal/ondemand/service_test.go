@@ -394,7 +394,10 @@ func TestServiceWrites(t *testing.T) {
 	h, _ = s.OpenFile(ctx, "Docs/a.txt", true, false)
 	h.WriteAt([]byte("M"), 0)
 	nas.put("a.txt", []byte("NAS version"))
-	waitFor(t, "change seen", func() bool { it, _ := s.Stat("Docs/a.txt"); return it.Version != "" && !strings.HasPrefix(string(nas.data("a.txt")), "J") })
+	waitFor(t, "change seen", func() bool {
+		it, _ := s.Stat("Docs/a.txt")
+		return it.Version != "" && !strings.HasPrefix(string(nas.data("a.txt")), "J")
+	})
 	h.Close()
 	waitFor(t, "conflict copy", func() bool {
 		l, _ := s.List("Docs")
