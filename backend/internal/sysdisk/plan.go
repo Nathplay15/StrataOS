@@ -251,29 +251,40 @@ func plan(f PlanFacts, kind, target string) Plan {
 	return p
 }
 
+// sub fills {0}, {1}… (the web interface translates the texts with the
+// same placeholders).
+func sub(format string, args ...any) string {
+	for i, a := range args {
+		format = strings.ReplaceAll(format, fmt.Sprintf("{%d}", i), fmt.Sprint(a))
+	}
+	return format
+}
+
 func steps(p Plan, l Layout) []string {
 	nd := p.Target.Name
 	od := p.Old.Name
-	boot := "GRUB on " + nd
+	boot := sub("GRUB on {0}", nd)
 	if l.Boot == "uefi" {
-		boot = "an EFI system partition and a UEFI boot entry for " + nd
+		boot = sub("an EFI system partition and a UEFI boot entry for {0}", nd)
 	}
+	first := sub("Erase {0} and partition it ({1})", nd, partSummary(p.Parts))
+	restart := sub("Restart once from {0}: if it does not start, the next restart uses {1} unchanged", nd, od)
 	if p.Kind == "mirror" {
 		return []string{
-			"Erase " + nd + " and partition it (" + partSummary(p.Parts) + ")",
-			"Create the RAID 1 arrays with " + nd + " only (degraded), and a " + p.FSType + " file system",
-			"Copy the running system onto them (" + od + " is only read)",
-			"When you click Restart: copy the last changes, point the copy's fstab, initramfs and boot loader to the arrays, install " + boot,
-			"Restart once from " + nd + ": if it does not start, the next restart uses " + od + " unchanged",
-			"Once the system runs from the mirror and you confirm: erase " + od + ", partition it the same way and add it to the arrays (rebuild)",
+			first,
+			sub("Create the RAID 1 arrays with {0} only (degraded), and a {1} file system", nd, p.FSType),
+			sub("Copy the running system onto them ({0} is only read)", od),
+			sub("When you click Restart: copy the last changes, point the copy's fstab, initramfs and boot loader to the arrays, install {0}", boot),
+			restart,
+			sub("Once the system runs from the mirror and you confirm: erase {0}, partition it the same way and add it to the arrays (rebuild)", od),
 		}
 	}
 	return []string{
-		"Erase " + nd + " and partition it (" + partSummary(p.Parts) + ")",
-		"Create a " + p.FSType + " file system and copy the running system onto it (" + od + " is only read; unreadable files are listed)",
-		"When you click Restart: copy the last changes, point the copy's fstab, initramfs and boot loader to " + nd + ", install " + boot,
-		"Restart once from " + nd + ": if it does not start, the next restart uses " + od + " unchanged",
-		"Once the system runs from " + nd + ": power off, then remove " + od + " or erase it to use it for data",
+		first,
+		sub("Create a {0} file system and copy the running system onto it ({1} is only read; unreadable files are listed)", p.FSType, od),
+		sub("When you click Restart: copy the last changes, point the copy's fstab, initramfs and boot loader to {0}, install {1}", nd, boot),
+		restart,
+		sub("Once the system runs from {0}: power off, then remove {1} or erase it to use it for data", nd, od),
 	}
 }
 

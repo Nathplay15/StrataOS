@@ -9,7 +9,7 @@
 #   vm.sh console           follow the serial console log
 #   vm.sh reset-disks       recreate the 6 data disks (blank)
 #   vm.sh replace-disk N    swap data disk N for a new blank one (VM stopped)
-#   VM_DETACH="2 5" vm.sh start   boot with data disks 2 and 5 unplugged
+#   VM_DETACH="2 5" vm.sh start   boot with data disks 2 and 5 unplugged ("sys": the system disk)
 #   vm.sh destroy           delete the VM entirely
 #
 # Settings (environment): VM_MEM (MiB, 4096), VM_CPUS (4), VM_DISKS (6), VM_DISK_SIZE (10G),
@@ -147,8 +147,7 @@ qemu_start() {
   fi
   local args=(
     -name "$VM_HOSTNAME" "${machine[@]}" -smp "$VM_CPUS" -m "$VM_MEM"
-    -drive "file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap"
-    -device virtio-blk-pci,drive=sys,bootindex=0
+    $(case " ${VM_DETACH:-} " in *" sys "*) ;; *) echo "-drive file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap -device virtio-blk-pci,drive=sys,bootindex=0" ;; esac)
     -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$VM_SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$VM_WEB_PORT-:7070,hostfwd=tcp:127.0.0.1:$VM_HTTPS_PORT-:7443,hostfwd=tcp:127.0.0.1:$VM_SMB_PORT-:445$extra_fwd"
     -device virtio-net-pci,netdev=n0
     $(for k in $(seq 2 "${VM_NICS:-1}"); do echo "-netdev user,id=n$k -device virtio-net-pci,netdev=n$k"; done)
