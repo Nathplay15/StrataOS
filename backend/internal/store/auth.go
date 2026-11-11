@@ -74,6 +74,16 @@ type S3Service struct {
 type S3Bucket struct {
 	Name  string `json:"name"`
 	Share string `json:"share"`
+	// Versioning: "" (never turned on), enabled or suspended (older versions
+	// kept, new writes not versioned). Older versions live in
+	// <volume>/.strata-s3-versions/<bucket>, out of the shared folder.
+	Versioning string `json:"versioning,omitempty"`
+	// Lock: S3 object lock (WORM), never turned off once on (as on AWS);
+	// LockMode (GOVERNANCE | COMPLIANCE) and LockDays give new objects a
+	// default retention ("" / 0: none).
+	Lock     bool   `json:"lock,omitempty"`
+	LockMode string `json:"lockMode,omitempty"`
+	LockDays int    `json:"lockDays,omitempty"`
 }
 
 // S3Key is an access key of a user for the S3 service. The secret is
