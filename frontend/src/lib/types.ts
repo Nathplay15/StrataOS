@@ -27,12 +27,16 @@ export interface Job {
   type: string;
   title: string;
   user: string;
-  status: "running" | "success" | "failed";
+  status: "running" | "success" | "failed" | "cancelled";
   progress: number;
   error?: string;
   started: string;
   finished?: string;
   log?: string;
+  /** Whether an administrator may stop it now; cancelReason says why not. */
+  cancellable?: boolean;
+  cancelReason?: string;
+  cancelledBy?: string;
 }
 
 export interface BlockDevice {
@@ -449,7 +453,7 @@ export interface Settings {
 export interface ScheduleRun {
   started: string;
   duration: number;
-  status: "success" | "failed";
+  status: "success" | "failed" | "stopped";
   message: string;
   manual?: boolean;
 }
@@ -529,6 +533,8 @@ export interface BackupTask {
   history: ScheduleRun[];
   nextRun?: string | null;
   running?: boolean;
+  /** Job of the run in progress, to stop it. */
+  jobId?: string;
   // Virtual machines backed up with the folders (see pages/system/BackupVMs.tsx).
   vms?: string[];
   // LXC containers backed up with the folders (lxc/<name>.tar.zst at the destination).

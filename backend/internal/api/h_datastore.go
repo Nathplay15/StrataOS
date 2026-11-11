@@ -80,6 +80,7 @@ type datastoreView struct {
 	store.Datastore
 	Tasks      []map[string]string `json:"tasks"`
 	Running    string              `json:"running,omitempty"`
+	JobID      string              `json:"jobId,omitempty"` // job of the running check or cleanup
 	NextVerify *time.Time          `json:"nextVerify,omitempty"`
 	NextPrune  *time.Time          `json:"nextPrune,omitempty"`
 	LastOK     time.Time           `json:"lastVerified,omitzero"`
@@ -119,6 +120,7 @@ func (s *Server) datastoreView(d *store.Datastore, st *store.State, now time.Tim
 	}
 	if x, ok := running.Load("datastore-" + d.ID); ok {
 		v.Running, _ = x.(string)
+		v.JobID = s.runningJob("datastore-" + d.ID)
 	}
 	if !d.Verify.Off {
 		v.NextVerify = nextOf(verifyCron(d), now)
@@ -171,11 +173,13 @@ func (s *Server) verifyDatastore(id, user string, manual, full bool) (jobs.Snaps
 	if full {
 		subset, next = "all", d.VerifyNext
 	}
-	return s.jobs.Start("datastore-verify", "Integrity check: "+d.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return trackJob("datastore-"+id, s.jobs.Start("datastore-verify", "Integrity check: "+d.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer unlock()
 		run := backup.Verify(ctx, &d, subset, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 		run.Manual = manual
 		if ctx.Err() != nil {
+			// Stopped: no result is recorded, the same subset is read next time.
+			backup.Unlock(backup.RepoTask(&d), j.Logf)
 			return ctx.Err()
 		}
 		reached := run.Status == "success" || len(run.Errors) > 0 || len(run.Broken) > 0
@@ -216,7 +220,7 @@ func (s *Server) verifyDatastore(id, user string, manual, full bool) (jobs.Snaps
 			go s.runAdvisor(false)
 		}
 		return nil
-	}), nil
+	})), nil
 }
 
 // pruneDatastore removes unused data, as a job.
@@ -235,9 +239,14 @@ func (s *Server) pruneDatastore(id, user string) (jobs.Snapshot, error) {
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("datastore-prune", "Repository cleanup: "+d.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return trackJob("datastore-"+id, s.jobs.Start("datastore-prune", "Repository cleanup: "+d.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer unlock()
 		msg, err := backup.Prune(ctx, &d, backup.Progress{Set: j.SetProgress, Log: j.Logf})
+		if err != nil && ctx.Err() != nil {
+			// An interrupted prune is safe: the next one removes what it left.
+			backup.Unlock(backup.RepoTask(&d), j.Logf)
+			return err
+		}
 		if err != nil {
 			s.store.Log("error", "backup", user, fmt.Sprintf("Cleanup of the backup repository %s failed: %v", d.Name, err))
 			return err
@@ -251,7 +260,7 @@ func (s *Server) pruneDatastore(id, user string) (jobs.Snapshot, error) {
 		})
 		s.refreshDatastoreStats(ctx, id, j.Logf)
 		return nil
-	}), nil
+	})), nil
 }
 
 // refreshDatastoreStats measures a datastore and saves its sizes.
@@ -495,7 +504,7 @@ func (s *Server) datastoreRoutes() {
 		}
 		return s.jobs.Start("datastore-stats", "Repository sizes: "+d.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			s.refreshDatastoreStats(ctx, d.ID, j.Logf)
-			return nil
+			return ctx.Err() // stats run with --no-lock: nothing to unlock
 		}), nil
 	})
 
@@ -538,6 +547,9 @@ func (s *Server) datastoreRoutes() {
 		return s.jobs.Start("restore", "Restoring "+what, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			msg, err := backup.RestoreGuest(ctx, t, req.Snapshot, req.GuestRestore, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 			if err != nil {
+				if ctx.Err() != nil {
+					backup.Unlock(t, j.Logf)
+				}
 				return err
 			}
 			j.Logf("%s", msg)

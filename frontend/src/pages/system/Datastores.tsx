@@ -7,6 +7,8 @@ import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, srv } from "../../lib/i18n";
 import { StorageSelect } from "../vms/panels";
+import { FolderPicker } from "../../components/FolderPicker";
+import { StopJobButton } from "../../components/StopJob";
 import type { LXCLocation } from "../vms/containers/types";
 
 // Backup repositories (datastores): restic repositories that several tasks
@@ -20,7 +22,7 @@ export type Datastore = {
   verify: { off?: boolean; cron?: string; subsets?: number }; pruneCron?: string; lastPrune?: string;
   verifies?: VerifyRun[];
   stats?: { updated: string; snapshots: number; logical: number; unique: number; stored: number; dedup: number; ratio: number };
-  tasks?: { id: string; name: string }[]; running?: string; nextVerify?: string; nextPrune?: string; lastVerified?: string; subsets?: number; media?: string; isOffsite?: boolean;
+  tasks?: { id: string; name: string }[]; running?: string; jobId?: string; nextVerify?: string; nextPrune?: string; lastVerified?: string; subsets?: number; media?: string; isOffsite?: boolean;
 };
 type Part = { name: string; id: string; logical: number; added: number };
 type Item = { kind: "folders" | "vm" | "ct"; host: string; task: string; name: string; time: string; id: string; parts: Part[]; logical: number; added: number; complete: boolean };
@@ -82,13 +84,7 @@ function Editor({ initial, volumes, onClose }: { initial: Datastore | null; volu
         </Field>
         {d.destType === "local" && (
           <Field label={tr("Folder")} hint={tr("Inside a volume, e.g. /srv/strata/usb/datastore")}>
-            <div className="flex gap-2">
-              <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && set({ destPath: `${e.target.value}/datastore` })}>
-                <option value="">{tr("Volume…")}</option>
-                {volumes.map((v) => <option key={v.path} value={v.path}>{srv(v.label)}</option>)}
-              </Select>
-              <Input className="mono" value={d.destPath} onChange={(e) => set({ destPath: e.target.value })} />
-            </div>
+            <FolderPicker value={d.destPath} onChange={(v) => set({ destPath: v })} suffix="datastore" label={tr("Folder")} quick={volumes} />
           </Field>
         )}
         {remote && (
@@ -262,6 +258,7 @@ export function DatastoresCard({ volumes }: { volumes: { path: string; label: st
               {d.isOffsite && <Badge tone="ok">{tr("Off-site")}</Badge>}
               {d.appendOnly && <Badge>{tr("Append-only")}</Badge>}
               {d.running && <Badge tone="accent" dot>{d.running === "verify" ? tr("Checking") : tr("Cleaning up")}</Badge>}
+              {d.running && d.jobId && <StopJobButton id={d.jobId} />}
               <div className="flex-1" />
               <IconButton title={tr("Edit")} onClick={() => setEdit(d)}><Edit3 size={15} /></IconButton>
               <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Remove the repository {0}?", d.name), text: tr("Only its settings are removed from this NAS: the data stays where it is and can be added again."), danger: true })) del.mutate(d.id); }}><Trash2 size={15} /></IconButton>

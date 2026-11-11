@@ -22,6 +22,7 @@ type backupView struct {
 	store.BackupTask
 	NextRun *time.Time `json:"nextRun"`
 	Running bool       `json:"running"`
+	JobID   string     `json:"jobId,omitempty"`
 }
 
 // maskBackup hides secrets before a task leaves the server.
@@ -81,7 +82,7 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("backup", "Backup: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return trackJob(key, s.jobs.Start("backup", "Backup: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(key)
 		start := time.Now()
 		var msg string
@@ -97,12 +98,16 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 			msg, err = backup.Run(ctx, t, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 		}
 		run := store.ScheduleRun{Started: start, Duration: time.Since(start).Seconds(), Status: "success", Message: msg, Manual: manual}
-		if err != nil {
+		if stoppedRun(j, &run, err) {
+			if t.Kind == "restic" {
+				backup.Unlock(t, j.Logf) // restic may leave its lock behind when stopped
+			}
+		} else if err != nil {
 			run.Status, run.Message = "failed", err.Error()
 		} else {
 			j.Logf("%s", msg)
 		}
-		if t.Datastore != "" {
+		if t.Datastore != "" && ctx.Err() == nil {
 			s.refreshDatastoreStats(ctx, t.Datastore, j.Logf)
 		}
 		if uerr := s.store.Update(func(st *store.State) error {
@@ -120,7 +125,7 @@ func (s *Server) runBackup(id, user string, manual bool) (jobs.Snapshot, error) 
 			slog.Error("save backup history", "err", uerr)
 		}
 		return err
-	}), nil
+	})), nil
 }
 
 // dueBackups returns the enabled backups whose schedule matches tick.
@@ -151,6 +156,9 @@ func (s *Server) backupRoutes() {
 					}
 				}
 				_, v.Running = running.Load("backup-" + b.ID)
+				if v.Running {
+					v.JobID = s.runningJob("backup-" + b.ID)
+				}
 				if v.History == nil {
 					v.History = []store.ScheduleRun{}
 				}
@@ -353,6 +361,8 @@ func (s *Server) backupRoutes() {
 			msg, err := backup.Restore(ctx, t, req.Snapshot, req.Include, req.Target, backup.Progress{Set: j.SetProgress, Log: j.Logf})
 			if err == nil {
 				j.Logf("%s", msg)
+			} else if ctx.Err() != nil {
+				backup.Unlock(t, j.Logf)
 			}
 			return err
 		}), nil

@@ -5,9 +5,10 @@ import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { ago, bytes, cx, dateTime } from "../lib/format";
 import type { Job } from "../lib/types";
-import { Badge, Button, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, Spinner } from "./ui";
+import { Badge, Button, Checkbox, Empty, ErrorBox, Field, Modal, Notice, Spinner } from "./ui";
 import { tr } from "../lib/i18n";
 import { ImportModal, JobLog, type Doc } from "../pages/system/ConfigBackup";
+import { FolderPicker } from "./FolderPicker";
 
 type Info = { id: string; kind: "snapshot" | "backup" | "cloud" | "image"; name: string; detail: string; downloadDirs: boolean };
 type DiskState = { state: "closed" | "opening" | "open" | "failed"; open?: number; max?: number; idleMinutes?: number; session?: { error?: string; size: number; roots: { path: string; fsType: string; label?: string }[]; skipped?: string[] } };
@@ -286,7 +287,7 @@ export function RestoreWizard({ onClose, initialPath, initialSource }: { onClose
               </button>
             ))}
           </div>
-          {mode === "folder" && <Field label={tr("Restore to")} hint={tr("Each selected item is recreated under this folder with its name.")}><Input className="mono" value={target} placeholder={`${dirname(sel[0]?.path ?? "/srv/strata/x")}/restored-${new Date().toISOString().slice(0, 10)}`} onChange={(e) => setTarget(e.target.value)} /></Field>}
+          {mode === "folder" && <Field label={tr("Restore to")} hint={tr("Each selected item is recreated under this folder with its name.")}><FolderPicker value={target} label={tr("Restore to")} placeholder={`${dirname(sel[0]?.path ?? "/srv/strata/x")}/restored-${new Date().toISOString().slice(0, 10)}`} onChange={setTarget} /></Field>}
           {mode !== "download" && (
             <Field label={tr("Files that exist and differ")}>
               <div className="flex flex-wrap gap-1">

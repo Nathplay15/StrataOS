@@ -5,8 +5,9 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Group, User } from "../../lib/types";
 import { ago, bytes } from "../../lib/format";
-import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Notice, Select } from "../../components/ui";
-import { tr, srv } from "../../lib/i18n";
+import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Notice } from "../../components/ui";
+import { tr } from "../../lib/i18n";
+import { FolderPicker } from "../../components/FolderPicker";
 
 type TMBackup = { name: string; path: string; size: number; lastBackup: string; machineId?: string; model?: string };
 type TMShare = { name: string; path: string; maxGb: number; permissions: Record<string, string>; locked: boolean; used: number; backups: TMBackup[] };
@@ -34,13 +35,7 @@ function CreateModal({ volumes, onClose }: { volumes: { path: string; label: str
         <p className="text-muted text-[12.5px]">{tr("Creates the folder and an SMB share announced to Macs on the network (Bonjour): it then appears in System Settings → General → Time Machine.")}</p>
         <Field label={tr("Share name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field label={tr("Folder")}>
-          <div className="flex gap-2">
-            <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && setF({ ...f, path: `${e.target.value}/TimeMachine` })}>
-              <option value="">{tr("Volume…")}</option>
-              {volumes.map((v) => <option key={v.path} value={v.path}>{srv(v.label)}</option>)}
-            </Select>
-            <Input className="mono" value={f.path} onChange={(e) => setF({ ...f, path: e.target.value })} />
-          </div>
+          <FolderPicker value={f.path} onChange={(v) => setF({ ...f, path: v })} suffix="TimeMachine" label={tr("Folder")} quick={volumes} allowShare={false} />
         </Field>
         <Field label={tr("Size limit (GB)")} hint={tr("Empty: no limit. Time Machine deletes its oldest backups to stay below.")}><Input type="number" min={0} value={f.maxGb} onChange={(e) => setF({ ...f, maxGb: e.target.value })} placeholder={tr("None")} /></Field>
         <div>

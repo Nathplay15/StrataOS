@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, ArrowLeftRight, CheckCircle2, Cloud, Download, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RefreshCw, RotateCcw, Trash2, Vault as VaultIcon, XCircle } from "lucide-react";
+import { ArchiveRestore, ArrowLeftRight, Cloud, Download, Copy, DatabaseBackup, Edit3, FolderSync, History, Layers, Play, Plus, RefreshCw, RotateCcw, Trash2, Vault as VaultIcon } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { BackupTask } from "../../lib/types";
@@ -13,6 +13,8 @@ import { BackupVMPicker } from "./BackupVMs";
 import { ProtectionCard, RestoreTestBadge } from "./Protection";
 import { RestoreWizard } from "../../components/RestoreWizard";
 import { DatastoresCard, useDatastores } from "./Datastores";
+import { RunIcon, runTone, StopJobButton } from "../../components/StopJob";
+import { FolderPicker } from "../../components/FolderPicker";
 
 type Sources = { folders: { path: string; label: string }[]; datasets: { path: string; label: string }[] };
 
@@ -129,13 +131,7 @@ function VaultsCard({ sources }: { sources?: Sources }) {
           <div className="space-y-4">
             <Field label={tr("Name")}><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. Office backups")} /></Field>
             <Field label={tr("Folder")}>
-              <div className="flex gap-2">
-                <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && setForm({ ...form, path: `${e.target.value}/coffre` })}>
-                  <option value="">{tr("Volume…")}</option>
-                  {sources?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
-                </Select>
-                <Input className="mono" value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} />
-              </div>
+              <FolderPicker value={form.path} onChange={(v) => setForm({ ...form, path: v })} suffix="coffre" label={tr("Folder")} quick={sources?.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS"))} />
             </Field>
             <Switch checked={form.appendOnly} onChange={(v) => setForm({ ...form, appendOnly: v })} label={tr("Append-only (anti-ransomware)")} hint={tr("A paired NAS can add backups but never delete any: even if compromised, it cannot destroy its copies. Older versions accumulate.")} />
             <Switch checked={form.shared} onChange={(v) => setForm({ ...form, shared: v })} label={tr("One repository for all the paired NAS")} hint={tr("For a backup repository shared by several NAS: data they have in common (same VMs, same files) is stored once. They must use the same repository password, and each one can read the others' backups.")} />
@@ -181,15 +177,7 @@ function VersionsFields({ b, set, always }: { b: BackupTask; set: (k: Partial<Ba
 }
 
 function LocalFolder({ value, onChange, sources, suffix }: { value: string; onChange: (v: string) => void; sources: Sources; suffix: string }) {
-  return (
-    <div className="flex gap-2">
-      <Select className="!w-56 shrink-0" value="" onChange={(e) => e.target.value && onChange(`${e.target.value}/${suffix}`)}>
-        <option value="">{tr("Volume…")}</option>
-        {sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS")).map((f) => <option key={f.path} value={f.path}>{srv(f.label)}</option>)}
-      </Select>
-      <Input className="mono" value={value} onChange={(e) => onChange(e.target.value)} />
-    </div>
-  );
+  return <FolderPicker value={value} onChange={onChange} suffix={suffix} label={tr("Destination folder")} quick={sources.folders.filter((f) => f.label.startsWith("Volume") || f.label.startsWith("ZFS"))} />;
 }
 
 function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | null; preset?: Partial<BackupTask>; sources: Sources; onClose: () => void }) {
@@ -266,10 +254,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
           <div className="space-y-4">
             <Notice tone="warn">{tr("Deletions propagate both ways: a file deleted on one NAS is deleted on the other at the next run. A snapshot of the local folder is taken before each run (Btrfs or ZFS volume), so a mistake can be recovered from Snapshots / Previous versions.")}</Notice>
             <Field label={tr("Folder of this NAS")}>
-              <Select value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value ? [e.target.value] : [] })}>
-                <option value="">{tr("Choose…")}</option>
-                {sources.folders.map((f) => <option key={f.path} value={f.path}>{srv(f.label)} — {f.path}</option>)}
-              </Select>
+              <FolderPicker value={b.sources[0] ?? ""} onChange={(v) => set({ sources: v ? [v] : [] })} label={tr("Folder of this NAS")} quick={sources.folders} quickLabel={tr("Choose…")} />
             </Field>
             <div className="space-y-4 rounded-xl border border-line p-4">
               <div className="font-medium text-[13px]">{tr("The other NAS (SFTP)")}</div>
@@ -419,7 +404,7 @@ export function HistoryModal({ b, onClose }: { b: Pick<BackupTask, "name" | "his
         <div className="space-y-2">
           {b.history.map((h, i) => (
             <div key={i} className="flex items-start gap-3 rounded-xl bg-panel-2 px-4 py-3">
-              {h.status === "success" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={17} className="mt-0.5 shrink-0 text-danger" />}
+              <RunIcon status={h.status} size={17} />
               <div className="min-w-0"><div className="text-[13px] break-words">{srv(h.message)}</div><div className="text-muted text-[11.5px]">{dateTime(h.started)} · {Math.max(1, Math.round(h.duration))} s{h.manual ? tr(" · manual") : ""}</div></div>
             </div>
           ))}
@@ -471,15 +456,15 @@ export default function Backups() {
                     <div className="text-muted">{b.cron ? describeCron(b.cron) : tr("On demand")}{b.enabled && b.nextRun ? tr(" · next {0}", dateTime(b.nextRun)) : ""}</div>
                   </div>
                   {last && (
-                    <button onClick={() => setHist(b)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", last.status === "success" ? "bg-ok/10" : "bg-danger/10 text-danger")}>
-                      {last.status === "success" ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
+                    <button onClick={() => setHist(b)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", runTone(last.status))}>
+                      <RunIcon status={last.status} />
                       <span className="min-w-0 break-words">{ago(last.started)} — {srv(last.message)}</span>
                     </button>
                   )}
                   <RestoreTestBadge t={b.restoreTest} />
                 </div>
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
-                  <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Run")}</Button>
+                  {b.running && b.jobId ? <StopJobButton id={b.jobId} /> : <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={b.running} onClick={() => run.mutate(b.id)}>{tr("Run")}</Button>}
                   {(b.kind === "restic" || (b.kind === "rsync" && !b.sourceType && b.destType === "local")) && <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setRestore({ source: `backup:${b.id}` })}>{tr("Restore")}</Button>}
                   {b.kind === "sync" && b.synced && <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} disabled={b.running} onClick={async () => { if (await confirm({ title: tr("Resynchronise \"{0}\"?", b.name), text: tr("Both folders are merged again, as on the first run: nothing is deleted, and files deleted on one side since the last run come back.") })) resync.mutate(b.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(b)}><History size={15} /></IconButton>

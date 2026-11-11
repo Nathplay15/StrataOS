@@ -8,10 +8,7 @@ import { bytes, cx } from "../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Select, Spinner, Switch, Tabs, useUI } from "../components/ui";
 import { lang, tr } from "../lib/i18n";
 
-// The Linux group every StrataOS user belongs to (accounts.BaseGroup).
-const ALL_USERS = "@strata";
-
-const empty: Share = { name: "", path: "", description: "", smb: true, nfs: false, guest: false, browseable: true, recycleBin: true, timeMachine: false, permissions: {}, nfsClients: "", nfsOptions: "" };
+import { ALL_USERS, emptyShare as empty, newShareDefaults } from "../lib/shares";
 
 /** Rights of domain (Active Directory / LDAP) users and groups, with a search box. */
 function DomainPerms({ perms, local, setPerm }: { perms: Record<string, Perm>; local: Set<string>; setPerm: (who: string, p?: Perm) => void }) {
@@ -107,7 +104,7 @@ function ShareModal({ initial, onClose }: { initial: Share | null; onClose: () =
     const who = me.data?.username;
     if (!defaulted.current.perms && who) {
       defaulted.current.perms = true;
-      setS((p) => (Object.keys(p.permissions).length ? p : { ...p, permissions: { [who]: "rw", [ALL_USERS]: "ro" } }));
+      setS((p) => (Object.keys(p.permissions).length ? p : { ...p, permissions: newShareDefaults(p.name, "", who).permissions }));
     }
   }, [editing, locations.data, me.data, base]);
   if (recovery) {
