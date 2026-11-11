@@ -16,6 +16,7 @@ import (
 	"net/smtp"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strataos/internal/accounts"
 	"strataos/internal/i18n"
@@ -26,6 +27,7 @@ import (
 	"strataos/internal/docker"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/sysdisk"
 	"strataos/internal/system"
 	"strataos/internal/tlstrust"
 )
@@ -154,8 +156,47 @@ func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols [
 	if d := s.diskAlerts.Load(); d != nil {
 		out = append(out, (*d)...)
 	}
-	out = append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken(), s.volumeFullPct())...)
+	st := storageAlerts(raids, pools, vols, storage.ZFSBroken(), s.volumeFullPct())
+	// The arrays of the system mirror are replaced together, from the system disk.
+	if sa := systemArrays(); len(sa) > 0 {
+		for i, a := range st {
+			if a.Replace == nil {
+				continue
+			}
+			for _, r := range raids {
+				if a.Replace.Group == "raid:"+r.Name && sa[r.Device] {
+					st[i].Message = fmt.Sprintf("The system mirror is degraded (%s): the system runs from one disk only, replace the missing disk", r.Name)
+					st[i].Replace = &storage.ReplaceSel{Group: sysdisk.MirrorGroupID}
+				}
+			}
+		}
+	}
+	out = append(out, st...)
 	return append(out, s.resourceAlerts()...)
+}
+
+// systemArrays lists the md arrays holding the system or its swap (cheap:
+// no lsblk).
+func systemArrays() map[string]bool {
+	out := map[string]bool{}
+	add := func(dev string) {
+		if r, err := filepath.EvalSymlinks(dev); err == nil && strings.HasPrefix(filepath.Base(r), "md") {
+			out[r] = true
+		}
+	}
+	if b, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		for _, m := range sysdisk.ParseMountinfo(string(b)) {
+			if m.Target == "/" || m.Target == "/boot" {
+				add(m.Source)
+			}
+		}
+	}
+	if b, err := os.ReadFile("/proc/swaps"); err == nil {
+		for _, s := range sysdisk.ParseSwaps(string(b)) {
+			add(s)
+		}
+	}
+	return out
 }
 
 // volumeFullPct is the fill percentage above which a volume is alerted as

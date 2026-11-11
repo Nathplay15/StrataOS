@@ -77,7 +77,7 @@ type Candidate struct {
 // PlanFacts is what the planning knows besides the layout.
 type PlanFacts struct {
 	Layout Layout
-	Disks  []storage.BlockDevice           // storage.ListDisks
+	Disks  []storage.BlockDevice          // storage.ListDisks
 	Smart  map[string]storage.DiskVerdict // disk path → verdict
 	Busy   map[string]string              // disk path → why it is reserved
 	// Running: an operation on the system disk is not finished.

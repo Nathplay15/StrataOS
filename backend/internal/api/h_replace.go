@@ -15,6 +15,7 @@ import (
 	"strataos/internal/storagetools"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/sysdisk"
 )
 
 // Guided disk replacement (Storage → Disks → Replace): the plan says what uses
@@ -60,6 +61,24 @@ func (s *Server) replaceFacts() storage.ReplaceFacts {
 		}
 	}
 	f.Groups = storage.ReplaceGroups(disks)
+	// The system mirror is one group of whole disks instead of its arrays.
+	if l, _, err := sysdisk.Detect(); err == nil {
+		if g, ok := sysdisk.MirrorGroup(l, disks); ok {
+			sysArr := map[string]bool{}
+			for _, a := range l.Arrays {
+				if a.Role != "other" {
+					sysArr["raid:"+a.Name] = true
+				}
+			}
+			groups := []storage.ReplaceGroup{g}
+			for _, x := range f.Groups {
+				if !sysArr[x.ID] {
+					groups = append(groups, x)
+				}
+			}
+			f.Groups = groups
+		}
+	}
 	s.store.Read(func(st *store.State) {
 		last := func(hist []store.ScheduleRun) {
 			for _, h := range hist {
@@ -196,11 +215,15 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 	if rec.ID == "" {
 		return errors.New("replacement not found")
 	}
-	op := storage.ReplaceOp{Kind: rec.Kind, Group: rec.Name, Mode: rec.Mode, Old: rec.Old, OldDisk: rec.OldDisk, New: rec.New}
+	var op replacer = storage.ReplaceOp{Kind: rec.Kind, Group: rec.Name, Mode: rec.Mode, Old: rec.Old, OldDisk: rec.OldDisk, New: rec.New}
+	if rec.Kind == "system" {
+		op = sysdisk.MirrorReplace{Mode: rec.Mode, OldDisk: rec.OldDisk, New: rec.New}
+	}
+	newDisk := rec.New
 	live := &replaceLive{}
 	replaceRuns.Store(id, live)
 	defer replaceRuns.Delete(id)
-	defer storage.ClearBusy(op.New)
+	defer storage.ClearBusy(newDisk)
 	phase := func(p string) {
 		rec = s.updateReplace(id, func(x *store.DiskReplacement) { x.Phase = p })
 		if p != "check" {
@@ -219,8 +242,8 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 
 	if rec.Phase == "check" {
 		if rec.SmartTest {
-			j.Logf("SMART short self-test of %s", op.New)
-			step := storagetools.SmartShortTest(ctx, op.New, j.Logf)
+			j.Logf("SMART short self-test of %s", newDisk)
+			step := storagetools.SmartShortTest(ctx, newDisk, j.Logf)
 			switch step.Status {
 			case "failed":
 				return fail(fmt.Errorf("the new disk failed its SMART self-test: %s", step.Detail))
@@ -232,7 +255,7 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 				j.Logf("SMART self-test passed")
 			}
 		}
-		if info, err := storage.Smart(op.New); err == nil && info.Passed != nil && !*info.Passed {
+		if info, err := storage.Smart(newDisk); err == nil && info.Passed != nil && !*info.Passed {
 			return fail(errors.New("the new disk fails its SMART health check"))
 		}
 		phase("add")
@@ -240,11 +263,11 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 	if rec.Phase == "add" {
 		// The reservation kept other tools off the new disk until now; Start
 		// erases it under storage.Lock and makes it a member.
-		storage.ClearBusy(op.New)
+		storage.ClearBusy(newDisk)
 		if err := op.Start(ctx, j.Logf); err != nil {
 			return fail(err)
 		}
-		s.store.Log("info", "storage", rec.User, fmt.Sprintf("Disk replacement in %s: rebuilding onto %s", rec.Name, op.New))
+		s.store.Log("info", "storage", rec.User, fmt.Sprintf("Disk replacement in %s: rebuilding onto %s", rec.Name, newDisk))
 		phase("rebuild")
 	}
 	if rec.Phase == "rebuild" {
@@ -315,6 +338,15 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 		}
 	}
 	return nil
+}
+
+// replacer is a replacement of a data group (storage.ReplaceOp) or of a
+// disk of the system mirror (sysdisk.MirrorReplace).
+type replacer interface {
+	Start(ctx context.Context, logf func(string, ...any)) error
+	Resume()
+	Poll() (storage.ReplaceStatus, error)
+	Finish(logf func(string, ...any)) error
 }
 
 // replaceResume carries on the replacements a restart interrupted: RAID and

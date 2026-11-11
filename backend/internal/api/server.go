@@ -159,6 +159,7 @@ func New(c Config) *Server {
 	go s.vmcLoop()
 	go s.dockerUpdatesLoop() // Android app v2 (part A): container updates
 	go s.replaceResume()
+	go s.sysDiskResume()
 	go s.fwLoop()
 	return s
 }
@@ -346,6 +347,7 @@ func (s *Server) routes() {
 	s.configRoutes()
 	s.storageToolsRoutes()
 	s.replaceRoutes()
+	s.sysDiskRoutes()
 	s.uninstallRoutes()
 	s.hardwareRoutes()
 	s.mediaRoutes()
