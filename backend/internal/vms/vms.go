@@ -649,8 +649,8 @@ func Delete(name string, removeDisks bool) error {
 		_, _ = virsh("destroy", name)
 	}
 	ceph := rbdDisks(name)
-	if _, err := virsh("undefine", name, "--nvram", "--snapshots-metadata", "--tpm"); err != nil {
-		if _, err2 := virsh("undefine", name, "--nvram"); err2 != nil {
+	if _, err := virsh("undefine", name, "--nvram", "--snapshots-metadata", "--checkpoints-metadata", "--tpm"); err != nil {
+		if _, err2 := virsh("undefine", name, "--nvram", "--checkpoints-metadata"); err2 != nil {
 			return err
 		}
 	}

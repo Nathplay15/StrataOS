@@ -64,7 +64,21 @@ func rewriteClone(doc string, o cloneOpts) (string, error) {
 		if src != nil {
 			file = src.attr("file")
 		}
+		rbd := ""
+		if src != nil && d.attr("type") == "network" && src.attr("protocol") == "rbd" {
+			rbd = RBDPrefix + src.attr("name")
+		}
 		switch {
+		case d.attr("device") == "disk" && rbd != "" && o.Disks[rbd] != "":
+			// A disk on Ceph restored from an image backup: a qcow2 file now.
+			src.attrs = nil
+			src.kids = nil
+			src.setAttr("file", o.Disks[rbd])
+			d.setAttr("type", "file")
+			d.remove(func(c *node) bool { return c.name == "auth" || c.name == "backingStore" })
+			if drv := d.child("driver"); drv != nil {
+				drv.setAttr("type", "qcow2")
+			}
 		case d.attr("device") == "disk" && file != "":
 			n, ok := o.Disks[file]
 			if !ok {

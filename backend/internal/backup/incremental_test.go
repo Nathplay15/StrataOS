@@ -2,8 +2,13 @@ package backup
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"io"
+
 	"encoding/binary"
 	"math/rand/v2"
+	"strataos/internal/store"
 	"strings"
 	"testing"
 )
@@ -125,4 +130,55 @@ func TestApplyRBDDiff(t *testing.T) {
 	d.rec('w', 0, make([]byte, 3), 10) // truncated data
 	bad("truncated", d, size, "EOF")
 	bad("not a diff", &rbdDiff{}, size, "not an rbd diff")
+}
+
+func TestPatchedStream(t *testing.T) {
+	const size = 3<<20 + 5
+	prev := randBytes(size)
+	cur := randBytes(size)
+	defer func(f func(context.Context, *store.BackupTask, string, string, io.Writer) error) { dumpPart = f }(dumpPart)
+	dumpPart = func(_ context.Context, _ *store.BackupTask, snap, file string, w io.Writer) error {
+		if snap != "abcd1234" || file != "/vda.raw" {
+			return fmt.Errorf("asked %s %s", snap, file)
+		}
+		_, err := io.Copy(w, bytes.NewReader(prev))
+		return err
+	}
+	ext := []extent{{1 << 20, 1 << 20}}
+	r, wait := patchedStream(context.Background(), &store.BackupTask{}, "abcd1234", "vda", func(w io.Writer, p io.Reader) (int64, error) {
+		return mergeStream(w, p, bytes.NewReader(cur), size, ext)
+	})
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := wait()
+	if err != nil || n != 1<<20 {
+		t.Fatal(n, err)
+	}
+	want := bytes.Clone(prev)
+	copy(want[1<<20:2<<20], cur[1<<20:2<<20])
+	if !bytes.Equal(got, want) {
+		t.Fatal("patched stream differs")
+	}
+	// The consumer (restic) stops early: everything ends, with an error.
+	r, wait = patchedStream(context.Background(), &store.BackupTask{}, "abcd1234", "vda", func(w io.Writer, p io.Reader) (int64, error) {
+		return mergeStream(w, p, bytes.NewReader(cur), size, ext)
+	})
+	io.CopyN(io.Discard, r, 1000)
+	r.CloseWithError(fmt.Errorf("restic failed"))
+	if _, err := wait(); err == nil {
+		t.Fatal("early stop not reported")
+	}
+	// The previous backup cannot be read.
+	dumpPart = func(context.Context, *store.BackupTask, string, string, io.Writer) error {
+		return fmt.Errorf("repository locked")
+	}
+	r, wait = patchedStream(context.Background(), &store.BackupTask{}, "abcd1234", "vda", func(w io.Writer, p io.Reader) (int64, error) {
+		return mergeStream(w, p, bytes.NewReader(cur), size, ext)
+	})
+	io.Copy(io.Discard, r)
+	if _, err := wait(); err == nil || !strings.Contains(err.Error(), "repository locked") {
+		t.Fatal("dump error lost", err)
+	}
 }
