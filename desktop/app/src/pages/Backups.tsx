@@ -30,7 +30,7 @@ export function BackupsPage() {
             {r.ok ? <CheckCircle2 className="text-ok" /> : <XCircle className="text-warn" />}
             <div className="flex-1">
               <div className="font-semibold">{r.ok ? t("The 3-2-1 rule is met") : t("The 3-2-1 rule is not met yet")}</div>
-              <div className="text-[12.5px] text-muted">{t("{0} copies of the data, on {1} kinds of media, {2} off site", r.copies, r.media, r.offsite)}</div>
+              <div className="text-[12.5px] text-muted">{t("Copies of the data: {0} · media: {1} · off site: {2}", r.copies, r.media, r.offsite)}</div>
             </div>
             {r.missing.map((m) => <Badge key={m} tone="warn">{m === "copies" ? t("Add a copy") : m === "media" ? t("Another medium") : t("A copy off site")}</Badge>)}
           </div>
