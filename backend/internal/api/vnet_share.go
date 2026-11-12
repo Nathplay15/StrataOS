@@ -131,6 +131,7 @@ func receivedVNet(sp vnetSpec, originKey string, cur *network.VNet, bridge strin
 // sameButVirtual tells whether two configurations differ only in their
 // virtual networks (what a remote NAS may change without a trial).
 func sameButVirtual(a, b network.Config) bool {
+	a, b = cloneNet(a), cloneNet(b) // nil and empty lists alike
 	a.Virtual, b.Virtual = nil, nil
 	x, _ := json.Marshal(a)
 	y, _ := json.Marshal(b)
@@ -565,6 +566,9 @@ func (s *Server) vnetRemoveReceived(r *http.Request, originKey string) error {
 	id := r.PathValue("id")
 	i := slices.IndexFunc(next.Virtual, func(x network.VNet) bool { return x.ID == id && x.OriginKey == originKey })
 	if i < 0 {
+		if !slices.ContainsFunc(next.Virtual, func(x network.VNet) bool { return x.ID == id }) {
+			_ = os.Remove(network.WGKeyFile(id)) // a key given before the network came
+		}
 		return notFound("no such shared network here")
 	}
 	for _, vv := range s.vnetViews(r.Context(), prev) {

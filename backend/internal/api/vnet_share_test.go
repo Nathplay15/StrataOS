@@ -55,7 +55,7 @@ func TestVNetPlan(t *testing.T) {
 
 func TestSameButVirtual(t *testing.T) {
 	a := network.Config{Virtual: []network.VNet{{ID: "x"}}}
-	b := network.Config{}
+	b := network.Config{Interfaces: []network.Iface{}}
 	if !sameButVirtual(a, b) {
 		t.Fatal("virtual only")
 	}

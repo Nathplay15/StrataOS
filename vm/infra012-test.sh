@@ -132,28 +132,32 @@ check "versions folder on the volume, root only" "$(A ssh 'sudo stat -c "%a %U" 
 K=$(api $PA POST /api/me/s3/keys -d '{"name":"infra"}')
 AK=$(echo "$K" | py 'print(d["access"])') SK=$(echo "$K" | py 'print(d["secret"])')
 A ssh "command -v aws >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq awscli >/dev/null 2>&1 || sudo pip3 install -q --break-system-packages awscli >/dev/null 2>&1; true"
-s3() { A ssh "AWS_ACCESS_KEY_ID=$AK AWS_SECRET_ACCESS_KEY=$SK AWS_DEFAULT_REGION=us-east-1 aws --no-verify-ssl --endpoint-url https://localhost:7380 s3api $* 2>&1 | grep -v InsecureRequestWarning"; }
+s3() { A ssh "PYTHONWARNINGS=ignore AWS_ACCESS_KEY_ID=$AK AWS_SECRET_ACCESS_KEY=$SK AWS_DEFAULT_REGION=us-east-1 aws --no-verify-ssl --endpoint-url https://localhost:7380 s3api $* 2>&1"; }
+# The gateway's root account (the NAS administrator's side): reads retentions and holds.
+s3root() { A ssh "sudo sh -c '. /var/lib/strata/s3/root.env; PYTHONWARNINGS=ignore AWS_ACCESS_KEY_ID=\$ROOT_ACCESS_KEY AWS_SECRET_ACCESS_KEY=\$ROOT_SECRET_KEY AWS_DEFAULT_REGION=us-east-1 aws --no-verify-ssl --endpoint-url https://localhost:7380 s3api $* 2>&1'"; }
 A ssh 'echo version-one > /tmp/v1; echo version-two > /tmp/v2'
 check "aws CLI present" "$(A ssh 'aws --version 2>&1')" "aws-cli"
 s3 put-object --bucket docs --key report.txt --body /tmp/v1 >/dev/null
 s3 put-object --bucket docs --key report.txt --body /tmp/v2 >/dev/null
 check "two versions" "$(s3 list-object-versions --bucket docs --prefix report.txt --query "'length(Versions)'")" "2"
-check "default retention applied" "$(s3 get-object-retention --bucket docs --key report.txt)" "GOVERNANCE"
+check "default retention applied" "$(s3root get-object-retention --bucket docs --key report.txt)" "GOVERNANCE"
 OLD=$(s3 list-object-versions --bucket docs --prefix report.txt --query "'Versions[?IsLatest==\`false\`].VersionId'" --output text | tr -d '[:space:]')
 check "delete leaves a marker, the file stays readable by version" "$(s3 delete-object --bucket docs --key report.txt >/dev/null; s3 get-object --bucket docs --key report.txt --version-id $OLD /tmp/out >/dev/null; A ssh cat /tmp/out)" "version-one"
 check "locked version cannot be deleted with the user key" "$(s3 delete-object --bucket docs --key report.txt --version-id $OLD)" "AccessDenied"
 check "nor with the governance bypass" "$(s3 delete-object --bucket docs --key report.txt --version-id $OLD --bypass-governance-retention)" "AccessDenied"
 s3 put-object --bucket vault --key w.txt --body /tmp/v1 >/dev/null
 VW=$(s3 list-object-versions --bucket vault --prefix w.txt --query "'Versions[0].VersionId'" --output text | tr -d '[:space:]')
-check "compliance retention" "$(s3 get-object-retention --bucket vault --key w.txt --version-id $VW)" "COMPLIANCE"
+check "compliance retention" "$(s3root get-object-retention --bucket vault --key w.txt --version-id $VW)" "COMPLIANCE"
 check "compliance version kept" "$(s3 delete-object --bucket vault --key w.txt --version-id $VW)" "AccessDenied"
 s3 put-object --bucket docs --key hold.txt --body /tmp/v1 >/dev/null
 VH=$(s3 list-object-versions --bucket docs --prefix hold.txt --query "'Versions[0].VersionId'" --output text | tr -d '[:space:]')
-check "legal hold set" "$(s3 put-object-legal-hold --bucket docs --key hold.txt --version-id $VH --legal-hold Status=ON; s3 get-object-legal-hold --bucket docs --key hold.txt --version-id $VH)" '"ON"'
-check "older versions out of the share" "$(A ssh 'sudo find /srv/strata/volume1/.strata-s3-versions/docs -type f | wc -l; ls /srv/strata/volume1/Docs')" "report.txt"
+echo "    (info) legal hold with the user key: $(s3 put-object-legal-hold --bucket docs --key hold.txt --version-id $VH --legal-hold Status=ON | head -2 | tr '\n' ' ')"
+check "legal hold set" "$(s3root put-object-legal-hold --bucket docs --key hold.txt --version-id $VH --legal-hold Status=ON; s3root get-object-legal-hold --bucket docs --key hold.txt --version-id $VH)" '"ON"'
+check "held version cannot be deleted" "$(s3root delete-object --bucket docs --key hold.txt --version-id $VH --bypass-governance-retention)" "AccessDenied"
+check "older versions out of the share" "$(A ssh 'sudo find /srv/strata/volume1/.strata-s3-versions/docs -type f | wc -l; sudo ls /srv/strata/volume1/Docs')" "report.txt"
 check "lock cannot be turned off" "$(api $PA PUT /api/s3 -d '{"enabled":true,"port":7380,"buckets":[{"name":"docs","share":"Docs","versioning":"enabled"},{"name":"vault","share":"Vault","versioning":"enabled","lock":true,"lockMode":"COMPLIANCE","lockDays":1}]}')" "cannot be turned off"
-check "default retention changed, lock stays" "$(api $PA PUT /api/s3 -d '{"enabled":true,"port":7380,"buckets":[{"name":"docs","share":"Docs","versioning":"enabled","lock":true},{"name":"vault","share":"Vault","versioning":"enabled","lock":true,"lockMode":"COMPLIANCE","lockDays":1}]}' >/dev/null; s3 get-object-lock-configuration --bucket docs)" '"Enabled"'
-check "default retention removed, lock kept" "$(s3 get-object-lock-configuration --bucket docs | grep -c DefaultRetention)" "0"
+check "default retention changed, lock stays" "$(api $PA PUT /api/s3 -d '{"enabled":true,"port":7380,"buckets":[{"name":"docs","share":"Docs","versioning":"enabled","lock":true},{"name":"vault","share":"Vault","versioning":"enabled","lock":true,"lockMode":"COMPLIANCE","lockDays":1}]}' >/dev/null; s3root get-object-lock-configuration --bucket docs)" '"Enabled"'
+check "default retention removed, lock kept" "$(s3root get-object-lock-configuration --bucket docs | grep -c DefaultRetention)" "0"
 check "removing a locked bucket needs a confirmation" "$(api $PA PUT /api/s3 -d '{"enabled":true,"port":7380,"buckets":[]}')" "confirm"
 check "S3 off (with confirmation)" "$(api $PA PUT /api/s3 -d '{"enabled":false,"port":7380,"buckets":[],"confirm":true}')" '"ok":true'
 fi
@@ -170,7 +174,7 @@ wait_b() { for _ in $(seq 1 70); do v=$(api $PB GET /api/system/network/vnets | 
 check "refused while B does not allow it" "$(for _ in $(seq 1 30); do s=$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n.get("shared"))'); case "$s" in *"does not allow"*) echo "$s"; break ;; esac; sleep 3; done)" "does not allow"
 check "permission given on B" "$(api $PB PUT /api/fleet/managers/$MGR -d '{"allowUpdates":false,"allowReboot":false,"allowNetworks":true}')" '"ok":true'
 check "lab received by B" "$(wait_b 'v=[n for n in d["networks"] if n["id"]=="lab"]; print(v[0]["vni"], v[0]["subnet"], v[0]["gateway"], v[0]["originKey"].startswith("fleet:"), v[0]["peers"]) if v else print("none")' "4242 10.77.0.0/24 10.77.0.1 True ['10.97.0.1']")" "4242 10.77.0.0/24"
-check "A peers with B" "$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n["peers"], [s["ok"] for s in n["shared"]])')" "['10.97.0.2'] [True]"
+check "A peers with B" "$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n["peers"], [(s["ok"], s.get("error", "")) for s in n["shared"]])')" "['10.97.0.2'] [(True"
 BRB=$(api $PB GET /api/system/network/vnets | py 'print([n["bridge"] for n in d["networks"] if n["id"]=="lab"][0])')
 check "managed by A: edit refused on B" "$(api $PB PUT /api/system/network/vnets/lab -d '{"kind":"vxlan","vni":1,"peers":["10.97.0.1"]}')" "managed by the NAS"
 B ssh "sudo ip netns add g; sudo ip link add vg type veth peer name vgp; sudo ip link set vgp netns g; sudo ip link set vg master $BRB up; sudo ip -n g link set vgp up; sudo ip -n g addr add 10.77.0.2/24 dev vgp; sudo ip -n g link set vgp mtu \$(cat /sys/class/net/$BRB/mtu)"
