@@ -53,8 +53,9 @@ func remoteCommand(args ...string) string {
 }
 
 func sshZFS(ctx context.Context, t *store.BackupTask, args ...string) (string, error) {
-	full := append(sshArgs(t), t.User+"@"+t.Host, remotePath+remoteCommand(append([]string{"zfs"}, args...)...))
-	return sys.RunCtx(ctx, "ssh", full...)
+	c := sshCmd(t)
+	full := append(c[1:], t.User+"@"+t.Host, remotePath+remoteCommand(append([]string{"zfs"}, args...)...))
+	return sys.RunCtx(ctx, c[0], full...)
 }
 
 // zfsPullSend is the remote send command (shell-quoted).
@@ -131,9 +132,9 @@ func runZFSPull(ctx context.Context, t *store.BackupTask, p Progress) (string, e
 	}
 	// Every value reaches bash as a positional parameter; the remote command
 	// is quoted for the remote shell.
-	script := `set -o pipefail; ssh_opts=$1; remote=$2; dest=$3; ssh $ssh_opts "$remote" "$REMOTE_SEND" | zfs recv -F -u "$dest"`
+	script := `set -o pipefail; ssh_cmd=$1; remote=$2; dest=$3; $ssh_cmd "$remote" "$REMOTE_SEND" | zfs recv -F -u "$dest"`
 	o := sys.Opts{Timeout: 48 * time.Hour, Env: []string{"REMOTE_SEND=" + zfsPullSend(t, base, snap)}, Output: &lineWriter{fn: func(l string) { p.Log("%s", l) }}}
-	if _, err := sys.RunOpts(ctx, o, "bash", "-c", script, "strata-zfs-pull", strings.Join(sshArgs(t), " "), t.User+"@"+t.Host, dest); err != nil {
+	if _, err := sys.RunOpts(ctx, o, "bash", "-c", script, "strata-zfs-pull", sshCommand(t), t.User+"@"+t.Host, dest); err != nil {
 		// Leave the new snapshot out of the chain: it was never received.
 		args := []string{"destroy"}
 		if t.Recursive {

@@ -68,6 +68,29 @@ function SSHKey() {
   );
 }
 
+/** SSH authentication of a task: the NAS's key (recommended) or a password,
+ *  for servers that cannot be given a key. */
+function SSHAuth({ b, set }: { b: BackupTask; set: (k: Partial<BackupTask>) => void }) {
+  const [usePassword, setUsePassword] = useState(!!b.sshPassword);
+  return (
+    <div className="space-y-3">
+      <Field label={tr("Authentication")}>
+        <Select value={usePassword ? "password" : "key"} onChange={(e) => { const p = e.target.value === "password"; setUsePassword(p); if (!p) set({ sshPassword: "" }); }}>
+          <option value="key">{tr("Key of this NAS (recommended)")}</option>
+          <option value="password">{tr("Password")}</option>
+        </Select>
+      </Field>
+      {usePassword ? (
+        <>
+          <Field label={tr("SSH password")} hint={tr("Stored on this NAS and never shown again. Use a key when the server accepts one: it cannot be guessed or reused elsewhere.")}>
+            <Input type="password" autoComplete="new-password" value={b.sshPassword ?? ""} onChange={(e) => set({ sshPassword: e.target.value })} />
+          </Field>
+        </>
+      ) : <SSHKey />}
+    </div>
+  );
+}
+
 function VaultPair({ b, set }: { b: BackupTask; set: (k: Partial<BackupTask>) => void }) {
   const [host, setHost] = useState("");
   const [code, setCode] = useState("");
@@ -247,7 +270,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
             <Field label={b.sourceType === "rsyncd" ? tr("Modules") : b.sourceType === "smb" ? tr("Shares") : tr("Remote folders")} hint={pullProtos[(b.sourceType || "ssh") as keyof typeof pullProtos].hint}>
               <textarea className="input mono h-20" value={remoteSources} onChange={(e) => setRemoteSources(e.target.value)} />
             </Field>
-            {b.sourceType === "ssh" && <><Notice>{tr("Authentication by key only (no password is stored): install the StrataOS key on the other NAS.")}</Notice><SSHKey /></>}
+            {b.sourceType === "ssh" && <SSHAuth b={b} set={set} />}
           </div>
         )}
 
@@ -261,7 +284,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
               <div className="font-medium text-[13px]">{tr("The other NAS (SFTP)")}</div>
               <RemoteFields b={b} set={set} userLabel={tr("SSH user")} />
               <Field label={tr("Remote folder")} hint={tr("Absolute path, e.g. /volume1/shared. On another StrataOS NAS, an account without SSH access sees the volumes at the root: /main/Shared")}><Input className="mono" value={b.destPath} onChange={(e) => set({ destPath: e.target.value })} /></Field>
-              <SSHKey />
+              <SSHAuth b={b} set={set} />
             </div>
             <p className="text-muted text-[12px]">{tr("The first run merges both folders without deleting anything. A file changed on both sides is kept twice (both versions, renamed). Two-way sync works on files, on any file system.")}</p>
           </div>
@@ -285,7 +308,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
                 <RemoteFields b={b} set={set} userLabel={tr("SSH user")} />
                 <Field label={tr("Remote dataset")} hint={tr("e.g. tank/photos")}><Input className="mono" value={b.sources[0] ?? ""} onChange={(e) => set({ sources: e.target.value.trim() ? [e.target.value.trim()] : [] })} /></Field>
                 <Notice>{tr("This NAS connects to the source; the source holds no access to this NAS, so even compromised it cannot delete its backups. The remote account needs root or: zfs allow <user> snapshot,send,hold,destroy,mount <dataset>")}</Notice>
-                <SSHKey />
+                <SSHAuth b={b} set={set} />
               </div>
             ) : (
               <>
@@ -345,7 +368,7 @@ function Editor({ initial, preset, sources, onClose }: { initial: BackupTask | n
             </Field>}
             {b.destType === "local" && !pull && <Switch checked={!!b.offsite} onChange={(v) => set({ offsite: v })} label={tr("Kept off-site")} hint={tr("A USB disk you take away from the NAS between backups: it then counts as the off-site copy of the 3-2-1 rule.")} />}
             {(b.destType === "s3" || b.destType === "rest") && <TLSTrustField address={(b.destType === "s3" ? b.s3Endpoint : b.destPath) ?? ""} value={trustOf(b)} onChange={(v) => set(v)} />}
-            {remote && <SSHKey />}
+            {remote && <SSHAuth b={b} set={set} />}
           </div>
         )}
 

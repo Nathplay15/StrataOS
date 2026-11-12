@@ -508,6 +508,8 @@ export interface BackupTask {
   // Pull from another NAS: "" = this NAS.
   sourceType?: "" | "ssh" | "rsyncd" | "smb";
   remotePassword?: string;
+  /** Password authentication to the SSH server (empty: the NAS's key). */
+  sshPassword?: string;
   domain?: string;
   bwLimit?: string;
   versions?: boolean;

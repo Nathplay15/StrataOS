@@ -253,7 +253,10 @@ type BackupTask struct {
 	AccessKey  string `json:"accessKey,omitempty"`
 	SecretKey  string `json:"secretKey,omitempty"`
 	Password   string `json:"password,omitempty"` // restic repository password
-	Delete     bool   `json:"delete,omitempty"`   // rsync: remove files deleted at the source
+	// SSHPassword: password authentication to the SSH server (sshpass), for
+	// servers that cannot be given the NAS's key. Empty: key authentication.
+	SSHPassword string `json:"sshPassword,omitempty"`
+	Delete      bool   `json:"delete,omitempty"` // rsync: remove files deleted at the source
 	// Vault on another StrataOS (DestType "strataos"): REST URL, access token
 	// and pinned certificate (SHA-256), append-only when the vault forbids deletions.
 	VaultURL    string        `json:"vaultUrl,omitempty"`

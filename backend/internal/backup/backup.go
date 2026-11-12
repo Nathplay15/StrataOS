@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -50,18 +51,65 @@ var (
 	userRe = regexp.MustCompile(`^[a-z_][a-z0-9_.\-]{0,31}$`)
 )
 
-// sshArgs are the options shared by every SSH connection to a backup target.
+// sshArgs are the options shared by every SSH connection to a backup target:
+// the NAS's key, or the task's password (see sshCmd).
 func sshArgs(t *store.BackupTask) []string {
 	port := t.Port
 	if port == 0 {
 		port = 22
 	}
-	return []string{"-i", keyPath(), "-p", strconv.Itoa(port), "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
-		"-o", "UserKnownHostsFile=" + knownHostsPath(), "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30"}
+	auth := []string{"-i", keyPath(), "-o", "BatchMode=yes"}
+	if t.SSHPassword != "" {
+		auth = []string{"-o", "BatchMode=no", "-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive",
+			"-o", "NumberOfPasswordPrompts=1"}
+	}
+	return append(auth, "-p", strconv.Itoa(port), "-o", "StrictHostKeyChecking=accept-new",
+		"-o", "UserKnownHostsFile="+knownHostsPath(), "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30")
+}
+
+// sshCmd is the whole ssh command (program and options). With a password, ssh
+// runs under sshpass, which reads it from a root-only file on tmpfs: never on
+// a command line, where other processes could read it.
+func sshCmd(t *store.BackupTask) []string {
+	cmd := append([]string{"ssh"}, sshArgs(t)...)
+	if t.SSHPassword == "" {
+		return cmd
+	}
+	return append([]string{"sshpass", "-f", passFile(t)}, cmd...)
 }
 
 func sshCommand(t *store.BackupTask) string {
-	return "ssh " + strings.Join(sshArgs(t), " ")
+	return strings.Join(sshCmd(t), " ")
+}
+
+// passFile writes the task's SSH password where sshpass reads it.
+func passFile(t *store.BackupTask) string {
+	id := t.ID
+	if !idRe.MatchString(id) {
+		id = "test"
+	}
+	f := filepath.Join(SecretDir, "ssh-"+id)
+	_ = os.MkdirAll(SecretDir, 0o700)
+	_ = sys.WriteFileAtomic(f, []byte(t.SSHPassword), 0o600)
+	return f
+}
+
+// needSSHPass checks that password authentication can work here.
+func needSSHPass(t *store.BackupTask) error {
+	if t.SSHPassword == "" {
+		return nil
+	}
+	if _, err := exec.LookPath("sshpass"); err != nil {
+		return fmt.Errorf("password authentication needs the sshpass package: install it (apt install sshpass) or use the NAS's key")
+	}
+	return nil
+}
+
+// RemovePassFile deletes the SSH password file of a task (task deleted).
+func RemovePassFile(id string) {
+	if idRe.MatchString(id) {
+		_ = os.Remove(filepath.Join(SecretDir, "ssh-"+id))
+	}
 }
 
 // shellQuote quotes s for a POSIX shell (used for commands run on remote hosts).
@@ -143,6 +191,9 @@ func Validate(t *store.BackupTask) error {
 			if !strings.HasPrefix(t.DestPath, "/") {
 				return fmt.Errorf("the remote path must be absolute")
 			}
+			if err := needSSHPass(t); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("rsync destinations are local folders or SSH servers")
 		}
@@ -195,6 +246,9 @@ func validateResticDest(t *store.BackupTask) error {
 	case "sftp":
 		if !strings.HasPrefix(t.DestPath, "/") {
 			return fmt.Errorf("the remote path must be absolute")
+		}
+		if err := needSSHPass(t); err != nil {
+			return err
 		}
 	case "s3":
 		if t.S3Endpoint == "" || t.DestPath == "" || t.AccessKey == "" || t.SecretKey == "" {
@@ -356,7 +410,7 @@ func resticArgs(t *store.BackupTask, args ...string) []string {
 		if port == 0 {
 			port = 22
 		}
-		cmd := fmt.Sprintf("ssh %s %s@%s -s sftp", strings.Join(sshArgs(t), " "), t.User, t.Host)
+		cmd := fmt.Sprintf("%s %s@%s -s sftp", sshCommand(t), t.User, t.Host)
 		args = append([]string{"-o", "sftp.command=" + cmd}, args...)
 	}
 	return append(resticTLS(t), args...)
@@ -694,8 +748,8 @@ func runZFS(ctx context.Context, t *store.BackupTask, p Progress) (string, error
 	for i, a := range recv {
 		recv[i] = shellQuote(a)
 	}
-	script := `set -o pipefail; n=$1; shift; ssh_opts=$1; shift; remote=$1; shift; zfs "$@" | ssh $ssh_opts "$remote" "$REMOTE_RECV"`
-	args := append([]string{n, strings.Join(sshArgs(t), " "), t.User + "@" + t.Host}, sendArgs...)
+	script := `set -o pipefail; n=$1; shift; ssh_cmd=$1; shift; remote=$1; shift; zfs "$@" | $ssh_cmd "$remote" "$REMOTE_RECV"`
+	args := append([]string{n, sshCommand(t), t.User + "@" + t.Host}, sendArgs...)
 	return finishZFS(ctx, t, src, snap, mine, script, args, "REMOTE_RECV="+strings.Join(recv, " "), p)
 }
 
@@ -780,7 +834,8 @@ func Test(ctx context.Context, t store.BackupTask) (string, error) {
 		if t.Kind == "zfs" {
 			cmd = "zfs list -H -o name >/dev/null && echo ok"
 		}
-		out, err := sys.RunCtx(ctx, "ssh", append(sshArgs(&t), t.User+"@"+t.Host, cmd)...)
+		c := sshCmd(&t)
+		out, err := sys.RunCtx(ctx, c[0], append(c[1:], t.User+"@"+t.Host, cmd)...)
 		if err != nil {
 			return "", fmt.Errorf("SSH connection failed (is the StrataOS public key in ~/.ssh/authorized_keys of %s?): %w", t.User, err)
 		}

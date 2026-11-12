@@ -39,6 +39,9 @@ func maskBackup(b store.BackupTask) store.BackupTask {
 	if b.RemotePassword != "" {
 		b.RemotePassword = masked
 	}
+	if b.SSHPassword != "" {
+		b.SSHPassword = masked
+	}
 	return b
 }
 
@@ -60,6 +63,9 @@ func (s *Server) unmaskBackup(b *store.BackupTask, id string) {
 		}
 		if b.RemotePassword == masked {
 			b.RemotePassword = old.RemotePassword
+		}
+		if b.SSHPassword == masked {
+			b.SSHPassword = old.SSHPassword
 		}
 	})
 }
@@ -263,6 +269,7 @@ func (s *Server) backupRoutes() {
 			if x.Kind == "sync" {
 				backup.RemoveSync(id)
 			}
+			backup.RemovePassFile(id)
 			st.Backups = slices.DeleteFunc(st.Backups, func(b *store.BackupTask) bool { return b.ID == id })
 			return nil
 		})
