@@ -129,7 +129,7 @@ function S3Protection({ bucket, saved, onChange, onClose }: { bucket: FormBucket
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Default retention of new objects")}>
               <Select value={b.lockMode} onChange={(e) => set({ lockMode: e.target.value as FormBucket["lockMode"], lockDays: e.target.value ? b.lockDays || 30 : 0 })}>
-                <option value="">{tr("None (clients set retention or legal holds)")}</option>
+                <option value="">{tr("None")}</option>
                 <option value="GOVERNANCE">{tr("Governance: the NAS administrator can still remove it")}</option>
                 <option value="COMPLIANCE">{tr("Compliance: nobody can remove it before the end")}</option>
               </Select>
@@ -140,7 +140,7 @@ function S3Protection({ bucket, saved, onChange, onClose }: { bucket: FormBucket
         {b.lock && b.lockMode === "COMPLIANCE" && <Notice tone="warn">{tr("In compliance mode, locked versions use space until their retention ends: nobody can delete them through S3, not even the administrator.")}</Notice>}
         <Notice>{tr("Only what goes through S3 is versioned and locked. The current objects are the shared folder's files: a user who may write to the shared folder over SMB, NFS or Files can still change or delete them (not their older versions). For WORM data, give write access to the shared folder to nobody and use S3 only; for files changed over SMB, use snapshots of the shared folder instead.")}</Notice>
         {saved?.writable && b.lock && <Notice tone="warn">{tr("Some users may write to this shared folder outside S3.")}</Notice>}
-        <p className="text-muted text-[12px]">{tr("Older versions are kept in the hidden folder .strata-s3-versions at the root of the volume, readable by the S3 service only, and count in the volume's space. Legal holds and per-object retention are set by S3 clients (aws s3api put-object-legal-hold, put-object-retention).")}</p>
+        <p className="text-muted text-[12px]">{tr("Older versions are kept in the hidden folder .strata-s3-versions at the root of the volume, readable by the S3 service only, and count in the volume's space. Per-object retention and legal holds are refused to the users' keys by the S3 service: use the default retention.")}</p>
       </div>
     </Modal>
   );
