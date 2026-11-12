@@ -43,8 +43,7 @@ c PUT /api/cloudsync/$TTC -d "$(tt_cloud ",\"tlsCert\":$PEMA,\"tlsFingerprint\":
 check "cloud sync: fingerprint computed by the NAS" "$(c GET /api/cloudsync | py "print([t['tlsFingerprint'] for t in d['tasks'] if t['id']=='$TTC'][0])")" "$FPA"
 check "cloud sync: works once trusted" "$(job "$(c POST /api/cloudsync/$TTC/run)")" "success"
 check "cloud sync: file on the WebDAV server" "$(vm "sudo cat $TT/dav/up/hello.txt")" "hello"
-check "cloud sync: the trusted certificate is handed to rclone" "$(vm "sudo cat /var/lib/strata/tls/*.pem | sudo openssl x509 -noout -fingerprint -sha256" | cut -d= -f2 | tr -d ':\r' | tr 'A-F' 'a-f')" "$FPA"
-vm "sudo ls -la /var/lib/strata/tls/; sudo head -c 120 /var/lib/strata/tls/*.pem" >&2  # DEBUG
+check "cloud sync: the trusted certificate is handed to rclone" "$(vm "sudo sh -c 'cat /var/lib/strata/tls-trust/*.pem' | openssl x509 -noout -fingerprint -sha256" | cut -d= -f2 | tr -d ':\r' | tr 'A-F' 'a-f')" "$FPA"
 tt_serve b
 job "$(c POST /api/cloudsync/$TTC/run)" >/dev/null
 check "cloud sync: changed certificate reported" "$(tt_last)" "the certificate of 127.0.0.1 changed"
@@ -64,7 +63,6 @@ check "restic REST: self-signed server refused with advice" "$(tt_blast)" "Trust
 c PUT /api/backups/$TTR -d "$(tt_restic ",\"tlsCert\":$PEMA")" >/dev/null
 check "restic REST: test destination once trusted" "$(c POST /api/backups/test -d "$(c GET /api/backups | py "import json as j; b=[b for b in d if b['id']=='$TTR'][0]; print(j.dumps(b))")")" "reachable"
 check "restic REST: backup works once trusted" "$(job "$(c POST /api/backups/$TTR/run)")" "success"
-vm "sudo ls -la /var/lib/strata/tls/; sudo head -c 120 /var/lib/strata/tls/*.pem" >&2  # DEBUG
 tt_serve b
 job "$(c POST /api/backups/$TTR/run)" >/dev/null
 check "restic REST: changed certificate reported" "$(tt_blast)" "the certificate of 127.0.0.1 changed"
@@ -86,4 +84,5 @@ c PUT /api/settings -d "$(echo "$SET" | py 'd.pop("notifyLangAuto",None); print(
 # Sign-in providers never ignore certificate errors.
 check "OIDC: ignoring certificate errors refused" "$(c POST /api/security/oidc -d '{"id":"e2e-tls","name":"x","issuer":"https://127.0.0.1:18443","clientId":"x","enabled":false,"tlsInsecure":true}')" "cannot be ignored"
 
-vm "sudo systemctl stop e2e-tt-dav e2e-tt-rest 2>/dev/null; sudo rm -rf $TT $TTSRC /var/lib/strata/tls"
+check "the NAS's own HTTPS certificate is untouched" "$(vm "sudo test -s /var/lib/strata/tls/key.pem && echo present")" "present"
+vm "sudo systemctl stop e2e-tt-dav e2e-tt-rest 2>/dev/null; sudo rm -rf $TT $TTSRC /var/lib/strata/tls-trust"

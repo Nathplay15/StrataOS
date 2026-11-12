@@ -27,7 +27,7 @@ import (
 )
 
 // Dir holds the CA files handed to rclone and restic (named by content).
-var Dir = "/var/lib/strata/tls"
+var Dir = "/var/lib/strata/tls-trust"
 
 const (
 	maxPEM   = 64 << 10

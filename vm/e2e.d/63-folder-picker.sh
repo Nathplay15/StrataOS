@@ -29,5 +29,6 @@ check "cloud sync accepts a picked folder" "$FPC" "/srv/strata/main/PickerBk/clo
 [ -n "${FPC%% *}" ] && c DELETE "/api/cloudsync/${FPC%% *}" >/dev/null
 
 c DELETE /api/shares/PickerBk >/dev/null
-check "share removed (files kept)" "$(c GET /api/shares | py 'print([x["name"] for x in d if x["name"]=="PickerBk"])'; echo " $(vm "sudo test -d /srv/strata/main/PickerBk && echo kept")")" "[] kept"
+check "share removed" "$(c GET /api/shares | py 'print([x["name"] for x in d if x["name"]=="PickerBk"])')" "[]"
+check "share folder kept" "$(vm "sudo test -d /srv/strata/main/PickerBk && echo kept")" "kept"
 vm "sudo rm -rf /srv/strata/main/PickerBk /srv/strata/main/picker-e2e"
