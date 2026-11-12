@@ -174,7 +174,7 @@ wait_b() { for _ in $(seq 1 70); do v=$(api $PB GET /api/system/network/vnets | 
 check "refused while B does not allow it" "$(for _ in $(seq 1 30); do s=$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n.get("shared"))'); case "$s" in *"does not allow"*) echo "$s"; break ;; esac; sleep 3; done)" "does not allow"
 check "permission given on B" "$(api $PB PUT /api/fleet/managers/$MGR -d '{"allowUpdates":false,"allowReboot":false,"allowNetworks":true}')" '"ok":true'
 check "lab received by B" "$(wait_b 'v=[n for n in d["networks"] if n["id"]=="lab"]; print(v[0]["vni"], v[0]["subnet"], v[0]["gateway"], v[0]["originKey"].startswith("fleet:"), v[0]["peers"]) if v else print("none")' "4242 10.77.0.0/24 10.77.0.1 True ['10.97.0.1']")" "4242 10.77.0.0/24"
-check "A peers with B" "$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n["peers"], [(s["ok"], s.get("error", "")) for s in n["shared"]])')" "['10.97.0.2'] [(True"
+check "A peers with B, B confirmed" "$(for _ in $(seq 1 20); do s=$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(n["peers"], [(s["ok"], s.get("error", "")) for s in n["shared"]])'); case "$s" in *"(True"*) break ;; esac; sleep 3; done; echo "$s")" "['10.97.0.2'] [(True"
 BRB=$(api $PB GET /api/system/network/vnets | py 'print([n["bridge"] for n in d["networks"] if n["id"]=="lab"][0])')
 check "managed by A: edit refused on B" "$(api $PB PUT /api/system/network/vnets/lab -d '{"kind":"vxlan","vni":1,"peers":["10.97.0.1"]}')" "managed by the NAS"
 B ssh "sudo ip netns add g; sudo ip link add vg type veth peer name vgp; sudo ip link set vgp netns g; sudo ip link set vg master $BRB up; sudo ip -n g link set vgp up; sudo ip -n g addr add 10.77.0.2/24 dev vgp; sudo ip -n g link set vgp mtu \$(cat /sys/class/net/$BRB/mtu)"
@@ -186,9 +186,10 @@ check "encryption turned on" "$(api $PA PUT /api/system/network/vnets/lab -d '{"
 check "B moved to the mesh" "$(wait_b 'v=[n for n in d["networks"] if n["id"]=="lab"][0]; print(v.get("encrypt"), bool(v.get("wg")), v["status"]["mtu"])' "True True 1350")" "True True 1350"
 check "A on the mesh" "$(for _ in $(seq 1 20); do s=$(api $PA GET /api/system/network/vnets | py 'n=[n for n in d["networks"] if n["id"]=="lab"][0]; print(bool(n.get("wg")), n["local"].startswith("fd"), n["peers"][0].startswith("fd"))'); [ "$s" = "True True True" ] && break; sleep 3; done; echo "$s")" "True True True"
 B ssh "sudo ip -n g link set vgp mtu 1350"
-check "WireGuard link up on both" "$(A ssh 'ip -br link | grep -c "wg "'; B ssh 'ip -br link | grep -c "wg "')" "1"
+BRA=$(api $PA GET /api/system/network/vnets | py 'print([n["bridge"] for n in d["networks"] if n["id"]=="lab"][0])')
+check "WireGuard link on both" "$(A ssh "/usr/sbin/ip -br link show ${BRA}wg"; B ssh "/usr/sbin/ip -br link show ${BRB}wg")" "${BRB}wg"
 check "traffic over the encrypted tunnel" "$(for _ in $(seq 1 10); do B ssh 'sudo ip netns exec g ping -c2 -W2 10.77.0.1 >/dev/null' && { echo pong; break; }; sleep 3; done)" "pong"
-check "VXLAN no longer in clear on the LAN (WireGuard packets counted)" "$(A ssh 'ip -s -j link show $(ip -br link | awk "/wg /{print \$1}" | head -1)' | py 'print("wg" if d[0]["stats64"]["rx"]["packets"] > 0 else "none")')" "wg"
+check "VXLAN inside WireGuard (packets on A's WireGuard link)" "$(A ssh "/usr/sbin/ip -s -j link show ${BRA}wg" | py 'print("wg" if d[0]["stats64"]["rx"]["packets"] > 0 else "none")')" "wg"
 check "big packets pass (MTU)" "$(B ssh 'sudo ip netns exec g ping -c2 -W2 -M do -s 1322 10.77.0.1 >/dev/null && echo fits')" "fits"
 
 section "Removal propagated"
