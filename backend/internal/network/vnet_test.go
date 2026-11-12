@@ -159,7 +159,7 @@ func TestDockerForwardRules(t *testing.T) {
 
 func TestSharedVXLAN(t *testing.T) {
 	key := "YJqTsXV5pr6hSGBcIPbq1HqzaZhFzZ6vCk1cCUoT5lE="
-	v := VNet{ID: "lab", Kind: "vxlan", Bridge: "vn3", VNI: 4242, Subnet: "10.77.0.0/24", Members: []string{"fleet:abc123", "cluster:m2"}, Encrypt: true,
+	v := VNet{ID: "lab", Kind: "vxlan", Bridge: "vn3", VNI: 4242, Subnet: "10.77.0.0/24", Members: []string{"fleet:a_b-c123", "cluster:m2"}, Encrypt: true,
 		Peers: []string{"fd53:7472:1::2"}, Local: "fd53:7472:1::1",
 		WG: &VNetWG{Port: 51900, Address: "fd53:7472:1::1/64", Peers: []WGPeer{{PublicKey: key, Endpoint: "192.168.1.20:51901", Address: "fd53:7472:1::2"}}}}
 	if err := validVNet(&v); err != nil {

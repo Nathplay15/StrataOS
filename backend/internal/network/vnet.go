@@ -101,7 +101,7 @@ var (
 	// vnetLinkRe: the links a virtual network creates (bridge, VXLAN, veth pair).
 	vnetLinkRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|dk|dkp|wg)?$`)
 	wgKeyRe    = regexp.MustCompile(`^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$`)
-	memberRe   = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9-]{1,40}$`)
+	memberRe   = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9_-]{1,40}$`)
 	vnetKinds  = []string{"nat", "isolated", "vlan", "vxlan"}
 )
 
