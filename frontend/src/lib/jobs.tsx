@@ -37,6 +37,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       if (prev === "running" && j.status !== "running") {
         finished = true;
         if (j.status === "success") toast(tr("{0}: completed", srv(j.title)));
+        else if (j.status === "cancelled") toast(tr("{0}: stopped", srv(j.title)), "info");
         else toast(tr("{0}: {1}", srv(j.title), j.error ?? tr("failed")), "error");
       }
       seen.current.set(j.id, j.status);

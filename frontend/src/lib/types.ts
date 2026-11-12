@@ -1,3 +1,4 @@
+import type { TLSTrust } from "../components/TLSTrust";
 export interface Me {
   username: string;
   fullName: string;
@@ -27,12 +28,16 @@ export interface Job {
   type: string;
   title: string;
   user: string;
-  status: "running" | "success" | "failed";
+  status: "running" | "success" | "failed" | "cancelled";
   progress: number;
   error?: string;
   started: string;
   finished?: string;
   log?: string;
+  /** Whether an administrator may stop it now; cancelReason says why not. */
+  cancellable?: boolean;
+  cancelReason?: string;
+  cancelledBy?: string;
 }
 
 export interface BlockDevice {
@@ -440,6 +445,10 @@ export interface Settings {
   notifyLangAuto?: string;
   ntfyUrl?: string;
   ntfyToken?: string;
+  /** Certificates of a self-hosted webhook, ntfy or mail server (components/TLSTrust). */
+  webhookTls?: TLSTrust;
+  ntfyTls?: TLSTrust;
+  smtpTls?: TLSTrust;
   notifyChannels?: Partial<Record<NotifyChannelId, NotifyChannel>>;
   quietHours?: QuietHours;
   smbMinProtocol: string;
@@ -449,7 +458,7 @@ export interface Settings {
 export interface ScheduleRun {
   started: string;
   duration: number;
-  status: "success" | "failed";
+  status: "success" | "failed" | "stopped";
   message: string;
   manual?: boolean;
 }
@@ -488,6 +497,10 @@ export interface ScheduleTarget {
 }
 
 export interface BackupTask {
+  /** Certificate of an S3 endpoint or REST server (components/TLSTrust). */
+  tlsCert?: string;
+  tlsFingerprint?: string;
+  tlsInsecure?: boolean;
   id: string;
   name: string;
   kind: "rsync" | "restic" | "zfs" | "sync";
@@ -495,6 +508,8 @@ export interface BackupTask {
   // Pull from another NAS: "" = this NAS.
   sourceType?: "" | "ssh" | "rsyncd" | "smb";
   remotePassword?: string;
+  /** Password authentication to the SSH server (empty: the NAS's key). */
+  sshPassword?: string;
   domain?: string;
   bwLimit?: string;
   versions?: boolean;
@@ -529,6 +544,8 @@ export interface BackupTask {
   history: ScheduleRun[];
   nextRun?: string | null;
   running?: boolean;
+  /** Job of the run in progress, to stop it. */
+  jobId?: string;
   // Virtual machines backed up with the folders (see pages/system/BackupVMs.tsx).
   vms?: string[];
   // LXC containers backed up with the folders (lxc/<name>.tar.zst at the destination).

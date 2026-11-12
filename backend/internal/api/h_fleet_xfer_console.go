@@ -610,7 +610,7 @@ func (s *Server) fleetXferRoutes() {
 		switch t.Status {
 		case "running":
 			if j, ok := s.jobs.Get(t.Job); ok && j.Status == jobs.Running {
-				s.jobs.Cancel(t.Job)
+				s.jobs.Abort(t.Job)
 				return nil, nil
 			}
 			fallthrough

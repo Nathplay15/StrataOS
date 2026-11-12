@@ -160,6 +160,10 @@ type Settings struct {
 	// self-hosted server) and an optional access token.
 	NtfyURL   string `json:"ntfyUrl,omitempty"`
 	NtfyToken string `json:"ntfyToken,omitempty"`
+	// Certificates of a self-hosted webhook, ntfy or mail server (TLSTrust).
+	WebhookTLS TLSTrust `json:"webhookTls,omitzero"`
+	NtfyTLS    TLSTrust `json:"ntfyTls,omitzero"`
+	SMTPTLS    TLSTrust `json:"smtpTls,omitzero"`
 	// Per-channel switch and minimum level, and quiet hours (store/notify.go).
 	NotifyChannels NotifyChannels `json:"notifyChannels"`
 	QuietHours     QuietHours     `json:"quietHours"`
@@ -249,7 +253,10 @@ type BackupTask struct {
 	AccessKey  string `json:"accessKey,omitempty"`
 	SecretKey  string `json:"secretKey,omitempty"`
 	Password   string `json:"password,omitempty"` // restic repository password
-	Delete     bool   `json:"delete,omitempty"`   // rsync: remove files deleted at the source
+	// SSHPassword: password authentication to the SSH server (sshpass), for
+	// servers that cannot be given the NAS's key. Empty: key authentication.
+	SSHPassword string `json:"sshPassword,omitempty"`
+	Delete      bool   `json:"delete,omitempty"` // rsync: remove files deleted at the source
 	// Vault on another StrataOS (DestType "strataos"): REST URL, access token
 	// and pinned certificate (SHA-256), append-only when the vault forbids deletions.
 	VaultURL    string        `json:"vaultUrl,omitempty"`
@@ -288,6 +295,9 @@ type BackupTask struct {
 	Datastore  string `json:"datastore,omitempty"`
 	KeepHourly int    `json:"keepHourly,omitempty"`
 	KeepYearly int    `json:"keepYearly,omitempty"`
+
+	// TLS: certificate of an S3 endpoint or REST server (restic).
+	TLSTrust
 }
 
 // Directory is the domain the NAS belongs to: Active Directory (Samba/winbind
@@ -580,6 +590,8 @@ type CloudSync struct {
 	History   []ScheduleRun `json:"history"`
 	// RestoreTest is the outcome of the last automatic restore test.
 	RestoreTest *RestoreTest `json:"restoreTest,omitempty"`
+	// TLS: certificate of a WebDAV server or S3 endpoint.
+	TLSTrust
 }
 
 // RestoreTest is the outcome of a restore test: a sample of files restored

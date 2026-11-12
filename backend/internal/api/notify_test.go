@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"strataos/internal/store"
 )
 
 func TestTelegram(t *testing.T) {
@@ -46,13 +48,13 @@ func TestNtfy(t *testing.T) {
 		body = string(b)
 	}))
 	defer srv.Close()
-	if err := sendNtfy(srv.URL+"/alerts", "tk", "[nas] Disque", "message"); err != nil {
+	if err := sendNtfy(srv.URL+"/alerts", "tk", store.TLSTrust{}, "[nas] Disque", "message"); err != nil {
 		t.Fatal(err)
 	}
 	if body != "message" || auth != "Bearer tk" || !strings.Contains(title, "nas") {
 		t.Errorf("got %q %q %q", title, body, auth)
 	}
-	if sendNtfy(srv.URL, "", "x", "y") == nil {
+	if sendNtfy(srv.URL, "", store.TLSTrust{}, "x", "y") == nil {
 		t.Error("URL without topic accepted")
 	}
 }

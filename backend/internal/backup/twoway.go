@@ -52,11 +52,16 @@ func validateSync(t *store.BackupTask) error {
 func syncConf(id string) string { return filepath.Join(SyncDir, id+".conf") }
 func syncWork(id string) string { return filepath.Join(SyncDir, "bisync-"+id) }
 
-// rcloneConfig is the SFTP remote of a two-way sync (key authentication only),
-// limited to the host key algorithms known_hosts can verify.
-func rcloneConfig(t *store.BackupTask, algos string) string {
-	c := fmt.Sprintf("[strata]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\nkey_file = %s\nknown_hosts_file = %s\nshell_type = none\n",
-		t.Host, t.User, portOr(t.Port, 22), keyPath(), knownHostsPath())
+// rcloneConfig is the SFTP remote of a two-way sync (the NAS's key, or the
+// password already obscured by rclone), limited to the host key algorithms
+// known_hosts can verify.
+func rcloneConfig(t *store.BackupTask, algos, obscured string) string {
+	auth := "key_file = " + keyPath()
+	if obscured != "" {
+		auth = "pass = " + obscured
+	}
+	c := fmt.Sprintf("[strata]\ntype = sftp\nhost = %s\nuser = %s\nport = %s\n%s\nknown_hosts_file = %s\nshell_type = none\n",
+		t.Host, t.User, portOr(t.Port, 22), auth, knownHostsPath())
 	if algos != "" {
 		c += "host_key_algorithms = " + algos + "\n"
 	}
@@ -99,7 +104,16 @@ func writeSyncConf(ctx context.Context, t *store.BackupTask) (string, error) {
 	}
 	conf := syncConf(id)
 	algos := HostKeyAlgorithms(t.Host, portOr(t.Port, 22))
-	return conf, sys.WriteFileAtomic(conf, []byte(rcloneConfig(t, algos)), 0o600)
+	obscured := ""
+	if t.SSHPassword != "" {
+		// rclone keeps passwords obscured; read from stdin, not the command line.
+		out, err := sys.RunInput(t.SSHPassword, "rclone", "obscure", "-")
+		if err != nil {
+			return "", fmt.Errorf("rclone obscure: %w", err)
+		}
+		obscured = strings.TrimSpace(out)
+	}
+	return conf, sys.WriteFileAtomic(conf, []byte(rcloneConfig(t, algos, obscured)), 0o600)
 }
 
 var (

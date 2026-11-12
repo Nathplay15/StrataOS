@@ -110,10 +110,7 @@ func (s *Server) systemRoutes() {
 		return j, nil
 	})
 	s.admin("POST /api/jobs/{id}/cancel", func(r *http.Request) (any, error) {
-		if !s.jobs.Cancel(r.PathValue("id")) {
-			return nil, notFound("job not found")
-		}
-		return nil, nil
+		return nil, s.cancelJob(r, r.PathValue("id"))
 	})
 
 	s.admin("GET /api/system/updates", func(r *http.Request) (any, error) {
@@ -293,6 +290,15 @@ func (s *Server) systemRoutes() {
 		}
 		if err := validNotifyPrefs(req); err != nil {
 			return nil, err
+		}
+		smtpAddr := ""
+		if req.SMTPHost != "" && req.SMTPSecurity != "none" {
+			smtpAddr = smtpAddress(req.SMTPHost, req.SMTPPort, req.SMTPSecurity)
+		}
+		for t, addr := range map[*store.TLSTrust]string{&req.WebhookTLS: req.WebhookURL, &req.NtfyTLS: req.NtfyURL, &req.SMTPTLS: smtpAddr} {
+			if err := normalizeTLS(t, addr, true); err != nil {
+				return nil, badRequest(err.Error())
+			}
 		}
 		switch req.SMBMinProto {
 		case "", "SMB2", "SMB2_10", "SMB3", "SMB3_11":

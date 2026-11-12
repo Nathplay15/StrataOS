@@ -180,6 +180,10 @@ func (s *Server) startReplaceJob(r store.DiskReplacement, resume bool) jobs.Snap
 	return j
 }
 
+// replaceNoStop: once the new disk joins the array, the job only follows
+// the rebuild, which the kernel or ZFS carries on whatever StrataOS does.
+const replaceNoStop = "The new disk is being added and the RAID rebuilt: a rebuild cannot be stopped (it goes on in the background)"
+
 func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume bool) error {
 	var rec store.DiskReplacement
 	s.store.Read(func(st *store.State) {
@@ -199,6 +203,12 @@ func (s *Server) runReplace(ctx context.Context, j *jobs.Job, id string, resume 
 	defer storage.ClearBusy(op.New)
 	phase := func(p string) {
 		rec = s.updateReplace(id, func(x *store.DiskReplacement) { x.Phase = p })
+		if p != "check" {
+			j.SetCancellable(false, replaceNoStop)
+		}
+	}
+	if rec.Phase != "check" {
+		j.SetCancellable(false, replaceNoStop)
 	}
 	fail := func(err error) error {
 		rec = s.updateReplace(id, func(x *store.DiskReplacement) {

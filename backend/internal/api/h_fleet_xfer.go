@@ -839,7 +839,7 @@ func (s *Server) xferFinish(e *xferEntry) error {
 func (s *Server) xferAbort(e *xferEntry) {
 	st := e.get()
 	if j, ok := s.jobs.Get(st.Job); ok && j.Status == jobs.Running {
-		s.jobs.Cancel(st.Job)
+		s.jobs.Abort(st.Job)
 		for range 60 {
 			if j, ok := s.jobs.Get(st.Job); !ok || j.Status != jobs.Running {
 				break

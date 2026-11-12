@@ -471,6 +471,7 @@ func (s *Server) lxcRoutes() {
 		}
 		s.audit(r, "vms", "Backup of container "+name+" to "+req.Dir)
 		return s.jobs.Start("lxc", "Backup of container "+name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			j.SetCancellable(true, "")
 			_, _, err := lxc.Export(ctx, name, req, j.Logf)
 			return err
 		}), nil

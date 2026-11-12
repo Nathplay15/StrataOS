@@ -17,6 +17,7 @@ type cloudView struct {
 	store.CloudSync
 	NextRun *time.Time `json:"nextRun"`
 	Running bool       `json:"running"`
+	JobID   string     `json:"jobId,omitempty"`
 }
 
 // maskCloud replaces credentials by a placeholder before a task leaves the server.
@@ -64,12 +65,13 @@ func (s *Server) runCloud(id, user string, manual bool) (jobs.Snapshot, error) {
 	if user == "" {
 		user = "scheduler"
 	}
-	return s.jobs.Start("cloudsync", "Cloud sync: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
+	return trackJob(key, s.jobs.Start("cloudsync", "Cloud sync: "+t.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(key)
 		start := time.Now()
 		msg, err := cloudsync.Run(ctx, t, cloudsync.Progress{Set: j.SetProgress, Log: j.Logf})
 		run := store.ScheduleRun{Started: start, Duration: time.Since(start).Seconds(), Status: "success", Message: msg, Manual: manual}
-		if err != nil {
+		stopped := stoppedRun(j, &run, err)
+		if err != nil && !stopped {
 			run.Status, run.Message = "failed", err.Error()
 		} else {
 			j.Logf("%s", msg)
@@ -93,11 +95,11 @@ func (s *Server) runCloud(id, user string, manual bool) (jobs.Snapshot, error) {
 		}); uerr != nil {
 			slog.Error("save cloud sync history", "err", uerr)
 		}
-		if err != nil {
+		if err != nil && !stopped {
 			s.notify("error", "Cloud sync failed", t.Name+" : "+err.Error())
 		}
 		return err
-	}), nil
+	})), nil
 }
 
 func maps(m map[string]string) map[string]string {
@@ -135,6 +137,9 @@ func (s *Server) cloudRoutes() {
 					}
 				}
 				_, v.Running = running.Load("cloud-" + c.ID)
+				if v.Running {
+					v.JobID = s.runningJob("cloud-" + c.ID)
+				}
 				if v.History == nil {
 					v.History = []store.ScheduleRun{}
 				}

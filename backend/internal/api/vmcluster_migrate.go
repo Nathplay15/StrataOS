@@ -840,7 +840,7 @@ func (s *Server) vmcMigratePeerRoutes() {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		if _, ok := vmcPeerJobs.Load(req.ID); !ok || !s.jobs.Cancel(req.ID) {
+		if _, ok := vmcPeerJobs.Load(req.ID); !ok || !s.jobs.Abort(req.ID) {
 			return nil, notFound("job not found")
 		}
 		return nil, nil

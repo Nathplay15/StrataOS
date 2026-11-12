@@ -103,7 +103,10 @@ func validatePull(t *store.BackupTask) error {
 		if err := validRemote(t, true); err != nil {
 			return err
 		}
-		t.RemotePassword, t.Domain = "", "" // key only
+		t.RemotePassword, t.Domain = "", "" // the NAS's key, or SSHPassword
+		if err := needSSHPass(t); err != nil {
+			return err
+		}
 		for i, s := range t.Sources {
 			c := path.Clean(s)
 			if !strings.HasPrefix(c, "/") || c == "/" || strings.ContainsAny(c, "\n\r\x00") {

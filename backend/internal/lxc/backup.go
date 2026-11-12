@@ -60,7 +60,9 @@ func usernsArgs(s *Spec) []string {
 }
 
 func command(ctx context.Context, argv []string) *exec.Cmd {
-	return exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	sys.GroupKill(cmd) // a stopped backup also ends tar under lxc-usernsexec
+	return cmd
 }
 
 var tarCommon = []string{"--numeric-owner", "--xattrs", "--xattrs-include=*", "--acls", "--zstd"}

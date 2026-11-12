@@ -26,6 +26,7 @@ import (
 	"strataos/internal/docker"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/tlstrust"
 )
 
 type alert struct {
@@ -304,10 +305,10 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 	if set.WebhookURL != "" && use(ch.Webhook) {
 		sent = append(sent, "webhook")
 		body, _ := json.Marshal(map[string]string{"title": subject, "message": msg, "host": host, "text": subject + ": " + msg, "content": subject + ": " + msg})
-		cl := &http.Client{Timeout: 10 * time.Second}
+		cl := tlstrust.HTTPClient(set.WebhookTLS, 10*time.Second)
 		resp, err := cl.Post(set.WebhookURL, "application/json", bytes.NewReader(body))
 		if err != nil {
-			errs = append(errs, "webhook: "+err.Error())
+			errs = append(errs, "webhook: "+tlsHint(set.WebhookURL, set.WebhookTLS, err).Error())
 		} else {
 			resp.Body.Close()
 			if resp.StatusCode >= 300 {
@@ -323,8 +324,8 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 	}
 	if set.NtfyURL != "" && use(ch.Ntfy) {
 		sent = append(sent, "ntfy")
-		if err := sendNtfy(set.NtfyURL, set.NtfyToken, "["+host+"] "+subject, msg); err != nil {
-			errs = append(errs, "ntfy: "+err.Error())
+		if err := sendNtfy(set.NtfyURL, set.NtfyToken, set.NtfyTLS, "["+host+"] "+subject, msg); err != nil {
+			errs = append(errs, "ntfy: "+tlsHint(set.NtfyURL, set.NtfyTLS, err).Error())
 		}
 	}
 	if ok, err := s.mobileNotify(level, subject, msg, kind, use, ch.Mobile); ok { // mobile_push.go
@@ -350,8 +351,8 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 		hdr := func(v string) string { return strings.NewReplacer("\r", "", "\n", " ").Replace(v) }
 		body := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s@%s>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n",
 			hdr(from), hdr(set.NotifyEmail), mime.QEncoding.Encode("utf-8", hdr("["+host+"] "+subject)), time.Now().Format(time.RFC1123Z), token()[:24], hdr(host), msg)
-		if err := sendMail(set.SMTPHost, port, set.SMTPSecurity, auth, hdr(from), hdr(set.NotifyEmail), []byte(body)); err != nil {
-			errs = append(errs, "email: "+err.Error())
+		if err := sendMail(set.SMTPHost, port, set.SMTPSecurity, set.SMTPTLS, auth, hdr(from), hdr(set.NotifyEmail), []byte(body)); err != nil {
+			errs = append(errs, "email: "+tlsHint(smtpAddress(set.SMTPHost, port, set.SMTPSecurity), set.SMTPTLS, err).Error())
 		}
 	}
 	switch {
@@ -381,9 +382,22 @@ func freshRoots() *x509.CertPool {
 	return pool
 }
 
+// smtpAddress is the mail server as an address for tlstrust (smtps:// for
+// implicit TLS, smtp:// for STARTTLS).
+func smtpAddress(host string, port int, security string) string {
+	scheme := "smtp"
+	if security == "tls" || ((security == "" || security == "auto") && port == 465) {
+		scheme = "smtps"
+	}
+	if port == 0 {
+		port = 587
+	}
+	return scheme + "://" + net.JoinHostPort(host, strconv.Itoa(port))
+}
+
 // sendMail sends one message. security: "tls" (implicit TLS, usually port 465),
 // "starttls" (required), "none", or "auto" (TLS on 465, otherwise STARTTLS when offered).
-func sendMail(host string, port int, security string, auth smtp.Auth, from, to string, msg []byte) error {
+func sendMail(host string, port int, security string, trust store.TLSTrust, auth smtp.Auth, from, to string, msg []byte) error {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	if security == "" || security == "auto" {
 		security = "opportunistic"
@@ -391,7 +405,7 @@ func sendMail(host string, port int, security string, auth smtp.Auth, from, to s
 			security = "tls"
 		}
 	}
-	tlsCfg := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12, RootCAs: freshRoots()}
+	tlsCfg := tlstrust.ClientConfig(trust, host, freshRoots())
 	dialer := &net.Dialer{Timeout: 15 * time.Second}
 	var conn net.Conn
 	var err error
@@ -526,7 +540,7 @@ func telegramChats(token string) ([]map[string]any, error) {
 	return out, nil
 }
 
-func sendNtfy(topicURL, token, title, msg string) error {
+func sendNtfy(topicURL, token string, trust store.TLSTrust, title, msg string) error {
 	u, err := url.Parse(topicURL)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(strings.Trim(u.Path, "/")) == 0 {
 		return fmt.Errorf("the ntfy address must be like https://ntfy.sh/my-topic")
@@ -538,8 +552,7 @@ func sendNtfy(topicURL, token, title, msg string) error {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	cl := &http.Client{Timeout: 15 * time.Second}
-	resp, err := cl.Do(req)
+	resp, err := tlstrust.HTTPClient(trust, 15*time.Second).Do(req)
 	if err != nil {
 		return err
 	}

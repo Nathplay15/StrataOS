@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -76,6 +77,7 @@ func RunOpts(ctx context.Context, o Opts, name string, args ...string) (string, 
 		defer cancel()
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	GroupKill(cmd)
 	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
 	cmd.Env = append(cmd.Env, o.Env...)
 	cmd.Dir = o.Dir
@@ -107,6 +109,9 @@ func RunOpts(ctx context.Context, o Opts, name string, args ...string) (string, 
 		}
 		if ctx.Err() == context.DeadlineExceeded {
 			return stdout.String(), fmt.Errorf("%s: timed out after %s", name, timeout)
+		}
+		if ctx.Err() == context.Canceled {
+			return stdout.String(), fmt.Errorf("%s: %w", name, context.Canceled)
 		}
 		return stdout.String(), &CmdError{Cmd: name, Code: code, Stderr: stderr.String(), Stdout: stdout.String()}
 	}
@@ -140,6 +145,7 @@ func Stream(ctx context.Context, o Opts, w io.Writer, name string, args ...strin
 		defer cancel()
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	GroupKill(cmd)
 	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
 	cmd.Env = append(cmd.Env, o.Env...)
 	var stderr bytes.Buffer
@@ -150,7 +156,34 @@ func Stream(ctx context.Context, o Opts, w io.Writer, name string, args ...strin
 		if ee, ok := err.(*exec.ExitError); ok {
 			code = ee.ExitCode()
 		}
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("%s: %w", name, context.Canceled)
+		}
 		return &CmdError{Cmd: name, Code: code, Stderr: stderr.String()}
 	}
 	return nil
+}
+
+// KillGrace is how long a cancelled command (and its children) may take to
+// exit after SIGTERM before they are killed.
+var KillGrace = 10 * time.Second
+
+// GroupKill runs cmd in its own process group and, when its context ends,
+// terminates the whole group: rclone, restic, rsync or a shell pipe die
+// with their children (ssh, zfs send…) instead of being left behind.
+// SIGTERM first so they can release locks, SIGKILL after KillGrace.
+func GroupKill(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		pgid := cmd.Process.Pid
+		err := syscall.Kill(-pgid, syscall.SIGTERM)
+		go func() {
+			time.Sleep(KillGrace)
+			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		}()
+		return err
+	}
+	// After the grace period Wait stops waiting for output pipes still held
+	// by children that ignored the signal (and SIGKILLs the leader).
+	cmd.WaitDelay = KillGrace + 2*time.Second
 }

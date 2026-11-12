@@ -79,9 +79,16 @@ func New(c Config) *Server {
 		s.httpPort = "7070"
 	}
 	s.hist = health.NewStore(filepath.Join(c.DataDir, "health"))
+	oidcClient.TLSFor = s.oidcTLS
+	s.jobs.Policy = jobCancelPolicy
 	s.jobs.OnFinish = func(j jobs.Snapshot) {
 		level := "info"
 		msg := j.Title + ": finished"
+		if j.Status == jobs.Cancelled {
+			level, msg = "warning", j.Title+": stopped by "+j.CancelledBy
+			s.store.Log(level, "job", j.User, msg)
+			return
+		}
 		if j.Status == jobs.Failed {
 			level = "error"
 			msg = j.Title + ": failed — " + j.Error
@@ -246,6 +253,7 @@ func (s *Server) routes() {
 	s.officeRoutes()
 	s.scheduleRoutes()
 	s.backupRoutes()
+	s.tlsRoutes()
 	s.timeMachineRoutes()
 	s.quotaRoutes()
 	s.twoFactorRoutes()

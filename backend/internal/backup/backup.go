@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,6 +22,7 @@ import (
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/tlstrust"
 )
 
 // KeyDir holds the SSH identity StrataOS uses for remote destinations.
@@ -47,18 +51,65 @@ var (
 	userRe = regexp.MustCompile(`^[a-z_][a-z0-9_.\-]{0,31}$`)
 )
 
-// sshArgs are the options shared by every SSH connection to a backup target.
+// sshArgs are the options shared by every SSH connection to a backup target:
+// the NAS's key, or the task's password (see sshCmd).
 func sshArgs(t *store.BackupTask) []string {
 	port := t.Port
 	if port == 0 {
 		port = 22
 	}
-	return []string{"-i", keyPath(), "-p", strconv.Itoa(port), "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
-		"-o", "UserKnownHostsFile=" + knownHostsPath(), "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30"}
+	auth := []string{"-i", keyPath(), "-o", "BatchMode=yes"}
+	if t.SSHPassword != "" {
+		auth = []string{"-o", "BatchMode=no", "-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive",
+			"-o", "NumberOfPasswordPrompts=1"}
+	}
+	return append(auth, "-p", strconv.Itoa(port), "-o", "StrictHostKeyChecking=accept-new",
+		"-o", "UserKnownHostsFile="+knownHostsPath(), "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30")
+}
+
+// sshCmd is the whole ssh command (program and options). With a password, ssh
+// runs under sshpass, which reads it from a root-only file on tmpfs: never on
+// a command line, where other processes could read it.
+func sshCmd(t *store.BackupTask) []string {
+	cmd := append([]string{"ssh"}, sshArgs(t)...)
+	if t.SSHPassword == "" {
+		return cmd
+	}
+	return append([]string{"sshpass", "-f", passFile(t)}, cmd...)
 }
 
 func sshCommand(t *store.BackupTask) string {
-	return "ssh " + strings.Join(sshArgs(t), " ")
+	return strings.Join(sshCmd(t), " ")
+}
+
+// passFile writes the task's SSH password where sshpass reads it.
+func passFile(t *store.BackupTask) string {
+	id := t.ID
+	if !idRe.MatchString(id) {
+		id = "test"
+	}
+	f := filepath.Join(SecretDir, "ssh-"+id)
+	_ = os.MkdirAll(SecretDir, 0o700)
+	_ = sys.WriteFileAtomic(f, []byte(t.SSHPassword), 0o600)
+	return f
+}
+
+// needSSHPass checks that password authentication can work here.
+func needSSHPass(t *store.BackupTask) error {
+	if t.SSHPassword == "" {
+		return nil
+	}
+	if _, err := exec.LookPath("sshpass"); err != nil {
+		return fmt.Errorf("password authentication needs the sshpass package: install it (apt install sshpass) or use the NAS's key")
+	}
+	return nil
+}
+
+// RemovePassFile deletes the SSH password file of a task (task deleted).
+func RemovePassFile(id string) {
+	if idRe.MatchString(id) {
+		_ = os.Remove(filepath.Join(SecretDir, "ssh-"+id))
+	}
 }
 
 // shellQuote quotes s for a POSIX shell (used for commands run on remote hosts).
@@ -73,6 +124,9 @@ func Validate(t *store.BackupTask) error {
 	}
 	if len(t.Sources) == 0 && len(t.VMs) == 0 && len(t.Containers) == 0 {
 		return fmt.Errorf("choose at least one source")
+	}
+	if t.Kind != "restic" || t.DestType == "datastore" {
+		t.TLSTrust = store.TLSTrust{} // only S3 and REST repositories use it
 	}
 	if err := validateVMs(t); err != nil {
 		return err
@@ -137,6 +191,9 @@ func Validate(t *store.BackupTask) error {
 			if !strings.HasPrefix(t.DestPath, "/") {
 				return fmt.Errorf("the remote path must be absolute")
 			}
+			if err := needSSHPass(t); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("rsync destinations are local folders or SSH servers")
 		}
@@ -190,6 +247,9 @@ func validateResticDest(t *store.BackupTask) error {
 		if !strings.HasPrefix(t.DestPath, "/") {
 			return fmt.Errorf("the remote path must be absolute")
 		}
+		if err := needSSHPass(t); err != nil {
+			return err
+		}
 	case "s3":
 		if t.S3Endpoint == "" || t.DestPath == "" || t.AccessKey == "" || t.SecretKey == "" {
 			return fmt.Errorf("S3 needs an endpoint, a bucket and access keys")
@@ -207,6 +267,13 @@ func validateResticDest(t *store.BackupTask) error {
 		}
 	default:
 		return fmt.Errorf("unsupported restic destination")
+	}
+	if t.DestType == "s3" || t.DestType == "rest" {
+		if err := tlstrust.Normalize(&t.TLSTrust, true); err != nil {
+			return err
+		}
+	} else {
+		t.TLSTrust = store.TLSTrust{}
 	}
 	if len(t.Password) < 8 {
 		return fmt.Errorf("the repository password must be at least 8 characters (keep it safe: without it the backup cannot be restored)")
@@ -343,10 +410,45 @@ func resticArgs(t *store.BackupTask, args ...string) []string {
 		if port == 0 {
 			port = 22
 		}
-		cmd := fmt.Sprintf("ssh %s %s@%s -s sftp", strings.Join(sshArgs(t), " "), t.User, t.Host)
+		cmd := fmt.Sprintf("%s %s@%s -s sftp", sshCommand(t), t.User, t.Host)
 		args = append([]string{"-o", "sftp.command=" + cmd}, args...)
 	}
-	return args
+	return append(resticTLS(t), args...)
+}
+
+// resticTLS are the certificate options of an S3 or REST repository.
+func resticTLS(t *store.BackupTask) []string {
+	if (t.DestType != "s3" && t.DestType != "rest") || !t.TLSTrust.Set() {
+		return nil
+	}
+	ca, err := tlstrust.CAFile(t.TLSTrust)
+	if err != nil {
+		slog.Warn("restic CA file", "err", err)
+	}
+	return tlstrust.ResticFlags(t.TLSTrust, ca)
+}
+
+// tlsAddress is the server whose certificate a repository depends on.
+func tlsAddress(t *store.BackupTask) string {
+	switch t.DestType {
+	case "s3":
+		return t.S3Endpoint
+	case "rest":
+		return t.DestPath
+	}
+	return ""
+}
+
+// explainTLS replaces a certificate error of restic by what to do about it
+// (trust the certificate, or the certificate changed); nil otherwise.
+func explainTLS(t *store.BackupTask, err error) error {
+	addr := tlsAddress(t)
+	if err == nil || addr == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return tlstrust.Explain(ctx, addr, t.TLSTrust, err.Error())
 }
 
 func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...string) (string, error) {
@@ -361,10 +463,32 @@ func restic(ctx context.Context, t *store.BackupTask, out *lineWriter, args ...s
 		t = &c
 	}
 	o := sys.Opts{Env: resticEnv(t), Timeout: 48 * time.Hour}
-	if out != nil {
-		o.Output = out
+	// restic retries a refused certificate for many minutes: stop at the
+	// first one and say what to do instead.
+	rctx, stop := context.WithCancel(ctx)
+	defer stop()
+	var certErr string
+	watch := &lineWriter{fn: func(l string) {
+		if certErr == "" && tlsAddress(t) != "" && tlstrust.IsCertError(l) {
+			certErr = l
+			stop()
+		}
+		if out != nil {
+			out.fn(l)
+		}
+	}}
+	o.Output = watch
+	res, err := sys.RunOpts(rctx, o, "restic", resticArgs(t, args...)...)
+	if certErr != "" && ctx.Err() == nil {
+		if ex := explainTLS(t, errors.New(certErr)); ex != nil {
+			return res, ex
+		}
+		return res, fmt.Errorf("%s", certErr)
 	}
-	return sys.RunOpts(ctx, o, "restic", resticArgs(t, args...)...)
+	if ex := explainTLS(t, err); ex != nil {
+		return res, ex
+	}
+	return res, err
 }
 
 // ensureRepo initialises the restic repository on first use.
@@ -624,8 +748,8 @@ func runZFS(ctx context.Context, t *store.BackupTask, p Progress) (string, error
 	for i, a := range recv {
 		recv[i] = shellQuote(a)
 	}
-	script := `set -o pipefail; n=$1; shift; ssh_opts=$1; shift; remote=$1; shift; zfs "$@" | ssh $ssh_opts "$remote" "$REMOTE_RECV"`
-	args := append([]string{n, strings.Join(sshArgs(t), " "), t.User + "@" + t.Host}, sendArgs...)
+	script := `set -o pipefail; n=$1; shift; ssh_cmd=$1; shift; remote=$1; shift; zfs "$@" | $ssh_cmd "$remote" "$REMOTE_RECV"`
+	args := append([]string{n, sshCommand(t), t.User + "@" + t.Host}, sendArgs...)
 	return finishZFS(ctx, t, src, snap, mine, script, args, "REMOTE_RECV="+strings.Join(recv, " "), p)
 }
 
@@ -710,7 +834,8 @@ func Test(ctx context.Context, t store.BackupTask) (string, error) {
 		if t.Kind == "zfs" {
 			cmd = "zfs list -H -o name >/dev/null && echo ok"
 		}
-		out, err := sys.RunCtx(ctx, "ssh", append(sshArgs(&t), t.User+"@"+t.Host, cmd)...)
+		c := sshCmd(&t)
+		out, err := sys.RunCtx(ctx, c[0], append(c[1:], t.User+"@"+t.Host, cmd)...)
 		if err != nil {
 			return "", fmt.Errorf("SSH connection failed (is the StrataOS public key in ~/.ssh/authorized_keys of %s?): %w", t.User, err)
 		}

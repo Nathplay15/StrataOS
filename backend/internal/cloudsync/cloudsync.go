@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/tlstrust"
 )
 
 // Dir holds the per-task rclone configuration files and the bisync state.
@@ -150,6 +152,13 @@ func Validate(t *store.CloudSync) error {
 	}
 	if e := t.Params["endpoint"]; e != "" && !strings.HasPrefix(e, "http") {
 		t.Params["endpoint"] = "https://" + e
+	}
+	if tlsAddress(t) != "" {
+		if err := tlstrust.Normalize(&t.TLSTrust, true); err != nil {
+			return err
+		}
+	} else {
+		t.TLSTrust = store.TLSTrust{} // providers at a fixed public address
 	}
 	if h, ok := t.Params["host"]; ok && !hostRe.MatchString(h) {
 		return fmt.Errorf("invalid host")
@@ -308,8 +317,53 @@ func RefreshedToken(t *store.CloudSync) string {
 
 func target(t *store.CloudSync) string { return remote + ":" + t.RemotePath }
 
+// tlsAddress is the server of a task whose certificate the administrator
+// may trust: a WebDAV URL or a custom S3 endpoint over HTTPS.
+func tlsAddress(t *store.CloudSync) string {
+	for _, k := range []string{"url", "endpoint"} {
+		if v := t.Params[k]; strings.HasPrefix(v, "https://") {
+			return v
+		}
+	}
+	return ""
+}
+
+// rcArgs prefixes rclone arguments with the configuration of t and the
+// options for its server's certificate (for this invocation only).
+func rcArgs(t *store.CloudSync, conf string, args ...string) []string {
+	out := []string{"--config", conf}
+	if tlsAddress(t) != "" && t.TLSTrust.Set() {
+		ca, err := tlstrust.CAFile(t.TLSTrust)
+		if err != nil {
+			slog.Warn("rclone CA file", "err", err)
+		}
+		out = append(out, tlstrust.RcloneFlags(t.TLSTrust, ca)...)
+	}
+	return append(out, args...)
+}
+
+// explainTLS says what to do about a certificate error of rclone (nil
+// when msg is about something else).
+func explainTLS(t *store.CloudSync, msg string) error {
+	addr := tlsAddress(t)
+	if addr == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return tlstrust.Explain(ctx, addr, t.TLSTrust, msg)
+}
+
+// failure is the error of a failed rclone command.
+func failure(t *store.CloudSync, err error) error {
+	if ex := explainTLS(t, err.Error()); ex != nil {
+		return ex
+	}
+	return fmt.Errorf("%s", lastLine(err.Error()))
+}
+
 func commonArgs(conf string, t *store.CloudSync) []string {
-	args := []string{"--config", conf, "--stats", "2s", "--stats-one-line", "--stats-log-level", "NOTICE", "-v", "--retries", "3", "--low-level-retries", "10"}
+	args := rcArgs(t, conf, "--stats", "2s", "--stats-one-line", "--stats-log-level", "NOTICE", "-v", "--retries", "3", "--low-level-retries", "10")
 	if t.BWLimit != "" {
 		args = append(args, "--bwlimit", t.BWLimit)
 	}
@@ -412,6 +466,11 @@ func Run(ctx context.Context, t store.CloudSync, p Progress) (string, error) {
 		p.Log("%s", l)
 	}}
 	if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 48 * time.Hour, Output: out}, "rclone", args...); err != nil {
+		if ctx.Err() == nil {
+			if ex := explainTLS(&t, firstErr+"\n"+last+"\n"+err.Error()); ex != nil {
+				return "", ex
+			}
+		}
 		if strings.Contains(firstErr+last, "modification time support is missing") {
 			return "", fmt.Errorf("this cloud does not keep file modification times, which a two-way sync needs: choose a one-way sync (for WebDAV, pick Nextcloud or ownCloud if that is the server)")
 		}
@@ -452,12 +511,12 @@ func Test(ctx context.Context, t store.CloudSync) (string, error) {
 	if p := provider(t.Provider); p != nil && p.Bucket {
 		path, _, _ = strings.Cut(path, "/")
 	}
-	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 45 * time.Second}, "rclone", "--config", conf, "lsf", "--max-depth", "1", "--dirs-only", remote+":"+path)
+	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 45 * time.Second}, "rclone", rcArgs(&t, conf, "lsf", "--max-depth", "1", "--dirs-only", remote+":"+path)...)
 	if err != nil {
 		if strings.Contains(err.Error(), "directory not found") {
 			return "Connection successful (the remote folder will be created)", nil
 		}
-		return "", fmt.Errorf("%s", lastLine(err.Error()))
+		return "", failure(&t, err)
 	}
 	n := 0
 	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -484,9 +543,9 @@ func Browse(ctx context.Context, t store.CloudSync, path string) ([]string, erro
 	if strings.Contains("/"+path+"/", "/../") || strings.ContainsAny(path, "\n\r") {
 		return nil, fmt.Errorf("invalid path")
 	}
-	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 45 * time.Second}, "rclone", "--config", conf, "lsf", "--dirs-only", "--max-depth", "1", remote+":"+path)
+	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: 45 * time.Second}, "rclone", rcArgs(&t, conf, "lsf", "--dirs-only", "--max-depth", "1", remote+":"+path)...)
 	if err != nil {
-		return nil, fmt.Errorf("%s", lastLine(err.Error()))
+		return nil, failure(&t, err)
 	}
 	dirs := []string{}
 	for _, l := range strings.Split(out, "\n") {

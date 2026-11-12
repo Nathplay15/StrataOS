@@ -434,7 +434,8 @@ func (s *Server) runRestoreTests(user, only string) (jobs.Snapshot, error) {
 				cancel()
 			}
 			if ctx.Err() != nil {
-				return ctx.Err()
+				s.unlockSource(id, j.Logf)
+				return ctx.Err() // a stopped test records no result
 			}
 			kind, tid, _ := strings.Cut(id, ":")
 			_ = s.store.Update(func(st *store.State) error {
@@ -643,7 +644,15 @@ func (s *Server) dataProtectRoutes() {
 			prog := restore.Progress{Set: func(v float64) { j.SetProgress(v * 0.5) }, Log: j.Logf}
 			loc, err := p.src.Stage(ctx, p.point, p.items, scratch, prog)
 			if err != nil {
+				if ctx.Err() != nil {
+					s.unlockSource(req.Source, j.Logf)
+				}
 				return err
+			}
+			if req.Mode == "inplace" {
+				// Files are now being put back over the originals: stopping
+				// half-way would leave the folder half restored.
+				j.SetCancellable(false, "Files are being put back in place: stopping now would leave the folder half restored")
 			}
 			res, err := restore.Apply(ctx, loc, restore.Plan{Items: p.items, DstDir: storage.MountRoot, Dest: p.dest, Policy: req.Policy},
 				restore.Progress{Set: func(v float64) { j.SetProgress(50 + v/2) }, Log: j.Logf})

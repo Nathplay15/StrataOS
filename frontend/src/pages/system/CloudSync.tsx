@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CheckCircle2, ChevronRight, CloudCog, Edit3, Folder, History, Play, Plug, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ChevronRight, CloudCog, Edit3, Folder, History, Play, Plug, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { ScheduleRun } from "../../lib/types";
@@ -8,7 +8,10 @@ import { ago, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { ScheduleEditor, describeCron, fromCron, toCron, type Plan } from "./Schedules";
 import { HistoryModal } from "./Backups";
+import { RunIcon, runTone, StopJobButton } from "../../components/StopJob";
+import { FolderPicker } from "../../components/FolderPicker";
 import { tr, srv } from "../../lib/i18n";
+import { certChanged, TLSTrustField, trustOf, type TLSTrust } from "../../components/TLSTrust";
 
 type ProviderField = { key: string; label: string; secret?: boolean; required?: boolean; options?: string[]; hint?: string };
 type Provider = { id: string; label: string; fields: ProviderField[]; authorize?: string; bucket?: boolean };
@@ -16,8 +19,8 @@ type Task = {
   id: string; name: string; provider: string; params: Record<string, string>; secrets: Record<string, string>;
   localPath: string; remotePath: string; direction: "upload" | "download" | "bisync"; mirror: boolean;
   excludes?: string[]; bwLimit?: string; cron: string; enabled: boolean; synced?: boolean;
-  history: ScheduleRun[]; nextRun?: string | null; running?: boolean;
-};
+  history: ScheduleRun[]; nextRun?: string | null; running?: boolean; jobId?: string;
+} & TLSTrust;
 type Data = { installed: boolean; tasks: Task[]; providers: Provider[] };
 type Sources = { folders: { path: string; label: string }[] };
 
@@ -101,6 +104,7 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
             {p.fields.map((f) => <Field key={f.key} label={srv(f.label) + (f.required ? "" : tr(" (optional)"))} hint={srv(f.hint)} className={f.key === "token" || f.key === "url" ? "sm:col-span-2" : ""}>{field(f)}</Field>)}
           </div>
           {p.id === "sftp" && !t.secrets.pass && <div className="text-muted text-[12px]">{tr("Without a password, the StrataOS SSH key is used (shown in Backup → new backup → SSH server).")}</div>}
+          {(p.id === "webdav" || p.id === "s3") && <TLSTrustField address={t.params.url || t.params.endpoint || ""} value={trustOf(t)} onChange={(v) => set(v)} />}
         </div>
 
         <div>
@@ -116,12 +120,8 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={tr("NAS folder")}>
-            <Select value={t.localPath} onChange={(e) => set({ localPath: e.target.value })}>
-              <option value="">{tr("Choose…")}</option>
-              {sources.folders.map((f) => <option key={f.path} value={f.path}>{srv(f.label)} ({f.path})</option>)}
-              {t.localPath && !sources.folders.some((f) => f.path === t.localPath) && <option value={t.localPath}>{t.localPath}</option>}
-            </Select>
+          <Field label={tr("NAS folder")} className="sm:col-span-2" hint={t.direction === "download" ? tr("Created if it does not exist yet") : undefined}>
+            <FolderPicker value={t.localPath} onChange={(v) => set({ localPath: v })} label={tr("NAS folder")} quick={sources.folders} quickLabel={tr("Choose…")} />
           </Field>
           <Field label={p.bucket ? tr("Remote bucket / folder") : tr("Remote folder")} hint={p.bucket ? tr("e.g. my-bucket/photos") : tr("Empty for the account root")}>
             <div className="flex gap-2">
@@ -199,16 +199,17 @@ export default function CloudSync() {
                     <div className="text-muted">{t.cron ? describeCron(t.cron) : tr("On demand")}{t.enabled && t.nextRun ? tr(" · next {0}", dateTime(t.nextRun)) : ""}</div>
                   </div>
                   {last && (
-                    <button onClick={() => setHist(t)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", last.status === "success" ? "bg-ok/10" : "bg-danger/10 text-danger")}>
-                      {last.status === "success" ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-ok" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
+                    <button onClick={() => setHist(t)} className={cx("mt-3 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-[12.5px]", runTone(last.status))}>
+                      <RunIcon status={last.status} />
                       <span className="min-w-0 break-words">{ago(last.started)} — {srv(last.message)}</span>
                     </button>
                   )}
                 </div>
                 <div className="flex flex-wrap justify-end gap-1 border-t border-line bg-panel-2/50 px-3 py-2">
-                  <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={t.running} onClick={() => run.mutate(t.id)}>{tr("Sync")}</Button>
+                  {t.running && t.jobId ? <StopJobButton id={t.jobId} /> : <Button size="sm" variant="ghost" icon={<Play size={14} />} disabled={t.running} onClick={() => run.mutate(t.id)}>{tr("Sync")}</Button>}
                   {t.direction === "bisync" && (failedBisync || t.synced) && <Button size="sm" variant="ghost" icon={<RefreshCcw size={14} />} disabled={t.running} onClick={async () => { if (await confirm({ title: tr("Resync?"), text: tr("The two folders are merged again: files present on only one side are copied to the other, nothing is deleted. Files deleted since the last sync will reappear."), confirm: tr("Resync") })) resync.mutate(t.id); }}>{tr("Resync")}</Button>}
                   <IconButton title={tr("History")} onClick={() => setHist(t)}><History size={15} /></IconButton>
+                  {!t.running && last?.status === "failed" && certChanged(last.message) && <Button size="sm" variant="ghost" disabled={!sources.data} onClick={() => setEdit(t)}>{tr("Review the certificate")}</Button>}
                   <IconButton title={tr("Edit")} disabled={!sources.data} onClick={() => setEdit(t)}><Edit3 size={15} /></IconButton>
                   <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete \"{0}\"?", t.name), text: tr("Synchronization will stop. No files are deleted, either on the NAS or in the cloud."), danger: true })) del.mutate(t.id); }}><Trash2 size={15} /></IconButton>
                 </div>

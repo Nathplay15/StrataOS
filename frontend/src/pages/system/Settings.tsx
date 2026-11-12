@@ -8,6 +8,14 @@ import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, PageHeader,
 import { tr, locale, languages } from "../../lib/i18n";
 import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
+import { TLSTrustField } from "../../components/TLSTrust";
+
+/** The mail server as an address for the certificate check (smtps: implicit TLS, smtp: STARTTLS). */
+const smtpAddress = (s: Settings) => {
+  const port = s.smtpPort || 587;
+  const tls = s.smtpSecurity === "tls" || ((!s.smtpSecurity || s.smtpSecurity === "auto") && port === 465);
+  return `${tls ? "smtps" : "smtp"}://${s.smtpHost.includes(":") ? `[${s.smtpHost}]` : s.smtpHost}:${port}`;
+};
 import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
 import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
 import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
@@ -169,7 +177,9 @@ export default function SettingsPage() {
               </div>
             </Field>
             {s.ntfyUrl && <Field label={tr("ntfy access token (optional)")} hint={tr("For a protected ntfy server")}><Input type="password" value={s.ntfyToken ?? ""} onChange={(e) => set("ntfyToken", e.target.value)} /></Field>}
+            {s.ntfyUrl && !s.ntfyUrl.startsWith("https://ntfy.sh/") && <div className="sm:col-span-2"><TLSTrustField address={s.ntfyUrl} value={s.ntfyTls ?? {}} onChange={(v) => set("ntfyTls", v)} /></div>}
             <Field label={tr("Webhook (Discord, Slack, ntfy, Gotify…)")} className="sm:col-span-2" hint={tr("Receives a JSON POST (title, message, text, content).")}><Input value={s.webhookUrl} onChange={(e) => set("webhookUrl", e.target.value)} /></Field>
+            {s.webhookUrl && <div className="sm:col-span-2"><TLSTrustField address={s.webhookUrl} value={s.webhookTls ?? {}} onChange={(v) => set("webhookTls", v)} /></div>}
             <Field label={tr("SMTP server")}><Input value={s.smtpHost} onChange={(e) => set("smtpHost", e.target.value)} /></Field>
             <Field label={tr("Port")}><Input type="number" value={s.smtpPort} onChange={(e) => set("smtpPort", +e.target.value)} /></Field>
             <Field label={tr("Encryption")}>
@@ -182,6 +192,7 @@ export default function SettingsPage() {
             </Field>
             <Field label={tr("SMTP user")}><Input value={s.smtpUser} onChange={(e) => set("smtpUser", e.target.value)} /></Field>
             <Field label={tr("SMTP password")}><Input type="password" value={s.smtpPassword} onChange={(e) => set("smtpPassword", e.target.value)} /></Field>
+            {s.smtpHost && s.smtpSecurity !== "none" && <div className="sm:col-span-2"><TLSTrustField address={smtpAddress(s)} value={s.smtpTls ?? {}} onChange={(v) => set("smtpTls", v)} /></div>}
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
             <Field label={tr("Language of the messages sent by the NAS")} hint={tr("Alerts and health report, on all channels")}>

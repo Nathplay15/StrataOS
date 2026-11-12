@@ -106,10 +106,15 @@ func (s *Server) runSchedule(id, user string, manual bool) (jobs.Snapshot, error
 	}
 	return s.jobs.Start("schedule", "Scheduled task: "+sc.Name, user, func(ctx context.Context, j *jobs.Job) error {
 		defer running.Delete(id)
+		if sc.Type != "antivirus" { // the others are short or must not stop half-way (app updates)
+			j.SetCancellable(false, noStopShort)
+		}
 		start := time.Now()
 		msg, err := scheduler.Execute(ctx, sc, s.resolveVolume, j.Logf)
 		run := store.ScheduleRun{Started: start, Duration: time.Since(start).Seconds(), Status: "success", Message: msg, Manual: manual}
-		if err != nil {
+		if by, stopped := j.Cancelled(); stopped && err != nil {
+			run.Status, run.Message = "stopped", "Stopped by "+by
+		} else if err != nil {
 			run.Status, run.Message = "failed", err.Error()
 			if errors.Is(err, antivirus.ErrInfected) {
 				s.store.Log("error", "antivirus", "", err.Error())

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -16,6 +16,7 @@ import { api } from "../lib/api";
 import { useJobs } from "../lib/jobs";
 import type { Me, Overview } from "../lib/types";
 import { NotificationCenter } from "./NotificationCenter";
+import { StopJobButton } from "./StopJob";
 import { useDismiss } from "../lib/a11y";
 import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, PageBoundary, Progress, useUI } from "./ui";
@@ -114,6 +115,13 @@ export function useTheme() {
   return [theme, setTheme] as const;
 }
 
+function JobIcon({ status }: { status: string }) {
+  if (status === "running") return <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-accent" />;
+  if (status === "success") return <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ok" />;
+  if (status === "cancelled") return <CircleStop size={16} className="mt-0.5 shrink-0 text-warn" />;
+  return <XCircle size={16} className="mt-0.5 shrink-0 text-danger" />;
+}
+
 export function JobsMenu() {
   const { jobs } = useJobs();
   const [open, setOpen] = useState(false);
@@ -140,14 +148,17 @@ export function JobsMenu() {
           {jobs.length === 0 && <div className="px-2 py-6 text-center text-muted text-[13px]">{tr("No recent tasks")}</div>}
           <div className="max-h-[420px] overflow-y-auto">
             {jobs.slice(0, 20).map((j) => (
-              <button key={j.id} onClick={() => setDetail(j.id)} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-panel-2">
-                {j.status === "running" ? <Loader2 size={16} className="mt-0.5 animate-spin text-accent" /> : j.status === "success" ? <CheckCircle2 size={16} className="mt-0.5 text-ok" /> : <XCircle size={16} className="mt-0.5 text-danger" />}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">{srv(j.title)}</div>
-                  <div className="text-[11.5px] text-muted">{ago(j.started)}{j.error ? ` · ${j.error}` : ""}</div>
-                  {j.status === "running" && <Progress className="mt-1.5" value={j.progress} indeterminate={j.progress < 0} />}
-                </div>
-              </button>
+              <div key={j.id} className="flex w-full items-start gap-1 rounded-lg hover:bg-panel-2">
+                <button onClick={() => setDetail(j.id)} className="flex min-w-0 flex-1 items-start gap-2.5 px-2 py-2 text-left">
+                  <JobIcon status={j.status} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px]">{srv(j.title)}</div>
+                    <div className="text-[11.5px] text-muted">{ago(j.started)}{j.status === "cancelled" ? ` · ${tr("stopped by {0}", j.cancelledBy ?? "")}` : j.error ? ` · ${srv(j.error)}` : ""}</div>
+                    {j.status === "running" && <Progress className="mt-1.5" value={j.progress} indeterminate={j.progress < 0} />}
+                  </div>
+                </button>
+                {j.status === "running" && <StopJobButton job={j} className="mt-1.5 mr-1 shrink-0" />}
+              </div>
             ))}
           </div>
         </div>
@@ -155,8 +166,15 @@ export function JobsMenu() {
       <Modal open={!!detail} onClose={() => setDetail(null)} title={job ? srv(job.title) : tr("Task")} wide>
         {job && (
           <div className="space-y-3">
-            {job.status === "running" && <Progress value={job.progress} indeterminate={job.progress < 0} />}
-            {job.error && <div className="text-danger text-[13px]">{job.error}</div>}
+            {job.status === "running" && (
+              <div className="flex items-center gap-3">
+                <Progress className="flex-1" value={job.progress} indeterminate={job.progress < 0} />
+                <StopJobButton job={job} variant="secondary" />
+              </div>
+            )}
+            {job.status === "running" && job.cancellable === false && job.cancelReason && <div className="text-muted text-[12.5px]">{srv(job.cancelReason)}</div>}
+            {job.status === "cancelled" && <div className="text-warn text-[13px]">{tr("Stopped by {0}", job.cancelledBy ?? "")}</div>}
+            {job.error && <div className="text-danger text-[13px]">{srv(job.error)}</div>}
             <pre className="mono max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{job.log || tr("(no output)")}</pre>
           </div>
         )}

@@ -203,7 +203,7 @@ func TestSync(t *testing.T) {
 	if slices.Contains(bisyncArgs(&s, "/c", false), "--resync") {
 		t.Error("--resync after the first run")
 	}
-	conf := rcloneConfig(&s, "ssh-ed25519")
+	conf := rcloneConfig(&s, "ssh-ed25519", "")
 	for _, want := range []string{"type = sftp\n", "host = nas2\n", "user = bk\n", "port = 22\n", "key_file = /k/id_ed25519\n", "known_hosts_file = /k/known_hosts\n", "host_key_algorithms = ssh-ed25519\n"} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("rclone config misses %q:\n%s", want, conf)
@@ -296,7 +296,7 @@ func TestKeyAlgos(t *testing.T) {
 	if got := keyAlgos(""); got != nil {
 		t.Errorf("empty: %q", got)
 	}
-	if strings.Contains(rcloneConfig(&store.BackupTask{Host: "h", User: "u"}, ""), "host_key_algorithms") {
+	if strings.Contains(rcloneConfig(&store.BackupTask{Host: "h", User: "u"}, "", ""), "host_key_algorithms") {
 		t.Error("no algorithms line without known keys")
 	}
 }

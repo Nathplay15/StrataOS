@@ -452,5 +452,5 @@ func mailTo(set store.Settings, to, subject, msg string) error {
 	hdr := func(v string) string { return strings.NewReplacer("\r", "", "\n", " ").Replace(v) }
 	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s@%s>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n",
 		hdr(from), hdr(to), mime.QEncoding.Encode("utf-8", hdr("["+host+"] "+subject)), time.Now().Format(time.RFC1123Z), token()[:24], hdr(host), msg)
-	return sendMail(set.SMTPHost, port, set.SMTPSecurity, auth, hdr(from), hdr(to), []byte(body))
+	return sendMail(set.SMTPHost, port, set.SMTPSecurity, set.SMTPTLS, auth, hdr(from), hdr(to), []byte(body))
 }
