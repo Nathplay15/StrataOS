@@ -34,7 +34,11 @@ else
   docker run -d --name strataos-od --network host --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
     -v "$S:/usr/local/bin/strataos-sync:ro" -v "$TMP:$TMP" debian:trixie strataos-sync --config "$OC" daemon >/dev/null
   odx() { docker exec strataos-od sh -c "$1"; }
-  od_stop() { docker logs strataos-od >"$TMP/od-daemon.log" 2>&1; docker rm -f strataos-od >/dev/null; }
+  od_stop() { # the container runs as root: give the settings folder back
+    docker logs strataos-od >"$TMP/od-daemon.log" 2>&1
+    docker exec strataos-od chown -R "$(id -u):$(id -g)" "$OC"
+    docker rm -f strataos-od >/dev/null
+  }
 fi
 wait_od() { # wait_od "shell test" (inside the mount)
   for _ in $(seq 1 60); do odx "$1" >/dev/null 2>&1 && return 0; sleep 1; done
@@ -47,6 +51,7 @@ check "folder contents" "$(odx "ls '$D' | tr '\n' ' '")" "big.bin hello.txt sub"
 check "encrypted folder left out" "$(odx "ls -a '$D' | grep -c vault")" "0"
 check "size without download, no space used" "$(odx "stat -c '%s %b' '$D/big.bin'")" "3145728 0"
 check "part of a file" "$(odx "dd if='$D/big.bin' bs=1 skip=2097152 count=100 2>/dev/null | md5sum | cut -d' ' -f1")" "$NAS_PART"
+sleep 2 # attributes are cached a second
 check "only that part downloaded" "$(odx "test \$(stat -c %b '$D/big.bin') -gt 0 && test \$(stat -c %b '$D/big.bin') -lt 6144 && echo partial")" "partial"
 check "whole file" "$(odx "md5sum '$D/big.bin' | cut -d' ' -f1")" "$NAS_SUM"
 check "free up space" "$(odx "'$S' unpin '$D/big.bin' 2>&1; stat -c %b '$D/big.bin'")" "0"
@@ -58,7 +63,7 @@ check "keep a folder on this device" "$(odx "test \$(stat -c %b '$D/sub/in.txt')
 odx "echo 'from the mount' > '$D/new.txt'"
 for _ in $(seq 1 20); do [ "$(vm "sudo cat '$OP/new.txt' 2>/dev/null")" = "from the mount" ] && break; sleep 1; done
 check "new file sent" "$(vm "sudo cat '$OP/new.txt'")" "from the mount"
-check "owned by the user" "$(vm "stat -c %U '$OP/new.txt'")" "alice"
+check "owned by the user" "$(vm "sudo stat -c %U '$OP/new.txt'")" "alice"
 odx "echo 'world' >> '$D/hello.txt'"
 for _ in $(seq 1 20); do [ "$(vm "sudo cat '$OP/hello.txt' | wc -l")" = 2 ] && break; sleep 1; done
 check "edit sent" "$(vm "sudo cat '$OP/hello.txt' | tr '\n' ' '")" "hello world"
