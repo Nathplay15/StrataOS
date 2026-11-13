@@ -79,8 +79,9 @@ type WGPeer struct {
 }
 
 // WGKeyDir holds the private keys of the WireGuard links of virtual
-// networks (root:systemd-network 0640: networkd reads them).
-var WGKeyDir = "/etc/strata/vnet-wg"
+// networks. A folder of its own (root:systemd-network 0750, files 0640):
+// networkd reads them as its own user, which cannot enter /etc/strata.
+var WGKeyDir = "/etc/strata-vnet-wg"
 
 // WGKeyFile is the private key file of a network's WireGuard link.
 func WGKeyFile(id string) string { return WGKeyDir + "/" + id + ".key" }
@@ -100,6 +101,9 @@ var (
 	vnetBridgeRe = regexp.MustCompile(`^vn[0-9]{1,3}$`)
 	// vnetLinkRe: the links a virtual network creates (bridge, VXLAN, veth pair).
 	vnetLinkRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|dk|dkp|wg)?$`)
+	// vnetTunnelRe: links whose settings (tunnel ends, keys, forwarding
+	// entries) networkd does not update in place.
+	vnetTunnelRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|wg)$`)
 	wgKeyRe    = regexp.MustCompile(`^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$`)
 	memberRe   = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9_-]{1,40}$`)
 	vnetKinds  = []string{"nat", "isolated", "vlan", "vxlan"}
@@ -622,5 +626,27 @@ func DockerForwardRules(c Config, nat []string) [][]string {
 			add(b, true)
 		}
 	}
+	return out
+}
+
+// changedTunnels lists the tunnel links of virtual networks (VXLAN,
+// WireGuard) whose files differ between two renderings and that exist in
+// both: they must be deleted so that networkd creates them again, a
+// reconfiguration would keep the old tunnel address, peers and forwarding
+// entries (an unencrypted path left open, for a network just encrypted).
+func changedTunnels(old, next map[string]string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for name, content := range next {
+		link := strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(name, filePrefix), ".netdev"), ".network")
+		if !vnetTunnelRe.MatchString(link) || seen[link] {
+			continue
+		}
+		if prev, ok := old[name]; ok && prev != content {
+			seen[link] = true
+			out = append(out, link)
+		}
+	}
+	slices.Sort(out)
 	return out
 }

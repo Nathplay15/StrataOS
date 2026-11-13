@@ -196,7 +196,7 @@ section "Removal propagated"
 B ssh 'sudo ip netns del g; sudo ip link del vg 2>/dev/null; true'
 check "lab removed on A" "$(api $PA DELETE /api/system/network/vnets/lab | trial $PA)" "confirmed"
 check "lab removed on B" "$(wait_b 'print(len([n for n in d["networks"] if n["id"]=="lab"]))' 0)" "0"
-check "WireGuard key removed on B" "$(B ssh 'sudo ls /etc/strata/vnet-wg/ 2>/dev/null | grep -c lab')" "0"
+check "WireGuard key removed on B" "$(B ssh 'sudo ls /etc/strata-vnet-wg/ 2>/dev/null | grep -c lab')" "0"
 fi
 
 printf '\n%s passed, %s failed (%d min)\n' "$PASSES" "$FAILS" $(( ($(date +%s) - START) / 60 ))

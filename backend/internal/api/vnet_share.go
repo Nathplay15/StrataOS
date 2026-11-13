@@ -197,7 +197,10 @@ func wgKey(id string) (string, error) {
 			return "", err
 		}
 		// systemd-networkd reads PrivateKeyFile as its own user.
-		_, _ = sys.Run("chgrp", "systemd-network", network.WGKeyDir, f)
+		if _, err := sys.Run("chgrp", "systemd-network", network.WGKeyDir, f); err != nil {
+			return "", err
+		}
+		_ = os.Chmod(network.WGKeyDir, 0o750)
 		return pub, nil
 	}
 	k, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(data)))

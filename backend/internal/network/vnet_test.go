@@ -207,3 +207,11 @@ func TestSharedVXLAN(t *testing.T) {
 		}
 	}
 }
+
+func TestChangedTunnels(t *testing.T) {
+	old := map[string]string{filePrefix + "vn0vx.netdev": "a", filePrefix + "vn0vx.network": "peers1", filePrefix + "vn0.netdev": "b", filePrefix + "vn1vx.netdev": "same"}
+	next := map[string]string{filePrefix + "vn0vx.netdev": "a", filePrefix + "vn0vx.network": "peers2", filePrefix + "vn0.netdev": "changed", filePrefix + "vn1vx.netdev": "same", filePrefix + "vn0wg.netdev": "new"}
+	if got := changedTunnels(old, next); len(got) != 1 || got[0] != "vn0vx" {
+		t.Fatal(got)
+	}
+}
