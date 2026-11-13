@@ -650,10 +650,10 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	if err := os.WriteFile(filepath.Join(newRoot, testCfg), []byte("# StrataOS: test start from a new system disk (removed once it started)\nGRUB_CMDLINE_LINUX=\"$GRUB_CMDLINE_LINUX panic=30\"\n"), 0o644); err != nil {
 		return err
 	}
-	// GRUB_FORCE_PARTUUID (cloud images) names the root by partition UUID:
+	// Cloud images name the root by partition UUID (GRUB_DISABLE_LINUX_UUID):
 	// an md array has none.
 	if r.Op.Kind == "mirror" {
-		_ = os.WriteFile(filepath.Join(newRoot, "etc/default/grub.d/zz-strataos-mirror.cfg"), []byte("# StrataOS: the system is on an md array, which has no partition UUID\nGRUB_FORCE_PARTUUID=\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(newRoot, "etc/default/grub.d/zz-strataos-mirror.cfg"), []byte("# StrataOS: the system is on an md array, which has no partition UUID\nGRUB_DISABLE_LINUX_UUID=false\nGRUB_DISABLE_LINUX_PARTUUID=true\nGRUB_FORCE_PARTUUID=\n"), 0o644)
 	}
 	// MODULES=dep (cloud images) would pick the drivers of the disk the
 	// chroot runs from, not those of the new disk: take them all.
@@ -680,6 +680,21 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	}
 	if _, err := r.chroot(5*time.Minute, "update-grub"); err != nil {
 		return err
+	}
+	// The menu of the copy must start the copy, and nothing else.
+	cfg, _ := os.ReadFile(filepath.Join(newRoot, "boot/grub/grub.cfg"))
+	want := []string{"root=UUID=" + r.Op.RootUUID}
+	if r.Op.Kind == "move" {
+		if pu := partUUID(r.rootDev()); pu != "" {
+			want = append(want, "root=PARTUUID="+pu)
+		}
+	}
+	found := false
+	for _, w := range want {
+		found = found || strings.Contains(string(cfg), w+" ")
+	}
+	if !found {
+		return fmt.Errorf("the GRUB menu of the copy does not start the new file system (%s expected)", want[0])
 	}
 	if err := r.umountNew(); err != nil {
 		return err

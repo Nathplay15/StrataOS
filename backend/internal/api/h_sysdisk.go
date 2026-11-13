@@ -103,13 +103,17 @@ func (s *Server) sysDiskCopyJob(o *store.SysDiskOp) jobs.Snapshot {
 			return s.sysDiskFail(o, err)
 		}
 		j.Logf("Preparing %s (S/N %s)", o.New, o.NewSerial)
+		j.SetCancellable(false, "The new disk is being partitioned")
 		if err := r.Prepare(l); err != nil {
 			r.Cleanup(l)
 			return s.sysDiskFail(o, err)
 		}
 		o.Phase = "copy"
 		s.saveSysDiskOp(o)
+		// Stopping the copy erases the new disk; the system disk is only read.
+		j.SetCancellable(true, "")
 		if err := r.Copy(l, false); err != nil {
+			r.Ctx = context.Background() // a stopped job still cleans up
 			r.Cleanup(l)
 			return s.sysDiskFail(o, err)
 		}
@@ -134,6 +138,7 @@ func (s *Server) sysDiskSwitchJob(o *store.SysDiskOp) jobs.Snapshot {
 		if o.New = sysdisk.DiskBySerial(o.NewSerial, o.New); o.New == "" {
 			return s.sysDiskFail(o, errors.New("the new disk is no longer detected"))
 		}
+		j.SetCancellable(false, "The boot loader is being installed: stopping now could leave a disk that does not start")
 		j.Logf("Do not power off the NAS: final copy and boot loader")
 		if err := r.Switch(l, system.BootID()); err != nil {
 			r.UndoOneShot()
@@ -160,6 +165,7 @@ func (s *Server) sysDiskSwitchJob(o *store.SysDiskOp) jobs.Snapshot {
 func (s *Server) sysDiskCompleteJob(o *store.SysDiskOp, resume bool) jobs.Snapshot {
 	j := s.jobs.Start("sysdisk", "Completing the system mirror", o.User, func(ctx context.Context, j *jobs.Job) error {
 		r := s.sysDiskRun(ctx, j, o)
+		j.SetCancellable(false, "The old disk is being added to the mirror; the rebuild goes on by itself anyway")
 		if !resume {
 			l, _, err := sysdisk.Detect()
 			if err != nil {
@@ -387,6 +393,7 @@ func (s *Server) sysDiskRoutes() {
 		}
 		j := s.jobs.Start("sysdisk", "Finishing the move of the system", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			run := s.sysDiskRun(ctx, j, o)
+			j.SetCancellable(false, "The old disk is being erased")
 			if req.Erase {
 				l, _, err := sysdisk.Detect()
 				if err != nil {
@@ -451,6 +458,7 @@ func (s *Server) sysDiskRoutes() {
 		}
 		j := s.jobs.Start("sysdisk", "Cancelling the system disk change", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			run := s.sysDiskRun(ctx, j, o)
+			j.SetCancellable(false, "The new disk is being erased")
 			run.Cleanup(l)
 			o.Phase, o.Finished, o.Message = "cancelled", time.Now(), "Cancelled: the system stays on the old disk, the new disk was erased."
 			s.saveSysDiskOp(o)
