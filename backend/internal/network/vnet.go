@@ -104,9 +104,9 @@ var (
 	// vnetTunnelRe: links whose settings (tunnel ends, keys, forwarding
 	// entries) networkd does not update in place.
 	vnetTunnelRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|wg)$`)
-	wgKeyRe    = regexp.MustCompile(`^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$`)
-	memberRe   = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9_-]{1,40}$`)
-	vnetKinds  = []string{"nat", "isolated", "vlan", "vxlan"}
+	wgKeyRe      = regexp.MustCompile(`^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$`)
+	memberRe     = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9_-]{1,40}$`)
+	vnetKinds    = []string{"nat", "isolated", "vlan", "vxlan"}
 )
 
 // VXLANPort is the UDP port of VXLAN tunnels.

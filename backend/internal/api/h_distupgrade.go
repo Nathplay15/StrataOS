@@ -77,6 +77,7 @@ func distMirror() string {
 			} else if f := strings.Fields(l); len(f) >= 3 && f[0] == "deb" && !strings.HasPrefix(f[1], "[") {
 				uri = f[1]
 			}
+			uri = system.MirrorListURI(uri, readSmall)
 			if system.IsDebianURI(uri) && !strings.Contains(uri, "security") {
 				return strings.TrimRight(uri, "/")
 			}
@@ -140,6 +141,10 @@ func distRewrite(ctx context.Context, from, to string) (map[string]string, []sys
 	var all []system.SourceChange
 	known := map[string]bool{}
 	has := func(uri string) bool {
+		uri = system.MirrorListURI(uri, readSmall)
+		if system.IsDebianURI(uri) {
+			return true // a mirror list of the Debian archive (cloud images)
+		}
 		if v, ok := known[uri]; ok {
 			return v
 		}
@@ -160,6 +165,19 @@ func distRewrite(ctx context.Context, from, to string) (map[string]string, []sys
 		all = append(all, ch...)
 	}
 	return files, all
+}
+
+// readSmall reads a small local file ("" when it cannot).
+func readSmall(p string) string {
+	if !filepath.IsAbs(p) || strings.Contains(p, "..") {
+		return ""
+	}
+	fi, err := os.Stat(p)
+	if err != nil || !fi.Mode().IsRegular() || fi.Size() > 64<<10 {
+		return ""
+	}
+	b, _ := os.ReadFile(p)
+	return string(b)
 }
 
 func freeOf(p string) int64 {
@@ -211,6 +229,8 @@ func (s *Server) distFacts(ctx context.Context, from, to string) (system.Upgrade
 	for _, c := range changes {
 		if c.Kept {
 			f.Vendors = append(f.Vendors, c)
+		} else {
+			f.Moved++
 		}
 	}
 	return f, files, changes
@@ -301,11 +321,20 @@ var aptKeepConf = []string{"-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg:
 
 // distKernel is the kernel /vmlinuz points to (the newest installed).
 func distKernel() string {
-	t, err := os.Readlink("/vmlinuz")
-	if err != nil {
-		return ""
+	for _, l := range []string{"/vmlinuz", "/boot/vmlinuz"} {
+		if t, err := os.Readlink(l); err == nil {
+			return strings.TrimPrefix(filepath.Base(t), "vmlinuz-")
+		}
 	}
-	return strings.TrimPrefix(filepath.Base(t), "vmlinuz-")
+	// No link (cloud images): the kernel installed last.
+	m, _ := filepath.Glob("/boot/vmlinuz-*")
+	best, at := "", time.Time{}
+	for _, f := range m {
+		if fi, err := os.Stat(f); err == nil && fi.ModTime().After(at) {
+			best, at = f, fi.ModTime()
+		}
+	}
+	return strings.TrimPrefix(filepath.Base(best), "vmlinuz-")
 }
 
 // zfsBuilt tells whether the ZFS module is built for a kernel.

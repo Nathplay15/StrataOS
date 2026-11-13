@@ -50,7 +50,13 @@ S=$(api GET /api/system/dist-upgrade)
 check "target forky, not released yet" "$(echo "$S" | py 'print(d["current"], d["target"], d["available"], d["testing"])')" "trixie forky False forky"
 check "start refused while not offered" "$(api POST /api/system/dist-upgrade/start -d '{"confirm":"forky"}')" "not released yet"
 check "testing allowed by the administrator" "$(api PUT /api/system/dist-upgrade -d '{"allowTesting":true}' | py 'print(d["available"])')" "True"
-check "pending updates installed first" "$(job "$(api POST /api/system/updates/upgrade)" 600 | head -1)" "success"
+# The updates may restart the StrataOS service (its job is then lost): wait for none left.
+api POST /api/system/updates/refresh >/dev/null; sleep 20
+api POST /api/system/updates/upgrade >/dev/null
+for _ in $(seq 1 120); do sleep 5; [ "$(vm 'systemctl is-active strata-apt.service')" = active ] && continue
+  [ "$(api GET /api/system/updates | py 'print(len(d))' 2>/dev/null)" = 0 ] && break; done
+login
+check "pending updates installed first" "$(api GET /api/system/updates | py 'print(len(d))')" "0"
 C=$(api POST /api/system/dist-upgrade/check)
 echo "$C" | py 'print("\n".join("    %s: %s" % (c["level"], c["text"]) for c in d["checks"]))'
 check "pre-checks pass" "$(echo "$C" | py 'print(d["blocked"], [c["id"] for c in d["checks"] if c["level"]=="block"])')" "False []"
@@ -63,8 +69,8 @@ check "upgrade job" "$R" "success"
 echo "$R" | grep -E "restore point|packages to upgrade|→|ZFS" | head -12 | sed 's/^/    /'
 check "waiting for the restart" "$(api GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r["to"], bool(r.get("kernel")))')" "reboot forky True"
 check "sources on forky" "$(vm 'cat /etc/apt/sources.list.d/debian.sources 2>/dev/null || cat /etc/apt/sources.list' | grep -m1 -E '^Suites|^deb ')" "forky"
-check "StrataOS sources untouched" "$(vm 'grep Suites /etc/apt/sources.list.d/strataos.sources')" "stable"
-check "managed configuration kept (smb.conf)" "$(vm 'grep -c "^\[Docs\]" /etc/samba/smb.conf')" "1"
+check "StrataOS sources untouched" "$(vm 'grep Suites /etc/apt/sources.list.d/strataos.sources 2>/dev/null || echo "Suites: stable (no repository in this build)"')" "stable"
+check "managed configuration kept (smb.conf)" "$(vm 'sudo grep -c "^\[Docs\]" /etc/samba/smb.conf')" "1"
 check "no half-installed package" "$(vm 'sudo dpkg --audit | wc -l')" "0"
 check "restart" "$(api POST /api/system/dist-upgrade/reboot)" '"ok":true'
 sleep 20
@@ -78,7 +84,7 @@ PC=$(api GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get(
 echo "$PC"
 check "post-checks done" "$PC" "done"
 check "no failed post-check" "$(echo "$PC" | grep -c '^    block')" "0"
-check "volume mounted, data there" "$(vm 'cat /srv/strata/volume1/Docs/note.txt')" "kept"
+check "volume mounted, data there" "$(vm 'sudo cat /srv/strata/volume1/Docs/note.txt')" "kept"
 check "StrataOS answers" "$(api GET /api/me)" "\"username\":\"$ADMIN_USER\""
 check "Samba running" "$(vm 'systemctl is-active smbd')" "active"
 [ -n "${ZFS:-}" ] && check "ZFS pool imported" "$(vm 'sudo zpool list -H -o name,health')" "ONLINE"

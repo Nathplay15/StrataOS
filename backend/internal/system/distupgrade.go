@@ -33,6 +33,22 @@ func ReleaseCodename(release string) string {
 	return ""
 }
 
+// MirrorListURI resolves the "mirror+file:///path" URIs of the Debian cloud
+// images to the first mirror of the list (content of that file); other
+// URIs are returned as they are.
+func MirrorListURI(uri string, read func(path string) string) string {
+	path, ok := strings.CutPrefix(strings.TrimSpace(uri), "mirror+file://")
+	if !ok || read == nil {
+		return uri
+	}
+	for _, l := range strings.Split(read(path), "\n") {
+		if f := strings.Fields(l); len(f) > 0 && (strings.HasPrefix(f[0], "http://") || strings.HasPrefix(f[0], "https://")) {
+			return f[0]
+		}
+	}
+	return uri
+}
+
 // IsDebianURI tells the archives of Debian itself (debian.org: its mirrors
 // and the security archive). Other mirrors are moved like a vendor
 // repository, when they publish the new release.
@@ -167,6 +183,7 @@ type UpgradeCheck struct {
 // UpgradeFacts are what the pre-checks look at.
 type UpgradeFacts struct {
 	From, To        string
+	Moved           int   // package sources that move to the new release
 	FreeRoot        int64 // bytes free on / (packages are unpacked there)
 	FreeVar         int64 // on /var (downloads), same file system or not
 	FreeBoot        int64 // on /boot (-1: not a separate file system)
@@ -224,6 +241,9 @@ func UpgradeChecks(f UpgradeFacts) []UpgradeCheck {
 	}
 	if f.PendingUpdates > 0 {
 		add("updates", "block", fmt.Sprintf("Install the %d pending updates of Debian %s first", f.PendingUpdates, ReleaseNumber(f.From)))
+	}
+	if f.Moved == 0 {
+		add("sources", "block", "No package source of Debian "+ReleaseNumber(f.From)+" was found to move to Debian "+ReleaseNumber(f.To)+" (unusual APT sources: upgrade by hand, see DEBIAN-14.md)")
 	}
 	for _, v := range f.Vendors {
 		if v.Kept {

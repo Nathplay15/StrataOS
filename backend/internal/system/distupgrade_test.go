@@ -90,7 +90,7 @@ func TestReleaseHelpers(t *testing.T) {
 }
 
 func TestUpgradeChecks(t *testing.T) {
-	good := UpgradeFacts{From: "trixie", To: "forky", FreeRoot: 10 * GiB, FreeVar: 10 * GiB, FreeBoot: -1, RestoreMode: "btrfs", ZFS: true}
+	good := UpgradeFacts{From: "trixie", To: "forky", Moved: 4, FreeRoot: 10 * GiB, FreeVar: 10 * GiB, FreeBoot: -1, RestoreMode: "btrfs", ZFS: true}
 	if c := UpgradeChecks(good); Blocked(c) {
 		t.Fatalf("%+v", c)
 	}
@@ -101,6 +101,7 @@ func TestUpgradeChecks(t *testing.T) {
 		"dpkg":    func(f *UpgradeFacts) { f.DpkgAudit = "The following packages are only half configured" },
 		"updates": func(f *UpgradeFacts) { f.PendingUpdates = 3 },
 		"ceph":    func(f *UpgradeFacts) { f.CephNodes = 3 },
+		"sources": func(f *UpgradeFacts) { f.Moved = 0 },
 	} {
 		x := good
 		f(&x)
@@ -125,5 +126,22 @@ func TestAptCounter(t *testing.T) {
 	c.Line("Get:1 http://deb.debian.org …")
 	if p := c.Line("Setting up a (2) ..."); p != 50 {
 		t.Fatal(p)
+	}
+}
+
+func TestMirrorListURI(t *testing.T) {
+	read := func(p string) string {
+		if p == "/etc/apt/mirrors/debian.list" {
+			return "# mirrors\nhttps://deb.debian.org/debian\nhttps://other.example/debian\n"
+		}
+		return ""
+	}
+	if got := MirrorListURI("mirror+file:///etc/apt/mirrors/debian.list", read); got != "https://deb.debian.org/debian" {
+		t.Fatal(got)
+	}
+	for _, same := range []string{"http://deb.debian.org/debian", "mirror+file:///nope"} {
+		if MirrorListURI(same, read) != same {
+			t.Fatal(same)
+		}
 	}
 }
