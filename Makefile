@@ -56,6 +56,10 @@ test:
 vm-test: deb
 	./vm/vm.sh destroy
 	VM_DISKS=13 ./vm/vm.sh create
+	# Like a NAS kept up to date: current packages and kernel (the base image
+	# lags behind, and the headers of its kernel leave the archive), then a restart.
+	./vm/vm.sh ssh 'sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold full-upgrade'
+	./vm/vm.sh stop && ./vm/vm.sh start
 	./vm/vm.sh deploy dist/strataos_$(VERSION)_$(ARCH).deb
 	bash -c 'set -o pipefail; ./vm/e2e-test.sh | tee vm/last-test.log'
 
