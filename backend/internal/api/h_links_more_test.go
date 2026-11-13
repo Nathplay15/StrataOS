@@ -57,6 +57,9 @@ func TestFirstRange(t *testing.T) {
 }
 
 func TestCountView(t *testing.T) {
+	linkViews.Lock()
+	linkViews.seen = nil
+	linkViews.Unlock()
 	now := time.Now()
 	if !countView("l1", "198.51.100.1", now) || countView("l1", "198.51.100.1", now.Add(time.Minute)) {
 		t.Fatal("once per 30 minutes")

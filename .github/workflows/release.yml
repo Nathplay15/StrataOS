@@ -142,9 +142,25 @@ jobs:
           test -n "$APT_SIGNING_KEY" || { echo "the APT_SIGNING_KEY secret is missing (see docs/DEVELOPMENT.md)"; exit 1; }
 
       - name: Unit tests
+        # Failures are also reported as an annotation, readable without signing in.
         run: |
-          make test
-          cd frontend && npm ci --no-audit --no-fund && npx tsc -b
+          set +e
+          (cd backend && go test ./...) 2>&1 | tee "$RUNNER_TEMP/gotest.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            msg=$(grep -E -e '--- FAIL|^FAIL|^panic|_test\.go:[0-9]+|\.go:[0-9]+: ' "$RUNNER_TEMP/gotest.log" | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Go tests failed::$msg"
+            exit "$status"
+          fi
+          set -e
+          cd frontend && npm ci --no-audit --no-fund
+          npx tsc -b 2>&1 | tee "$RUNNER_TEMP/tsc.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            msg=$(head -40 "$RUNNER_TEMP/tsc.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Type check failed::$msg"
+          fi
+          exit "$status"
 
       - name: Debian packages (amd64, arm64)
         run: |
