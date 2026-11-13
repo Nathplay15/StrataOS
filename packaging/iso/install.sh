@@ -8,6 +8,9 @@ export DEBIAN_FRONTEND=noninteractive
 sed -i -E 's/^(deb(-src)? cdrom:)/# \1/' /etc/apt/sources.list
 apt-get update
 apt-get install -y /root/strataos/strataos_*.deb
+# System on two disks (mirror): the second disk gets a copy of the EFI system
+# partition and its own UEFI boot entry (the installer fills only the first).
+/usr/lib/strata/scripts/esp-sync --setup || echo "warning: the EFI system partition was not copied (done again at first start)"
 # Nobody knows root's install-time password: lock it for good.
 passwd -l root
 # The login prompts of the machine (tty2-6, serial; tty1 shows the StrataOS
