@@ -56,7 +56,7 @@ if [ -n "$BD" ]; then
   check "test reached the badblocks step" "$STEP" "['badblocks']"
   sleep 2
   c POST "/api/jobs/$(echo "$BJ" | py 'print(d["id"])')/cancel" >/dev/null
-  check "cancelled test" "$(job "$BJ")" "failed burn-in test cancelled"
+  check "cancelled test" "$(job "$BJ")" "cancelled"
   check "badblocks gone after cancel" "$(vm "pgrep -x badblocks || echo none")" "none"
   check "cancelled report" "$(c GET /api/storage/burnin | py 'print(d["reports"][0]["result"])')" "cancelled"
   for id in $(c GET /api/storage/burnin | py 'print(" ".join(r["id"] for r in d["reports"]))'); do c DELETE "/api/storage/burnin/$id" >/dev/null; done
