@@ -378,5 +378,33 @@
   [
     "Aucune source de paquets de Debian {0} à faire passer à Debian {1} n'a été trouvée (sources APT inhabituelles : faites la mise à niveau à la main, voir DEBIAN-14.md)",
     "No package source of Debian {0} was found to move to Debian {1} (unusual APT sources: upgrade by hand, see DEBIAN-14.md)"
+  ],
+  [
+    "NetworkManager gère ce NAS : les réseaux virtuels demandent systemd-networkd",
+    "NetworkManager manages this NAS: virtual networks need systemd-networkd"
+  ],
+  [
+    "Ce réseau partagé n'existe pas ici",
+    "no such shared network here"
+  ],
+  [
+    "{0} : 32 NAS au maximum",
+    "{0}: 32 NAS at most"
+  ],
+  [
+    "Le disque {0} ne peut pas être sauvegardé à chaud",
+    "disk {0} cannot be backed up live"
+  ],
+  [
+    "Sauvegarde à chaud : l'export NBD n'est pas apparu",
+    "live backup: the NBD export did not appear"
+  ],
+  [
+    "La taille de l'image a changé ({0} → {1} octets)",
+    "the image size changed ({0} → {1} bytes)"
+  ],
+  [
+    "La sauvegarde précédente du disque est plus courte que le disque ({0} sur {1} octets)",
+    "the previous backup of the disk is shorter than the disk ({0} of {1} bytes)"
   ]
 ]
