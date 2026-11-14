@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"strataos/internal/jobs"
@@ -21,6 +22,10 @@ import (
 // move the system to another disk, export a system backup. The planning is
 // in internal/sysdisk (pure, tested); here the jobs, the saved record and
 // the steps around the restart.
+
+// sysDiskMu serialises the requests that check then change the phase of an
+// operation (a double click must not start two jobs on the same disks).
+var sysDiskMu sync.Mutex
 
 func (s *Server) sysDiskFacts(l sysdisk.Layout) sysdisk.PlanFacts {
 	rf := s.replaceFacts()
@@ -171,16 +176,15 @@ func (s *Server) sysDiskCompleteJob(o *store.SysDiskOp, resume bool) jobs.Snapsh
 			if err != nil {
 				return s.sysDiskFail(o, err)
 			}
-			o.Phase = "completing"
-			s.saveSysDiskOp(o)
 			if err := r.CompleteMirror(l); err != nil {
 				return s.sysDiskFail(o, err)
 			}
 			s.saveSysDiskOp(o)
 		}
 		j.Logf("Rebuilding the mirror onto %s…", o.Old)
+		idle := 0
 		for {
-			p, done, err := r.MirrorSynced()
+			p, done, stalled, err := r.MirrorSynced()
 			if err != nil {
 				return s.sysDiskFail(o, err)
 			}
@@ -188,11 +192,28 @@ func (s *Server) sysDiskCompleteJob(o *store.SysDiskOp, resume bool) jobs.Snapsh
 			if done {
 				break
 			}
+			// Degraded with nothing to rebuild: the old disk was not (fully)
+			// added, e.g. a restart in the middle.
+			if idle++; !stalled {
+				idle = 0
+			}
+			if idle >= 12 {
+				return s.sysDiskFail(o, errors.New("the old disk is not being added to the system mirror. The system keeps running from the new disk: use Replace on the alert of the degraded system mirror to add a disk"))
+			}
 			select {
 			case <-ctx.Done():
 				return errors.New("stopped following the rebuild: it goes on in the background")
 			case <-time.After(5 * time.Second):
 			}
+		}
+		// Only now: esp-sync copies onto members in sync.
+		j.Logf("Making %s able to start the system", o.Old)
+		l, _, err := sysdisk.Detect()
+		if err == nil {
+			err = r.MirrorBoot(l)
+		}
+		if err != nil {
+			return s.sysDiskFail(o, fmt.Errorf("the mirror is complete, but %s could not be made able to start the system: %v", o.Old, err))
 		}
 		o.Phase, o.Finished = "done", time.Now()
 		o.Message = "The system is mirrored on two disks."
@@ -262,6 +283,15 @@ func (s *Server) sysDiskResume() {
 		}
 	case "completing":
 		s.sysDiskCompleteJob(o, true)
+	case "finishing": // a move: the system runs from the new disk anyway
+		o.Phase, o.Finished = "done", time.Now()
+		o.Message = "The system runs from the new disk."
+		s.saveSysDiskOp(o)
+	case "cancelling":
+		l, _, _ := sysdisk.Detect()
+		r.Cleanup(l)
+		o.Phase, o.Finished, o.Message = "cancelled", time.Now(), "Cancelled: the system stays on the old disk, the new disk was erased."
+		s.saveSysDiskOp(o)
 	}
 }
 
@@ -303,6 +333,8 @@ func (s *Server) sysDiskRoutes() {
 		return sysdisk.PlanMove(pf, r.URL.Query().Get("target")), nil
 	})
 	s.admin("POST /api/system/disk/start", func(r *http.Request) (any, error) {
+		sysDiskMu.Lock()
+		defer sysDiskMu.Unlock()
 		var req struct {
 			Kind    string `json:"kind"`
 			Target  string `json:"target"`
@@ -351,6 +383,8 @@ func (s *Server) sysDiskRoutes() {
 		return map[string]any{"job": j, "id": o.ID}, nil
 	})
 	s.admin("POST /api/system/disk/{id}/switch", func(r *http.Request) (any, error) {
+		sysDiskMu.Lock()
+		defer sysDiskMu.Unlock()
 		o := s.sysDiskOp(r.PathValue("id"))
 		if o == nil || !o.Finished.IsZero() {
 			return nil, notFound("operation not found")
@@ -364,6 +398,8 @@ func (s *Server) sysDiskRoutes() {
 		return map[string]any{"job": s.sysDiskSwitchJob(o)}, nil
 	})
 	s.admin("POST /api/system/disk/{id}/complete", func(r *http.Request) (any, error) {
+		sysDiskMu.Lock()
+		defer sysDiskMu.Unlock()
 		var req struct {
 			Confirm string `json:"confirm"` // the old disk name
 			Erase   bool   `json:"erase"`   // move: erase the old disk
@@ -387,6 +423,12 @@ func (s *Server) sysDiskRoutes() {
 			return nil, badRequest("type the name of the old disk to confirm: it will be erased")
 		}
 		storage.ClearBusy(o.New)
+		// Saved before the job starts: a second request is refused.
+		o.Phase = "completing"
+		if o.Kind == "move" {
+			o.Phase = "finishing"
+		}
+		s.saveSysDiskOp(o)
 		if o.Kind == "mirror" {
 			s.audit(r, "storage", "System disk: completing the mirror with "+old)
 			return map[string]any{"job": s.sysDiskCompleteJob(o, false)}, nil
@@ -415,6 +457,8 @@ func (s *Server) sysDiskRoutes() {
 		return map[string]any{"job": j}, nil
 	})
 	s.admin("POST /api/system/disk/{id}/back", func(r *http.Request) (any, error) {
+		sysDiskMu.Lock()
+		defer sysDiskMu.Unlock()
 		o := s.sysDiskOp(r.PathValue("id"))
 		if o == nil || o.Phase != "booted" {
 			return nil, badRequest("going back is possible only while the old disk is unchanged")
@@ -440,6 +484,8 @@ func (s *Server) sysDiskRoutes() {
 		return nil, nil
 	})
 	s.admin("POST /api/system/disk/{id}/cancel", func(r *http.Request) (any, error) {
+		sysDiskMu.Lock()
+		defer sysDiskMu.Unlock()
 		o := s.sysDiskOp(r.PathValue("id"))
 		if o == nil || !o.Finished.IsZero() {
 			return nil, notFound("operation not found")
@@ -456,6 +502,8 @@ func (s *Server) sysDiskRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		o.Phase = "cancelling"
+		s.saveSysDiskOp(o)
 		j := s.jobs.Start("sysdisk", "Cancelling the system disk change", userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			run := s.sysDiskRun(ctx, j, o)
 			j.SetCancellable(false, "The new disk is being erased")

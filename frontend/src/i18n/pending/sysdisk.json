@@ -106,5 +106,8 @@
   ["Échec de la sauvegarde du système : {0}", "System backup failed: {0}"],
   ["Disque système : copie sur {0} terminée", "System disk: copy onto {0} finished"],
   ["Disque système : redémarrage sur {0}", "System disk: restarting from {0}"],
-  ["Impossible de copier la partition système EFI sur le disque miroir : {0}", "Could not copy the EFI system partition onto the mirror disk: {0}"]
+  ["Impossible de copier la partition système EFI sur le disque miroir : {0}", "Could not copy the EFI system partition onto the mirror disk: {0}"],
+  ["Le système tourne désormais sur le nouveau disque.", "The system runs from the new disk."],
+  ["l'ancien disque n'est pas en cours d'ajout au miroir système. Le système continue de tourner sur le nouveau disque : utilisez Remplacer sur l'alerte du miroir système dégradé pour ajouter un disque", "the old disk is not being added to the system mirror. The system keeps running from the new disk: use Replace on the alert of the degraded system mirror to add a disk"],
+  ["le miroir est complet, mais {0} n'a pas pu être rendu capable de démarrer le système : {1}", "the mirror is complete, but {0} could not be made able to start the system: {1}"]
 ]

@@ -42,6 +42,8 @@ const phaseText: Record<string, string> = {
   booted: tr("Running from the new disk"),
   "fell-back": tr("Started from the old disk again"),
   completing: tr("Adding the old disk to the mirror"),
+  finishing: tr("Finishing the move"),
+  cancelling: tr("Cancelling"),
   done: tr("Done"),
   failed: tr("Failed"),
   cancelled: tr("Cancelled"),

@@ -959,13 +959,31 @@ func (r *Run) CompleteMirror(l Layout) error {
 	if err := writeMdadmConf("/etc/mdadm/mdadm.conf", r.Logf); err != nil {
 		return err
 	}
-	if _, err := r.cmd(20*time.Minute, "update-initramfs", "-u", "-k", "all"); err != nil {
-		return err
+	_, err = r.cmd(20*time.Minute, "update-initramfs", "-u", "-k", "all")
+	return err
+}
+
+// MirrorBoot makes the old disk of a mirror able to start the system once it
+// is rebuilt (esp-sync only copies onto in-sync members): a copy of the ESP
+// and its UEFI entry, or GRUB in its boot sector. It can run again (after a
+// restart in the middle).
+func (r *Run) MirrorBoot(l Layout) error {
+	old := DiskBySerial(r.Op.OldSerial, r.Op.Old)
+	if old == "" {
+		return errors.New("the old system disk is no longer detected")
+	}
+	// It must be a member of the system mirror by now.
+	if !l.IsSystemDisk(old) || sameDevice(old, r.Op.New) {
+		return fmt.Errorf("%s is not a disk of the system mirror: stopping", old)
 	}
 	if r.Op.Boot == "uefi" {
+		esp := PartPath(old, r.part("esp").Num)
+		if out, _ := sys.Run("findmnt", "-n", "-o", "TARGET", "-S", esp); strings.TrimSpace(out) != "" || sameDevice(esp, mountSource("/boot/efi")) {
+			return fmt.Errorf("%s is mounted: stopping", esp)
+		}
 		// The same FAT volume ID as the ESP of the running disk: the UUID=
 		// line of /etc/fstab finds /boot/efi whichever disk is left.
-		if _, err := r.run("mkfs.vfat", append(espMkfsArgs(r.Op.ESPUUID), PartPath(old, r.part("esp").Num))...); err != nil {
+		if _, err := r.run("mkfs.vfat", append(espMkfsArgs(r.Op.ESPUUID), esp)...); err != nil {
 			return err
 		}
 		_, _ = r.run("udevadm", "settle")
@@ -996,11 +1014,12 @@ func (r *Run) removeEntriesOf(partuuid string) {
 	}
 }
 
-// MirrorSynced polls the rebuild of the arrays: progress and whether done.
-func (r *Run) MirrorSynced() (float64, bool, error) {
+// MirrorSynced polls the rebuild of the arrays: progress, whether done, and
+// whether an array is degraded with nothing to rebuild (no disk added).
+func (r *Run) MirrorSynced() (float64, bool, bool, error) {
 	raids, _ := storage.ListRaid()
 	total, n := 0.0, 0
-	done := true
+	done, idle := true, false
 	for _, a := range []string{r.Op.RootArray, r.Op.SwapArray} {
 		if a == "" {
 			continue
@@ -1012,10 +1031,10 @@ func (r *Run) MirrorSynced() (float64, bool, error) {
 			}
 		}
 		if arr == nil {
-			return 0, false, fmt.Errorf("array %s not found", a)
+			return 0, false, false, fmt.Errorf("array %s not found", a)
 		}
 		if arr.Health == "failed" {
-			return 0, false, fmt.Errorf("array %s failed", a)
+			return 0, false, false, fmt.Errorf("array %s failed", a)
 		}
 		n++
 		if arr.ActiveDevices >= arr.RaidDevices && arr.SyncAction == "" {
@@ -1023,12 +1042,15 @@ func (r *Run) MirrorSynced() (float64, bool, error) {
 		} else {
 			done = false
 			total += arr.SyncProgress
+			if arr.SyncAction == "" && arr.SpareDevices == 0 {
+				idle = true
+			}
 		}
 	}
 	if n == 0 {
-		return 100, true, nil
+		return 100, true, false, nil
 	}
-	return total / float64(n), done, nil
+	return total / float64(n), done, idle, nil
 }
 
 // EraseOld erases the old system disk after a move.
