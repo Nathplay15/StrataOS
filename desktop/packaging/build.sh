@@ -49,15 +49,14 @@ app() {
     app/scripts/sidecar.sh aarch64-apple-darwin >/dev/null
     app/scripts/sidecar.sh x86_64-apple-darwin >/dev/null
     # Files on demand: the File Provider and Finder Sync extensions and their
-    # helper (desktop/macos), signed before Tauri signs the app around them.
-    # Without a signing identity the app is signed ad hoc ("-"), so that its
-    # nested extensions keep a sealed bundle (they still only run when signed
-    # with a Developer ID: see docs/DEVELOPMENT.md).
-    macos/build.sh "$B/macos" >/dev/null
-    local ident=""
-    if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then ident=',"signingIdentity":"-"'; fi
-    conf=$(printf '{"version":"%s","bundle":{"createUpdaterArtifacts":%s,"macOS":{"files":{"PlugIns/StrataOSFileProvider.appex":"%s","PlugIns/StrataOSFinderSync.appex":"%s","MacOS/strataos-fileprovider":"%s"}%s}}}' \
-      "$FV" "$sign" "$B/macos/PlugIns/StrataOSFileProvider.appex" "$B/macos/PlugIns/StrataOSFinderSync.appex" "$B/macos/MacOS/strataos-fileprovider" "$ident")
+    # helper (desktop/macos) only run when signed with a Developer ID, so they
+    # are bundled only when APPLE_SIGNING_IDENTITY is set; without them the
+    # app hides files on demand (see docs/DEVELOPMENT.md).
+    if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+      macos/build.sh "$B/macos" >/dev/null
+      conf=$(printf '{"version":"%s","bundle":{"createUpdaterArtifacts":%s,"macOS":{"files":{"PlugIns/StrataOSFileProvider.appex":"%s","PlugIns/StrataOSFinderSync.appex":"%s","MacOS/strataos-fileprovider":"%s"}}}}' \
+        "$FV" "$sign" "$B/macos/PlugIns/StrataOSFileProvider.appex" "$B/macos/PlugIns/StrataOSFinderSync.appex" "$B/macos/MacOS/strataos-fileprovider")
+    fi
   fi
   app/scripts/sidecar.sh "$triple" >/dev/null
   (cd app && npm ci --no-audit --no-fund)

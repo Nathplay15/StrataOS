@@ -22,7 +22,15 @@ import (
 // the strataos-fileprovider helper next to it in Contents/MacOS (the
 // FileProvider framework is easier from Swift than from Go without cgo).
 
-func supported() (bool, string) { return true, "fileprovider" }
+// supported: the File Provider extension only ships (and macOS only loads it)
+// in apps signed with a Developer ID; without its helper next to the engine,
+// files on demand are not offered on this Mac.
+func supported() (bool, string) {
+	if _, err := os.Stat(helperPath()); err != nil {
+		return false, ""
+	}
+	return true, "fileprovider"
+}
 
 func helperPath() string {
 	exe, err := os.Executable()

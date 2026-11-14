@@ -89,10 +89,9 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
           (cd desktop && ../.github/scripts/annotate.sh go test ./...)
-          # Files on demand: logic of the extensions, then the extensions themselves
-          # (also built inside the app below; ad hoc signed without certificates).
+          # Files on demand: logic of the macOS extensions (the extensions themselves
+          # are only built for releases signed with a Developer ID).
           (cd desktop/macos && swift test)
-          desktop/macos/build.sh build/macos-ext
           .github/scripts/annotate.sh desktop/packaging/build.sh app
       - uses: actions/upload-artifact@v7
         with:
