@@ -14,7 +14,9 @@
 # Settings (environment): ISO_STATE (state folder), ISO_WEB_PORT, ISO_SSH_PORT,
 # ISO_SYS_DISKS (2: two system disks, for the mirror entry), ISO_DISK_SIZE
 # (16G), ISO_DETACH ("sys2 1": disks left out by boot; "sys" = the first
-# system disk), ISO_MEM (4096), ISO_DATA1 (a qcow2 image used as data disk 1).
+# system disk), ISO_MEM (4096), ISO_DATA1 (a qcow2 image used as data disk 1),
+# ISO_BOOT_FROM=sys2 (the firmware starts the second system disk first, as
+# a user would pick it in the boot menu).
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE=${ISO_STATE:-$DIR/state-iso}
@@ -76,11 +78,11 @@ x86_args() {
     -display none -vga std -serial "file:$STATE/console.log"
     -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
   detached sys || args+=(-drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2"
-    -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1")
+    -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1$([ "${ISO_BOOT_FROM:-}" = sys2 ] && echo ,bootindex=1)")
   # The data disks come after the second system disk, even when it is left out.
   [ -f "$STATE/system2.qcow2" ] && SYS2=1
   if [ -f "$STATE/system2.qcow2" ] && ! detached sys2; then
-    args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1")
+    args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1$([ "${ISO_BOOT_FROM:-}" = sys2 ] && echo ,bootindex=0)")
   fi
   local i
   for i in $(ls "$STATE" | sed -n 's/^data\([0-9]*\)\.qcow2$/\1/p' | sort -n); do

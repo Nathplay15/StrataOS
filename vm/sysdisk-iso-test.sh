@@ -62,6 +62,9 @@ install() { # iso extra mode
   login
 }
 
+# The two system disks, by serial number (sdX names change with the disks present).
+SYSDISKS="/dev/disk/by-id/ata-*_STRATA-SYS /dev/disk/by-id/ata-*_STRATA-SYS-2"
+
 mirror_install() {
   local mode=$1
   printf '\n\033[1;36m== ISO: system on two disks (%s)\033[0m\n' "$mode"
@@ -71,12 +74,12 @@ mirror_install() {
   check "layout: mirrored" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["mirrored"], l["boot"], len(l["disks"]), l["root"]["fstype"])')" "True $mode 2 btrfs"
   if [ "$mode" = uefi ]; then
     # One of them is mounted on /boot/efi: mounted again (same options), not read-only.
-    check "both disks have an ESP with GRUB" "$(vm "for d in /dev/sda1 /dev/sdb1; do mount \$d /mnt && ls /mnt/EFI/debian/ | grep -c '^grub.*\.efi$'; umount /mnt; done | tr '\n' ' '")" "1 1"
-    check "both ESPs have the same volume ID" "$(vm "blkid -c /dev/null -o value -s UUID /dev/sda1 /dev/sdb1 | sort -u | wc -l")" "1"
+    check "both disks have an ESP with GRUB" "$(vm "for d in $SYSDISKS; do mount \$d-part1 /mnt && ls /mnt/EFI/debian/ | grep -c '^grub.*\.efi$'; umount /mnt; done | tr '\n' ' '")" "1 1"
+    check "both ESPs have the same volume ID" "$(vm "for d in $SYSDISKS; do blkid -c /dev/null -o value -s UUID \$d-part1; done | sort -u | wc -l")" "1"
     check "/boot/efi optional at start" "$(vm "findmnt -s -n -o OPTIONS /boot/efi")" "nofail"
     check "boot entry of the second disk" "$(vm "efibootmgr")" "StrataOS (mirror"
   else
-    check "GRUB on both disks" "$(vm "for d in sda sdb; do dd if=/dev/\$d bs=512 count=1 2>/dev/null | grep -c GRUB; done | tr '\n' ' '")" "1 1"
+    check "GRUB on both disks" "$(vm "for d in $SYSDISKS; do dd if=\$d bs=512 count=1 2>/dev/null | grep -a -c GRUB; done | tr '\n' ' '")" "1 1"
   fi
   check "RAID page: system arrays listed" "$(c GET /api/system/disk | py 'print(sorted(a["role"] for a in d["layout"]["arrays"]))')" "['root', 'swap']"
   check "advisor: no system disk item" "$(c POST /api/security/advisor/run | py 'print([i["id"] for i in d["items"] if i["id"]=="system-disk"])')" "[]"
@@ -91,7 +94,9 @@ mirror_install() {
   # Disk 1 dies: a blank disk takes its place.
   ./vm/iso-test.sh stop; sleep 3
   rm -f "$ISO_STATE/system.qcow2"; qemu-img create -q -f qcow2 "$ISO_STATE/system.qcow2" 16G
-  ISO_DETACH="" boot
+  # A BIOS only tries its first disk, now blank: the user picks disk 2 in
+  # the boot menu (UEFI goes on to the entry of disk 2 by itself).
+  ISO_BOOT_FROM=$([ "$mode" = bios ] && echo sys2) ISO_DETACH="" boot
   check "degraded mirror seen" "$(c GET /api/system/disk | py 'print(d["layout"]["degraded"])')" "True"
   check "alert of the system mirror" "$(c GET /api/system/overview | grep -o 'system mirror is degraded' | head -1)" "system mirror is degraded"
   NEW=$(dev STRATA-SYS)
