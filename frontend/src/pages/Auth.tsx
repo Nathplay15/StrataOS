@@ -145,7 +145,7 @@ export function Login({ hostname, onLogin }: { hostname: string; onLogin: (m: Me
           </Button>
         )}
         {!needCode && providers.map((p) => (
-          <Button key={p.id} type="button" className="w-full" icon={<LogIn size={15} />} onClick={() => { window.location.href = `/api/login/oidc/${encodeURIComponent(p.id)}`; }}>{tr("Sign in with {0}", p.name)}</Button>
+          <Button key={p.id} type="button" className="w-full" icon={<LogIn size={15} />} onClick={() => { window.location.href = `/api/login/oidc/${encodeURIComponent(p.id)}${location.pathname.startsWith("/sso/") ? "?next=" + encodeURIComponent(location.pathname) : ""}`; }}>{tr("Sign in with {0}", p.name)}</Button>
         ))}
         {!needCode && pk?.available && (
           <Button type="button" className="w-full" loading={pkBusy} icon={<FingerprintPattern size={15} />} onClick={passkey}>{tr("Sign in with a passkey")}</Button>

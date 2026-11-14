@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp,
+  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp, KeySquare,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -11,6 +11,7 @@ import { PasskeysModal } from "./Passkeys";
 import { SecurityKeysModal } from "./SecurityKeys";
 import { S3KeysModal } from "./S3Keys";
 import { ApiTokensModal } from "./ApiTokens";
+import { MyAppsModal } from "./MyApps";
 import { TwoFactorPrompt } from "./TwoFactorPrompt";
 import { MobileDevicesModal } from "./MobileDevices";
 import { SessionsModal } from "./Sessions";
@@ -90,6 +91,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/system/services", label: tr("Services"), icon: <Cpu size={17} />, admin: true },
       { to: "/system/network", label: tr("Network"), icon: <Network size={17} />, admin: true },
       { to: "/system/remote", label: tr("Remote access"), icon: <Waypoints size={17} />, admin: true },
+      { to: "/system/sso", label: tr("Single sign-on"), icon: <KeySquare size={17} />, admin: true },
       { to: "/system/ha", label: tr("High availability"), icon: <ServerCog size={17} />, admin: true },
       { to: "/system/ups", label: tr("UPS"), icon: <BatteryCharging size={17} />, admin: true },
       { to: "/system/energy", label: tr("Power"), icon: <Leaf size={17} />, admin: true },
@@ -226,6 +228,7 @@ export function Layout({ me }: { me: Me }) {
   const [keys, setKeys] = useState(false);
   const [s3, setS3] = useState(false);
   const [tokens, setTokens] = useState(false);
+  const [myApps, setMyApps] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [sessions, setSessions] = useState(false);
   const [look, setLook] = useState(false);
@@ -238,6 +241,7 @@ export function Layout({ me }: { me: Me }) {
     else if (d === "securitykeys") setKeys(true);
     else if (d === "s3") setS3(true);
     else if (d === "tokens") setTokens(true);
+    else if (d === "apps") setMyApps(true);
     else if (d === "devices") setMobile(true);
   });
   const loc = useLocation();
@@ -328,6 +332,7 @@ export function Layout({ me }: { me: Me }) {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setKeys(true); }}><KeyRound size={15} /> {" "}{tr("Security keys and sign-in")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setS3(true); }}><Database size={15} /> {" "}{tr("S3 access keys")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setTokens(true); }}><KeyRound size={15} /> {" "}{tr("API tokens")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setMyApps(true); }}><KeySquare size={15} /> {" "}{tr("Apps signed in with the NAS")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setSessions(true); }}><History size={15} /> {" "}{tr("Sessions and sign-ins")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/vpn"); }}><Smartphone size={15} /> {" "}{tr("My VPN devices")}</button>
@@ -359,6 +364,7 @@ export function Layout({ me }: { me: Me }) {
       <SecurityKeysModal open={keys} onClose={() => setKeys(false)} />
       <S3KeysModal open={s3} onClose={() => setS3(false)} />
       <ApiTokensModal open={tokens} onClose={() => setTokens(false)} />
+      <MyAppsModal open={myApps} onClose={() => setMyApps(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
       <SessionsModal open={sessions} onClose={() => setSessions(false)} me={me} />
       <AppearanceModal open={look} onClose={() => setLook(false)} />

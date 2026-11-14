@@ -64,6 +64,8 @@ const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
 const AssistantPage = lazy(() => import("./pages/Assistant"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
+const SingleSignOn = lazy(() => import("./pages/system/SingleSignOn"));
+const SSOFlow = lazy(() => import("./pages/SSOFlow").then((m) => ({ default: m.SSOFlow })));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -99,6 +101,8 @@ function Root() {
   if (setup.error) return <div className="p-10 text-center text-danger">{tr("Unable to reach the StrataOS server.")}</div>;
   const hostname = setup.data?.hostname ?? "NAS";
   if (setup.data?.needed && !me) return <Setup hostname={hostname} onDone={(m) => { setMe(m); qc.invalidateQueries(); }} />;
+  // An app signing in with the NAS (sso.go): its own page, signed in or not.
+  if (location.pathname.startsWith("/sso/")) return <Suspense fallback={<Splash label={tr("Connecting to the NAS…")} />}><SSOFlow hostname={hostname} me={me} onLogin={setMe} /></Suspense>;
   if (!me) return <Login hostname={hostname} onLogin={(m) => { setMe(m); qc.invalidateQueries(); }} />;
   if (desktop) {
     return (
@@ -165,6 +169,7 @@ function Root() {
             <Route path="system/antivirus" element={A(<AntivirusPage />)} />
             <Route path="system/ha" element={A(<HAPage />)} />
             <Route path="system/remote" element={A(<RemotePage />)} />
+            <Route path="system/sso" element={A(<SingleSignOn />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
