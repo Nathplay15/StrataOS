@@ -145,12 +145,19 @@ move_mirror() {
 restore() {
   local mode=$1 disk=$2
   printf '\n\033[1;36m== ISO: restore a system backup (%s)\033[0m\n' "$mode"
-  ISO_DATA1=$(realpath "$disk") install "$(iso restore partman-auto/disk=/dev/sda)" 1 "$mode"
-  check "restore log" "$(vm "cat /var/log/strataos-restore.log")" "strata-restore: done"
-  check "settings of the backup (setup done)" "$(curl -s "$B/api/setup")" '"needed":false'
-  check "host name of the backup" "$(vm hostname)" "sysdisk-vm"
-  check "data volume of the backup mounted" "$(vm "findmnt -n -o TARGET /srv/strata/bk")" "/srv/strata/bk"
-  check "system on the new disk" "$(vm "findmnt -n -o SOURCE,FSTYPE /")" "btrfs"
+  # The restored system has the accounts of the backup (made by
+  # vm/sysdisk-test.sh move): SSH as its "debian" user, with its key.
+  local key=${RESTORE_SSH_KEY:-$(dirname "$(realpath "$disk")")/id_ed25519}
+  rvm() { ssh -i "$key" -p "$SSHP" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 debian@127.0.0.1 "sudo sh -c '$1'" 2>/dev/null; }
+  # No setup here: the settings must come from the backup.
+  ISO_DATA1=$(realpath "$disk") ./vm/iso-test.sh "$(iso restore partman-auto/disk=/dev/sda)" 1 "$mode" >/dev/null || { echo "installation failed"; exit 1; }
+  check "settings of the backup (no setup needed)" "$(curl -s "$B/api/setup")" '"needed":false'
+  check "administrator of the backup signs in" "$(c POST /api/login -d '{"username":"admin","password":"Strata-Test-2026"}')" '"admin"'
+  check "restore log" "$(rvm "cat /var/log/strataos-restore.log")" "strata-restore: done"
+  check "host name of the backup" "$(rvm hostname)" "sysdisk-vm"
+  check "settings on their own subvolume" "$(rvm "findmnt -n -o SOURCE /var/lib/strata")" "@strata"
+  check "data volume of the backup mounted" "$(rvm "findmnt -n -o TARGET /srv/strata/bk")" "/srv/strata/bk"
+  check "system on the new disk" "$(rvm "findmnt -n -o SOURCE,FSTYPE /")" "btrfs"
 }
 
 case "${1:-}" in

@@ -10,6 +10,8 @@
 cat > /target/root/strata-restore.sh <<'SCRIPT'
 #!/bin/bash
 set -uo pipefail
+# in-target sends the output of commands to the installer's syslog: log here.
+exec >> /var/log/strataos-restore.log 2>&1
 log() { echo "strata-restore: $*"; }
 fail() { log "FAILED: $*"; printf '\n  StrataOS: the system backup could NOT be restored (%s).\n  This is a fresh installation; see /var/log/strataos-restore.log.\n\n' "$*" >> /etc/issue; exit 1; }
 M=/mnt/strata-restore
@@ -60,6 +62,11 @@ cp /etc/fstab /root/fstab.fresh
   awk '!/^[[:space:]]*#/ && NF >= 3 && ($2 == "/" || $2 == "/boot" || $2 == "/boot/efi" || $2 == "/var/lib/strata" || $3 == "swap")' /root/fstab.fresh
   awk '/^[[:space:]]*#/ || NF < 3 {print; next} !($2 == "/" || $2 == "/boot" || $2 == "/boot/efi" || $2 == "/var/lib/strata" || $3 == "swap")' "$S/etc/fstab"
 } > /root/fstab.restored
+# The settings subvolume of the new system (@strata, made by the package's
+# postinst) must receive the backup's settings, not the folder under it.
+if awk '!/^[[:space:]]*#/ && $2 == "/var/lib/strata"' /etc/fstab | grep -q . && ! mountpoint -q /var/lib/strata; then
+  mount /var/lib/strata || fail "the settings subvolume could not be mounted"
+fi
 log "copying the backup onto the new system"
 rsync -aHAX --numeric-ids --delete --exclude=/.strata-restore --exclude=/proc --exclude=/sys --exclude=/dev --exclude=/run \
   --exclude=/tmp --exclude=/boot/efi --exclude=/mnt/strata-restore --exclude=/etc/fstab --exclude=/root/fstab.fresh --exclude=/root/fstab.restored \
@@ -82,9 +89,10 @@ else
 fi
 update-grub || fail "update-grub"
 rm -rf "$S"
+sync
 printf '\n  StrataOS: system backup of %s restored.\n\n' "$bestdate" >> /etc/issue
 log "done"
 SCRIPT
-in-target bash /root/strata-restore.sh > /target/var/log/strataos-restore.log 2>&1 || true
+in-target bash /root/strata-restore.sh || true
 rm -f /target/root/strata-restore.sh
 exit 0
