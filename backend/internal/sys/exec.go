@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -129,11 +130,31 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	tmp := path + ".strata-tmp"
 	// os.WriteFile keeps the mode of an existing file: start from a fresh one so
 	// secrets (state.json, sessions.json) always get perm.
+	// The data and the rename are forced to disk: a power cut just after a
+	// settings change must not leave an empty or older state.json.
 	_ = os.Remove(tmp)
-	if err := os.WriteFile(tmp, data, perm); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if _, err = f.Write(data); err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	if d, err := os.Open(filepath.Dir(path)); err == nil {
+		_ = d.Sync()
+		d.Close()
+	}
+	return nil
 }
 
 // Stream runs a command whose standard output goes to w as it comes (large
