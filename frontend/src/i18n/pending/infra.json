@@ -1,96 +1,382 @@
 [
-  ["{0} (incrémentale : {1} lus sur les disques des VM)", "{0} (incremental: {1} read from the VM disks)"],
-  ["Disque {0} : incrémentale : {1} lus, {2} de nouvelles données stockées", "Disk {0}: incremental: {1} read, {2} new data stored"],
-  ["VM {0} : incrémentale : {1} lus sur {2}", "VM {0}: incremental: {1} read of {2}"],
-  ["Disque {0} : {1}, lu en entier ({2})", "Disk {0}: {1}, read in full ({2})"],
-  ["Disque {0} : {1}, {2} modifiés depuis la dernière sauvegarde ({3})", "Disk {0}: {1}, {2} changed since the last backup ({3})"],
-  ["Disque {0} : {1} sur Ceph, lu en entier ({2})", "Disk {0}: {1} on Ceph, read in full ({2})"],
-  ["Disque {0} : {1} sur Ceph, modifications depuis {2} ({3})", "Disk {0}: {1} on Ceph, changes since {2} ({3})"],
-  ["Pas de point de contrôle valide de la dernière sauvegarde (VM déplacée, restaurée ou jamais sauvegardée en marche) : les disques sont lus en entier", "No valid checkpoint of the last backup (VM moved, restored or never backed up live): the disks are read in full"],
-  ["Sauvegarde incrémentale impossible ({0}) : les disques sont lus en entier", "Incremental backup impossible ({0}): the disks are read in full"],
-  ["une VM avec des disques sur Ceph et dans des fichiers ne peut pas être sauvegardée en image", "a VM with disks on Ceph and in files cannot be backed up as an image"],
-  ["le cluster Ceph du pool {0} n'est pas connu de ce NAS", "the Ceph cluster of the pool {0} is not known to this NAS"],
-  ["Instantané RBD : {0}", "RBD snapshot: {0}"],
-  ["le verrouillage d'objets demande le versionnage activé (bucket {0})", "object lock needs versioning enabled (bucket {0})"],
-  ["le verrouillage d'objets ne peut plus être désactivé (bucket {0})", "object lock cannot be turned off once on (bucket {0})"],
-  ["le versionnage est activé ou suspendu", "versioning is enabled or suspended"],
-  ["un bucket avec verrouillage d'objets garde son nom", "a bucket with object lock keeps its name"],
-  ["le bucket {0} a le verrouillage d'objets : confirmez pour ne plus l'exposer (ses fichiers et versions restent sur le NAS)", "the bucket {0} has object lock: confirm to stop exposing it (its files and versions stay on the NAS)"],
-  ["versionnage ou verrouillage d'objets non appliqué : {0}", "versioning or object lock not applied: {0}"],
-  ["la durée de conservation par défaut va de 1 à 36500 jours", "the default retention is 1 to 36500 days"],
-  ["choisissez le mode de conservation", "choose the retention mode"],
-  ["le mode de conservation est gouvernance ou conformité", "the retention mode is governance or compliance"],
-  ["ce NAS n'autorise pas la console à gérer les réseaux virtuels partagés", "this NAS does not allow the console to manage shared virtual networks"],
-  ["La console {0} peut maintenant gérer les réseaux virtuels partagés de ce NAS", "The console {0} may now manage shared virtual networks on this NAS"],
-  ["La console {0} ne peut plus gérer les réseaux virtuels partagés", "The console {0} may no longer manage shared virtual networks"],
-  ["Réseau virtuel {0} : tunnel vers les autres NAS mis à jour", "Virtual network {0}: tunnel to the other NAS updated"],
-  ["Réseau virtuel {0} reçu de {1}", "Virtual network {0} received from {1}"],
-  ["Réseau virtuel {0} mis à jour par {1}", "Virtual network {0} updated by {1}"],
-  ["Réseau virtuel {0} supprimé par son NAS", "Virtual network {0} removed by its NAS"],
-  ["ce réseau est géré par le NAS {0} : modifiez-le là-bas", "this network is managed by the NAS {0}: change it there"],
-  ["ce réseau est géré par le NAS {0} : supprimez-le là-bas, ou retirez-lui d'abord son accès", "this network is managed by the NAS {0}: remove it there, or revoke its access first"],
-  ["ce NAS a déjà un réseau virtuel nommé {0}", "this NAS already has a virtual network named {0}"],
-  ["l'identifiant VXLAN {0} est utilisé par le réseau {1} de ce NAS", "the VXLAN id {0} is used by the network {1} of this NAS"],
-  ["le réseau est encore utilisé par des invités de {0}", "the network is still used by guests of {0}"],
-  ["suppression en attente : {0}", "removal pending: {0}"],
-  ["ce NAS ne fait plus partie de la console multi-NAS", "this NAS is no longer in the Multi-NAS console"],
-  ["ce NAS n'est plus membre du cluster", "this NAS is no longer a member of the cluster"],
-  ["l'adresse de {0} est inconnue", "the address of {0} is unknown"],
-  ["seuls les réseaux virtuels peuvent changer", "only virtual networks may change"],
-  ["{0} : un réseau chiffré a une MTU de {1} au plus", "{0}: an encrypted network has an MTU of {1} at most"],
-  ["{0} : un réseau reçu d'un autre NAS n'est partagé que par ce NAS", "{0}: a network received from another NAS is shared by that NAS only"],
-  ["aucune version plus récente de Debian n'est connue pour ce système", "no newer Debian release is known for this system"],
-  ["l'archive Debian est injoignable", "the Debian archive could not be reached"],
-  ["Debian {0} n'est pas encore sortie", "Debian {0} is not released yet"],
-  ["tapez {0} pour confirmer", "type {0} to confirm"],
-  ["une mise à niveau est déjà en cours", "an upgrade is already in progress"],
-  ["aucune mise à niveau n'attend de redémarrage", "no upgrade is waiting for a restart"],
-  ["Mise à niveau de Debian {0} vers {1}", "Upgrading Debian {0} to {1}"],
-  ["Mise à niveau de Debian {0} vers {1} (reprise)", "Upgrading Debian {0} to {1} (resumed)"],
-  ["Mise à niveau Debian {0} → {1} lancée", "Debian upgrade {0} → {1} started"],
-  ["Mise à niveau vers la version testing de Debian autorisée (déconseillé)", "Upgrade to the Debian testing release allowed (not recommended)"],
-  ["Mise à niveau vers la version testing de Debian plus autorisée", "Upgrade to the Debian testing release no longer allowed"],
-  ["Redémarrage dans la nouvelle version de Debian", "Restart into the new Debian release"],
-  ["Échec de la mise à niveau de Debian", "Debian upgrade failed"],
-  ["Mise à niveau de Debian prête", "Debian upgrade ready"],
-  ["Debian {0} est installée : redémarrez le NAS pour terminer", "Debian {0} is installed: restart the NAS to finish"],
-  ["Mise à niveau de Debian : vérifications en échec", "Debian upgrade: checks failed"],
-  ["Certaines vérifications ont échoué après le redémarrage dans la nouvelle version : voir Mises à jour", "Some checks failed after the restart into the new release: see Updates"],
-  ["Mise à niveau de Debian terminée", "Debian upgrade finished"],
-  ["Le NAS fonctionne sous Debian {0}", "The NAS runs Debian {0}"],
-  ["certaines vérifications ont échoué après le redémarrage", "some checks failed after the restart"],
-  ["les listes de paquets de Debian {0} n'ont pas pu être lues : {1}", "the package lists of Debian {0} could not be read: {1}"],
-  ["téléchargement : {0}", "download: {0}"],
-  ["mise à niveau : {0} (le système est entre deux versions : relancez la mise à niveau)", "upgrade: {0} (the system is between two releases: run the upgrade again)"],
-  ["réinstallation de StrataOS : {0}", "StrataOS reinstall: {0}"],
-  ["le module ZFS n'a pas été compilé pour le nouveau noyau {0} : ne redémarrez pas (les pools ne seraient pas importés) ; voir dkms status", "the ZFS module was not built for the new kernel {0}: do not restart (the pools would not be imported); see dkms status"],
-  ["Seulement {0} Go libres sur le disque système : la mise à niveau demande environ 3 Go", "Only {0} GB free on the system disk: the upgrade needs about 3 GB"],
-  ["{0} Go libres sur le disque système : assez, avec peu de marge", "{0} GB free on the system disk: enough, with little to spare"],
-  ["{0} Go libres sur le disque système", "{0} GB free on the system disk"],
-  ["Moins de 2 Go libres dans /var pour les paquets téléchargés", "Less than 2 GB free in /var for the downloaded packages"],
-  ["Moins de 200 Mo libres dans /boot pour le nouveau noyau", "Less than 200 MB free in /boot for the new kernel"],
-  ["Aucun point de restauration possible sur ce système : seule une sauvegarde du disque système permet de revenir en arrière", "No restore point can be made on this system: only a backup of the system disk brings it back"],
-  ["Un point de restauration est créé d'abord ({0}) ; il ne ramène le système qu'avant un redémarrage dans la nouvelle version", "A restore point is made first ({0}); it brings the system back only before a restart into the new release"],
-  ["Attendez la fin de ces opérations : {0}", "Wait for these operations to finish: {0}"],
-  ["Une autre opération sur les paquets est en cours", "Another package operation is running"],
-  ["Des paquets sont à moitié installés : lancez d'abord les mises à jour du système (dpkg --audit)", "Some packages are half installed: run the system updates first (dpkg --audit)"],
-  ["Paquets bloqués à leur version (ils le restent, ce qui peut bloquer la mise à niveau) : {0}", "Packages held at their version (they stay so, which may block the upgrade): {0}"],
-  ["Installez d'abord les {0} mises à jour en attente de Debian {1}", "Install the {0} pending updates of Debian {1} first"],
-  ["{0} ne publie pas encore {1} : il reste sur {2}", "{0} does not publish {1} yet: it stays on {2}"],
-  ["ZFS est recompilé pour le nouveau noyau par DKMS ; le redémarrage n'est proposé qu'une fois compilé", "ZFS is rebuilt for the new kernel by DKMS; the restart is offered only once it is built"],
-  ["Ce NAS est un nœud d'un cluster Ceph : tous les nœuds doivent être mis à niveau ensemble (moniteurs d'abord, noout activé), ce que cette mise à niveau ne fait pas. Voir DEBIAN-14.md", "This NAS is a node of a Ceph cluster: every node must be upgraded together (monitors first, noout set), which this upgrade does not do. See DEBIAN-14.md"],
-  ["Ceph passe à une nouvelle version majeure avec le système", "Ceph moves to a new major release with the system"],
-  ["Membre d'un annuaire LDAP : vérifiez d'abord que sssd est dans la nouvelle version (DEBIAN-14.md)", "Joined to an LDAP directory: check that sssd is in the new release first (DEBIAN-14.md)"],
-  ["Raspberry Pi : son archive de noyaux reste sur la version actuelle tant qu'elle ne publie pas de noyaux pour la nouvelle", "Raspberry Pi: its kernel archive stays on the current release until it publishes kernels for the new one"],
-  ["Absents de la nouvelle version (gardés à leur version actuelle, sans mises à jour) : {0}", "Not in the new release (kept at their current version, without updates): {0}"],
-  ["Debian {0} ({1}) est en marche", "Debian {0} ({1}) is running"],
-  ["Le système indique encore {0}", "The system still reports {0}"],
-  ["Noyau en marche {0}, pas le nouveau {1}", "Running kernel {0}, not the new {1}"],
-  ["Noyau {0}", "Kernel {0}"],
-  ["Des paquets ne sont pas complètement installés : lancez les mises à jour du système", "Some packages are not fully installed: run the system updates"],
-  ["Services en échec : {0}", "Services that failed: {0}"],
-  ["Aucun service en échec", "No service failed"],
-  ["Volumes non montés : {0}", "Volumes not mounted: {0}"],
-  ["Tous les volumes sont montés", "Every volume is mounted"],
-  ["Les pools ZFS demandent votre attention : {0}", "ZFS pools need attention: {0}"]
+  [
+    "{0} (incrémentale : {1} lus sur les disques des VM)",
+    "{0} (incremental: {1} read from the VM disks)"
+  ],
+  [
+    "Disque {0} : incrémentale : {1} lus, {2} de nouvelles données stockées",
+    "Disk {0}: incremental: {1} read, {2} new data stored"
+  ],
+  [
+    "VM {0} : incrémentale : {1} lus sur {2}",
+    "VM {0}: incremental: {1} read of {2}"
+  ],
+  [
+    "Disque {0} : {1}, lu en entier ({2})",
+    "Disk {0}: {1}, read in full ({2})"
+  ],
+  [
+    "Disque {0} : {1}, {2} modifiés depuis la dernière sauvegarde ({3})",
+    "Disk {0}: {1}, {2} changed since the last backup ({3})"
+  ],
+  [
+    "Disque {0} : {1} sur Ceph, lu en entier ({2})",
+    "Disk {0}: {1} on Ceph, read in full ({2})"
+  ],
+  [
+    "Disque {0} : {1} sur Ceph, modifications depuis {2} ({3})",
+    "Disk {0}: {1} on Ceph, changes since {2} ({3})"
+  ],
+  [
+    "Pas de point de contrôle valide de la dernière sauvegarde (VM déplacée, restaurée ou jamais sauvegardée en marche) : les disques sont lus en entier",
+    "No valid checkpoint of the last backup (VM moved, restored or never backed up live): the disks are read in full"
+  ],
+  [
+    "Sauvegarde incrémentale impossible ({0}) : les disques sont lus en entier",
+    "Incremental backup impossible ({0}): the disks are read in full"
+  ],
+  [
+    "une VM avec des disques sur Ceph et dans des fichiers ne peut pas être sauvegardée en image",
+    "a VM with disks on Ceph and in files cannot be backed up as an image"
+  ],
+  [
+    "le cluster Ceph du pool {0} n'est pas connu de ce NAS",
+    "the Ceph cluster of the pool {0} is not known to this NAS"
+  ],
+  [
+    "Instantané RBD : {0}",
+    "RBD snapshot: {0}"
+  ],
+  [
+    "le verrouillage d'objets demande le versionnage activé (bucket {0})",
+    "object lock needs versioning enabled (bucket {0})"
+  ],
+  [
+    "le verrouillage d'objets ne peut plus être désactivé (bucket {0})",
+    "object lock cannot be turned off once on (bucket {0})"
+  ],
+  [
+    "le versionnage est activé ou suspendu",
+    "versioning is enabled or suspended"
+  ],
+  [
+    "un bucket avec verrouillage d'objets garde son nom",
+    "a bucket with object lock keeps its name"
+  ],
+  [
+    "le bucket {0} a le verrouillage d'objets : confirmez pour ne plus l'exposer (ses fichiers et versions restent sur le NAS)",
+    "the bucket {0} has object lock: confirm to stop exposing it (its files and versions stay on the NAS)"
+  ],
+  [
+    "versionnage ou verrouillage d'objets non appliqué : {0}",
+    "versioning or object lock not applied: {0}"
+  ],
+  [
+    "la durée de conservation par défaut va de 1 à 36500 jours",
+    "the default retention is 1 to 36500 days"
+  ],
+  [
+    "choisissez le mode de conservation",
+    "choose the retention mode"
+  ],
+  [
+    "le mode de conservation est gouvernance ou conformité",
+    "the retention mode is governance or compliance"
+  ],
+  [
+    "ce NAS n'autorise pas la console à gérer les réseaux virtuels partagés",
+    "this NAS does not allow the console to manage shared virtual networks"
+  ],
+  [
+    "La console {0} peut maintenant gérer les réseaux virtuels partagés de ce NAS",
+    "The console {0} may now manage shared virtual networks on this NAS"
+  ],
+  [
+    "La console {0} ne peut plus gérer les réseaux virtuels partagés",
+    "The console {0} may no longer manage shared virtual networks"
+  ],
+  [
+    "Réseau virtuel {0} : tunnel vers les autres NAS mis à jour",
+    "Virtual network {0}: tunnel to the other NAS updated"
+  ],
+  [
+    "Réseau virtuel {0} reçu de {1}",
+    "Virtual network {0} received from {1}"
+  ],
+  [
+    "Réseau virtuel {0} mis à jour par {1}",
+    "Virtual network {0} updated by {1}"
+  ],
+  [
+    "Réseau virtuel {0} supprimé par son NAS",
+    "Virtual network {0} removed by its NAS"
+  ],
+  [
+    "ce réseau est géré par le NAS {0} : modifiez-le là-bas",
+    "this network is managed by the NAS {0}: change it there"
+  ],
+  [
+    "ce réseau est géré par le NAS {0} : supprimez-le là-bas, ou retirez-lui d'abord son accès",
+    "this network is managed by the NAS {0}: remove it there, or revoke its access first"
+  ],
+  [
+    "ce NAS a déjà un réseau virtuel nommé {0}",
+    "this NAS already has a virtual network named {0}"
+  ],
+  [
+    "l'identifiant VXLAN {0} est utilisé par le réseau {1} de ce NAS",
+    "the VXLAN id {0} is used by the network {1} of this NAS"
+  ],
+  [
+    "le réseau est encore utilisé par des invités de {0}",
+    "the network is still used by guests of {0}"
+  ],
+  [
+    "suppression en attente : {0}",
+    "removal pending: {0}"
+  ],
+  [
+    "ce NAS ne fait plus partie de la console multi-NAS",
+    "this NAS is no longer in the Multi-NAS console"
+  ],
+  [
+    "ce NAS n'est plus membre du cluster",
+    "this NAS is no longer a member of the cluster"
+  ],
+  [
+    "l'adresse de {0} est inconnue",
+    "the address of {0} is unknown"
+  ],
+  [
+    "seuls les réseaux virtuels peuvent changer",
+    "only virtual networks may change"
+  ],
+  [
+    "{0} : un réseau chiffré a une MTU de {1} au plus",
+    "{0}: an encrypted network has an MTU of {1} at most"
+  ],
+  [
+    "{0} : un réseau reçu d'un autre NAS n'est partagé que par ce NAS",
+    "{0}: a network received from another NAS is shared by that NAS only"
+  ],
+  [
+    "aucune version plus récente de Debian n'est connue pour ce système",
+    "no newer Debian release is known for this system"
+  ],
+  [
+    "l'archive Debian est injoignable",
+    "the Debian archive could not be reached"
+  ],
+  [
+    "Debian {0} n'est pas encore sortie",
+    "Debian {0} is not released yet"
+  ],
+  [
+    "tapez {0} pour confirmer",
+    "type {0} to confirm"
+  ],
+  [
+    "une mise à niveau est déjà en cours",
+    "an upgrade is already in progress"
+  ],
+  [
+    "aucune mise à niveau n'attend de redémarrage",
+    "no upgrade is waiting for a restart"
+  ],
+  [
+    "Mise à niveau de Debian {0} vers {1}",
+    "Upgrading Debian {0} to {1}"
+  ],
+  [
+    "Mise à niveau de Debian {0} vers {1} (reprise)",
+    "Upgrading Debian {0} to {1} (resumed)"
+  ],
+  [
+    "Mise à niveau Debian {0} → {1} lancée",
+    "Debian upgrade {0} → {1} started"
+  ],
+  [
+    "Mise à niveau vers la version testing de Debian autorisée (déconseillé)",
+    "Upgrade to the Debian testing release allowed (not recommended)"
+  ],
+  [
+    "Mise à niveau vers la version testing de Debian plus autorisée",
+    "Upgrade to the Debian testing release no longer allowed"
+  ],
+  [
+    "Redémarrage dans la nouvelle version de Debian",
+    "Restart into the new Debian release"
+  ],
+  [
+    "Échec de la mise à niveau de Debian",
+    "Debian upgrade failed"
+  ],
+  [
+    "Mise à niveau de Debian prête",
+    "Debian upgrade ready"
+  ],
+  [
+    "Debian {0} est installée : redémarrez le NAS pour terminer",
+    "Debian {0} is installed: restart the NAS to finish"
+  ],
+  [
+    "Mise à niveau de Debian : vérifications en échec",
+    "Debian upgrade: checks failed"
+  ],
+  [
+    "Certaines vérifications ont échoué après le redémarrage dans la nouvelle version : voir Mises à jour",
+    "Some checks failed after the restart into the new release: see Updates"
+  ],
+  [
+    "Mise à niveau de Debian terminée",
+    "Debian upgrade finished"
+  ],
+  [
+    "Le NAS fonctionne sous Debian {0}",
+    "The NAS runs Debian {0}"
+  ],
+  [
+    "certaines vérifications ont échoué après le redémarrage",
+    "some checks failed after the restart"
+  ],
+  [
+    "les listes de paquets de Debian {0} n'ont pas pu être lues : {1}",
+    "the package lists of Debian {0} could not be read: {1}"
+  ],
+  [
+    "téléchargement : {0}",
+    "download: {0}"
+  ],
+  [
+    "mise à niveau : {0} (le système est entre deux versions : relancez la mise à niveau)",
+    "upgrade: {0} (the system is between two releases: run the upgrade again)"
+  ],
+  [
+    "réinstallation de StrataOS : {0}",
+    "StrataOS reinstall: {0}"
+  ],
+  [
+    "le module ZFS n'a pas été compilé pour le nouveau noyau {0} : ne redémarrez pas (les pools ne seraient pas importés) ; voir dkms status",
+    "the ZFS module was not built for the new kernel {0}: do not restart (the pools would not be imported); see dkms status"
+  ],
+  [
+    "Seulement {0} Go libres sur le disque système : la mise à niveau demande environ 3 Go",
+    "Only {0} GB free on the system disk: the upgrade needs about 3 GB"
+  ],
+  [
+    "{0} Go libres sur le disque système : assez, avec peu de marge",
+    "{0} GB free on the system disk: enough, with little to spare"
+  ],
+  [
+    "{0} Go libres sur le disque système",
+    "{0} GB free on the system disk"
+  ],
+  [
+    "Moins de 2 Go libres dans /var pour les paquets téléchargés",
+    "Less than 2 GB free in /var for the downloaded packages"
+  ],
+  [
+    "Moins de 200 Mo libres dans /boot pour le nouveau noyau",
+    "Less than 200 MB free in /boot for the new kernel"
+  ],
+  [
+    "Aucun point de restauration possible sur ce système : seule une sauvegarde du disque système permet de revenir en arrière",
+    "No restore point can be made on this system: only a backup of the system disk brings it back"
+  ],
+  [
+    "Un point de restauration est créé d'abord ({0}) ; il ne ramène le système qu'avant un redémarrage dans la nouvelle version",
+    "A restore point is made first ({0}); it brings the system back only before a restart into the new release"
+  ],
+  [
+    "Attendez la fin de ces opérations : {0}",
+    "Wait for these operations to finish: {0}"
+  ],
+  [
+    "Une autre opération sur les paquets est en cours",
+    "Another package operation is running"
+  ],
+  [
+    "Des paquets sont à moitié installés : lancez d'abord les mises à jour du système (dpkg --audit)",
+    "Some packages are half installed: run the system updates first (dpkg --audit)"
+  ],
+  [
+    "Paquets bloqués à leur version (ils le restent, ce qui peut bloquer la mise à niveau) : {0}",
+    "Packages held at their version (they stay so, which may block the upgrade): {0}"
+  ],
+  [
+    "Installez d'abord les {0} mises à jour en attente de Debian {1}",
+    "Install the {0} pending updates of Debian {1} first"
+  ],
+  [
+    "{0} ne publie pas encore {1} : il reste sur {2}",
+    "{0} does not publish {1} yet: it stays on {2}"
+  ],
+  [
+    "ZFS est recompilé pour le nouveau noyau par DKMS ; le redémarrage n'est proposé qu'une fois compilé",
+    "ZFS is rebuilt for the new kernel by DKMS; the restart is offered only once it is built"
+  ],
+  [
+    "Ce NAS est un nœud d'un cluster Ceph : tous les nœuds doivent être mis à niveau ensemble (moniteurs d'abord, noout activé), ce que cette mise à niveau ne fait pas. Voir DEBIAN-14.md",
+    "This NAS is a node of a Ceph cluster: every node must be upgraded together (monitors first, noout set), which this upgrade does not do. See DEBIAN-14.md"
+  ],
+  [
+    "Ceph passe à une nouvelle version majeure avec le système",
+    "Ceph moves to a new major release with the system"
+  ],
+  [
+    "Membre d'un annuaire LDAP : vérifiez d'abord que sssd est dans la nouvelle version (DEBIAN-14.md)",
+    "Joined to an LDAP directory: check that sssd is in the new release first (DEBIAN-14.md)"
+  ],
+  [
+    "Raspberry Pi : son archive de noyaux reste sur la version actuelle tant qu'elle ne publie pas de noyaux pour la nouvelle",
+    "Raspberry Pi: its kernel archive stays on the current release until it publishes kernels for the new one"
+  ],
+  [
+    "Absents de la nouvelle version (gardés à leur version actuelle, sans mises à jour) : {0}",
+    "Not in the new release (kept at their current version, without updates): {0}"
+  ],
+  [
+    "Debian {0} ({1}) est en marche",
+    "Debian {0} ({1}) is running"
+  ],
+  [
+    "Le système indique encore {0}",
+    "The system still reports {0}"
+  ],
+  [
+    "Noyau en marche {0}, pas le nouveau {1}",
+    "Running kernel {0}, not the new {1}"
+  ],
+  [
+    "Noyau {0}",
+    "Kernel {0}"
+  ],
+  [
+    "Des paquets ne sont pas complètement installés : lancez les mises à jour du système",
+    "Some packages are not fully installed: run the system updates"
+  ],
+  [
+    "Services en échec : {0}",
+    "Services that failed: {0}"
+  ],
+  [
+    "Aucun service en échec",
+    "No service failed"
+  ],
+  [
+    "Volumes non montés : {0}",
+    "Volumes not mounted: {0}"
+  ],
+  [
+    "Tous les volumes sont montés",
+    "Every volume is mounted"
+  ],
+  [
+    "Les pools ZFS demandent votre attention : {0}",
+    "ZFS pools need attention: {0}"
+  ],
+  [
+    "Aucune source de paquets de Debian {0} à faire passer à Debian {1} n'a été trouvée (sources APT inhabituelles : faites la mise à niveau à la main, voir DEBIAN-14.md)",
+    "No package source of Debian {0} was found to move to Debian {1} (unusual APT sources: upgrade by hand, see DEBIAN-14.md)"
+  ]
 ]
