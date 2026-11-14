@@ -42,6 +42,7 @@ const sectionNames: Record<string, string> = {
   vaults: tr("Backup vaults"),
   fleet: tr("Watched NAS"),
   configBackup: tr("Automatic configuration backups"),
+  sso: tr("Single sign-on"),
   ha: tr("High availability (reported only)"),
   directory: tr("Directory (reported only)"),
 };

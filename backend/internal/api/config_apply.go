@@ -109,6 +109,7 @@ func (s *Server) applyImport(ctx context.Context, j *jobs.Job, p *importPlan, se
 		"vaults":       im.vaults,
 		"fleet":        im.fleet,
 		"configBackup": im.configBackup,
+		"sso":          im.sso,
 	}
 	for i, id := range confbackup.Sections {
 		if !slices.Contains(sections, id) || ctx.Err() != nil {

@@ -38,7 +38,7 @@ type Section struct {
 }
 
 // Sections lists the section IDs in the order they are applied.
-var Sections = []string{"system", "settings", "groups", "users", "quotas", "volumes", "shares", "schedules", "backups", "cloudSyncs", "stacks", "network", "fileServices", "ransomware", "vpn", "ddns", "energy", "guard", "ups", "photos", "vaults", "fleet", "configBackup", "ha", "directory"}
+var Sections = []string{"system", "settings", "groups", "users", "quotas", "volumes", "shares", "schedules", "backups", "cloudSyncs", "stacks", "network", "fileServices", "ransomware", "vpn", "ddns", "energy", "guard", "ups", "photos", "vaults", "fleet", "configBackup", "sso", "ha", "directory"}
 
 // Env is what the plan needs to know about this NAS.
 type Env struct {
@@ -525,6 +525,35 @@ func Plan(file, cur *Config, env Env) []Section {
 		} else {
 			single("configBackup", cb, cur.ConfigBackup)
 		}
+	}
+
+	// Single sign-on of the apps: settings, then each application.
+	if f := file.SSO; f != nil {
+		c := cur.SSO
+		if c == nil {
+			c = &SSO{}
+		}
+		type set struct {
+			Enabled bool   `json:"enabled"`
+			Issuer  string `json:"issuer"`
+		}
+		items = []Item{diff("settings", "Settings", set{f.Enabled, f.Issuer}, set{c.Enabled, c.Issuer}, true)}
+		if items[0].Action == Update && f.Issuer != c.Issuer && c.Issuer != "" {
+			items[0].Detail = "Apps configured with the current address must be configured again"
+		}
+		for _, cl := range f.Clients {
+			i := slices.IndexFunc(c.Clients, func(x store.SSOClient) bool { return x.ID == cl.ID })
+			var x store.SSOClient
+			if i >= 0 {
+				x = c.Clients[i]
+			}
+			it := diff("client:"+cl.ID, cl.Name, cl, x, i >= 0, "created", "secret")
+			if it.Action == Create && cl.Secret == Masked && !env.Secrets {
+				it.Detail = "Created disabled: give it a new secret and enter it in the app"
+			}
+			items = append(items, it)
+		}
+		add("sso", items)
 	}
 
 	if h := file.HA; h != nil {

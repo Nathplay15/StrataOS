@@ -28,6 +28,7 @@ type Secrets struct {
 	Vaults   map[string]map[string]string `json:"vaults,omitempty"` // vault ID → client ID → token hash
 	Fleet    map[string]string            `json:"fleet,omitempty"`  // member ID → token
 	AutoPass string                       `json:"autoPassphrase,omitempty"`
+	SSO      map[string]string            `json:"sso,omitempty"` // client ID → secret
 }
 
 // UserSecrets lets an account sign in again without a new password.
@@ -321,6 +322,26 @@ func Build(src Source) (Config, Secrets) {
 		sec.LDAPBind = mask(&d.BindPassword)
 		c.Directory = &d
 	}
+
+	if x := st.SSO; x.Enabled || x.Issuer != "" || len(x.Clients) > 0 {
+		sec.SSO = map[string]string{}
+		o := SSO{Enabled: x.Enabled, Issuer: x.Issuer, Subjects: map[string]string{}}
+		for _, cl := range x.Clients {
+			if cl.Kind == "forward" {
+				continue
+			}
+			c := *cl
+			c.RedirectURIs, c.PostLogoutURIs, c.Users, c.Groups = slices.Clone(cl.RedirectURIs), slices.Clone(cl.PostLogoutURIs), slices.Clone(cl.Users), slices.Clone(cl.Groups)
+			put(sec.SSO, c.ID, mask(&c.Secret))
+			o.Clients = append(o.Clients, c)
+		}
+		for _, u := range st.Users {
+			if u.SSOSubject != "" {
+				o.Subjects[u.Username] = u.SSOSubject
+			}
+		}
+		c.SSO = &o
+	}
 	return c, sec
 }
 
@@ -417,5 +438,10 @@ func Merge(c *Config, sec *Secrets) {
 	}
 	if c.Directory != nil {
 		unmask(&c.Directory.BindPassword, sec.LDAPBind)
+	}
+	if c.SSO != nil {
+		for i := range c.SSO.Clients {
+			unmask(&c.SSO.Clients[i].Secret, sec.SSO[c.SSO.Clients[i].ID])
+		}
 	}
 }

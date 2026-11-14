@@ -26,6 +26,10 @@
 //     backups: kept.
 //   - HA and directory: exported for reference, never applied (a pairing or
 //     a domain join must be redone on purpose).
+//   - Single sign-on (0.12): the address of the NAS, the applications and
+//     their access rules (client secrets are secrets), and the subject of
+//     each account; not the signing keys, tokens, consents nor the
+//     forward-auth clients of app domains (see SSO).
 //   - Not exported: events, share links (they belong to their owners and
 //     count downloads), albums (user content), the NAS allowed to watch this
 //     one (they pinned this NAS's certificate), the state schema.
@@ -92,6 +96,21 @@ type Config struct {
 	ConfigBackup *store.ConfigBackup `json:"configBackup,omitempty"`
 	HA           *store.HA           `json:"ha,omitempty"`
 	Directory    *store.Directory    `json:"directory,omitempty"`
+	// Since 0.13 (absent from older files: the section is left alone).
+	SSO *SSO `json:"sso,omitempty"`
+}
+
+// SSO is the single sign-on of the apps (store.SSO): the address of the
+// NAS, the applications with their access rules (client secrets are
+// secrets) and the subjects apps know the accounts by. Forward-auth clients
+// belong to app domains, which are not exported. Signing keys, tokens and
+// consents are not exported: the NAS importing it makes its own keys, and
+// users sign in to their apps again.
+type SSO struct {
+	Enabled  bool              `json:"enabled,omitempty"`
+	Issuer   string            `json:"issuer,omitempty"`
+	Clients  []store.SSOClient `json:"clients,omitempty"`
+	Subjects map[string]string `json:"subjects,omitempty"` // user → sub
 }
 
 // System holds settings kept by the operating system rather than the store.
