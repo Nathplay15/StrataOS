@@ -78,9 +78,9 @@ mirror_install() {
   check "RAID page: system arrays listed" "$(c GET /api/system/disk | py 'print(sorted(a["role"] for a in d["layout"]["arrays"]))')" "['root', 'swap']"
   check "advisor: no system disk item" "$(c POST /api/security/advisor/run | py 'print([i["id"] for i in d["items"] if i["id"]=="system-disk"])')" "[]"
   ISO_DETACH=sys boot
-  check "starts with disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "_]"
+  check "starts with disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
   ISO_DETACH=sys2 boot
-  check "starts with disk 2 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "_]"
+  check "starts with disk 2 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
   # Disk 1 dies: a blank disk takes its place.
   ./vm/iso-test.sh stop; sleep 3
   rm -f "$ISO_STATE/system.qcow2"; qemu-img create -q -f qcow2 "$ISO_STATE/system.qcow2" 16G
@@ -94,7 +94,7 @@ mirror_install() {
   joblog "$R" | grep -E '^\$ ' | head -12
   check "mirror complete again" "$(vm "grep -c '\[UU\]' /proc/mdstat")" "2"
   ISO_DETACH=sys2 boot
-  check "starts from the replaced disk alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "_]"
+  check "starts from the replaced disk alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
 }
 
 move_mirror() {
@@ -129,9 +129,9 @@ move_mirror() {
   check "mirror: both disks" "$(vm "grep -c '\[UU\]' /proc/mdstat")" "2"
   [ "$mode" = uefi ] && check "mirror: boot entries for both disks" "$(vm "efibootmgr | grep -c StrataOS")" "2"
   ISO_DETACH="sys 2" boot
-  check "mirror: starts from data disk 1 alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "_]"
+  check "mirror: starts from data disk 1 alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
   ISO_DETACH="sys 1" boot
-  check "mirror: starts from data disk 2 alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "_]"
+  check "mirror: starts from data disk 2 alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
 }
 
 restore() {

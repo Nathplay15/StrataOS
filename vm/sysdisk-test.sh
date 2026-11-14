@@ -90,7 +90,7 @@ part_mirror() {
   printf '\n\033[1;36m== Degraded start and replacement of a mirror disk\033[0m\n'
   VM_DETACH=1 restart_vm
   check "starts with disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /")" "/dev/md"
-  check "mirror degraded" "$(vm "cat /proc/mdstat")" "[U_]"
+  check "mirror degraded" "$(vm "cat /proc/mdstat")" "[2/1]"
   check "alert names the system mirror" "$(c GET /api/system/overview 2>/dev/null | grep -o 'system mirror is degraded' | head -1)" "system mirror is degraded"
   check "advisor: degraded" "$(c POST /api/security/advisor/run | py 'print([i["severity"] for i in d["items"] if i["id"]=="system-disk"])')" "['high']"
   ./vm/vm.sh stop >/dev/null
@@ -105,7 +105,7 @@ part_mirror() {
   check "replacement record done" "$(c GET /api/storage/replace | py "print([x['phase'] for x in d['items'] if x['id']=='$RID'])")" "['done']"
   check "mirror complete again" "$(vm "cat /proc/mdstat")" "[UU]"
   VM_DETACH=sys restart_vm
-  check "starts from the new disk alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[U_]"
+  check "starts from the new disk alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
 }
 
 part_move() {
