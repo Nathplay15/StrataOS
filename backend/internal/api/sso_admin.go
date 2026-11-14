@@ -410,7 +410,7 @@ func (s *Server) ssoAdminRoutes() {
 		if c.ID == "" {
 			return nil, notFound("application not found")
 		}
-		return ssoManualSettings(&c, iss), nil
+		return ssoManualSettings(&c, iss, s.ssoInternal()), nil
 	})
 
 	s.admin("POST /api/sso/keys/rotate", func(r *http.Request) (any, error) {
@@ -460,10 +460,14 @@ func (s *Server) ssoAdminRoutes() {
 
 // ssoManualSettings: what to type in an app that StrataOS does not
 // configure itself.
-func ssoManualSettings(c *store.SSOClient, iss string) map[string]any {
+func ssoManualSettings(c *store.SSOClient, iss string, internal string) map[string]any {
 	d := sso.Discovery(iss)
 	return map[string]any{
 		"clientId": c.ID, "issuer": iss, "discovery": iss + "/.well-known/openid-configuration",
+		// For apps in containers of this NAS that cannot reach the issuer
+		// (or do not trust its certificate): with extra_hosts
+		// host.docker.internal:host-gateway in their stack.
+		"internalDiscovery": internal + "/.well-known/openid-configuration",
 		"authorization": d["authorization_endpoint"], "token": d["token_endpoint"], "userinfo": d["userinfo_endpoint"],
 		"jwks": d["jwks_uri"], "logout": d["end_session_endpoint"], "redirectUris": c.RedirectURIs,
 		"scopes": "openid profile email groups", "pkce": c.RequirePKCE || c.Public,

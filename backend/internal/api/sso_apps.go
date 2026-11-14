@@ -33,8 +33,7 @@ const ssoInternalHost = "host.docker.internal"
 // ssoSupport describes how a catalog app signs in with the NAS.
 type ssoSupport struct {
 	App string `json:"app"` // catalog ID
-	// Method: "oidc" (OpenID Connect) or "header" (forward authentication
-	// with Remote-User on its app domain).
+	// Method: "oidc" (OpenID Connect).
 	Method string `json:"method"`
 	// Auto: StrataOS writes the app's configuration.
 	Auto bool `json:"auto"`
@@ -93,7 +92,6 @@ var ssoCatalog = []ssoSupport{
 	{App: "immich", Method: "oidc", Redirects: []string{"/auth/login", "/user-settings", "app.immich:///oauth-callback"}},
 	{App: "gitea", Method: "oidc", Redirects: []string{"/user/oauth2/StrataOS/callback"}},
 	{App: "mealie", Method: "oidc", Redirects: []string{"/login"}, PostLogout: "/login", PKCE: true},
-	{App: "navidrome", Method: "header"},
 }
 
 func ssoSupportOf(app string) *ssoSupport {
@@ -327,7 +325,7 @@ func (s *Server) ssoAppRoutes() {
 		// Configured by hand: the secret is shown this once.
 		var iss string
 		s.store.Read(func(st *store.State) { iss = st.SSO.Issuer })
-		out["settings"] = ssoManualSettings(&c, iss)
+		out["settings"] = ssoManualSettings(&c, iss, s.ssoInternal())
 		out["secret"] = secret
 		return out, nil
 	})
