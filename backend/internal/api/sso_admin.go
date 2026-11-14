@@ -468,7 +468,7 @@ func ssoManualSettings(c *store.SSOClient, iss string, internal string) map[stri
 		// (or do not trust its certificate): with extra_hosts
 		// host.docker.internal:host-gateway in their stack.
 		"internalDiscovery": internal + "/.well-known/openid-configuration",
-		"authorization": d["authorization_endpoint"], "token": d["token_endpoint"], "userinfo": d["userinfo_endpoint"],
+		"authorization":     d["authorization_endpoint"], "token": d["token_endpoint"], "userinfo": d["userinfo_endpoint"],
 		"jwks": d["jwks_uri"], "logout": d["end_session_endpoint"], "redirectUris": c.RedirectURIs,
 		"scopes": "openid profile email groups", "pkce": c.RequirePKCE || c.Public,
 		"usernameClaim": "preferred_username", "groupsClaim": "groups",
