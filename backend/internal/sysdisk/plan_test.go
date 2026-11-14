@@ -338,3 +338,14 @@ UUID=data-1 /srv/strata/main ext4 defaults,nofail 0 2
 		t.Errorf("parse %+v", e)
 	}
 }
+
+func TestESPMkfsArgs(t *testing.T) {
+	if got := strings.Join(espMkfsArgs("A1B2-C3D4"), " "); got != "-F 32 -n EFI -i A1B2C3D4" {
+		t.Fatalf("got %q", got)
+	}
+	for _, u := range []string{"", "not-an-id", "A1B2-C3D4; rm", "0e3b8f2c-1111-2222-3333-444455556666"} {
+		if got := strings.Join(espMkfsArgs(u), " "); got != "-F 32 -n EFI" {
+			t.Fatalf("%q: got %q", u, got)
+		}
+	}
+}

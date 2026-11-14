@@ -9,7 +9,9 @@
 # installer. Without an ESP mirror (BIOS, a single disk), it does nothing.
 #
 #   esp-sync            copy the ESP onto the others
-#   esp-sync --setup    also add the missing UEFI boot entries
+#   esp-sync --setup    also format the other ESPs when needed (same volume
+#                       ID), add the missing UEFI boot entries and make
+#                       /boot/efi optional at start
 set -eu
 setup=0
 [ "${1:-}" = --setup ] && setup=1
@@ -27,6 +29,13 @@ for m in $(mdadm --detail "$root" | sed -n 's|.*active sync.* \(/dev/[^ ]*\)$|\1
   disks="$disks /dev/$(lsblk -n -d -o PKNAME "$m" | head -1)"
 done
 
+# A missing ESP (its disk died) must not stop the start of the system.
+if [ "$setup" = 1 ] && grep -q -E '^[^#]+[[:space:]]/boot/efi[[:space:]]' /etc/fstab && ! grep -E '^[^#]+[[:space:]]/boot/efi[[:space:]]' /etc/fstab | grep -q nofail; then
+  sed -i -E '/^[^#]+[[:space:]]\/boot\/efi[[:space:]]/ s/^([^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+)([^[:space:]]+)/\1\2,nofail,x-systemd.device-timeout=15s/' /etc/fstab
+  echo "esp-sync: /boot/efi is now optional at start (nofail)"
+fi
+
+srcid=$(blkid -c /dev/null -o value -s UUID "$src" | tr -d -)
 tmp=$(mktemp -d /run/strata-esp.XXXXXX)
 trap 'umount "$tmp" 2>/dev/null || true; rmdir "$tmp"' EXIT
 loader=""
@@ -38,7 +47,15 @@ for disk in $disks; do
   [ "$disk" = "$srcdisk" ] && continue
   esp=$(lsblk -n -r -o PATH,PARTTYPE "$disk" | awk -v t="$ESP_TYPE" 'tolower($2) == t {print $1; exit}')
   [ -n "$esp" ] || { echo "esp-sync: no EFI system partition on $disk" >&2; continue; }
-  [ "$(blkid -o value -s TYPE "$esp" 2>/dev/null)" = vfat ] || { echo "esp-sync: $esp is not formatted (FAT)" >&2; continue; }
+  # The copy has the same FAT volume ID as the mounted ESP: the UUID= line of
+  # /etc/fstab then finds /boot/efi whichever disk is left. Only the copy is
+  # formatted: a power cut here leaves the mounted ESP intact.
+  if [ "$setup" = 1 ] && [ -n "$srcid" ] && [ "$(blkid -c /dev/null -o value -s UUID "$esp" 2>/dev/null | tr -d -)" != "$srcid" ]; then
+    echo "esp-sync: formatting $esp (FAT, volume ID $srcid)"
+    mkfs.vfat -F 32 -n EFI -i "$srcid" "$esp" >/dev/null
+    udevadm settle 2>/dev/null || true
+  fi
+  [ "$(blkid -c /dev/null -o value -s TYPE "$esp" 2>/dev/null)" = vfat ] || { echo "esp-sync: $esp is not formatted (FAT)" >&2; continue; }
   mount -t vfat "$esp" "$tmp"
   # FAT keeps neither owners nor permissions, and its times are 2 s precise.
   rsync -rt --delete --modify-window=2 /boot/efi/ "$tmp/"

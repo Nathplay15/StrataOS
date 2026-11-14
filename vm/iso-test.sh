@@ -71,6 +71,8 @@ x86_args() {
     -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
   detached sys || args+=(-drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2"
     -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1")
+  # The data disks come after the second system disk, even when it is left out.
+  [ -f "$STATE/system2.qcow2" ] && SYS2=1
   if [ -f "$STATE/system2.qcow2" ] && ! detached sys2; then
     args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1")
   fi

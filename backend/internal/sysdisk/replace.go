@@ -246,7 +246,7 @@ func (o MirrorReplace) Start(ctx context.Context, logf func(string, ...any)) err
 		}
 	}
 	if esp > 0 {
-		if _, err := logRun(logf, time.Minute, "", "mkfs.vfat", "-F", "32", "-n", "EFI", PartPath(o.New, esp)); err != nil {
+		if _, err := logRun(logf, time.Minute, "", "mkfs.vfat", append(espMkfsArgs(MountedESPUUID()), PartPath(o.New, esp))...); err != nil {
 			return err
 		}
 	}

@@ -963,7 +963,9 @@ func (r *Run) CompleteMirror(l Layout) error {
 		return err
 	}
 	if r.Op.Boot == "uefi" {
-		if _, err := r.run("mkfs.vfat", "-F", "32", "-n", "EFI", PartPath(old, r.part("esp").Num)); err != nil {
+		// The same FAT volume ID as the ESP of the running disk: the UUID=
+		// line of /etc/fstab finds /boot/efi whichever disk is left.
+		if _, err := r.run("mkfs.vfat", append(espMkfsArgs(r.Op.ESPUUID), PartPath(old, r.part("esp").Num))...); err != nil {
 			return err
 		}
 		_, _ = r.run("udevadm", "settle")
@@ -1129,4 +1131,24 @@ func initramfsDep(root string) bool {
 		}
 	}
 	return mode == "dep"
+}
+
+var vfatIDRe = regexp.MustCompile(`^[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$`)
+
+// espMkfsArgs formats an EFI system partition, with the volume ID of a FAT
+// UUID ("ABCD-1234") when given: both ESPs of a mirror share it.
+func espMkfsArgs(uuid string) []string {
+	args := []string{"-F", "32", "-n", "EFI"}
+	if vfatIDRe.MatchString(uuid) {
+		args = append(args, "-i", strings.ReplaceAll(uuid, "-", ""))
+	}
+	return args
+}
+
+// MountedESPUUID is the FAT UUID of the ESP mounted on /boot/efi ("" when none).
+func MountedESPUUID() string {
+	if src := mountSource("/boot/efi"); src != "" {
+		return blkUUID(src)
+	}
+	return ""
 }
