@@ -73,16 +73,18 @@ esac
 detached() { case " ${ISO_DETACH:-} " in *" $1 "*) return 0 ;; esac; return 1; }
 # x86 machine: system disk(s) and data disks on AHCI, the CD on the last port.
 x86_args() {
+  local b1="" b2=""
+  if [ "${ISO_BOOT_FROM:-}" = sys2 ]; then b1=,bootindex=1 b2=,bootindex=0; fi
   args=(-name strataos-iso -machine q35,accel=kvm -cpu host -smp 4 -m "${ISO_MEM:-4096}" -device ahci,id=ahci0
     -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$WEB-:7070,hostfwd=tcp:127.0.0.1:$SSHP-:22" -device virtio-net-pci,netdev=n0
     -display none -vga std -serial "file:$STATE/console.log"
     -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
   detached sys || args+=(-drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2"
-    -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1$([ "${ISO_BOOT_FROM:-}" = sys2 ] && echo ,bootindex=1)")
+    -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1$b1")
   # The data disks come after the second system disk, even when it is left out.
   [ -f "$STATE/system2.qcow2" ] && SYS2=1
   if [ -f "$STATE/system2.qcow2" ] && ! detached sys2; then
-    args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1$([ "${ISO_BOOT_FROM:-}" = sys2 ] && echo ,bootindex=0)")
+    args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1$b2")
   fi
   local i
   for i in $(ls "$STATE" | sed -n 's/^data\([0-9]*\)\.qcow2$/\1/p' | sort -n); do
