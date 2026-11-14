@@ -354,6 +354,7 @@ func (s *Server) routes() {
 	s.sysDiskRoutes()
 	s.uninstallRoutes()
 	s.hardwareRoutes()
+	s.gpuRoutes()
 	s.mediaRoutes()
 	s.nvrRoutes()
 	s.consoleRoutes()

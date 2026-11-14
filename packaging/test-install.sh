@@ -76,7 +76,7 @@ for s in /scripts/install-*.sh; do
   # Packages chosen at run time by the script.
   [ "$name" = zfs ] && pkgs="$pkgs zfs-dkms linux-headers-amd64 dpkg-dev"
   [ "$name" = vms ] && pkgs="$pkgs qemu-system-x86 ovmf libvirt-daemon-driver-storage-rbd qemu-block-extra"
-  [ "$name" = photos ] && pkgs="$pkgs libvips-tools libheif-plugin-libde265 ffmpeg libimage-exiftool-perl intel-media-va-driver mesa-va-drivers"
+  [ "$name" = photos ] && pkgs="$pkgs libvips-tools libheif-plugin-libde265 ffmpeg libimage-exiftool-perl vainfo intel-media-va-driver i965-va-driver mesa-va-drivers"
   [ -n "$pkgs" ] || continue
   avail="" ; for p in $pkgs; do if has "$p"; then avail="$avail $p"; else missing "$p"; fi; done
   [ -n "$avail" ] || continue

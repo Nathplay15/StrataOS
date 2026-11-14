@@ -451,6 +451,9 @@ type FleetMember struct {
 	Cert  string    `json:"cert"` // SHA-256 of its certificate, pinned at pairing
 	Token string    `json:"token,omitempty"`
 	Added time.Time `json:"added"`
+	// MACs: its network cards with Wake-on-LAN on, as it last reported
+	// them (the console wakes it up with them).
+	MACs []string `json:"macs,omitempty"`
 }
 
 type FleetManager struct {
@@ -508,6 +511,10 @@ type Energy struct {
 	Schedule    energy.Schedule `json:"schedule"`
 	WoL         []string        `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
 	Devices     []WakeDevice    `json:"devices,omitempty"`
+	// Rules: scheduled shutdowns, restarts and power-ons (0.12; Schedule
+	// is the 0.11 form, turned into rules when read).
+	Rules []energy.PowerRule `json:"rules,omitempty"`
+	Guard energy.PowerGuard  `json:"guard,omitzero"`
 }
 
 // WakeDevice is a machine the NAS can wake up (Wake-on-LAN).
@@ -737,6 +744,9 @@ type State struct {
 	S3   S3Service       `json:"s3,omitzero"`
 	// SSO: the NAS as the sign-in of its apps (store/sso.go).
 	SSO SSO `json:"sso,omitzero"`
+	// Transcoding and HomeAssistant: store/mediapower.go.
+	Transcoding   Transcoding   `json:"transcoding,omitzero"`
+	HomeAssistant HomeAssistant `json:"homeAssistant,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`

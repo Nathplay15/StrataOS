@@ -87,7 +87,7 @@ var All = []Component{
 		Units:    []string{"strata-vpn-killswitch.service"},
 		Files:    []string{"/etc/wireguard/strata*.conf", "/etc/sysctl.d/90-strata-vpn.conf", "/etc/systemd/system/docker.service.d/strata-vpn.conf"}},
 	{ID: "photos", Name: "Media tools (ffmpeg, libvips)",
-		Packages: []string{"libvips-tools", "libheif-plugin-libde265", "ffmpeg", "libimage-exiftool-perl", "intel-media-va-driver", "mesa-va-drivers"},
+		Packages: []string{"libvips-tools", "libheif-plugin-libde265", "ffmpeg", "libimage-exiftool-perl", "vainfo", "intel-media-va-driver", "intel-media-va-driver-non-free", "i965-va-driver", "mesa-va-drivers"},
 		Caches:   []string{"/var/lib/strata/photos/thumbs"}},
 	{ID: "tailscale", Name: "Tailscale",
 		Packages: []string{"tailscale"},
