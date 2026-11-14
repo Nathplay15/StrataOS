@@ -71,7 +71,7 @@ mirror_install() {
   check "layout: mirrored" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["mirrored"], l["boot"], len(l["disks"]), l["root"]["fstype"])')" "True $mode 2 btrfs"
   if [ "$mode" = uefi ]; then
     # One of them is mounted on /boot/efi: mounted again (same options), not read-only.
-    check "both disks have an ESP with GRUB" "$(vm "for d in /dev/sda1 /dev/sdb1; do mount \$d /mnt && ls /mnt/EFI/debian/ | grep -c grub; umount /mnt; done | tr '\n' ' '")" "1 1"
+    check "both disks have an ESP with GRUB" "$(vm "for d in /dev/sda1 /dev/sdb1; do mount \$d /mnt && ls /mnt/EFI/debian/ | grep -c '^grub.*\.efi$'; umount /mnt; done | tr '\n' ' '")" "1 1"
     check "both ESPs have the same volume ID" "$(vm "blkid -c /dev/null -o value -s UUID /dev/sda1 /dev/sdb1 | sort -u | wc -l")" "1"
     check "/boot/efi optional at start" "$(vm "findmnt -s -n -o OPTIONS /boot/efi")" "nofail"
     check "boot entry of the second disk" "$(vm "efibootmgr")" "StrataOS (mirror"
@@ -82,9 +82,11 @@ mirror_install() {
   check "advisor: no system disk item" "$(c POST /api/security/advisor/run | py 'print([i["id"] for i in d["items"] if i["id"]=="system-disk"])')" "[]"
   ISO_DETACH=sys boot
   check "starts with disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
+  check "disk 1 unplugged: settings there" "$(curl -s "$B/api/setup")" '"needed":false'
   [ "$mode" = uefi ] && check "disk 1 unplugged: /boot/efi mounted from disk 2" "$(vm "findmnt -n -o FSTYPE /boot/efi")" "vfat"
   ISO_DETACH=sys2 boot
   check "starts with disk 2 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
+  check "disk 2 unplugged: settings there" "$(curl -s "$B/api/setup")" '"needed":false'
   [ "$mode" = uefi ] && check "disk 2 unplugged: /boot/efi mounted from disk 1" "$(vm "findmnt -n -o FSTYPE /boot/efi")" "vfat"
   # Disk 1 dies: a blank disk takes its place.
   ./vm/iso-test.sh stop; sleep 3

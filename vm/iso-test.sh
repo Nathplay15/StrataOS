@@ -58,7 +58,13 @@ PY
     for k in "$@"; do mon "sendkey $k"; sleep 0.2; done
     exit 0 ;;
   stop)
-    [ -f "$PID" ] && kill "$(cat "$PID")" 2>/dev/null || true
+    # A clean shutdown first: killing QEMU right away loses what the guest
+    # had not written yet (Btrfs commits every 30 s).
+    if [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
+      echo system_powerdown | socat - "UNIX-CONNECT:$MON" >/dev/null 2>&1 || true
+      for _ in $(seq 1 60); do kill -0 "$(cat "$PID")" 2>/dev/null || exit 0; sleep 1; done
+      kill "$(cat "$PID")" 2>/dev/null || true
+    fi
     exit 0 ;;
 esac
 
