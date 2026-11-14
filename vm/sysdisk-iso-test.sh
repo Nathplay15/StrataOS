@@ -107,7 +107,8 @@ mirror_install() {
 move_mirror() {
   local mode=$1
   printf '\n\033[1;36m== ISO: move the system, then mirror it (%s)\033[0m\n' "$mode"
-  install "$(iso install)" 2 "$mode"
+  # With data disks the installer asks for the system disk: answered here.
+  install "$(iso install partman-auto/disk=/dev/sda)" 2 "$mode"
   D1=$(dev STRATA-DATA-1) D2=$(dev STRATA-DATA-2)
   check "layout: Btrfs on a partition" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["boot"], l["root"]["fstype"], l["root"]["subvol"], l["rootOn"], [m["role"] for m in l["mounts"]])')" "$mode btrfs @rootfs part"
   vm "echo before-move > /root/marker"
@@ -144,7 +145,7 @@ move_mirror() {
 restore() {
   local mode=$1 disk=$2
   printf '\n\033[1;36m== ISO: restore a system backup (%s)\033[0m\n' "$mode"
-  ISO_DATA1=$(realpath "$disk") install "$(iso restore)" 1 "$mode"
+  ISO_DATA1=$(realpath "$disk") install "$(iso restore partman-auto/disk=/dev/sda)" 1 "$mode"
   check "restore log" "$(vm "cat /var/log/strataos-restore.log")" "strata-restore: done"
   check "settings of the backup (setup done)" "$(curl -s "$B/api/setup")" '"needed":false'
   check "host name of the backup" "$(vm hostname)" "sysdisk-vm"
