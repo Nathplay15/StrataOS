@@ -100,7 +100,9 @@ part_mirror() {
   check "plan: degraded replacement" "$(c GET "/api/storage/replace/plan?group=sys:mirror&new=$H1" | py 'p=d["plan"]; print(p.get("refusal",""), p["mode"])')" " degraded"
   R=$(c POST /api/storage/replace -d '{"group":"sys:mirror","new":"'"$H1"'","confirm":"'"${H1#/dev/}"'"}')
   RID=$(echo "$R" | py 'print(d["id"])')
-  check "replacement finished" "$(job "$R")" "success"
+  RS=$(job "$R")
+  check "replacement finished" "$RS" "success"
+  case "$RS" in success*) ;; *) echo "replacement: $R"; vm "sudo journalctl -u strata -b --no-pager | tail -40; cat /proc/mdstat" ;; esac
   joblog "$R" | grep -E '^\$ ' | head -10
   check "replacement record done" "$(c GET /api/storage/replace | py "print([x['phase'] for x in d['items'] if x['id']=='$RID'])")" "['done']"
   check "mirror complete again" "$(vm "cat /proc/mdstat")" "[UU]"
