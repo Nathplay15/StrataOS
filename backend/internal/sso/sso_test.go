@@ -204,14 +204,16 @@ func TestCodeRefusals(t *testing.T) {
 		return te
 	}
 	cases := map[string]func() *TokenError{
-		"wrong verifier":    func() *TokenError { return tok(issue(), gr, strings.Repeat("a", 43), "grafana") },
-		"no verifier":       func() *TokenError { return tok(issue(), gr, "", "grafana") },
-		"short verifier":    func() *TokenError { return tok(issue(), gr, "abc", "grafana") },
-		"verifier no chall": func() *TokenError { return tok(issue("code_challenge", "-", "code_challenge_method", "-"), gr, verifier, "grafana") },
-		"wrong redirect":    func() *TokenError { return tok(issue(), gr+"/", verifier, "grafana") },
-		"other client":      func() *TokenError { return tok(issue(), gr, verifier, "spa") },
-		"unknown code":      func() *TokenError { return tok("abc", gr, verifier, "grafana") },
-		"empty code":        func() *TokenError { return tok("", gr, verifier, "grafana") },
+		"wrong verifier": func() *TokenError { return tok(issue(), gr, strings.Repeat("a", 43), "grafana") },
+		"no verifier":    func() *TokenError { return tok(issue(), gr, "", "grafana") },
+		"short verifier": func() *TokenError { return tok(issue(), gr, "abc", "grafana") },
+		"verifier no chall": func() *TokenError {
+			return tok(issue("code_challenge", "-", "code_challenge_method", "-"), gr, verifier, "grafana")
+		},
+		"wrong redirect": func() *TokenError { return tok(issue(), gr+"/", verifier, "grafana") },
+		"other client":   func() *TokenError { return tok(issue(), gr, verifier, "spa") },
+		"unknown code":   func() *TokenError { return tok("abc", gr, verifier, "grafana") },
+		"empty code":     func() *TokenError { return tok("", gr, verifier, "grafana") },
 		"expired": func() *TokenError {
 			c := issue()
 			f.now = f.now.Add(CodeTTL + time.Second)
