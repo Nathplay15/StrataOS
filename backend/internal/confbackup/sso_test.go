@@ -10,7 +10,7 @@ import (
 )
 
 func TestSSOSection(t *testing.T) {
-	src := testSource()
+	src := source12()
 	src.State.Users[1].SSOSubject = "subject-of-alice"
 	src.State.SSO = store.SSO{Enabled: true, Issuer: "https://nas.example.com", Clients: []*store.SSOClient{
 		{ID: "grafana-a1b2c3", Name: "Grafana", Kind: "oidc", App: "grafana", Secret: "sso-client-secret", RedirectURIs: []string{"https://g.example.com/login/generic_oauth"}, Groups: []string{"famille"}},

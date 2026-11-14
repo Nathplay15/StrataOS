@@ -16,7 +16,7 @@ type VolumeChoice = { name: string; kind: string; mountPoint: string; found: boo
 type Preview = { strataos: string; version: number; created: string; hostname: string; encrypted: boolean; secrets: boolean; volumes: VolumeChoice[]; targets: VolumeChoice[]; sections: Section[] };
 type AutoConfig = { enabled: boolean; folder: string; keep: number; hour: number; secrets?: boolean; passphrase?: string; lastRun?: string; lastResult?: string; lastFile?: string };
 type Auto = { config: AutoConfig; files: { name: string; size: number; modified: string }[] };
-export type Doc = { hostname: string; secrets?: unknown; config: { network?: { interfaces?: { mode: string; addresses?: string[] }[]; bonds?: { mode: string; addresses?: string[] }[]; bridges?: { mode: string; addresses?: string[] }[]; vlans?: { mode: string; addresses?: string[] }[] } } };
+export type Doc = { hostname: string; secrets?: unknown; config: { firewall?: { host?: unknown }; network?: { interfaces?: { mode: string; addresses?: string[] }[]; bonds?: { mode: string; addresses?: string[] }[]; bridges?: { mode: string; addresses?: string[] }[]; vlans?: { mode: string; addresses?: string[] }[] } } };
 
 const sectionNames: Record<string, string> = {
   system: tr("Name and time zone"),
@@ -42,7 +42,14 @@ const sectionNames: Record<string, string> = {
   vaults: tr("Backup vaults"),
   fleet: tr("Watched NAS"),
   configBackup: tr("Automatic configuration backups"),
+  datastores: tr("Backup repositories"),
+  firewall: tr("Firewall"),
+  oidc: tr("Sign-in providers (OIDC)"),
+  twoFactor: tr("Two-factor policy"),
   sso: tr("Single sign-on"),
+  s3: tr("S3 service and access keys"),
+  photoSmart: tr("Smart photos"),
+  desktop: tr("Desktop preferences of the users"),
   ha: tr("High availability (reported only)"),
   directory: tr("Directory (reported only)"),
 };
@@ -135,7 +142,16 @@ export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void })
     onDone: (p) => { if (!chosen) setChosen(new Set(p.sections.filter(todo).map((s) => s.id))); },
   });
   const run = useAction(() => api.post<Job>("/api/config/import", { document: doc, passphrase: pass, pathMap, sections: [...(chosen ?? [])] }), { onDone: (j) => setJobId(j.id) });
-  const applyNet = useAction(() => api.put<Pending>("/api/system/network/config", { config: doc.config.network, timeout: 120 }), {
+  // Virtual networks received from other NAS stay as they are here: those NAS
+  // manage them (the file leaves them out).
+  const applyNet = useAction(async () => {
+    type VNet = { id: string; bridge?: string; originKey?: string };
+    const file = doc.config.network as ({ virtual?: VNet[] } & Record<string, unknown>) | undefined;
+    const cur = await api.get<{ config: { virtual?: VNet[] } }>("/api/system/network");
+    const own = (file?.virtual ?? []).filter((v) => !v.originKey);
+    const kept = (cur.config.virtual ?? []).filter((v) => v.originKey && !own.some((o) => o.id === v.id || (!!o.bridge && o.bridge === v.bridge)));
+    return api.put<Pending>("/api/system/network/config", { config: { ...file, virtual: [...own, ...kept] }, timeout: 120 });
+  }, {
     onDone: (p) => {
       const n = doc.config.network ?? {};
       const port = location.port ? `:${location.port}` : "";
@@ -143,6 +159,17 @@ export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void })
       setTrial({ p, urls: addrs.map((a) => `${location.protocol}//${a}${port}/?netconfirm=${p.token}`) });
     },
   });
+  // The NAS firewall of the file: applied on trial, then confirmed by this
+  // browser if it still reaches the NAS (otherwise the NAS rolls it back).
+  const [fwDone, setFwDone] = useState("");
+  const applyFw = useAction(async () => {
+    const cur = await api.get<{ config: Record<string, unknown> }>("/api/system/network/firewall");
+    const r = await api.put<{ applied?: boolean; token?: string }>("/api/system/network/firewall", { config: { ...cur.config, host: doc.config.firewall?.host }, timeout: 60 });
+    if (r.token) {
+      await new Promise((ok) => setTimeout(ok, 5000));
+      await api.post("/api/system/network/firewall/confirm", { token: r.token });
+    }
+  }, { onDone: () => setFwDone(tr("NAS firewall applied and confirmed")) });
   const needPass = !!doc.secrets;
   useEffect(() => { if (!needPass) preview.mutate({}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const p = preview.data;
@@ -164,6 +191,7 @@ export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void })
   };
   const onEnd = (j: Job) => {
     track(j);
+    if (chosen?.has("firewall") && p?.sections.find((s) => s.id === "firewall")?.items.some((i) => i.key === "host" && i.action === "update") && !applyFw.isPending && !fwDone) applyFw.mutate();
     if (chosen?.has("network") && p?.sections.find((s) => s.id === "network" && todo(s)) && !applyNet.isPending && !applyNet.data) applyNet.mutate();
   };
   const unmapped = p?.volumes.filter((v) => !v.found) ?? [];
@@ -177,6 +205,9 @@ export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void })
         <div className="space-y-3">
           <JobLog id={jobId} onEnd={onEnd} />
           <ErrorBox error={applyNet.error} />
+          <ErrorBox error={applyFw.error} />
+          {applyFw.isPending && <Notice>{tr("Applying the NAS firewall on trial…")}</Notice>}
+          {fwDone && <Notice>{fwDone}</Notice>}
           {trial && <TrialModal pending={trial.p} newURLs={trial.urls} onClose={() => setTrial(null)} />}
         </div>
       ) : (
@@ -248,6 +279,8 @@ export function ImportModal({ doc, onClose }: { doc: Doc; onClose: () => void })
                   );
                 })}
               </div>
+              {chosen?.has("twoFactor") && <Notice>{tr("Security keys used as second factors are not in the file: a key only works on the NAS (and address) where it was registered. Each administrator registers theirs again on this NAS.")}</Notice>}
+              {chosen?.has("firewall") && <Notice>{tr("The firewall of the NAS itself is applied on trial after the import: it is rolled back unless this browser still reaches the NAS.")}</Notice>}
               {chosen?.has("network") && <Notice tone="warn">{tr("The network configuration is applied last, on trial: it is rolled back unless this browser still reaches the NAS.")}</Notice>}
               <ErrorBox error={run.error} />
             </>
