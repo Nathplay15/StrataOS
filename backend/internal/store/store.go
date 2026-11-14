@@ -72,6 +72,9 @@ type User struct {
 	OIDC []OIDCLink `json:"oidc,omitempty"`
 	// S3Keys: access keys for the built-in S3 service.
 	S3Keys []S3Key `json:"s3Keys,omitempty"`
+	// SSOSubject: the "sub" apps know this account by (store/sso.go),
+	// random and never reused.
+	SSOSubject string `json:"ssoSubject,omitempty"`
 }
 
 type Share struct {
@@ -702,6 +705,8 @@ type State struct {
 	// service (store/auth.go).
 	OIDC []*OIDCProvider `json:"oidc,omitempty"`
 	S3   S3Service       `json:"s3,omitzero"`
+	// SSO: the NAS as the sign-in of its apps (store/sso.go).
+	SSO SSO `json:"sso,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`

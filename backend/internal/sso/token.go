@@ -279,15 +279,20 @@ func (p *Provider) Revoke(tok string, c *Client) {
 }
 
 // Discovery is the provider metadata (OpenID Connect Discovery 1.0).
-func Discovery(issuer string) map[string]any {
+func Discovery(issuer string) map[string]any { return DiscoveryFor(issuer, issuer) }
+
+// DiscoveryFor is the metadata for apps that call the provider through
+// another address (back) than browsers: the endpoints the browser opens
+// stay on the issuer, the others use back.
+func DiscoveryFor(issuer, back string) map[string]any {
 	return map[string]any{
 		"issuer":                                         issuer,
 		"authorization_endpoint":                         issuer + "/api/sso/authorize",
-		"token_endpoint":                                 issuer + "/api/sso/token",
-		"userinfo_endpoint":                              issuer + "/api/sso/userinfo",
-		"jwks_uri":                                       issuer + "/api/sso/jwks",
+		"token_endpoint":                                 back + "/api/sso/token",
+		"userinfo_endpoint":                              back + "/api/sso/userinfo",
+		"jwks_uri":                                       back + "/api/sso/jwks",
 		"end_session_endpoint":                           issuer + "/api/sso/logout",
-		"revocation_endpoint":                            issuer + "/api/sso/revoke",
+		"revocation_endpoint":                            back + "/api/sso/revoke",
 		"response_types_supported":                       []string{"code"},
 		"response_modes_supported":                       []string{"query"},
 		"grant_types_supported":                          []string{"authorization_code", "refresh_token"},

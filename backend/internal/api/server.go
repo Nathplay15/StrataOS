@@ -21,6 +21,7 @@ import (
 	"strataos/internal/health"
 	"strataos/internal/jobs"
 	"strataos/internal/network"
+	"strataos/internal/sso"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 	"strataos/internal/system"
@@ -71,6 +72,8 @@ type Server struct {
 	// mcpConf holds the write requests of MCP clients waiting for a
 	// person's approval (h_mcp.go).
 	mcpConf mcpConfirmations
+	// sso: the OpenID provider of the apps (sso.go).
+	sso *sso.Provider
 }
 
 type Config struct {
@@ -365,6 +368,7 @@ func (s *Server) routes() {
 	s.clusterRoutes()
 	s.cephRoutes()
 	s.vmClusterRoutes()
+	s.ssoRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))
