@@ -319,22 +319,14 @@ func distApt(ctx context.Context, j *jobs.Job, from, to float64, total int, args
 
 var aptKeepConf = []string{"-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef"}
 
-// distKernel is the kernel /vmlinuz points to (the newest installed).
+// distKernel is the newest kernel installed (the one the next start uses).
 func distKernel() string {
-	for _, l := range []string{"/vmlinuz", "/boot/vmlinuz"} {
-		if t, err := os.Readlink(l); err == nil {
-			return strings.TrimPrefix(filepath.Base(t), "vmlinuz-")
-		}
-	}
-	// No link (cloud images): the kernel installed last.
 	m, _ := filepath.Glob("/boot/vmlinuz-*")
-	best, at := "", time.Time{}
+	var vs []string
 	for _, f := range m {
-		if fi, err := os.Stat(f); err == nil && fi.ModTime().After(at) {
-			best, at = f, fi.ModTime()
-		}
+		vs = append(vs, strings.TrimPrefix(filepath.Base(f), "vmlinuz-"))
 	}
-	return strings.TrimPrefix(filepath.Base(best), "vmlinuz-")
+	return system.NewestKernel(vs)
 }
 
 // zfsBuilt tells whether the ZFS module is built for a kernel.

@@ -145,3 +145,15 @@ func TestMirrorListURI(t *testing.T) {
 		}
 	}
 }
+
+func TestNewestKernel(t *testing.T) {
+	if got := NewestKernel([]string{"6.12.117+deb13-amd64", "7.2.15+deb14-amd64", "6.12.48+deb13-amd64"}); got != "7.2.15+deb14-amd64" {
+		t.Fatal(got)
+	}
+	if got := NewestKernel([]string{"6.12.9+deb13-amd64", "6.12.48+deb13-amd64"}); got != "6.12.48+deb13-amd64" {
+		t.Fatal(got)
+	}
+	if NewestKernel(nil) != "" {
+		t.Fatal("empty")
+	}
+}

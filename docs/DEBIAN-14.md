@@ -137,6 +137,14 @@ It then does what used to be done by hand:
    notifies the result.
 
 `vm/distupgrade-test.sh` runs this on a trixie VM (testing override on).
+Result of 14 November 2026 (cloud image, Btrfs data volume, a shared folder,
+no ZFS): upgraded in about 5 minutes, restart into kernel
+7.2.15, volume mounted, Samba serving the share, StrataOS answering. One
+unit fails after the restart on forky, `xfs_healer@-.service` (xfsprogs 7
+starts its healer for a root file system that is not XFS): harmless, reported
+by the post-checks as a warning. The cloud images name their mirrors through
+`mirror+file:///etc/apt/mirrors/*.list`: the upgrade reads the list to
+recognise the Debian archive.
 Not done by the upgrade: `zpool upgrade` (never, so that going back stays
 possible), Ceph clusters, the installer ISO.
 

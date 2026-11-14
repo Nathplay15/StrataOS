@@ -70,7 +70,7 @@ echo "$R" | grep -E "restore point|packages to upgrade|→|ZFS" | head -12 | sed
 check "waiting for the restart" "$(api GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r["to"], bool(r.get("kernel")))')" "reboot forky True"
 check "sources on forky" "$(vm 'cat /etc/apt/sources.list.d/debian.sources 2>/dev/null || cat /etc/apt/sources.list' | grep -m1 -E '^Suites|^deb ')" "forky"
 check "StrataOS sources untouched" "$(vm 'grep Suites /etc/apt/sources.list.d/strataos.sources 2>/dev/null || echo "Suites: stable (no repository in this build)"')" "stable"
-check "managed configuration kept (smb.conf)" "$(vm 'sudo grep -c "^\[Docs\]" /etc/samba/smb.conf')" "1"
+check "managed configuration kept (smb.conf)" "$(vm 'sudo testparm -s 2>/dev/null | grep -c "^\[Docs\]"')" "1"
 check "no half-installed package" "$(vm 'sudo dpkg --audit | wc -l')" "0"
 check "restart" "$(api POST /api/system/dist-upgrade/reboot)" '"ok":true'
 sleep 20
@@ -84,6 +84,7 @@ PC=$(api GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get(
 echo "$PC"
 check "post-checks done" "$PC" "done"
 check "no failed post-check" "$(echo "$PC" | grep -c '^    block')" "0"
+check "the new kernel runs" "$(echo "$PC" | grep -c 'not the new')" "0"
 check "volume mounted, data there" "$(vm 'sudo cat /srv/strata/volume1/Docs/note.txt')" "kept"
 check "StrataOS answers" "$(api GET /api/me)" "\"username\":\"$ADMIN_USER\""
 check "Samba running" "$(vm 'systemctl is-active smbd')" "active"

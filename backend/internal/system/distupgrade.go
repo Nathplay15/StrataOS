@@ -307,3 +307,50 @@ func (c *AptCounter) Line(l string) float64 {
 	}
 	return min(100, float64(c.Done)*100/float64(2*c.Total))
 }
+
+// NewestKernel picks the highest version among kernel releases
+// ("6.12.48+deb13-amd64", "7.2.15+deb14-amd64"): numbers compared one by
+// one, the rest as text.
+func NewestKernel(versions []string) string {
+	nums := func(v string) []int {
+		var out []int
+		n, in := 0, false
+		for _, c := range v {
+			if c >= '0' && c <= '9' {
+				n, in = n*10+int(c-'0'), true
+				continue
+			}
+			if in {
+				out = append(out, n)
+				n, in = 0, false
+			}
+		}
+		if in {
+			out = append(out, n)
+		}
+		return out
+	}
+	best := ""
+	for _, v := range versions {
+		if best == "" {
+			best = v
+			continue
+		}
+		a, b := nums(v), nums(best)
+		newer := false
+		for i := 0; ; i++ {
+			if i >= len(a) || i >= len(b) {
+				newer = len(a) > len(b) || (len(a) == len(b) && v > best)
+				break
+			}
+			if a[i] != b[i] {
+				newer = a[i] > b[i]
+				break
+			}
+		}
+		if newer {
+			best = v
+		}
+	}
+	return best
+}
