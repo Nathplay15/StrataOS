@@ -109,5 +109,6 @@
   ["Impossible de copier la partition système EFI sur le disque miroir : {0}", "Could not copy the EFI system partition onto the mirror disk: {0}"],
   ["Le système tourne désormais sur le nouveau disque.", "The system runs from the new disk."],
   ["l'ancien disque n'est pas en cours d'ajout au miroir système. Le système continue de tourner sur le nouveau disque : utilisez Remplacer sur l'alerte du miroir système dégradé pour ajouter un disque", "the old disk is not being added to the system mirror. The system keeps running from the new disk: use Replace on the alert of the degraded system mirror to add a disk"],
-  ["le miroir est complet, mais {0} n'a pas pu être rendu capable de démarrer le système : {1}", "the mirror is complete, but {0} could not be made able to start the system: {1}"]
+  ["le miroir est complet, mais {0} n'a pas pu être rendu capable de démarrer le système : {1}", "the mirror is complete, but {0} could not be made able to start the system: {1}"],
+  ["impossible de restreindre l'accès à {0} : {1}", "could not restrict the access to {0}: {1}"]
 ]

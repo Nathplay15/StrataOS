@@ -108,6 +108,17 @@ func Backup(ctx context.Context, logf func(string, ...any), l Layout, folder, ve
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return m, "", err
 	}
+	// The archive holds every secret of the NAS (password hashes, keys, the
+	// StrataOS state) and sits in a shared folder: root only, without the
+	// default ACLs the share would pass down.
+	for _, d := range []string{filepath.Join(folder, BackupDir), dir} {
+		_ = os.Chmod(d, 0o700)
+		if sys.Has("setfacl") {
+			if _, err := sys.Run("setfacl", "-b", d); err != nil {
+				return m, "", fmt.Errorf("could not restrict the access to %s: %v", d, err)
+			}
+		}
+	}
 	_ = os.MkdirAll(backupRoot, 0o700)
 	if mountSource(backupRoot) != "" {
 		_, _ = r.run("umount", "-R", backupRoot)
@@ -193,8 +204,10 @@ func Backup(ctx context.Context, logf func(string, ...any), l Layout, folder, ve
 		_ = os.RemoveAll(dir)
 		return m, "", err
 	}
+	_ = os.Chmod(archive, 0o600)
 	out, err := r.cmd(-1, "sha256sum", archive)
 	if err != nil {
+		_ = os.RemoveAll(dir)
 		return m, "", err
 	}
 	m.SHA256 = strings.Fields(out)[0]
