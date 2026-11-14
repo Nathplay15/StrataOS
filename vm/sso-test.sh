@@ -179,8 +179,8 @@ check "protection on" "$(api PUT "/api/sso/domains/$DP" -d '{"enabled":true}')" 
 FWD=fwd-$DP
 check "access: famille only" "$(api PUT "/api/sso/clients/$FWD" -d '{"name":"echo","trusted":true,"groups":["famille"]}')" '"ok":true'
 RS=(--resolve echo.sso.test:443:127.0.0.1 --resolve open.sso.test:443:127.0.0.1 -k)
-SPOOF=(-H 'Remote-User: admin' -H 'Remote-Groups: admins' -H 'X-Forwarded-User: admin' -H 'X-Webauth-User: admin')
-check "open domain: spoofed headers stripped" "$(B anon "${RS[@]}" "${SPOOF[@]}" https://open.sso.test/ | py 'print(sorted(k for k in d if k.lower().startswith(("remote","x-forwarded-user","x-webauth"))))')" "[]"
+SPOOF=(-H 'Remote-User: admin' -H 'Remote_User: admin' -H 'Remote-Groups: admins' -H 'X-Forwarded-User: admin' -H 'X-Webauth-User: admin')
+check "open domain: spoofed headers stripped" "$(B anon "${RS[@]}" "${SPOOF[@]}" https://open.sso.test/ | py 'print(sorted(k for k in d if k.lower().replace("_","-").startswith(("remote","x-forwarded-user","x-webauth"))))')" "[]"
 G=$(BH alice "${RS[@]}" "${SPOOF[@]}" https://echo.sso.test/page?x=1)
 check "protected domain sends to the NAS (app not reached)" "$G" "302 $NAS/api/sso/authorize?client_id=$FWD"
 check "scripts get 401" "$(BH alice "${RS[@]}" -H 'Sec-Fetch-Mode: cors' https://echo.sso.test/api)" "401"
@@ -190,7 +190,7 @@ check "callback on the protected host" "$CB" "https://echo.sso.test/.strata-sso/
 check "back to the page asked" "$(BH alice "${RS[@]}" "$CB")" "302 https://echo.sso.test/page?x=1"
 H=$(B alice "${RS[@]}" "${SPOOF[@]}" https://echo.sso.test/page)
 check "identity passed" "$(echo "$H" | py 'print(d.get("Remote-User"), d.get("Remote-Groups"), d.get("Remote-Email"), d.get("Remote-Name"))')" "alice famille alice@example.com Alice Martin"
-check "spoofed copies gone" "$(echo "$H" | py 'print(d.get("X-Forwarded-User"), d.get("X-Webauth-User"))')" "None None"
+check "spoofed copies gone" "$(echo "$H" | py 'print(d.get("X-Forwarded-User"), d.get("X-Webauth-User"), d.get("Remote_User"))')" "None None None"
 refute "session cookie not passed to the app" "$(echo "$H" | py 'print(d.get("Cookie",""))')" "strata_fwd"
 nas_login bob Bob-Pass-12
 G=$(BH bob "${RS[@]}" https://echo.sso.test/)
