@@ -110,7 +110,7 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request, rt *proxy.R
 	}
 	state, verifier := sso.Random(24), sso.Random(32)
 	next := r.URL.RequestURI()
-	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, fwdPrefix) || len(next) > 2048 {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") || strings.ContainsAny(next, "\r\n") || strings.HasPrefix(next, fwdPrefix) || len(next) > 2048 {
 		next = "/"
 	}
 	if err := s.sso.PutFlow(state, &sso.FwdFlow{Client: client.ID, Host: rt.Host, Verifier: verifier, Next: next}); err != nil {

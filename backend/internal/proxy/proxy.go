@@ -204,10 +204,12 @@ const FwdCookie = "__Host-strata_fwd"
 // the forward authentication of a protected host sets them.
 var identityPrefixes = []string{"Remote-", "X-Remote-", "X-Forwarded-User", "X-Forwarded-Email", "X-Forwarded-Groups", "X-Forwarded-Preferred-Username", "X-Webauth-", "X-Auth-Request-", "X-Authentik-"}
 
-// StripIdentity removes every identity header from a request.
+// StripIdentity removes every identity header from a request, whatever its
+// case and with underscores for dashes (CGI and WSGI servers map Remote_User
+// to the same variable as Remote-User).
 func StripIdentity(h http.Header) {
 	for k := range h {
-		ck := http.CanonicalHeaderKey(k)
+		ck := http.CanonicalHeaderKey(strings.ReplaceAll(k, "_", "-"))
 		for _, p := range identityPrefixes {
 			if strings.HasPrefix(ck, p) {
 				delete(h, k)

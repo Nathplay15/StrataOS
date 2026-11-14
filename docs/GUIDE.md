@@ -261,6 +261,31 @@ To **uninstall** an app, use the bin button on its card ("Uninstall"). Its conta
 
 **Optional components** (ZFS, Docker, virtual machines, antivirus, VPN, document previews…) can be removed in Settings → **Components** → "Uninstall". StrataOS first lists what is in the way: some things must go first (a ZFS pool to export, apps or VMs to delete…), others it can turn off for you ("Turn these off and uninstall anyway"). It then shows the packages removed (those StrataOS or another component still needs are kept), the services stopped and the settings changed. The component's data is kept, and found again by a later reinstall, unless you tick "Also delete its data".
 
+### Single sign-on for your apps
+
+With **Single sign-on** (System → Single sign-on), your NAS account signs you in to your apps: you sign in once on the NAS, with your second factor, and the apps never see your password. The NAS acts as an OpenID Connect provider, and you choose who may use each app.
+
+1. Turn on **single sign-on** and give the **address of the NAS** that browsers use, for example `https://nas.example.com` (an app domain publishing the StrataOS interface) or `https://nas.example.com:7443`. HTTPS with a trusted certificate is best; plain `http://` works on a home network but sign-ins can then be read on the network. Keep this address: apps configured with it must be configured again if it changes.
+2. Turn it on for an app (App Center → the key button on the app's card, or the **Installed apps** card of the Single sign-on page), or **Add an application** for any other app that supports OpenID Connect.
+
+The first time someone signs in to an app, the NAS asks "Allow?" and shows what the app receives (name and user name, email address, groups). Each user finds the apps they allowed in their account menu → **Apps signed in with the NAS**, and can **revoke** one there (they are signed out of it at once).
+
+**Apps of the App Center**:
+
+- **Grafana** and **Paperless-ngx**: configured automatically. StrataOS registers the app, writes its settings in an extra file of its stack (`compose.strata.yaml`, kept when you edit the stack) and restarts it; the sign-in page of the app then has a "Sign in with StrataOS" button. The app talks to the NAS through `host.docker.internal` on the NAS itself, so it does not need to trust the NAS's certificate. In Grafana, members of the NAS group `grafana-admins` become Grafana administrators, the others viewers. The app's address is its app domain if it has one, otherwise the NAS's name with the app's port: turn sign-in off and on again after changing it.
+- **Nextcloud**, **Immich**, **Gitea** and **Mealie**: StrataOS registers the app and shows what to type in it (client ID, the secret — shown once —, the discovery address, and the steps for that app). These apps fetch the discovery address themselves, from their container: it must be reachable from there with a certificate they trust. These settings come from the apps' documentation and were not tested end to end on a NAS.
+- **Any other app** with OpenID Connect: **Add an application**, with the return addresses (redirect URIs) the app documents; they are compared exactly, character for character. The settings button shows the endpoints, the scopes (`openid profile email groups`), the user name claim (`preferred_username`) and the groups claim (`groups`). Email addresses are sent as not verified: an app must not link existing accounts on them.
+
+**Who may use an app**: every account, or chosen groups and users. Other options: **Trusted** (no consent screen), **Only accounts with two-factor authentication** (the others are refused with an explanation), **Disabled**. "End all sessions" signs every user out of the app; "New secret" makes a new client secret (StrataOS writes it into the apps it configured). Disabled or deleted accounts, and a changed password, end the app sessions of the account. Signing out of the NAS ends the sessions opened from it (an app asking for "offline access" keeps its refresh token).
+
+**Apps without OpenID Connect**: publish the app on an **app domain** (Remote access), then on the Single sign-on page turn on **Require a NAS sign-in** for that domain. Before anything reaches the app, the reverse proxy sends visitors to the NAS sign-in, then lets them in with a session for that name only. The app receives the user in the `Remote-User`, `Remote-Groups`, `Remote-Email` and `Remote-Name` headers; copies of these headers sent by visitors are always removed, on every app domain. Choose who may use it with the pencil button. Important: an app that trusts these headers must not be reachable another way, since anyone reaching its own port could send them: keep its port closed to the network (bind it to `127.0.0.1` in its stack), or let the app trust only the proxy. Opening `https://<name>/.strata-sso/logout` signs you out of that name.
+
+**Signing keys**: ID tokens are signed with RS256; the key changes by itself every 90 days ("Rotate now" does it at once). The next key is published in advance and the previous one stays published 14 days, so nobody is signed out by a rotation.
+
+**Configuration backup**: the address, the applications and their access rules, and the identifiers apps know the accounts by, are exported (client secrets only with the secrets). The protection of app domains is not exported, like the app domains themselves. Users sign in to their apps again on the NAS importing it.
+
+**Limits**: one NAS address for everybody (an app sends every browser to the same address); no front- or back-channel logout to the apps (signing out of the NAS does not sign you out of an app that keeps its own session, like Grafana, until it asks the NAS again); the pages of the sign-in shown outside the interface (errors before the NAS page opens) are in English.
+
 ## 15. Virtual machines
 
 **Virtual machines** (KVM) are a one-click install. "Create a VM" offers four ways:

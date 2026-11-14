@@ -438,6 +438,8 @@ func TestForwardAuthHeaders(t *testing.T) {
 		for _, h := range []string{"Remote-User", "remote-groups", "Remote-Email", "X-Forwarded-User", "X-WEBAUTH-USER", "X-Remote-User", "X-Authentik-Username", "X-Auth-Request-User"} {
 			req.Header.Set(h, "admin")
 		}
+		req.Header["Remote_user"] = []string{"admin"}
+		req.Header["x_forwarded_user"] = []string{"admin"}
 		req.Header.Set("Cookie", FwdCookie+"=stolen; app=1")
 		resp, err := client(front).Do(req)
 		if err != nil {
@@ -456,6 +458,11 @@ func TestForwardAuthHeaders(t *testing.T) {
 		}
 		if got.Header.Get("Cookie") != "app=1" {
 			t.Errorf("cookie passed: %q", got.Header.Get("Cookie"))
+		}
+		for k := range got.Header {
+			if strings.Contains(strings.ToLower(k), "_user") {
+				t.Errorf("underscore variant passed: %s", k)
+			}
 		}
 	}
 	// Unprotected host: spoofed identity headers never reach the app.
