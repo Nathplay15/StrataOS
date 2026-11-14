@@ -656,6 +656,15 @@ func Delete(name string, removeDisks bool) error {
 	}
 	_ = os.Remove(consoleLogPath(name))
 	if removeDisks && len(ceph) > 0 {
+		// Ceph refuses to delete an image that has snapshots: drop the
+		// ones kept by image backups for their next incremental run.
+		if DropBackupSnapshots != nil {
+			for _, d := range vm.Disks {
+				if img, ok := strings.CutPrefix(d.Source, RBDPrefix); ok && d.Device == "disk" {
+					DropBackupSnapshots(img, "strata-")
+				}
+			}
+		}
 		if err := deleteRBDDisks(ceph); err != nil {
 			return err
 		}

@@ -116,6 +116,9 @@ check "resized disk read in full" "$R5" "read in full"
 check "resized disk backed up" "$R5" "success"
 api $PA POST /api/vms/inc/destroy >/dev/null; sleep 2
 check "stopped VM: classic full read keeps the checkpoint" "$(job $PA "$(api $PA POST /api/backups/$TK/run)" | head -1; virsh checkpoint-list inc --name | grep -c "strata-$TK-")" "success"
+api $PA DELETE /api/backups/$TK >/dev/null
+for _ in 1 2 3 4 5 6; do [ "$(virsh checkpoint-list inc --name | grep -c "strata-$TK-")" = 0 ] && break; sleep 5; done
+check "task deleted: its checkpoints removed" "$(virsh checkpoint-list inc --name | grep -c "strata-$TK-")" "0"
 check "VM deleted with its checkpoints" "$(api $PA DELETE "/api/vms/inc2?disks=1"; api $PA DELETE "/api/vms/inc?disks=1"; virsh list --all --name | grep -c '^inc')" "0"
 fi
 

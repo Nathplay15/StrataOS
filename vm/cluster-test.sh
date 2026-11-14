@@ -152,6 +152,8 @@ check "restored disk identical to the RBD snapshot" "$(N 1 ssh "sudo qemu-img co
 check "its definition no longer points to Ceph" "$(N 1 ssh "sudo virsh -c qemu:///system dumpxml tvm2 | grep -c \"protocol='rbd'\"")" "0"
 api 1 DELETE "/api/vms/tvm2?disks=1" >/dev/null
 api 1 DELETE /api/backups/$TK >/dev/null
+for _ in 1 2 3 4 5 6; do [ "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | grep -c "strata-$TK-")" = 0 ] && break; sleep 5; done
+check "task deleted: its snapshot removed" "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | grep -c "strata-$TK-")" "0"
 N 1 ssh "sudo rbd snap purge rbd/tvm-disk0" >/dev/null 2>&1
 [ -n "${RBD_BACKUP_ONLY:-}" ] && { printf '\n%s passed, %s failed\n' "$PASSES" "$FAILS"; diag; cleanup_vms; [ "$FAILS" -eq 0 ]; exit; }
 fi

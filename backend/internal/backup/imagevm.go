@@ -386,16 +386,17 @@ func backupRBDVM(ctx context.Context, t *store.BackupTask, b *vms.Bundle, at tim
 	defer func() {
 		for _, i := range made {
 			im := imgs[i]
-			if err != nil || !keep {
+			if err != nil {
 				_, _ = im.conn.RBD(context.WithoutCancel(ctx), "snap", "rm", im.spec+"@"+snap)
 				continue
 			}
-			// The new snapshot is the base of the next run: older ones go.
-			for _, old := range rbdSnaps(ctx, im.conn, im.spec) {
-				if old != snap && strings.HasPrefix(old, vms.CheckpointPrefix(t.ID)) {
-					_, _ = im.conn.RBD(context.WithoutCancel(ctx), "snap", "rm", im.spec+"@"+old)
-				}
+			// The new snapshot is the base of the next run: older ones go
+			// (all of them when the repository moved off this NAS).
+			except := snap
+			if !keep {
+				except = ""
 			}
+			dropRBDSnaps(context.WithoutCancel(ctx), im.conn, im.spec, vms.CheckpointPrefix(t.ID), except)
 		}
 	}()
 	if err != nil {
@@ -453,6 +454,57 @@ func backupRBDVM(ctx context.Context, t *store.BackupTask, b *vms.Bundle, at tim
 			return n, true, err
 		}, nil
 	}, nil)
+}
+
+// dropRBDSnaps removes the snapshots of image backups whose names start
+// with prefix, except keep.
+func dropRBDSnaps(ctx context.Context, c ceph.Conn, spec, prefix, keep string) {
+	for _, s := range rbdSnaps(ctx, c, spec) {
+		if s != keep && strings.HasPrefix(s, prefix) && rbdSnapRe.MatchString(s) {
+			_, _ = c.RBD(ctx, "snap", "rm", spec+"@"+s)
+		}
+	}
+}
+
+// dropImageSnaps removes the backup snapshots (prefix) of the RBD image
+// pool/name; vms.Delete calls it before deleting the image, which Ceph
+// refuses while it has snapshots.
+func dropImageSnaps(image, prefix string) {
+	pool, _, _ := strings.Cut(image, "/")
+	if RBDConnOf == nil || !sys.Has("rbd") {
+		return
+	}
+	c, err := RBDConnOf(pool)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dropRBDSnaps(ctx, c, image, prefix, "")
+}
+
+func init() { vms.DropBackupSnapshots = dropImageSnaps }
+
+// ForgetImageBases removes what a backup task keeps on its VMs for the next
+// incremental run (libvirt checkpoints, RBD snapshots): the task was deleted
+// or these VMs left it.
+func ForgetImageBases(task string, guests []string) {
+	if !taskIDRe.MatchString(task) {
+		return
+	}
+	prefix := vms.CheckpointPrefix(task)
+	for _, name := range guests {
+		vm, err := vms.Get(name)
+		if err != nil {
+			continue
+		}
+		vms.DropCheckpoints(name, prefix, "")
+		for _, d := range vm.Disks {
+			if img, ok := strings.CutPrefix(d.Source, vms.RBDPrefix); ok && d.Device == "disk" {
+				dropImageSnaps(img, prefix)
+			}
+		}
+	}
 }
 
 func rbdSnaps(ctx context.Context, c ceph.Conn, spec string) []string {

@@ -83,6 +83,11 @@ func DeleteCheckpoint(name, cp string) error {
 	return nil
 }
 
+// DropBackupSnapshots removes the RBD snapshots of image backups whose
+// names start with prefix from the image pool/name (set by the backup
+// package, which knows how to reach the cluster).
+var DropBackupSnapshots func(image, prefix string)
+
 // DropCheckpoints deletes the checkpoints whose names start with prefix,
 // except keep.
 func DropCheckpoints(name, prefix, keep string) {
