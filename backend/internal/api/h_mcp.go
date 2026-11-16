@@ -231,6 +231,15 @@ func (s *Server) mcpAddReadTools(srv *mcp.Server) {
 		}
 		return s.mcpGet(requestFrom(ctx), p)
 	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "search_file_content",
+		Description: "Search inside the contents of indexed documents (text, code, Office, PDF; at least 2 characters).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Query string `json:"query"`
+	}) (*mcp.CallToolResult, any, error) {
+		return s.mcpGet(requestFrom(ctx), "/api/files/fulltext?q="+url.QueryEscape(in.Query)+"&limit=20")
+	})
 }
 
 // mcpWriteIn gathers the arguments of every write tool (only the fields a
