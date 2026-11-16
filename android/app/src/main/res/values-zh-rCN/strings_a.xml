@@ -318,4 +318,6 @@
     <string name="state_running">运行中</string>
     <string name="state_partial">部分运行</string>
     <string name="state_stopped">已停止</string>
+    <string name="a_search_content">搜索文件内容</string>
+    <string name="a_search_content_hint">搜索所有文件的内容</string>
 </resources>

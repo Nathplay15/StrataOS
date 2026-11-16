@@ -318,4 +318,6 @@
     <string name="state_running">Actief</string>
     <string name="state_partial">Gedeeltelijk</string>
     <string name="state_stopped">Gestopt</string>
+    <string name="a_search_content">Zoeken in bestandsinhoud</string>
+    <string name="a_search_content_hint">Zoek in de inhoud van al je bestanden</string>
 </resources>
