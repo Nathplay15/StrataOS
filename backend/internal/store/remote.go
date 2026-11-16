@@ -41,11 +41,14 @@ type AppDomain struct {
 	Host string `json:"host"`
 	// Kind: "app" (installed app, by stack name), "url" (http(s)://host:port
 	// on this machine or the local network) or "ui" (the StrataOS interface).
-	Kind      string    `json:"kind"`
-	App       string    `json:"app,omitempty"`
-	Target    string    `json:"target,omitempty"`
-	LANOnly   bool      `json:"lanOnly,omitempty"`
-	Created   time.Time `json:"created"`
-	CertError string    `json:"certError,omitempty"`
-	CertTried time.Time `json:"certTried,omitzero"`
+	Kind    string `json:"kind"`
+	App     string `json:"app,omitempty"`
+	Target  string `json:"target,omitempty"`
+	LANOnly bool   `json:"lanOnly,omitempty"`
+	// AllowedIPs restricts the visitors to these addresses or networks
+	// (IP or CIDR); empty: everyone may come in.
+	AllowedIPs []string  `json:"allowedIPs,omitempty"`
+	Created    time.Time `json:"created"`
+	CertError  string    `json:"certError,omitempty"`
+	CertTried  time.Time `json:"certTried,omitzero"`
 }

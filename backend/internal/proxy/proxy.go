@@ -71,7 +71,41 @@ type Route struct {
 	Host    string
 	Target  *url.URL
 	LANOnly bool
-	proxy   *httputil.ReverseProxy
+	// AllowedIPs restricts the visitors to these networks; empty: everyone.
+	AllowedIPs []netip.Prefix
+	proxy      *httputil.ReverseProxy
+}
+
+// ParsePrefixes turns a list of IP addresses or CIDR networks into prefixes.
+func ParsePrefixes(list []string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, s := range list {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(s); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		a, err := netip.ParseAddr(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address or network: %s", s)
+		}
+		out = append(out, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
+	}
+	return out, nil
+}
+
+// AddrAllowed reports whether a is in one of the prefixes.
+func AddrAllowed(a netip.Addr, prefixes []netip.Prefix) bool {
+	a = a.Unmap()
+	for _, p := range prefixes {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
 }
 
 // Table holds the routes by host name.
@@ -292,6 +326,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if rt.LANOnly && (s.Private == nil || !s.Private(ip)) {
 		page(w, http.StatusForbidden, "Access denied", "This application is only available from the local network.")
+		return
+	}
+	if len(rt.AllowedIPs) > 0 && !AddrAllowed(ip, rt.AllowedIPs) {
+		page(w, http.StatusForbidden, "Access denied", "This application is restricted to certain addresses.")
 		return
 	}
 	w.Header().Set("Strict-Transport-Security", "max-age=15552000")

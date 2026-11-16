@@ -125,6 +125,9 @@ func (s *Server) proxyTable() proxy.Table {
 	t := proxy.Table{}
 	for _, d := range ds {
 		r := &proxy.Route{Host: d.Host, LANOnly: d.LANOnly}
+		if ps, err := proxy.ParsePrefixes(d.AllowedIPs); err == nil {
+			r.AllowedIPs = ps
+		}
 		switch d.Kind {
 		case "app":
 			u, err := appTarget(d.App)
@@ -578,6 +581,14 @@ func (s *Server) remoteRoutes() {
 		if err := s.checkTarget(&req); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		ps, err := proxy.ParsePrefixes(req.AllowedIPs)
+		if err != nil {
+			return nil, badRequest(err.Error())
+		}
+		req.AllowedIPs = nil
+		for _, p := range ps {
+			req.AllowedIPs = append(req.AllowedIPs, p.String())
+		}
 		var d store.AppDomain
 		err = s.store.Update(func(st *store.State) error {
 			for _, x := range st.Remote.Proxy.Domains {
@@ -597,6 +608,7 @@ func (s *Server) remoteRoutes() {
 						x.CertError, x.CertTried = "", time.Time{}
 					}
 					x.Host, x.Kind, x.App, x.Target, x.LANOnly = host, req.Kind, req.App, req.Target, req.LANOnly
+					x.AllowedIPs = req.AllowedIPs
 					d = *x
 					return nil
 				}
