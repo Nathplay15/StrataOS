@@ -515,13 +515,13 @@ func (s *Server) remoteRoutes() {
 					continue
 				}
 				if u, err := appTarget(st.Name); err == nil {
-					name := st.Name
+					name, icon := st.Name, ""
 					if a := docker.FindApp(st.App); a != nil {
-						name = a.Name
+						name, icon = a.Name, a.Icon
 					} else if st.Custom != nil {
-						name = st.Custom.Name
+						name, icon = st.Custom.Name, st.Custom.Icon
 					}
-					apps = append(apps, map[string]string{"stack": st.Name, "name": name, "address": u.String(), "status": st.Status})
+					apps = append(apps, map[string]string{"stack": st.Name, "name": name, "address": u.String(), "status": st.Status, "icon": icon})
 				}
 			}
 		}

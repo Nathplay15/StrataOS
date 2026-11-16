@@ -1,8 +1,11 @@
 package io.github.nathplay15.strataos.ui
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,13 +39,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.res.stringResource
@@ -58,7 +68,12 @@ import io.github.nathplay15.strataos.net.SystemInfo
 import io.github.nathplay15.strataos.net.Volume
 import io.github.nathplay15.strataos.net.manage.PublishedLink
 import io.github.nathplay15.strataos.net.manage.publishedApps
+import io.github.nathplay15.strataos.net.manage.rasterIconUrl
 import io.github.nathplay15.strataos.net.manage.remoteState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Request
 
 private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?, val apps: List<PublishedLink>)
 
@@ -109,7 +124,7 @@ private fun AppsCard(apps: List<PublishedLink>) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } },
                 ) {
-                    Icon(Icons.Default.OpenInNew, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    AppIcon(a.icon, Icons.Default.OpenInNew, 20.dp)
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                         Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                         Text(a.url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -118,6 +133,26 @@ private fun AppsCard(apps: List<PublishedLink>) {
             }
         }
     }
+}
+
+/** The icon of an app, fetched without credentials (it is a public address); [fallback] while loading or on failure. */
+@Composable
+private fun AppIcon(icon: String, fallback: ImageVector, size: androidx.compose.ui.unit.Dp) {
+    var bmp by remember(icon) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(icon) { if (bmp == null && icon.isNotEmpty()) bmp = loadIcon(icon) }
+    val b = bmp
+    if (b != null) Image(b.asImageBitmap(), null, Modifier.size(size))
+    else Icon(fallback, null, Modifier.size(size), tint = MaterialTheme.colorScheme.primary)
+}
+
+private suspend fun loadIcon(icon: String): Bitmap? = withContext(Dispatchers.IO) {
+    val u = rasterIconUrl(icon)?.toHttpUrlOrNull() ?: return@withContext null
+    val http = Graph.api()?.http ?: return@withContext null
+    runCatching {
+        http.newCall(Request.Builder().url(u).build()).execute().use { r ->
+            if (!r.isSuccessful) null else BitmapFactory.decodeStream(r.body.byteStream())
+        }
+    }.getOrNull()
 }
 
 @Composable

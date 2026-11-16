@@ -6,6 +6,7 @@ import io.github.nathplay15.strataos.net.manage.PublishedDomain
 import io.github.nathplay15.strataos.net.manage.PublishedLink
 import io.github.nathplay15.strataos.net.manage.RemoteState
 import io.github.nathplay15.strataos.net.manage.publishedApps
+import io.github.nathplay15.strataos.net.manage.rasterIconUrl
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -36,5 +37,26 @@ class RemoteTest {
     fun skipsAppsWithoutAddress() {
         val s = RemoteState(apps = listOf(PublishedApp(stack = "down", name = "Down", status = "exited")))
         assertEquals(emptyList<PublishedLink>(), publishedApps(s))
+    }
+
+    @Test
+    fun parsesIconAndKeepsItInTheLink() {
+        val s = json.decodeFromString(
+            RemoteState.serializer(),
+            """{"apps":[{"stack":"jellyfin","name":"Jellyfin","address":"http://nas:8096","status":"running",
+                "icon":"https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg"}]}""",
+        )
+        assertEquals("https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg", publishedApps(s).single().icon)
+    }
+
+    @Test
+    fun rasterIconVariants() {
+        assertEquals(
+            "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png",
+            rasterIconUrl("https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg"),
+        )
+        assertEquals(null, rasterIconUrl("https://example.com/icon.svg"))
+        assertEquals("https://example.com/icon.png", rasterIconUrl("https://example.com/icon.png"))
+        assertEquals(null, rasterIconUrl("not a url"))
     }
 }
