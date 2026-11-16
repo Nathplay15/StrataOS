@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Box, Container as ContainerIcon, File, Folder, Loader2, Monitor, Palette, Search, Settings, Share2, User as UserIcon, LayoutPanelLeft, KeyRound, ShieldCheck, FingerprintPattern, TabletSmartphone } from "lucide-react";
+import { Box, Container as ContainerIcon, File, FileText, Folder, Loader2, Monitor, Palette, Search, Settings, Share2, User as UserIcon, LayoutPanelLeft, KeyRound, ShieldCheck, FingerprintPattern, TabletSmartphone } from "lucide-react";
 import type { Container, FileEntry, Me, Share, User } from "../lib/types";
 import type { VMData } from "../pages/vms/types";
 import type { LXCData } from "../pages/vms/containers/types";
@@ -16,7 +16,16 @@ import { APPS, AppIcon } from "../desktop/apps";
 // from the NAS, each request on its own with a timeout so a slow one never
 // holds the others back. Only what the user may open is listed.
 
-type Group = "apps" | "settings" | "shares" | "files" | "vms" | "docker" | "users";
+type Group = "apps" | "settings" | "shares" | "files" | "content" | "vms" | "docker" | "users";
+
+/** One match inside the text of an indexed document. */
+interface ContentHit {
+  path: string;
+  name: string;
+  size: number;
+  modTime: string;
+  snippet: string;
+}
 
 interface Hit extends Searchable {
   key: string;
@@ -30,6 +39,7 @@ const GROUPS: { id: Group; label: string; max: number }[] = [
   { id: "settings", label: tr("Settings"), max: 4 },
   { id: "shares", label: tr("Shared folders"), max: 4 },
   { id: "files", label: tr("Files"), max: 8 },
+  { id: "content", label: tr("In file contents"), max: 5 },
   { id: "vms", label: tr("Virtual machines and containers"), max: 5 },
   { id: "docker", label: tr("Docker containers"), max: 5 },
   { id: "users", label: tr("Users"), max: 5 },
@@ -210,10 +220,28 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
     return () => { clearTimeout(t); ctl.abort(); };
   }, [q]);
 
+  // Contents: the full-text index of the NAS, searched the same way.
+  const [content, setContent] = useState<{ q: string; hits: ContentHit[]; busy: boolean }>({ q: "", hits: [], busy: false });
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) {
+      setContent({ q: term, hits: [], busy: false });
+      return;
+    }
+    const ctl = new AbortController();
+    setContent((c) => ({ ...c, busy: true }));
+    const t = setTimeout(() => {
+      getWithin<{ hits: ContentHit[] }>(`/api/files/fulltext?q=${encodeURIComponent(term)}&limit=5`, 5000, ctl.signal)
+        .then((r) => setContent({ q: term, hits: r.hits ?? [], busy: false }))
+        .catch(() => !ctl.signal.aborted && setContent({ q: term, hits: [], busy: false }));
+    }, 250);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [q]);
+
   const groups = useMemo(() => {
     const term = q.trim();
     if (!term) return [];
-    const by: Record<Group, Hit[]> = { apps: [], settings: [], shares: [], files: [], vms: [], docker: [], users: [] };
+    const by: Record<Group, Hit[]> = { apps: [], settings: [], shares: [], files: [], content: [], vms: [], docker: [], users: [] };
     for (const h of rank(term, statics)) by[h.group].push(h);
     by.shares = rank(term, (shares.data ?? []).map((s): Hit => ({
       key: "share-" + s.name, labels: [s.name], keywords: s.description ? [s.description] : [], sub: s.path, icon: <Share2 size={18} />,
@@ -224,6 +252,13 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
       return {
         key: "file-" + e.path, labels: [e.name], sub: e.path.replace(/^\/srv\/strata\//, ""), icon: e.dir ? <Folder size={18} className="text-accent" /> : <File size={18} />,
         run: done(() => { openPage("/files"); postIntent({ page: "files", dir, file: e.dir ? undefined : e }); }),
+      };
+    }) : [];
+    by.content = content.q === term ? content.hits.map((h): Hit => {
+      const dir = h.path.slice(0, h.path.lastIndexOf("/")) || "/";
+      return {
+        key: "content-" + h.path, labels: [h.name], sub: h.snippet || h.path.replace(/^\/srv\/strata\//, ""), icon: <FileText size={18} />,
+        run: done(() => { openPage("/files"); postIntent({ page: "files", dir, file: { name: h.name, path: h.path, dir: false, size: h.size, mode: "", modTime: h.modTime, link: false } }); }),
       };
     }) : [];
     if (admin) {
@@ -238,14 +273,14 @@ function SearchPalette({ me, openPage, onClose, desktop }: { me: Me; openPage: (
       by.users = rank(term, (users.data ?? []).map((u): Hit => ({ key: "user-" + u.username, labels: [u.username, u.fullName], keywords: u.email ? [u.email] : [], sub: u.fullName || u.email, icon: <UserIcon size={18} />, run: done(() => { openPage("/users"); postIntent({ page: "users", name: u.username }); }) })));
     }
     return GROUPS.map((g) => ({ ...g, hits: by[g.id].slice(0, g.max) })).filter((g) => g.hits.length > 0);
-  }, [q, statics, shares.data, files, vms.data, lxc.data, docker.data, users.data, admin]);
+  }, [q, statics, shares.data, files, content, vms.data, lxc.data, docker.data, users.data, admin]);
 
   const flat = groups.flatMap((g) => g.hits);
   useEffect(() => setSel(0), [q]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-i="${sel}"]`)?.scrollIntoView({ block: "nearest" });
   }, [sel]);
-  const loading = files.busy || (q.trim().length > 0 && (shares.isLoading || (admin && (vms.isLoading || users.isLoading))));
+  const loading = files.busy || content.busy || (q.trim().length > 0 && (shares.isLoading || (admin && (vms.isLoading || users.isLoading))));
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(flat.length - 1, s + 1)); }
