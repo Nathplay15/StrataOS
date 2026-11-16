@@ -32,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,15 +76,13 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
             IconButton(onClick = loader.reload) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh)) }
             accountAction()
         })
-        PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.reload, modifier = Modifier.fillMaxSize()) {
-            LoadedContent(loader) { d ->
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { HeroCard(d.info, d.overview) }
-                    item { QuickActions(onOpenFiles, onOpenPhotos) }
-                    if (d.overview.volumes.isNotEmpty()) item { StorageCard(d.overview) }
-                    if (d.stats != null && d.stats.history.size >= 2) item { ActivityCard(d.stats) }
-                    d.events?.let { ev -> if (ev.events.isNotEmpty()) item { NotificationsCard(ev.events) } }
-                }
+        Refreshable(loader) { d ->
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { HeroCard(d.info, d.overview) }
+                item { QuickActions(onOpenFiles, onOpenPhotos) }
+                if (d.overview.volumes.isNotEmpty()) item { StorageCard(d.overview) }
+                if (d.stats != null && d.stats.history.size >= 2) item { ActivityCard(d.stats) }
+                d.events?.let { ev -> if (ev.events.isNotEmpty()) item { NotificationsCard(ev.events) } }
             }
         }
     }
