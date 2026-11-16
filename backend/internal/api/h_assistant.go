@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -34,6 +35,7 @@ type assistantMessage struct {
 
 type llmToolCall struct {
 	ID       string `json:"id"`
+	Index    int    `json:"index,omitempty"`
 	Type     string `json:"type"`
 	Function struct {
 		Name      string `json:"name"`
@@ -67,6 +69,16 @@ type assistantAction struct {
 	Token   string `json:"token"`
 	Tool    string `json:"tool"`
 	Summary string `json:"summary"`
+}
+
+// assistantEvent is one server-sent event of the streamed chat endpoint.
+type assistantEvent struct {
+	Type           string `json:"type"` // delta | status | action | error | done
+	Text           string `json:"text,omitempty"`
+	Tool           string `json:"tool,omitempty"`
+	Token          string `json:"token,omitempty"`
+	Summary        string `json:"summary,omitempty"`
+	ConversationID string `json:"conversationId,omitempty"`
 }
 
 func fnTool(name, desc string, props map[string]any, required ...string) llmTool {
@@ -116,6 +128,77 @@ func assistantTools() []llmTool {
 		fnTool("create_zfs_snapshot", "Create a ZFS snapshot. Needs the user's confirmation in the interface.",
 			map[string]any{"dataset": strProp("Dataset path such as tank/data"), "snapshotName": strProp("Snapshot name")}, "dataset", "snapshotName"),
 	}
+}
+
+// assistantChatReq is the body of the chat endpoints (plain and streamed).
+type assistantChatReq struct {
+	Messages       []assistantMessage `json:"messages"`
+	ConversationID string             `json:"conversationId,omitempty"`
+}
+
+// assistantChatSettings decodes and validates a chat request, then returns
+// the configured assistant endpoint (an error when it is not set up).
+func (s *Server) assistantChatSettings(r *http.Request, req *assistantChatReq) (store.Settings, error) {
+	if err := decode(r, req); err != nil {
+		return store.Settings{}, err
+	}
+	if len(req.Messages) == 0 || len(req.Messages) > 40 {
+		return store.Settings{}, badRequest("invalid conversation")
+	}
+	for _, m := range req.Messages {
+		if (m.Role != "user" && m.Role != "assistant") || len(m.Content) > 8000 {
+			return store.Settings{}, badRequest("invalid conversation")
+		}
+	}
+	var set store.Settings
+	s.store.Read(func(st *store.State) { set = st.Settings })
+	if set.AssistantURL == "" || set.AssistantKey == "" || set.AssistantModel == "" {
+		return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
+	}
+	return set, nil
+}
+
+// assistantSave stores the user/assistant messages of one exchange: it
+// creates the conversation on the first exchange, or extends it when the
+// client follows one, and returns its id.
+func (s *Server) assistantSave(r *http.Request, req *assistantChatReq, reply string) (string, error) {
+	var convID string
+	err := s.store.Update(func(st *store.State) error {
+		var chat *store.AssistantChat
+		if req.ConversationID != "" {
+			chat = st.AssistantChat(userOf(r), req.ConversationID)
+		}
+		if chat == nil {
+			title := ""
+			for _, m := range req.Messages {
+				if m.Role == "user" && strings.TrimSpace(m.Content) != "" {
+					title = strings.TrimSpace(m.Content)
+					break
+				}
+			}
+			if len(title) > 60 {
+				title = title[:60]
+			}
+			chat = &store.AssistantChat{ID: token()[:16], User: userOf(r), Title: title}
+			st.AssistantChats = append(st.AssistantChats, chat)
+		}
+		chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "user", Content: req.Messages[len(req.Messages)-1].Content})
+		if reply != "" {
+			chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "assistant", Content: reply})
+		}
+		if len(chat.Messages) > store.MaxAssistantMessages {
+			chat.Messages = chat.Messages[len(chat.Messages)-store.MaxAssistantMessages:]
+		}
+		for i := range chat.Messages {
+			if len(chat.Messages[i].Content) > store.MaxAssistantChars {
+				chat.Messages[i].Content = chat.Messages[i].Content[:store.MaxAssistantChars]
+			}
+		}
+		chat.Updated = time.Now()
+		convID = chat.ID
+		return nil
+	})
+	return convID, err
 }
 
 func (s *Server) assistantRoutes() {
@@ -169,25 +252,10 @@ func (s *Server) assistantRoutes() {
 	})
 
 	s.user("POST /api/assistant/chat", func(r *http.Request) (any, error) {
-		var req struct {
-			Messages       []assistantMessage `json:"messages"`
-			ConversationID string             `json:"conversationId,omitempty"`
-		}
-		if err := decode(r, &req); err != nil {
+		var req assistantChatReq
+		set, err := s.assistantChatSettings(r, &req)
+		if err != nil {
 			return nil, err
-		}
-		if len(req.Messages) == 0 || len(req.Messages) > 40 {
-			return nil, badRequest("invalid conversation")
-		}
-		for _, m := range req.Messages {
-			if (m.Role != "user" && m.Role != "assistant") || len(m.Content) > 8000 {
-				return nil, badRequest("invalid conversation")
-			}
-		}
-		var set store.Settings
-		s.store.Read(func(st *store.State) { set = st.Settings })
-		if set.AssistantURL == "" || set.AssistantKey == "" || set.AssistantModel == "" {
-			return nil, badRequest("the assistant is not configured: set it up in Settings")
 		}
 		inner := s.assistantReq(r)
 		conv := append([]assistantMessage{{Role: "system", Content: assistantPrompt}}, req.Messages...)
@@ -203,10 +271,10 @@ func (s *Server) assistantRoutes() {
 			}
 			msg := resp.Choices[0].Message
 			if len(msg.ToolCalls) == 0 {
-				reply = msg.Content
+				reply += msg.Content
 				break
 			}
-			reply = msg.Content
+			reply += msg.Content
 			conv = append(conv, assistantMessage{Role: "assistant", Content: msg.Content, ToolCalls: msg.ToolCalls})
 			stop := false
 			for _, tc := range msg.ToolCalls {
@@ -225,44 +293,8 @@ func (s *Server) assistantRoutes() {
 				break
 			}
 		}
-		// Save the conversation (user/assistant messages only): created on the
-		// first exchange, or extended when the client follows one.
-		var convID string
-		if err := s.store.Update(func(st *store.State) error {
-			var chat *store.AssistantChat
-			if req.ConversationID != "" {
-				chat = st.AssistantChat(userOf(r), req.ConversationID)
-			}
-			if chat == nil {
-				title := ""
-				for _, m := range req.Messages {
-					if m.Role == "user" && strings.TrimSpace(m.Content) != "" {
-						title = strings.TrimSpace(m.Content)
-						break
-					}
-				}
-				if len(title) > 60 {
-					title = title[:60]
-				}
-				chat = &store.AssistantChat{ID: token()[:16], User: userOf(r), Title: title}
-				st.AssistantChats = append(st.AssistantChats, chat)
-			}
-			chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "user", Content: req.Messages[len(req.Messages)-1].Content})
-			if reply != "" {
-				chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "assistant", Content: reply})
-			}
-			if len(chat.Messages) > store.MaxAssistantMessages {
-				chat.Messages = chat.Messages[len(chat.Messages)-store.MaxAssistantMessages:]
-			}
-			for i := range chat.Messages {
-				if len(chat.Messages[i].Content) > store.MaxAssistantChars {
-					chat.Messages[i].Content = chat.Messages[i].Content[:store.MaxAssistantChars]
-				}
-			}
-			chat.Updated = time.Now()
-			convID = chat.ID
-			return nil
-		}); err != nil {
+		convID, err := s.assistantSave(r, &req, reply)
+		if err != nil {
 			return nil, err
 		}
 		return struct {
@@ -270,6 +302,72 @@ func (s *Server) assistantRoutes() {
 			ConversationID string            `json:"conversationId"`
 			Actions        []assistantAction `json:"actions,omitempty"`
 		}{reply, convID, actions}, nil
+	})
+
+	// Streamed variant of POST /api/assistant/chat: the answer is sent as
+	// server-sent events (delta = answer text, status = tool running, action
+	// = write tool waiting for confirmation, done = end with the saved
+	// conversation id) so the interface shows the text as it is generated.
+	s.userRaw("POST /api/assistant/chat/stream", func(w http.ResponseWriter, r *http.Request) {
+		var req assistantChatReq
+		set, err := s.assistantChatSettings(r, &req)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		fl, ok := w.(http.Flusher)
+		if !ok {
+			writeErr(w, badRequest("streaming is not supported by this connection"))
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.WriteHeader(http.StatusOK)
+		send := func(ev assistantEvent) {
+			b, _ := json.Marshal(ev)
+			fmt.Fprintf(w, "data: %s\n\n", b)
+			fl.Flush()
+		}
+		inner := s.assistantReq(r)
+		conv := append([]assistantMessage{{Role: "system", Content: assistantPrompt}}, req.Messages...)
+		reply := ""
+		for iter := 0; iter < 5; iter++ {
+			msg, err := s.llmStream(r.Context(), set, conv, func(text string) { send(assistantEvent{Type: "delta", Text: text}) })
+			if err != nil {
+				send(assistantEvent{Type: "error", Text: err.Error()})
+				return
+			}
+			if len(msg.ToolCalls) == 0 {
+				reply += msg.Content
+				break
+			}
+			reply += msg.Content
+			conv = append(conv, assistantMessage{Role: "assistant", Content: msg.Content, ToolCalls: msg.ToolCalls})
+			stop := false
+			for _, tc := range msg.ToolCalls {
+				var args map[string]string
+				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				send(assistantEvent{Type: "status", Tool: tc.Function.Name})
+				out, armed := s.assistantTool(inner, tc.Function.Name, args)
+				if armed != nil {
+					send(assistantEvent{Type: "action", Token: armed.Token, Tool: armed.Tool, Summary: armed.Summary})
+					conv = append(conv, assistantMessage{Role: "tool", ToolCallID: tc.ID, Content: "Waiting for the user's confirmation in the interface."})
+					stop = true
+					continue
+				}
+				conv = append(conv, assistantMessage{Role: "tool", ToolCallID: tc.ID, Content: out})
+			}
+			if stop {
+				break
+			}
+		}
+		convID, err := s.assistantSave(r, &req, reply)
+		if err != nil {
+			send(assistantEvent{Type: "error", Text: err.Error()})
+			return
+		}
+		send(assistantEvent{Type: "done", ConversationID: convID})
 	})
 
 	s.user("POST /api/assistant/confirm", func(r *http.Request) (any, error) {
@@ -433,4 +531,94 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d", resp.StatusCode))
 	}
 	return &out, nil
+}
+
+// llmStream is the streaming variant of llmChat: it calls the endpoint with
+// stream:true, forwards every content delta to onDelta as it arrives and
+// accumulates the tool calls (their arguments arrive in small chunks). It
+// returns the complete message of the answer.
+func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []assistantMessage, onDelta func(string)) (*assistantMessage, error) {
+	body, err := json.Marshal(map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools(), "stream": true})
+	if err != nil {
+		return nil, err
+	}
+	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, strings.TrimSuffix(set.AssistantURL, "/")+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, badRequest("invalid assistant URL")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+set.AssistantKey)
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, badRequest("the assistant endpoint is unreachable")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d", resp.StatusCode))
+	}
+	msg := &assistantMessage{}
+	tools := map[int]*llmToolCall{}
+	sc := bufio.NewScanner(io.LimitReader(resp.Body, 8<<20))
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta assistantMessage `json:"delta"`
+			} `json:"choices"`
+			Error *struct {
+				Message string `json:"message"`
+			} `json:"error,omitempty"`
+		}
+		if json.Unmarshal([]byte(data), &chunk) != nil {
+			continue
+		}
+		if chunk.Error != nil {
+			return nil, badRequest(fmt.Sprintf("the assistant endpoint answered: %s", chunk.Error.Message))
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		d := chunk.Choices[0].Delta
+		if d.Content != "" {
+			msg.Content += d.Content
+			onDelta(d.Content)
+		}
+		for _, tc := range d.ToolCalls {
+			cur := tools[tc.Index]
+			if cur == nil {
+				cur = &llmToolCall{Index: tc.Index, Type: tc.Type}
+				if cur.Type == "" {
+					cur.Type = "function"
+				}
+				tools[tc.Index] = cur
+			}
+			if tc.ID != "" {
+				cur.ID = tc.ID
+			}
+			if tc.Function.Name != "" {
+				cur.Function.Name = tc.Function.Name
+			}
+			cur.Function.Arguments += tc.Function.Arguments
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, badRequest("the assistant endpoint stream failed")
+	}
+	for i := 0; i < len(tools); i++ {
+		if tc := tools[i]; tc != nil {
+			msg.ToolCalls = append(msg.ToolCalls, *tc)
+		}
+	}
+	return msg, nil
 }

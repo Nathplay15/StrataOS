@@ -4631,5 +4631,6 @@
   "Which containers are running?": "哪些容器正在运行？",
   "Any failed backups?": "有失败的备份吗？",
   "Delete this conversation?": "删除此对话？",
-  "The messages of this conversation will be removed.": "此对话的消息将被删除。"
+  "The messages of this conversation will be removed.": "此对话的消息将被删除。",
+  "Running {0}…": "正在运行 {0}…"
 }

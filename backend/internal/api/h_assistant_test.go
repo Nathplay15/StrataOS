@@ -332,3 +332,95 @@ func TestAssistantConversations(t *testing.T) {
 		t.Fatalf("deleted conversation must be gone: %d", resp.StatusCode)
 	}
 }
+
+// fakeStreamLLM answers each call with the next scripted SSE body.
+type fakeStreamLLM struct {
+	mu     sync.Mutex
+	calls  int
+	bodies []string
+}
+
+func (f *fakeStreamLLM) handler(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	f.mu.Lock()
+	n := f.calls
+	f.calls++
+	b := f.bodies[min(n, len(f.bodies)-1)]
+	f.mu.Unlock()
+	if b == "" {
+		b = "data: [DONE]\n\n"
+	}
+	if v, ok := body["stream"].(bool); !ok || !v {
+		w.WriteHeader(400)
+		_, _ = w.Write([]byte(`{"error":{"message":"stream expected"}}`))
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	_, _ = w.Write([]byte(b))
+}
+
+func TestAssistantChatStream(t *testing.T) {
+	fl := &fakeStreamLLM{bodies: []string{
+		"data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n" +
+			"data: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n\n" +
+			"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"nas_status\",\"arguments\":\"\"}}]}}]}\n\n" +
+			"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{}\"}}]}}]}\n\n" +
+			"data: [DONE]\n\n",
+		"data: {\"choices\":[{\"delta\":{\"content\":\" all good\"}}]}\n\n" +
+			"data: [DONE]\n\n",
+	}}
+	llm := httptest.NewServer(http.HandlerFunc(fl.handler))
+	defer llm.Close()
+	_, ts, tok := assistantServer(t, llm.URL, true)
+
+	r, _ := http.NewRequest("POST", ts.URL+"/api/assistant/chat/stream",
+		strings.NewReader(`{"messages":[{"role":"user","content":"how is my NAS?"}]}`))
+	r.Header.Set("Authorization", "Bearer "+tok)
+	r.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	body := string(b)
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("stream: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	for _, want := range []string{
+		`{"type":"delta","text":"Hel"}`,
+		`{"type":"delta","text":"lo"}`,
+		`{"type":"status","tool":"nas_status"}`,
+		`{"type":"delta","text":" all good"}`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing event %s in:\n%s", want, body)
+		}
+	}
+	if !strings.Contains(body, `"type":"done"`) || !strings.Contains(body, `"conversationId"`) {
+		t.Fatalf("missing done event in:\n%s", body)
+	}
+
+	// The conversation was saved with the full answer (deltas joined).
+	var done struct {
+		ConversationID string `json:"conversationId"`
+	}
+	if i := strings.LastIndex(body, `"type":"done"`); i >= 0 {
+		start := strings.LastIndex(body[:i], "data: ")
+		if err := json.Unmarshal([]byte(body[start+6:]), &done); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resp2, body2 := assistantDo(t, ts.URL, tok, "GET", "/api/assistant/conversations/"+done.ConversationID, nil)
+	var chat store.AssistantChat
+	if err := json.Unmarshal(body2, &chat); err != nil || resp2.StatusCode != 200 {
+		t.Fatalf("saved conversation: %d %s", resp2.StatusCode, body2)
+	}
+	if len(chat.Messages) != 2 || chat.Messages[1].Content != "Hello all good" {
+		t.Fatalf("messages = %+v", chat.Messages)
+	}
+	if len(fl.bodies) < 2 {
+		t.Fatalf("the model must be called again after the tool result")
+	}
+}

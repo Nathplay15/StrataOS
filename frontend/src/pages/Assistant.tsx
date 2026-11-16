@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CircleCheck, CircleX, History, MessageSquarePlus, SendHorizonal, Trash2, User } from "lucide-react";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { Badge, Button, ErrorBox, Input, Notice, PageHeader, Spinner, useUI } from "../components/ui";
 import { tr } from "../lib/i18n";
 
@@ -25,6 +25,7 @@ export default function Assistant() {
   const [convId, setConvId] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tool, setTool] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, actions, busy]);
@@ -35,15 +36,50 @@ export default function Assistant() {
     setText("");
     setError(null);
     const next = [...messages, { role: "user" as const, content: q }];
-    setMessages(next);
+    setMessages([...next, { role: "assistant" as const, content: "" }]);
     setBusy(true);
+    setTool(null);
+    const show = (reply: string) => setMessages([...next, { role: "assistant", content: reply }]);
     try {
-      const r = await api.post<{ reply: string; conversationId?: string; actions?: ArmedAction[] }>("/api/assistant/chat", { messages: next, conversationId: convId ?? undefined });
-      setConvId(r.conversationId || null);
-      setMessages([...next, { role: "assistant", content: r.reply }]);
-      if (r.actions?.length) setActions((a) => [...a, ...r.actions!.map((x) => ({ ...x, status: "pending" as const }))]);
-      qc.invalidateQueries({ queryKey: ["assistant-conversations"] });
-    } catch (e) { setError(e); }
+      const res = await fetch("/api/assistant/chat/stream", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-Strata": "1" },
+        body: JSON.stringify({ messages: next, conversationId: convId ?? undefined }),
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => null);
+        throw new ApiError(res.status, data && typeof data === "object" && "error" in data ? String(data.error) : res.statusText);
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let reply = "";
+      const armed: ArmedAction[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const raw = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const line = raw.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const ev = JSON.parse(line.slice(5).trim()) as { type: string; text?: string; tool?: string; token?: string; summary?: string; conversationId?: string };
+          if (ev.type === "delta") { reply += ev.text ?? ""; show(reply); }
+          else if (ev.type === "status") setTool(ev.tool ?? null);
+          else if (ev.type === "action" && ev.token) armed.push({ token: ev.token, tool: ev.tool ?? "", summary: ev.summary ?? "" });
+          else if (ev.type === "error") throw new Error(ev.text || "assistant error");
+          else if (ev.type === "done") { setConvId(ev.conversationId || null); qc.invalidateQueries({ queryKey: ["assistant-conversations"] }); }
+        }
+      }
+      if (armed.length) setActions((a) => [...a, ...armed.map((x) => ({ ...x, status: "pending" as const }))]);
+    } catch (e) {
+      setError(e);
+      setMessages((ms) => (ms.length && ms[ms.length - 1].role === "assistant" && !ms[ms.length - 1].content ? next : ms));
+    }
+    setTool(null);
     setBusy(false);
   };
 
@@ -131,7 +167,7 @@ export default function Assistant() {
                 </div>
               </div>
             ))}
-            {busy && <div className="text-[12.5px] text-muted">{tr("Thinking…")}</div>}
+            {busy && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}</div>}
             {actions.map((a, i) => (
               <div key={a.token} className="ml-7 rounded-xl border border-line bg-panel-2 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">
