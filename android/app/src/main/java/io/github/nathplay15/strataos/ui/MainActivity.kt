@@ -97,7 +97,7 @@ class MainActivity : FragmentActivity() {
                         // it would leave unlocked unobserved, so the lock screen would not come
                         // back after the lock was turned on until something else recomposes.
                         !unlocked && Graph.prefs.biometricLock -> LockScreen { authenticate() }
-                        else -> Home(tab, { tab = it; section = null }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null })
+                        else -> Home(tab, { tab = it; section = null }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null }, section)
                     }
                 }
             }
@@ -217,7 +217,7 @@ private fun AccountButton(openOverlay: (String) -> Unit) {
 }
 
 @Composable
-private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOverlay: (String?) -> Unit, onSignedOut: () -> Unit) {
+private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOverlay: (String?) -> Unit, onSignedOut: () -> Unit, section: String?) {
     var filesPath by rememberSaveable { mutableStateOf("") }
     if (overlay != null) {
         BackHandler { setOverlay(null) }

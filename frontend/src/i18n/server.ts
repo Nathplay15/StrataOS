@@ -340,6 +340,8 @@ export const serverTexts: [string, string][] = [
   ["Une image est requise", "image is required"],
   ["Code incorrect : vérifiez l'heure de votre téléphone et réessayez", "incorrect code: check the time of your phone and retry"],
   ["Indexation déjà en cours", "indexing already running"],
+  ["Une compression est déjà en cours", "a compression is already running"],
+  ["Installez d'abord le composant Outils multimédias", "install the media tools component first"],
   ["Fichiers infectés détectés", "infected files found"],
   ["Installez d'abord WireGuard", "install WireGuard first"],
   ["Installez d'abord le serveur FTP", "install the FTP server first"],
