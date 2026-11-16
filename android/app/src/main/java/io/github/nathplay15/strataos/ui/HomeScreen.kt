@@ -131,7 +131,7 @@ private fun QuickActions(onOpenFiles: () -> Unit, onOpenPhotos: () -> Unit) {
 
 /** A ring showing [frac] (0..1), drawn as an arc; [color] for the value, track in surface variant. */
 @Composable
-private fun Ring(frac: Float, color: Color, modifier: Modifier, stroke: Float, label: (@Composable () -> Unit)? = null) {
+private fun Ring(frac: Float, color: Color, modifier: Modifier, stroke: androidx.compose.ui.unit.Dp, label: (@Composable () -> Unit)? = null) {
     Box(modifier, contentAlignment = Alignment.Center) {
         val track = MaterialTheme.colorScheme.surfaceVariant
         Canvas(Modifier.fillMaxSize()) {
