@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/desktop/app/src-tauri"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # glib 0.18.5 (RUSTSEC-2024-0429, unsound VariantStrIter) is a transitive
+      # dependency of Tauri 2 (tao/wry/webkit2gtk -> gtk 0.18). The fix requires
+      # gtk-rs 0.20, itself blocked on Tauri's upstream GTK4 migration. Tolerated
+      # risk: Linux-only, never compiled on Windows/macOS, and unreachable from
+      # this app's code (no direct glib usage). Revisit when Tauri ships gtk-rs 0.20.
+      - dependency-name: "glib"
