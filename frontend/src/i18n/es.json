@@ -3347,6 +3347,7 @@
   "System status": "Estado del sistema",
   "System updates (APT) may then reach their repositories directly": "Las actualizaciones del sistema (APT) podrán entonces acceder directamente a sus repositorios",
   "System without snapshots: the versions of the packages about to change, and of StrataOS, are kept before each update (the last 3 restore points are kept).": "Sistema sin snapshots: las versiones de los paquetes que van a cambiar, y de StrataOS, se conservan antes de cada actualización (se conservan los 3 últimos puntos).",
+  "Text recognition (OCR)": "Reconocimiento de texto (OCR)",
   "TVs and consoles find it by themselves on the local network.": "Los televisores y consolas lo encuentran solos en la red local.",
   "Tailnet addresses": "Direcciones de la tailnet",
   "Tailnet: {0}": "Tailnet: {0}",

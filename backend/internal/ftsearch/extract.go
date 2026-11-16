@@ -1,6 +1,7 @@
 // Text extraction for the full-text index: plain text and code are read
 // directly, Office and OpenDocument files are unzipped and their XML text is
-// collected, PDFs are parsed with a pure-Go reader. Everything is capped so a
+// collected, PDFs are parsed with a pure-Go reader, images and scanned PDFs
+// go through OCR when the component is installed. Everything is capped so a
 // single file can never slow the scan or grow the index without bound.
 
 package ftsearch
@@ -37,7 +38,7 @@ var officeExt = map[string]bool{
 
 // supported reports whether a file type is indexed.
 func supported(ext string) bool {
-	return plainExt[ext] || officeExt[ext] || ext == ".pdf"
+	return plainExt[ext] || officeExt[ext] || ext == ".pdf" || imageExt[ext]
 }
 
 // extract reads the text of a file, capped to maxTextBytes.
@@ -48,7 +49,9 @@ func extract(path, ext string, size int64) (string, error) {
 	case officeExt[ext]:
 		return officeText(path, ext)
 	case ext == ".pdf":
-		return pdfText(path)
+		return pdfTextAny(path)
+	case imageExt[ext]:
+		return ocrImage(path)
 	}
 	return "", nil
 }
@@ -200,4 +203,28 @@ func pdfText(path string) (string, error) {
 		return "", err
 	}
 	return truncate(string(b)), nil
+}
+
+// pdfNeedsOCR tells whether a PDF text layer is too thin: it is a scan.
+func pdfNeedsOCR(text string) bool {
+	return len(strings.Fields(text)) < minPdfWords
+}
+
+// pdfTextAny falls back to OCR when a PDF holds (almost) no text.
+func pdfTextAny(path string) (string, error) {
+	text, err := pdfText(path)
+	if err != nil {
+		return "", err
+	}
+	if !pdfNeedsOCR(text) || !ocrAvailable() || !ocrState.raster {
+		return text, nil
+	}
+	ocrText, err := ocrCached(path, ocrPdf)
+	if err != nil {
+		return text, nil // the digital text is better than nothing
+	}
+	if len(strings.Fields(ocrText)) > len(strings.Fields(text)) {
+		return ocrText, nil
+	}
+	return text, nil
 }

@@ -138,7 +138,7 @@ function MetricsCard({ enabled }: { enabled: boolean }) {
 }
 
 // Components whose key is not self-explanatory.
-const componentLabel: Record<string, string> = { lxc: tr("Containers (LXC)"), docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)") };
+const componentLabel: Record<string, string> = { lxc: tr("Containers (LXC)"), docpreview: tr("Document previews (≈ 400 MB)"), photos: tr("Media tools (ffmpeg, libvips)"), ocr: tr("Text recognition (OCR)") };
 
 // Period of the health report; before 0.9.1 only the monthly switch existed.
 const reportPeriod = (s: Settings) => (s.report === "weekly" || s.report === "monthly" ? s.report : s.report === "off" ? "" : s.monthlyReport ? "monthly" : "");
@@ -253,7 +253,7 @@ export default function SettingsPage() {
             {Object.entries(comps.data ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-xl bg-panel-2 px-3 py-2.5">
                 <span className="font-medium capitalize">{componentLabel[k] ?? k}</span>
-                {v ? <span className="flex items-center gap-1.5"><Badge tone="ok" dot>{tr("Installed")}</Badge>{uninstallable.includes(k) && <Button size="sm" variant="ghost" className="text-danger" onClick={() => setUninstall(k)}>{tr("Uninstall")}</Button>}</span> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
+                {v ? <span className="flex items-center gap-1.5"><Badge tone="ok" dot>{tr("Installed")}</Badge>{uninstallable.includes(k) && <Button size="sm" variant="ghost" className="text-danger" onClick={() => setUninstall(k)}>{tr("Uninstall")}</Button>}</span> : (k === "zfs" || k === "docker" || k === "docpreview" || k === "photos" || k === "ocr") ? <Button size="sm" loading={install.isPending} onClick={() => install.mutate(k)}>{tr("Install")}</Button> : <Badge tone="warn">{tr("Absent")}</Badge>}
               </div>
             ))}
           </div></div>

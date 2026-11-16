@@ -1556,6 +1556,7 @@ export const serverTexts: [string, string][] = [
   ["Serveur DLNA", "DLNA server"],
   ["Enregistreur de vidéosurveillance", "Surveillance recorder"],
   ["Aperçus de documents", "Document previews"],
+  ["Reconnaissance de texte (OCR)", "Text recognition (OCR)"],
   ["Utilisé par {0}", "Used by {0}"],
   ["Requis par StrataOS", "Needed by StrataOS"],
   ["Requis par {0}", "Needed by {0}"],

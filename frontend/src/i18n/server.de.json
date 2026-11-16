@@ -1222,6 +1222,7 @@
  "Recherche de mises à jour lancée par la console {0}": "Update-Suche von der Konsole {0} gestartet",
  "Recherche de mises à jour sur les NAS de la console": "Suche nach Updates auf den NAS der Konsole",
  "Recherche des mises à jour des conteneurs": "Suche nach Container-Updates",
+ "Reconnaissance de texte (OCR)": "Texterkennung (OCR)",
  "Reconstruction de la grappe RAID {0} en cours ({1} %)": "Das RAID-Array {0} wird wiederhergestellt ({1} %)",
  "Redémarrage demandé depuis la console du NAS": "Neustart von der Konsole des NAS angefordert",
  "Redémarrage demandé par la console {0} après une mise à jour": "Neustart von der Konsole {0} nach einem Update angefordert",
