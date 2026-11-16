@@ -24,9 +24,9 @@ pub fn parse_handshake(line: &str) -> Option<Handshake> {
 
 /// A random token for the agent's API (hex, 48 characters).
 pub fn new_token() -> String {
-    use rand::RngCore;
+    use rand::Rng;
     let mut b = [0u8; 24];
-    rand::thread_rng().fill_bytes(&mut b);
+    rand::rng().fill_bytes(&mut b);
     hex::encode(b)
 }
 
