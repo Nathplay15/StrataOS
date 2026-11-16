@@ -1,5 +1,7 @@
 package io.github.nathplay15.strataos.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
@@ -35,6 +38,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -52,8 +56,11 @@ import io.github.nathplay15.strataos.net.Overview
 import io.github.nathplay15.strataos.net.StatsHistory
 import io.github.nathplay15.strataos.net.SystemInfo
 import io.github.nathplay15.strataos.net.Volume
+import io.github.nathplay15.strataos.net.manage.PublishedLink
+import io.github.nathplay15.strataos.net.manage.publishedApps
+import io.github.nathplay15.strataos.net.manage.remoteState
 
-private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?)
+private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?, val apps: List<PublishedLink>)
 
 /**
  * The Home tab: a dashboard of the NAS — health, storage, live activity and
@@ -69,6 +76,7 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
             a.systemInfo(), a.overview(),
             runCatching { a.stats() }.getOrNull(),
             if (admin) runCatching { a.events(0) }.getOrNull() else null,
+            if (admin) runCatching { publishedApps(a.remoteState()) }.getOrDefault(emptyList()) else emptyList(),
         )
     }
     Column(Modifier.fillMaxSize()) {
@@ -80,9 +88,33 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
             LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { HeroCard(d.info, d.overview) }
                 item { QuickActions(onOpenFiles, onOpenPhotos) }
+                if (d.apps.isNotEmpty()) item { AppsCard(d.apps) }
                 if (d.overview.volumes.isNotEmpty()) item { StorageCard(d.overview) }
                 if (d.stats != null && d.stats.history.size >= 2) item { ActivityCard(d.stats) }
                 d.events?.let { ev -> if (ev.events.isNotEmpty()) item { NotificationsCard(ev.events) } }
+            }
+        }
+    }
+}
+
+/** The published apps of the NAS, opened in the browser. */
+@Composable
+private fun AppsCard(apps: List<PublishedLink>) {
+    val ctx = LocalContext.current
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.a_my_apps), style = MaterialTheme.typography.titleMedium)
+            apps.forEach { a ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } },
+                ) {
+                    Icon(Icons.Default.OpenInNew, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                        Text(a.url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
             }
         }
     }

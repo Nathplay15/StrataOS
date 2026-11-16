@@ -125,6 +125,7 @@
     <string name="a_more">Mehr</string>
     <string name="a_move_to">Verschieben nach …</string>
     <string name="a_moved_to_bin">%1$d Element(e) in den Papierkorb verschoben</string>
+    <string name="a_my_apps">Meine Apps</string>
     <string name="a_name_rule">Buchstaben, Ziffern, - und _ (höchstens 32)</string>
     <string name="a_need_devices">Diese Anordnung benötigt mindestens %1$d Geräte.</string>
     <string name="a_network">Netzwerk</string>

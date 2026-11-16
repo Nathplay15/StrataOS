@@ -125,6 +125,7 @@
     <string name="a_more">Más</string>
     <string name="a_move_to">Mover a…</string>
     <string name="a_moved_to_bin">%1$d elemento(s) movido(s) a la papelera</string>
+    <string name="a_my_apps">Mis aplicaciones</string>
     <string name="a_name_rule">Letras, dígitos, - y _ (32 como máximo)</string>
     <string name="a_need_devices">Esta disposición requiere al menos %1$d dispositivos.</string>
     <string name="a_network">Red</string>
