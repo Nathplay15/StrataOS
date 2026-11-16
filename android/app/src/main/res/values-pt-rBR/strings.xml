@@ -119,4 +119,8 @@
     <string name="channel_uploads">Envios</string>
     <string name="signed_out_title">StrataOS: entre novamente</string>
     <string name="signed_out_text">O NAS não aceita mais este celular. Abra o app para pareá-lo novamente.</string>
+    <string name="widget_not_paired">Ainda não pareado com um NAS</string>
+    <string name="widget_unreachable">NAS inacessível</string>
+    <string name="widget_updated">Atualizado %1$s</string>
+    <string name="widget_desc">Uso e saúde do armazenamento do NAS</string>
 </resources>

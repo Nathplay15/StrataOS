@@ -119,4 +119,8 @@
     <string name="channel_uploads">上传</string>
     <string name="signed_out_title">StrataOS：请重新登录</string>
     <string name="signed_out_text">NAS 不再接受这部手机。请打开应用重新配对。</string>
+    <string name="widget_not_paired">尚未与 NAS 配对</string>
+    <string name="widget_unreachable">NAS 无法访问</string>
+    <string name="widget_updated">更新于 %1$s</string>
+    <string name="widget_desc">NAS 存储使用情况与健康状态</string>
 </resources>

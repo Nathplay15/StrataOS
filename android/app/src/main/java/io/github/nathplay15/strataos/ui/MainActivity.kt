@@ -116,6 +116,8 @@ class MainActivity : FragmentActivity() {
         super.onStart()
         io.github.nathplay15.strataos.update.Updater.visible = true
         if (signedIn) io.github.nathplay15.strataos.sync.SyncLive.start(this)
+        // The storage widget shows stale data when the NAS was off: refresh it.
+        io.github.nathplay15.strataos.widget.StorageWidget.refresh(this)
     }
 
     override fun onStop() {

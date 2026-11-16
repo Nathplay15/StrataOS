@@ -129,4 +129,8 @@
     <string name="channel_uploads">Envois</string>
     <string name="signed_out_title">StrataOS : reconnectez-vous</string>
     <string name="signed_out_text">Le NAS n\'accepte plus ce téléphone. Ouvrez l\'application pour l\'associer à nouveau.</string>
+    <string name="widget_not_paired">Pas encore associé à un NAS</string>
+    <string name="widget_unreachable">NAS injoignable</string>
+    <string name="widget_updated">Actualisé %1$s</string>
+    <string name="widget_desc">Usage et santé du stockage du NAS</string>
 </resources>

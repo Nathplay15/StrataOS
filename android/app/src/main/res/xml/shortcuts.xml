@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="files"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_folder"
+        android:shortcutShortLabel="@string/tab_files"
+        android:shortcutLongLabel="@string/tab_files">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="io.github.nathplay15.strataos.ui.MainActivity"
+            android:targetPackage="io.github.nathplay15.strataos">
+            <extra android:name="tab" android:value="files" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="photos"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_photos"
+        android:shortcutShortLabel="@string/a_photos"
+        android:shortcutLongLabel="@string/a_photos">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="io.github.nathplay15.strataos.ui.MainActivity"
+            android:targetPackage="io.github.nathplay15.strataos">
+            <extra android:name="tab" android:value="photos" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="status"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_status"
+        android:shortcutShortLabel="@string/tab_status"
+        android:shortcutLongLabel="@string/tab_status">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="io.github.nathplay15.strataos.ui.MainActivity"
+            android:targetPackage="io.github.nathplay15.strataos">
+            <extra android:name="tab" android:value="home" />
+        </intent>
+    </shortcut>
+</shortcuts>
