@@ -93,6 +93,32 @@ func (s *Server) healthReport(period string) (string, string) {
 	if len(vols) == 0 {
 		b.WriteString("• no volume\n")
 	}
+	// Insight: snapshots are the first line of defense against ransomware
+	// and bad manipulations; a stale schedule defeats it silently.
+	snapCount, staleSnaps := 0, []string{}
+	s.store.Read(func(st *store.State) {
+		for _, sc := range st.Schedules {
+			if sc.Type != "snapshot" || !sc.Enabled {
+				continue
+			}
+			snapCount++
+			var last time.Time
+			for _, h := range sc.History {
+				if h.Status == "success" && h.Started.After(last) {
+					last = h.Started
+				}
+			}
+			if !last.IsZero() && now.Sub(last) > 30*24*time.Hour {
+				staleSnaps = append(staleSnaps, fmt.Sprintf("• snapshots of %s: last one %d day(s) ago, check the schedule", sc.Name, int(now.Sub(last).Hours()/24)))
+			}
+		}
+	})
+	if len(vols) > 0 && snapCount == 0 {
+		b.WriteString("• no snapshot schedule: your data has no point-in-time copies, schedule snapshots in Scheduled Tasks\n")
+	}
+	for _, l := range staleSnaps {
+		b.WriteString(l + "\n")
+	}
 
 	b.WriteString("\n🩺 Health\n")
 	if len(alerts) == 0 {
@@ -126,6 +152,9 @@ func (s *Server) healthReport(period string) (string, string) {
 			default:
 				fmt.Fprintf(&b, "• %s: SSD wear %d%%\n", name, *w.PercentUsed)
 			}
+		}
+		if last.SmartSample.Reallocated != nil && *last.SmartSample.Reallocated > 0 {
+			fmt.Fprintf(&b, "• %s: %d reallocated sector(s): watch this disk and plan its replacement\n", name, *last.SmartSample.Reallocated)
 		}
 	}
 
@@ -251,6 +280,38 @@ func (s *Server) healthReport(period string) (string, string) {
 			names, more = names[:5], "…"
 		}
 		fmt.Fprintf(&b, "• %d app(s) updated: %s%s\n", len(updated), strings.Join(names, ", "), more)
+	}
+	// Insight: an app whose image is months old misses security fixes.
+	if stacks, err := docker.ListStacks(context.Background(), s.docker); err == nil {
+		lastTouch := map[string]time.Time{}
+		s.store.Read(func(st *store.State) {
+			for _, e := range st.Events {
+				name, ok := strings.CutPrefix(e.Message, "Installing ")
+				if !ok {
+					name, ok = strings.CutPrefix(e.Message, "Updating ")
+				}
+				if ok && e.Time.After(lastTouch[name]) {
+					lastTouch[name] = e.Time
+				}
+			}
+		})
+		var stale []string
+		for _, k := range stacks {
+			t, ok := lastTouch[k.Name]
+			if !ok || k.ModifiedAt.After(t) {
+				t, ok = k.ModifiedAt, !k.ModifiedAt.IsZero()
+			}
+			if ok && now.Sub(t) > 182*24*time.Hour {
+				stale = append(stale, k.Name)
+			}
+		}
+		if len(stale) > 0 {
+			names, more := uniq(stale), ""
+			if len(names) > 5 {
+				names, more = names[:5], "…"
+			}
+			fmt.Fprintf(&b, "• not updated in over 6 months: %s%s — check for image updates\n", strings.Join(names, ", "), more)
+		}
 	}
 
 	b.WriteString("\n🔄 Updates\n")
