@@ -257,6 +257,31 @@ func (s *Server) authRoutes() {
 		s.audit(r, "auth", "Changed own password")
 		return nil, nil
 	})
+
+	// My activity: the audit events of this account only, newest first. What
+	// administrators did elsewhere stays in the admin audit view.
+	s.user("GET /api/me/activity", func(r *http.Request) (any, error) {
+		me := userOf(r)
+		var ev []store.Event
+		s.store.Read(func(st *store.State) {
+			for i := len(st.Events) - 1; i >= 0; i-- {
+				if st.Events[i].User == me {
+					ev = append(ev, st.Events[i])
+				}
+			}
+		})
+		limit := qInt(r, "limit", 500)
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 2000 {
+			limit = 2000
+		}
+		if len(ev) > limit {
+			ev = ev[:limit]
+		}
+		return ev, nil
+	})
 }
 
 func (s *Server) changePassword(name, pw string) error {

@@ -16,10 +16,13 @@ Monthly report of nas
 • data: 1.0 GB used of 2.0 GB (50%), +1.0 GB in 7 days
 • data: 1.0 GB used of 2.0 GB (50%)
 • no volume
+• no snapshot schedule: your data has no point-in-time copies, schedule snapshots in Scheduled Tasks
+• snapshots of data: last one 45 day(s) ago, check the schedule
 🩺 Health
 • everything is healthy: disks, RAID arrays, ZFS pools and volumes
 • 3 disk(s) monitored
 • sda WD: reallocated sectors went from 0 to 2
+• sda WD: 3 reallocated sector(s): watch this disk and plan its replacement
 • sda X: SSD wear 12%, about 5 months left
 • sda X: SSD wear 12%
 📦 Backups (7 days)
@@ -35,6 +38,7 @@ Shared folder quotas
 • StrataOS 0.10 is available
 • 3 update(s) available
 • the system is up to date
+• not updated in over 6 months: plex — check for image updates
 🔒 Security
 • security score: 41/100
 • No backup task
