@@ -83,11 +83,13 @@ check "path traversal refused" "$(curl -s -b "$J" "$B/api/nvr/cameras/$CID/recor
 check "user cannot reach the cameras" "$(u GET /api/nvr)" "administrator rights required"
 check "user cannot see the live view" "$(curl -s -b "$J2" "$B/api/nvr/cameras/$CID/live.jpg")" "administrator rights required"
 
-# Retention: a fake 3-day-old segment goes, the recent ones stay.
+# Retention: a fake 3-day-old segment goes, the recent ones stay. The camera
+# keeps writing 10-second segments meanwhile, so compare listings, not counts.
 vm "sudo head -c 4096 /dev/urandom | sudo tee $NV/$CID/20200101-000000.mp4 >/dev/null && sudo touch -d '3 days ago' $NV/$CID/20200101-000000.mp4"
-BEFORE=$(vm "ls $NV/$CID | wc -l")
+BEFORE=$(vm "ls $NV/$CID")
 check "retention deletes the old segment" "$(c POST /api/nvr/cleanup | py 'print(d["deleted"])')" "1"
-check "old segment gone, recent ones kept" "$(vm "test -e $NV/$CID/20200101-000000.mp4 && echo still || echo gone; ls $NV/$CID | wc -l" | tr '\n' ' ')" "gone $((BEFORE - 1))"
+MISSING=$(comm -23 <(echo "$BEFORE" | grep -v '^20200101-000000\.mp4$' | sort) <(vm "ls $NV/$CID" | sort))
+check "old segment gone, recent ones kept" "$(vm "test -e $NV/$CID/20200101-000000.mp4 && echo still || echo gone")|$MISSING" "gone|"
 
 # Camera lost for more than a minute: alert, then back online.
 vm "sudo systemctl stop e2e-nvr-pub"
