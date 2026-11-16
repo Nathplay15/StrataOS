@@ -3347,6 +3347,7 @@
   "System status": "系统状态",
   "System updates (APT) may then reach their repositories directly": "此时系统更新（APT）可直接访问其软件源",
   "System without snapshots: the versions of the packages about to change, and of StrataOS, are kept before each update (the last 3 restore points are kept).": "无快照的系统：每次更新前会保留将要变更的软件包以及 StrataOS 的版本（保留最近 3 个还原点）。",
+  "Text recognition (OCR)": "文字识别（OCR）",
   "TVs and consoles find it by themselves on the local network.": "电视和游戏机会在本地网络中自动发现它。",
   "Tailnet addresses": "Tailnet 地址",
   "Tailnet: {0}": "Tailnet：{0}",

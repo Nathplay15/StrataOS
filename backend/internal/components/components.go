@@ -120,6 +120,9 @@ var All = []Component{
 	{ID: "docpreview", Name: "Document previews",
 		Packages: []string{"libreoffice-core-nogui", "libreoffice-writer-nogui", "libreoffice-calc-nogui", "libreoffice-impress-nogui", "libreoffice-draw-nogui", "fonts-crosextra-carlito", "fonts-crosextra-caladea"},
 		Caches:   []string{"/var/cache/strata/previews"}},
+	{ID: "ocr", Name: "Text recognition (OCR)",
+		Packages: []string{"tesseract-ocr", "tesseract-ocr-eng", "tesseract-ocr-fra", "poppler-utils"},
+		Caches:   []string{"/var/lib/strata/fulltext/ocr"}},
 }
 
 // Find returns the component with this id.

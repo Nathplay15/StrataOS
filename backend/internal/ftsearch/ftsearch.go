@@ -1,7 +1,8 @@
 // Package ftsearch indexes the text content of the documents stored on the
-// NAS (plain text, code, Office and OpenDocument files, PDF) in a persistent
-// inverted index, so the interface can search inside file contents. The index
-// covers every share; access is filtered at query time by the API layer.
+// NAS (plain text, code, Office and OpenDocument files, PDF, and images or
+// scans through OCR when the component is installed) in a persistent inverted
+// index, so the interface can search inside file contents. The index covers
+// every share; access is filtered at query time by the API layer.
 package ftsearch
 
 import (
@@ -266,6 +267,9 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 			ext := strings.ToLower(filepath.Ext(d.Name()))
 			if !supported(ext) {
 				return nil
+			}
+			if imageExt[ext] && !ocrAvailable() {
+				return nil // OCR is optional: images stay out of the index
 			}
 			info, err := d.Info()
 			if err != nil || info.Size() == 0 || info.Size() > maxFileBytes {

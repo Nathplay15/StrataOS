@@ -1222,6 +1222,7 @@
  "Recherche de mises à jour lancée par la console {0}": "控制台 {0} 已发起更新检查",
  "Recherche de mises à jour sur les NAS de la console": "正在检查控制台中各 NAS 的更新",
  "Recherche des mises à jour des conteneurs": "检查容器更新",
+ "Reconnaissance de texte (OCR)": "文字识别（OCR）",
  "Reconstruction de la grappe RAID {0} en cours ({1} %)": "RAID 阵列 {0} 正在重建（{1}%）",
  "Redémarrage demandé depuis la console du NAS": "已从 NAS 控制台请求重启",
  "Redémarrage demandé par la console {0} après une mise à jour": "控制台 {0} 在更新后请求重启",

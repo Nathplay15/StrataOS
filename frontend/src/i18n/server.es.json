@@ -1222,6 +1222,7 @@
  "Recherche de mises à jour lancée par la console {0}": "Búsqueda de actualizaciones iniciada por la consola {0}",
  "Recherche de mises à jour sur les NAS de la console": "Buscando actualizaciones en los NAS de la consola",
  "Recherche des mises à jour des conteneurs": "Búsqueda de actualizaciones de contenedores",
+ "Reconnaissance de texte (OCR)": "Reconocimiento de texto (OCR)",
  "Reconstruction de la grappe RAID {0} en cours ({1} %)": "Reconstrucción del conjunto RAID {0} en curso ({1} %)",
  "Redémarrage demandé depuis la console du NAS": "Reinicio solicitado desde la consola del NAS",
  "Redémarrage demandé par la console {0} après une mise à jour": "Reinicio solicitado por la consola {0} tras una actualización",

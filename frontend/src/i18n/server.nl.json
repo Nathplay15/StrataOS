@@ -1222,6 +1222,7 @@
  "Recherche de mises à jour lancée par la console {0}": "Updatecontrole gestart door de console {0}",
  "Recherche de mises à jour sur les NAS de la console": "Controleren op updates op de NAS van de console",
  "Recherche des mises à jour des conteneurs": "Zoeken naar containerupdates",
+ "Reconnaissance de texte (OCR)": "Tekstherkenning (OCR)",
  "Reconstruction de la grappe RAID {0} en cours ({1} %)": "RAID-array {0} wordt opnieuw opgebouwd ({1}%)",
  "Redémarrage demandé depuis la console du NAS": "Herstart aangevraagd via de console van de NAS",
  "Redémarrage demandé par la console {0} après une mise à jour": "Herstart gevraagd door de console {0} na een update",
