@@ -13,11 +13,11 @@ func set(h uint64, bits ...uint) uint64 {
 func TestDuplicates(t *testing.T) {
 	x := &Index{byPath: map[string]int{}}
 	x.items = []Item{
-		{Path: "/a.jpg", Hash: set(0, 1, 2)},           // base
-		{Path: "/b.jpg", Hash: set(0, 1, 3)},           // 2 bits from a: duplicate
-		{Path: "/c.jpg", Hash: set(0, 1, 2, 63, 62)},   // 3 bits from a: duplicate
+		{Path: "/a.jpg", Hash: set(0, 1, 2)},                           // base
+		{Path: "/b.jpg", Hash: set(0, 1, 3)},                           // 2 bits from a: duplicate
+		{Path: "/c.jpg", Hash: set(0, 1, 2, 63, 62)},                   // 3 bits from a: duplicate
 		{Path: "/d.jpg", Hash: set(11, 22, 33, 44, 55, 5, 6, 7, 8, 9)}, // far from a
-		{Path: "/e.jpg", Hash: 0},                      // not hashed: ignored
+		{Path: "/e.jpg", Hash: 0},                                      // not hashed: ignored
 		{Path: "/f.mp4", Video: true, Hash: set(0, 1, 2)},
 	}
 	allow := func(string) bool { return true }
