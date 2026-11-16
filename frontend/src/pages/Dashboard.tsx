@@ -45,6 +45,7 @@ export default function Dashboard({ me }: { me: Me }) {
       </div></div>
 
       {me.role === "admin" && <AppsCard />}
+      {me.role === "admin" && <SecurityCard />}
 
       <div className="@container"><div className="grid gap-5 @4xl:grid-cols-3">
         <Card title={tr("Resources")} className="@4xl:col-span-1">
@@ -146,6 +147,32 @@ export default function Dashboard({ me }: { me: Me }) {
         </Card>
       )}
     </div>
+  );
+}
+
+type AdvisorRun = { score: number; time: string; items: { severity: string; ignored?: boolean }[] };
+
+function SecurityCard() {
+  const { data } = useQuery({
+    queryKey: ["advisor"],
+    queryFn: (): Promise<AdvisorRun> => api.get("/api/security/advisor"),
+    staleTime: 300000,
+  });
+  if (!data) return null;
+  const active = data.items.filter((i) => !i.ignored);
+  const gaps = active.filter((i) => i.severity === "high" || i.severity === "medium").length;
+  const grade = data.score >= 90 ? "A" : data.score >= 80 ? "B" : data.score >= 65 ? "C" : data.score >= 50 ? "D" : "F";
+  const tone = data.score >= 85 ? "text-ok" : data.score >= 60 ? "text-warn" : "text-danger";
+  return (
+    <Card title={tr("Security")} className="mt-5" actions={<AppLink to="/system/security" className="text-accent text-[13px]">{tr("Open the security advisor →")}</AppLink>}>
+      <AppLink to="/system/security" className="flex items-center gap-5">
+        <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-panel-2 text-[30px] font-bold ${tone}`}>{grade}</span>
+        <div className="min-w-0">
+          <div className="text-[15px] font-medium">{tr("Security score")} : {data.score}/100</div>
+          <div className="text-[12.5px] text-muted">{gaps === 0 ? tr("Nothing to improve: every check passes.") : tr("{0} point(s) to improve", gaps)}</div>
+        </div>
+      </AppLink>
+    </Card>
   );
 }
 
