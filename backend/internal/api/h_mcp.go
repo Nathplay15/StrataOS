@@ -199,6 +199,15 @@ func (s *Server) mcpAddReadTools(srv *mcp.Server) {
 	tool("recent_events", "Recent events of the NAS (alerts, jobs, security). Administrator only.", func(r *http.Request) (*mcp.CallToolResult, any, error) {
 		return s.mcpGet(r, "/api/system/events")
 	})
+	tool("list_vms", "List the virtual machines of the NAS with their state. Administrator only.", func(r *http.Request) (*mcp.CallToolResult, any, error) {
+		return s.mcpGet(r, "/api/vms")
+	})
+	tool("list_zfs_snapshots", "List the ZFS snapshots of the NAS. Administrator only.", func(r *http.Request) (*mcp.CallToolResult, any, error) {
+		return s.mcpGet(r, "/api/storage/zfs-snapshots")
+	})
+	tool("list_notifications", "List the recent notifications of the NAS (alerts, job results).", func(r *http.Request) (*mcp.CallToolResult, any, error) {
+		return s.mcpGet(r, "/api/notifications")
+	})
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_files",
@@ -248,6 +257,8 @@ type mcpWriteIn struct {
 	Path         string `json:"path,omitempty"`
 	ID           string `json:"id,omitempty"`
 	Action       string `json:"action,omitempty"`
+	Dataset      string `json:"dataset,omitempty"`
+	SnapshotName string `json:"snapshotName,omitempty"`
 	ConfirmToken string `json:"confirmToken,omitempty"`
 }
 
@@ -293,6 +304,16 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 		func(in mcpWriteIn) string { return "Container " + in.ID + ": " + in.Action },
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/docker/containers/"+url.PathEscape(in.ID)+"/"+url.PathEscape(in.Action), nil)
+		})
+	gated("vm_action", "Start, stop, force-stop, reboot or shut down a virtual machine (id: VM name, action: start, stop, force-stop, reboot, shutdown).",
+		func(in mcpWriteIn) string { return "Virtual machine " + in.ID + ": " + in.Action },
+		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
+			return s.mcpCall(r, http.MethodPost, "/api/vms/"+url.PathEscape(in.ID)+"/"+url.PathEscape(in.Action), nil)
+		})
+	gated("create_zfs_snapshot", "Create a ZFS snapshot (dataset: dataset path such as tank/data, snapshotName: snapshot name).",
+		func(in mcpWriteIn) string { return "Create the ZFS snapshot " + in.Dataset + "@" + in.SnapshotName },
+		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
+			return s.mcpCall(r, http.MethodPost, "/api/storage/zfs-snapshots", map[string]any{"dataset": in.Dataset, "name": in.SnapshotName})
 		})
 }
 
