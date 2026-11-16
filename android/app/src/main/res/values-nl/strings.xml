@@ -120,4 +120,8 @@
     <string name="signed_out_title">StrataOS: meld u opnieuw aan</string>
     <string name="signed_out_text">De NAS accepteert deze telefoon niet meer. Open de app om hem opnieuw te koppelen.</string>
     <string name="tab_home">Start</string>
+    <string name="widget_not_paired">Nog niet met een NAS gekoppeld</string>
+    <string name="widget_unreachable">NAS onbereikbaar</string>
+    <string name="widget_updated">Bijgewerkt %1$s</string>
+    <string name="widget_desc">Opslaggebruik en gezondheid van de NAS</string>
 </resources>

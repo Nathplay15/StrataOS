@@ -141,4 +141,8 @@
     <string name="signed_out_title">StrataOS: sign in again</string>
     <string name="signed_out_text">The NAS no longer accepts this phone. Open the app to pair it again.</string>
     <string name="tab_home">Home</string>
+    <string name="widget_not_paired">Not paired with a NAS yet</string>
+    <string name="widget_unreachable">NAS unreachable</string>
+    <string name="widget_updated">Updated %1$s</string>
+    <string name="widget_desc">Storage use and health of the NAS</string>
 </resources>

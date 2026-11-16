@@ -120,4 +120,8 @@
     <string name="signed_out_title">StrataOS: accedi di nuovo</string>
     <string name="signed_out_text">Il NAS non accetta più questo telefono. Apri l\'app per abbinarlo di nuovo.</string>
     <string name="tab_home">Home</string>
+    <string name="widget_not_paired">Non ancora abbinato a un NAS</string>
+    <string name="widget_unreachable">NAS non raggiungibile</string>
+    <string name="widget_updated">Aggiornato %1$s</string>
+    <string name="widget_desc">Uso e salute dell\'archiviazione del NAS</string>
 </resources>

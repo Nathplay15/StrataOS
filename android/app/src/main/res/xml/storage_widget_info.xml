@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="62dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/storage_widget"
+    android:previewLayout="@layout/storage_widget"
+    android:resizeMode="horizontal|vertical"
+    android:description="@string/widget_desc"
+    android:widgetCategory="home_screen" />

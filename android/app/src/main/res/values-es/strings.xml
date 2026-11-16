@@ -120,4 +120,8 @@
     <string name="signed_out_title">StrataOS: vuelva a iniciar sesión</string>
     <string name="signed_out_text">El NAS ya no acepta este teléfono. Abra la aplicación para emparejarlo de nuevo.</string>
     <string name="tab_home">Inicio</string>
+    <string name="widget_not_paired">Aún sin emparejar con un NAS</string>
+    <string name="widget_unreachable">NAS inaccesible</string>
+    <string name="widget_updated">Actualizado %1$s</string>
+    <string name="widget_desc">Uso y estado del almacenamiento del NAS</string>
 </resources>
