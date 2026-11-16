@@ -326,3 +326,44 @@ func TestWebSocketUpgrade(t *testing.T) {
 		t.Errorf("tunnel: %q", l)
 	}
 }
+
+func TestRouteAllowedIPs(t *testing.T) {
+	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") })
+	ps, err := ParsePrefixes([]string{"192.0.2.0/24"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, front := testServer(t, app, &Route{Host: "app.example.com", AllowedIPs: ps})
+	get := func() int {
+		resp, err := client(front).Get("https://app.example.com/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if c := get(); c != 403 {
+		t.Errorf("address outside of the allowlist served: %d", c)
+	}
+	// The test client comes from the loopback.
+	ps2, err := ParsePrefixes([]string{"127.0.0.0/8", "bad_ip"})
+	if err == nil || ps2 != nil {
+		t.Errorf("invalid entry accepted: %v %v", ps2, err)
+	}
+	s.SetRoutes(Table{"app.example.com": &Route{Host: "app.example.com", Target: s.routes["app.example.com"].Target, AllowedIPs: mustPrefixes(t, "127.0.0.0/8", "::1/128")}})
+	if c := get(); c != 200 {
+		t.Errorf("address inside of the allowlist refused: %d", c)
+	}
+	if p, err := ParsePrefixes([]string{"192.0.2.10"}); err != nil || len(p) != 1 || p[0].String() != "192.0.2.10/32" {
+		t.Errorf("bare IP not turned into a /32: %v %v", p, err)
+	}
+}
+
+func mustPrefixes(t *testing.T, list ...string) []netip.Prefix {
+	t.Helper()
+	ps, err := ParsePrefixes(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ps
+}

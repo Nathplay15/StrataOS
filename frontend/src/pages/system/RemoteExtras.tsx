@@ -169,16 +169,20 @@ export function CloudflareTunnel() {
 
 type Domain = {
   id: string; host: string; kind: "app" | "url" | "ui"; app?: string; target?: string; lanOnly?: boolean; created: string;
+  allowedIPs?: string[];
   certError?: string; certTried?: string; cert: { source: "letsencrypt" | "self-signed" | "none"; issuer?: string; notAfter?: string };
   address?: string; problem?: string; localName?: boolean; obtaining?: boolean;
 };
 type AppRef = { stack: string; name: string; address: string; status: string };
 type DomainsData = { enabled: boolean; running: boolean; email: string; domains: Domain[]; apps: AppRef[]; dnsChallenge: boolean; publicIp: string };
-type Edit = { id?: string; host: string; kind: Domain["kind"]; app: string; target: string; lanOnly: boolean };
+type Edit = { id?: string; host: string; kind: Domain["kind"]; app: string; target: string; lanOnly: boolean; allowedIPs: string };
 
 function DomainModal({ edit, apps, onClose }: { edit: Edit; apps: AppRef[]; onClose: () => void }) {
   const [d, setD] = useState(edit);
-  const save = useAction(() => (d.id ? api.put(`/api/remote/domains/${d.id}`, d) : api.post("/api/remote/domains", d)), { success: tr("Domain saved"), onDone: onClose });
+  const save = useAction(() => {
+    const body = { ...d, allowedIPs: d.allowedIPs.split(/[\s,]+/).filter(Boolean) };
+    return d.id ? api.put(`/api/remote/domains/${d.id}`, body) : api.post("/api/remote/domains", body);
+  }, { success: tr("Domain saved"), onDone: onClose });
   return (
     <Modal open onClose={onClose} title={d.id ? tr("Edit {0}", edit.host) : tr("Publish an app")} footer={<><Button onClick={onClose}>{tr("Cancel")}</Button><Button variant="primary" loading={save.isPending} disabled={!d.host} onClick={() => save.mutate()}>{tr("Save")}</Button></>}>
       <div className="space-y-4">
@@ -201,6 +205,9 @@ function DomainModal({ edit, apps, onClose }: { edit: Edit; apps: AppRef[]; onCl
         )}
         {d.kind === "url" && <Field label={tr("Address")} hint={tr("http:// or https:// (self-signed certificates accepted), on this NAS or the local network")}><Input className="mono" value={d.target} onChange={(e) => setD({ ...d, target: e.target.value.trim() })} placeholder="http://192.168.1.20:8080" /></Field>}
         <Switch checked={d.lanOnly} onChange={(v) => setD({ ...d, lanOnly: v })} label={tr("Local network only")} hint={tr("Visitors from the Internet are refused (local, VPN and Tailscale addresses are allowed).")} />
+        <Field label={tr("Restrict to addresses (optional)")} hint={tr("IP addresses or networks (CIDR), separated by commas: 192.168.1.0/24, 100.64.0.5. Leave empty to allow everyone.")}>
+          <Input className="mono" value={d.allowedIPs} onChange={(e) => setD({ ...d, allowedIPs: e.target.value })} placeholder="192.168.1.0/24, 100.64.0.5" />
+        </Field>
         <Notice>{tr("\"Require StrataOS sign-in\" is not offered: it would mean sharing the interface's session cookie with every name of the parent domain, so that any published app (or another site of the domain) could read or reuse an administrator session. Use \"Local network only\", the VPN or Tailscale for apps without their own sign-in.")}</Notice>
       </div>
     </Modal>
@@ -238,7 +245,7 @@ export function AppDomains() {
           </div>
         </div>
       </Card>
-      <Card title={tr("Published names")} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setEdit({ host: "", kind: "app", app: data.apps[0]?.stack ?? "", target: "", lanOnly: false })}>{tr("Add")}</Button>}>
+      <Card title={tr("Published names")} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setEdit({ host: "", kind: "app", app: data.apps[0]?.stack ?? "", target: "", lanOnly: false, allowedIPs: "" })}>{tr("Add")}</Button>}>
         {data.domains.length === 0 ? <Empty icon={<Globe2 />} title={tr("No published name")} text={tr("Add a host name and choose the app it opens.")} /> : (
           <div className="divide-y divide-line rounded-xl border border-line">
             {data.domains.map((d) => (
@@ -248,6 +255,7 @@ export function AppDomains() {
                     <a className="mono font-medium hover:underline" href={`https://${d.host}`} target="_blank" rel="noreferrer noopener">{d.host}</a>
                     {certBadge(d)}
                     {d.lanOnly && <Badge tone="accent">{tr("Local network only")}</Badge>}
+                    {!!d.allowedIPs?.length && <Badge tone="warn">{tr("Address allowlist")}</Badge>}
                   </div>
                   <div className="text-muted text-[12px]">
                     → {d.kind === "ui" ? tr("StrataOS interface") : d.kind === "app" ? `${data.apps.find((a) => a.stack === d.app)?.name ?? d.app}${d.address ? ` (${d.address})` : ""}` : d.target}
@@ -256,7 +264,7 @@ export function AppDomains() {
                   {d.certError && d.cert.source !== "letsencrypt" && <div className="text-danger text-[12px] break-words">{tr("Certificate not obtained ({0}): {1}", d.certTried ? dateTime(d.certTried) : "", srv(d.certError))}</div>}
                 </div>
                 {!d.localName && data.running && <IconButton title={tr("Request the certificate again")} onClick={() => cert.mutate(d.id)}><RefreshCw size={15} /></IconButton>}
-                <IconButton title={tr("Edit")} onClick={() => setEdit({ id: d.id, host: d.host, kind: d.kind, app: d.app ?? "", target: d.target ?? "", lanOnly: !!d.lanOnly })}><Pencil size={15} /></IconButton>
+                <IconButton title={tr("Edit")} onClick={() => setEdit({ id: d.id, host: d.host, kind: d.kind, app: d.app ?? "", target: d.target ?? "", lanOnly: !!d.lanOnly, allowedIPs: (d.allowedIPs ?? []).join(", ") })}><Pencil size={15} /></IconButton>
                 <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Stop publishing {0}?", d.host), text: tr("The name and its certificate are removed."), danger: true })) del.mutate(d.id); }}><Trash2 size={15} /></IconButton>
               </div>
             ))}
