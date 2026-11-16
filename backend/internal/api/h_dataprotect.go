@@ -828,6 +828,66 @@ func (s *Server) dataProtectRoutes() {
 		}
 		return list, nil
 	})
+
+	// What changed between two snapshots of a snapshot task.
+	s.admin("GET /api/schedules/{id}/snapshot-diff", func(r *http.Request) (any, error) {
+		var sc *store.Schedule
+		s.store.Read(func(st *store.State) {
+			if x := st.Schedule(r.PathValue("id")); x != nil {
+				c := *x
+				sc = &c
+			}
+		})
+		if sc == nil || sc.Type != "snapshot" {
+			return nil, notFound("snapshot task not found")
+		}
+		src, err := s.scheduleSnapshotSource(sc)
+		if err != nil {
+			return nil, badRequest(err.Error())
+		}
+		from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+		if from == "" || to == "" {
+			return nil, badRequest("from and to are required")
+		}
+		changes, truncated, err := restore.Diff(r.Context(), src, from, to, 5000)
+		if err != nil {
+			return nil, badRequest(err.Error())
+		}
+		return map[string]any{"changes": changes, "truncated": truncated}, nil
+	})
+}
+
+// scheduleSnapshotSource reads the snapshots a snapshot task made, the same
+// way the restore wizard does.
+func (s *Server) scheduleSnapshotSource(sc *store.Schedule) (restore.Source, error) {
+	switch sc.TargetKind {
+	case "zfs":
+		ds, err := storage.ListZDatasets(sc.Target, "filesystem")
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range ds {
+			if d.Name == sc.Target && d.Mountpoint != "" && d.Mountpoint != "none" && d.Mountpoint != "-" {
+				return restore.SnapshotSource(d.Mountpoint), nil
+			}
+		}
+		return nil, fmt.Errorf("dataset %s is not mounted", sc.Target)
+	case "btrfs":
+		mp, ok := s.resolveVolume(sc.Target)
+		if !ok {
+			return nil, fmt.Errorf("volume %s no longer exists", sc.Target)
+		}
+		return restore.SnapshotSource(mp), nil
+	case "lvm":
+		vg, lv, _ := strings.Cut(sc.Target, "/")
+		for _, t := range storage.ThinLVs() {
+			if t.VG == vg && t.LV == lv && t.MountPoint != "" {
+				return restore.ThinSource(vg, lv, t.MountPoint), nil
+			}
+		}
+		return nil, fmt.Errorf("thin volume %s is not mounted", sc.Target)
+	}
+	return nil, fmt.Errorf("not a snapshot task")
 }
 
 func mustJSON(v any) []byte {

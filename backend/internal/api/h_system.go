@@ -16,6 +16,7 @@ import (
 	"strataos/internal/ha"
 	"strataos/internal/i18n"
 	"strataos/internal/media"
+	"strataos/internal/netdiag"
 	"strataos/internal/nvr"
 	"strataos/internal/photos"
 	"strataos/internal/preview"
@@ -202,6 +203,28 @@ func (s *Server) systemRoutes() {
 			return nil, badRequest(err.Error())
 		}
 		return nil, nil
+	})
+
+	// Diagnostics run from the NAS: resolution, ping, one port, gateway, Internet.
+	s.admin("POST /api/system/network/diagnose", func(r *http.Request) (any, error) {
+		var req struct {
+			Host string `json:"host"`
+			Port int    `json:"port"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		req.Host = strings.TrimSpace(req.Host)
+		if req.Host == "" || len(req.Host) > 253 {
+			return nil, badRequest("a host name or IP address is required")
+		}
+		if req.Port < 0 || req.Port > 65535 {
+			return nil, badRequest("invalid port")
+		}
+		c, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		s.audit(r, "network", "Network diagnostics run against "+req.Host)
+		return netdiag.Diagnose(c, req.Host, req.Port), nil
 	})
 
 	s.admin("PUT /api/system/hostname", func(r *http.Request) (any, error) {

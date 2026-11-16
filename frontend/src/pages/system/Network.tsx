@@ -7,6 +7,7 @@ import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Moda
 import { tr, locale } from "../../lib/i18n";
 import { FirewallTab } from "./firewall/FirewallTab";
 import { VirtualNetworksTab } from "./firewall/VirtualNetworks";
+import { DiagnosticsCard } from "../../components/NetworkDiagnostics";
 
 type Link = { name: string; mac: string; state: string; mtu: number; addresses: string[]; speed: number; kind: string };
 type Status = { interfaces: Link[]; gateway: string; dns: string[]; hostname: string };
@@ -333,6 +334,8 @@ function InterfacesPage({ tabs }: { tabs: ReactNode }) {
           </div>
         </Card>
       </div>
+
+      <div className="mt-5"><DiagnosticsCard /></div>
       {trial && <TrialModal pending={trial.p} newURLs={trial.urls} onClose={() => { setTrial(null); setCfg(null); }} />}
     </div>
   );

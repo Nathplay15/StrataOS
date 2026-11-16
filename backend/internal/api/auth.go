@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,64 @@ func (s *sessions) dropUser(user string) {
 	}
 	s.saveLocked()
 	s.mu.Unlock()
+}
+
+// sessionView is a live session as the interface shows it. ID is the SHA-256
+// of the cookie token: it identifies the session without usable value.
+type sessionView struct {
+	ID      string    `json:"id"`
+	User    string    `json:"user"`
+	Role    string    `json:"role,omitempty"`
+	Created time.Time `json:"created"`
+	Expires time.Time `json:"expires"`
+	IP      string    `json:"ip"`
+	Device  string    `json:"device,omitempty"`
+	MFA     string    `json:"mfa,omitempty"`
+	Current bool      `json:"current"`
+}
+
+// list returns the live sessions, newest first; current marks the session
+// the request was made with (empty current when the token is unknown).
+func (s *sessions) list(current string) []sessionView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneLocked()
+	out := []sessionView{}
+	for k, v := range s.m {
+		out = append(out, sessionView{ID: k, User: v.User, Role: v.Role, Created: v.Created, Expires: v.Expires, IP: v.IP, Device: v.Device, MFA: v.MFA, Current: k == current})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Created.After(out[j].Created) })
+	return out
+}
+
+// dropOtherUser ends every web session of user except except (the SHA-256 of
+// its token); it returns how many were ended.
+func (s *sessions) dropOtherUser(user, except string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for k, v := range s.m {
+		if v.User == user && k != except {
+			delete(s.m, k)
+			n++
+		}
+	}
+	if n > 0 {
+		s.saveLocked()
+	}
+	return n
+}
+
+// dropOne ends the session identified by its SHA-256 (see list).
+func (s *sessions) dropOne(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.m[id]; !ok {
+		return false
+	}
+	delete(s.m, id)
+	s.saveLocked()
+	return true
 }
 
 // dropDevice ends the web sessions opened from a mobile device.

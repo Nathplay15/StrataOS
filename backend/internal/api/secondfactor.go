@@ -116,8 +116,9 @@ func setPendingCookie(w http.ResponseWriter, r *http.Request, value string, ttl 
 }
 
 // startSession opens a new session (a new token every time: no fixation)
-// and answers like POST /api/login.
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u store.User, remember bool, mfa, how string) {
+// and answers like POST /api/login. Method is the sign-in way recorded in
+// the login history: password, twofactor, key or a provider name.
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u store.User, remember bool, mfa, how, method string) {
 	ip := clientIP(r)
 	s.limiter.reset(ip)
 	ttl := s.sessionTTL()
@@ -128,6 +129,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u store.Us
 		s.sessions.delete(c.Value) // a session already open in this browser ends
 	}
 	s.setCookie(w, r, s.sessions.add(&session{User: u.Username, Role: u.Role, Expires: time.Now().Add(ttl), Created: time.Now(), IP: ip, MFA: mfa}), ttl)
+	s.store.Login(u.Username, ip, true, method)
 	s.store.Log("info", "auth", u.Username, how+ip)
 	writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(&u), TwoFactorPrompt: s.twoFactorPrompt(u.Username, true, mfa)})
 }
@@ -336,6 +338,7 @@ func (s *Server) secondFactorRoutes() {
 		u, ok := s.pendingUser(pl)
 		if !ok || !s.checkSecondFactor(u.Username, req.Code) {
 			pending2FA.fail(k)
+			s.store.Login(pl.user, ip, false, "twofactor")
 			s.store.Log("warning", "auth", pl.user, "Wrong two-factor code from "+ip)
 			s.guardFail(ip, "web", pl.user)
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "wrong two-factor code", "twoFactor": true})
@@ -343,7 +346,11 @@ func (s *Server) secondFactorRoutes() {
 		}
 		pending2FA.drop(k)
 		setPendingCookie(w, r, "", -time.Second)
-		s.startSession(w, r, u, pl.remember, pl.mfa, signedInHow(pl.via, "")+" from ")
+		method := pl.via
+		if method == "" {
+			method = "twofactor"
+		}
+		s.startSession(w, r, u, pl.remember, pl.mfa, signedInHow(pl.via, "")+" from ", method)
 	}))
 
 	s.mux.Handle("POST /api/login/key/begin", publicAuth(func(r *http.Request) (any, error) {
@@ -403,6 +410,7 @@ func (s *Server) secondFactorRoutes() {
 		if err != nil {
 			pending2FA.fail(k)
 			slog.Info("security key refused", "ip", ip, "user", pl.user, "err", err)
+			s.store.Login(pl.user, ip, false, "key")
 			s.store.Log("warning", "auth", pl.user, "Security key refused from "+ip)
 			s.guardFail(ip, "web", pl.user)
 			writeErr(w, errKeyRefused)
@@ -410,7 +418,7 @@ func (s *Server) secondFactorRoutes() {
 		}
 		pending2FA.drop(k)
 		setPendingCookie(w, r, "", -time.Second)
-		s.startSession(w, r, u, pl.remember, pl.mfa, signedInHow(pl.via, " and a security key")+" from ")
+		s.startSession(w, r, u, pl.remember, pl.mfa, signedInHow(pl.via, " and a security key")+" from ", "key")
 	}))
 
 	s.user("GET /api/me/security-keys", func(r *http.Request) (any, error) {
