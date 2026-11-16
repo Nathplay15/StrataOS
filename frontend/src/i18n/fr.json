@@ -4634,5 +4634,14 @@
   "Running {0}…": "Exécution de {0}…",
   "Volume full alert (%)": "Alerte volume plein (%)",
   "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Alerte et avertissement du tableau de bord quand un volume dépasse ce niveau de remplissage. 50 à 99, par défaut 90.",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein, virus détecté, échec d'une tâche, coupure de courant."
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Alertes envoyées : RAID dégradé, pool ZFS en erreur, disque SMART défaillant ou qui faiblit, volume plein, virus détecté, échec d'une tâche, coupure de courant.",
+  "Move to the trash": "Mettre à la corbeille",
+  "Moved to the trash": "Déplacé à la corbeille",
+  "Move to the trash?": "Mettre à la corbeille ?",
+  "{0} photo(s) will be moved to the trash of their share.": "{0} photo(s) seront déplacées dans la corbeille de leur partage.",
+  "{0} group(s) of similar photos": "{0} groupe(s) de photos similaires",
+  "{0} similar photos": "{0} photos similaires",
+  "Select the older copies": "Sélectionner les anciennes copies",
+  "No duplicates": "Aucun doublon",
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Les photos similaires (rafales, copies redimensionnées…) sont détectées pendant l'indexation ; réindexez pour analyser les photos récentes."
 }

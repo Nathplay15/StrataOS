@@ -36,6 +36,9 @@ type Item struct {
 	Mtime int64  `json:"mtime"`
 	Size  int64  `json:"size"`
 	Video bool   `json:"video,omitempty"`
+	// Hash is the 64-bit perceptual hash of an image (dhash.go), used to
+	// find similar photos; 0 when it was not computed (videos, tools missing).
+	Hash uint64 `json:"hash,omitempty"`
 }
 
 // Installed reports whether thumbnails can be made.
@@ -140,6 +143,7 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 
 	var items []Item
 	added := 0
+	hashable := sys.Has("vipsthumbnail")
 	for _, root := range roots {
 		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if ctx.Err() != nil {
@@ -172,6 +176,9 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 				return nil
 			}
 			it.Date = takenAt(p, ext, fi.ModTime())
+			if hashable && !video {
+				it.Hash = dhash(ctx, p)
+			}
 			items = append(items, it)
 			added++
 			if added%500 == 0 {

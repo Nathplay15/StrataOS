@@ -4634,5 +4634,14 @@
   "Running {0}…": "{0} wordt uitgevoerd…",
   "Volume full alert (%)": "Waarschuwing volle schijf (%)",
   "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Waarschuwing en dashboardmelding wanneer een schijf deze vullingsgraad overschrijdt. 50 tot 99, standaard 90.",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Verzonden waarschuwingen: gedegradeerde RAID, ZFS-poolfout, uitvallende of verzwakkende schijf (SMART), volle schijf, virus gevonden, mislukte taak, stroomuitval."
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Verzonden waarschuwingen: gedegradeerde RAID, ZFS-poolfout, uitvallende of verzwakkende schijf (SMART), volle schijf, virus gevonden, mislukte taak, stroomuitval.",
+  "Move to the trash": "Naar de prullenbak verplaatsen",
+  "Moved to the trash": "Naar de prullenbak verplaatst",
+  "Move to the trash?": "Naar de prullenbak verplaatsen?",
+  "{0} photo(s) will be moved to the trash of their share.": "{0} foto('s) worden verplaatst naar de prullenbak van hun share.",
+  "{0} group(s) of similar photos": "{0} groep(en) met vergelijkbare foto's",
+  "{0} similar photos": "{0} vergelijkbare foto's",
+  "Select the older copies": "Oudere kopieën selecteren",
+  "No duplicates": "Geen duplicaten",
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Vergelijkbare foto's (reeksen, geschaalde kopieën…) worden tijdens de indexering gedetecteerd; indexeer opnieuw om recente foto's te analyseren."
 }
