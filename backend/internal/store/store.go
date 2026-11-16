@@ -191,6 +191,12 @@ type Settings struct {
 	ACMEMode   string `json:"acmeMode,omitempty"`
 	ACMEToken  string `json:"acmeToken,omitempty"`  // dedicated Cloudflare token (Zone DNS: edit); "" uses the dynamic DNS one
 	ACMEZoneID string `json:"acmeZoneId,omitempty"` // zone ID matching ACMEToken
+	// Assistant of the web interface: an OpenAI-compatible chat endpoint
+	// (base URL such as https://api.mistral.ai/v1), its API key and model.
+	// All three must be set for the assistant to be enabled.
+	AssistantURL   string `json:"assistantUrl,omitempty"`
+	AssistantKey   string `json:"assistantKey,omitempty"`
+	AssistantModel string `json:"assistantModel,omitempty"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).

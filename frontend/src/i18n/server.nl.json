@@ -2587,5 +2587,14 @@
  "éjectez d'abord l'image de CD-ROM {0} (le NAS de destination ne l'a pas au même endroit)": "werp eerst de cd-image {0} uit (de doel-NAS heeft hem niet op dezelfde plek)",
  "épinglé sur un condensat": "vastgezet op een digest",
  "étiquette introuvable dans le registre": "tag niet gevonden in het register",
- "événement introuvable": "gebeurtenis niet gevonden"
+ "événement introuvable": "gebeurtenis niet gevonden",
+ "l'assistant n'est pas configuré : réglez-le dans les Paramètres": "De assistent is niet geconfigureerd: stel hem in bij Instellingen",
+ "URL de l'assistant invalide": "Ongeldige assistent-URL",
+ "l'endpoint de l'assistant est injoignable": "Het assistent-endpoint is niet bereikbaar",
+ "conversation invalide": "Ongeldig gesprek",
+ "l'endpoint de l'assistant n'a pas renvoyé de réponse": "Het assistent-endpoint gaf geen antwoord",
+ "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "Het assistent-endpoint antwoordde {0} met een ongeldige inhoud",
+ "l'endpoint de l'assistant a répondu {0} : {1}": "Het assistent-endpoint antwoordde {0}: {1}",
+ "l'endpoint de l'assistant a répondu {0}": "Het assistent-endpoint antwoordde {0}",
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Onbekend of verlopen bevestigingstoken: vraag de actie opnieuw aan"
 }

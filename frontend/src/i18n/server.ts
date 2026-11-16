@@ -2631,4 +2631,13 @@ export const serverTexts: [string, string][] = [
   ["cette adresse utilise HTTP sans chiffrement : il n'y a pas de certificat à vérifier", "this address uses plain HTTP: there is no certificate to check"],
   ["type d'adresse non pris en charge {0}", "unsupported address type {0}"],
   ["adresse invalide", "invalid address"],
+  ["l'assistant n'est pas configuré : réglez-le dans les Paramètres", "the assistant is not configured: set it up in Settings"],
+  ["URL de l'assistant invalide", "invalid assistant URL"],
+  ["l'endpoint de l'assistant est injoignable", "the assistant endpoint is unreachable"],
+  ["conversation invalide", "invalid conversation"],
+  ["l'endpoint de l'assistant n'a pas renvoyé de réponse", "the assistant endpoint returned no answer"],
+  ["l'endpoint de l'assistant a répondu {0} avec un corps invalide", "the assistant endpoint answered {0} with an invalid body"],
+  ["l'endpoint de l'assistant a répondu {0} : {1}", "the assistant endpoint answered {0}: {1}"],
+  ["l'endpoint de l'assistant a répondu {0}", "the assistant endpoint answered {0}"],
+  ["jeton de confirmation inconnu ou expiré : redemandez l'action", "unknown or expired confirmation token: ask for the action again"],
 ];

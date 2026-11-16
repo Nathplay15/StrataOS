@@ -2587,5 +2587,14 @@
  "éjectez d'abord l'image de CD-ROM {0} (le NAS de destination ne l'a pas au même endroit)": "请先弹出 CD-ROM 镜像 {0}（目标 NAS 上该镜像的位置不同）",
  "épinglé sur un condensat": "已固定到摘要（digest）",
  "étiquette introuvable dans le registre": "在镜像仓库中找不到该标签",
- "événement introuvable": "未找到事件"
+ "événement introuvable": "未找到事件",
+ "l'assistant n'est pas configuré : réglez-le dans les Paramètres": "助手未配置：请在设置中进行配置",
+ "URL de l'assistant invalide": "助手 URL 无效",
+ "l'endpoint de l'assistant est injoignable": "助手端点无法访问",
+ "conversation invalide": "无效的对话",
+ "l'endpoint de l'assistant n'a pas renvoyé de réponse": "助手端点未返回任何回答",
+ "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "助手端点返回 {0}，内容无效",
+ "l'endpoint de l'assistant a répondu {0} : {1}": "助手端点返回 {0}：{1}",
+ "l'endpoint de l'assistant a répondu {0}": "助手端点返回 {0}",
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "确认令牌未知或已过期：请重新请求该操作"
 }

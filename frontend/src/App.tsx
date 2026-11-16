@@ -60,6 +60,7 @@ const GuardPage = lazy(() => import("./pages/system/Guard"));
 const SecurityAdvisorPage = lazy(() => import("./pages/system/SecurityAdvisor"));
 const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
+const AssistantPage = lazy(() => import("./pages/Assistant"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
 
 const qc = new QueryClient({
@@ -151,6 +152,7 @@ function Root() {
             <Route path="system/security" element={A(<SecurityAdvisorPage />)} />
             <Route path="fleet" element={A(<FleetPage />)} />
             <Route path="help" element={<HelpPage />} />
+            <Route path="assistant" element={<AssistantPage />} />
             <Route path="vms" element={A(<VirtualMachines />)} />
             <Route path="surveillance" element={A(<SurveillancePage />)} />
             <Route path="cloudsync" element={A(<CloudSync />)} />

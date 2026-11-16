@@ -65,6 +65,9 @@ type Server struct {
 	// mcp: the Model Context Protocol server (h_mcp.go), built once.
 	mcpOnce sync.Once
 	mcpHTTP http.Handler
+	// assistantConf holds the armed confirmations of the conversational
+	// assistant (h_assistant.go); zero value usable (arm lazy-inits the map).
+	assistantConf mcpConfirmations
 }
 
 type Config struct {
@@ -346,6 +349,7 @@ func (s *Server) routes() {
 	s.rpiKernelRoutes()
 	s.openapiRoutes()
 	s.mcpRoutes()
+	s.assistantRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
 	s.dockerUpdateRoutes()

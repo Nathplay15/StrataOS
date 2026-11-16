@@ -2587,5 +2587,14 @@
  "éjectez d'abord l'image de CD-ROM {0} (le NAS de destination ne l'a pas au même endroit)": "Werfen Sie zuerst das CD-ROM-Image {0} aus (das Ziel-NAS hat es nicht am selben Ort)",
  "épinglé sur un condensat": "An einen Digest gebunden",
  "étiquette introuvable dans le registre": "Tag in der Registry nicht gefunden",
- "événement introuvable": "Ereignis nicht gefunden"
+ "événement introuvable": "Ereignis nicht gefunden",
+ "l'assistant n'est pas configuré : réglez-le dans les Paramètres": "Der Assistent ist nicht konfiguriert: Richten Sie ihn in den Einstellungen ein",
+ "URL de l'assistant invalide": "Ungültige Assistent-URL",
+ "l'endpoint de l'assistant est injoignable": "Der Assistent-Endpunkt ist nicht erreichbar",
+ "conversation invalide": "Ungültige Unterhaltung",
+ "l'endpoint de l'assistant n'a pas renvoyé de réponse": "Der Assistent-Endpunkt hat keine Antwort geliefert",
+ "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "Der Assistent-Endpunkt antwortete {0} mit einem ungültigen Körper",
+ "l'endpoint de l'assistant a répondu {0} : {1}": "Der Assistent-Endpunkt antwortete {0}: {1}",
+ "l'endpoint de l'assistant a répondu {0}": "Der Assistent-Endpunkt antwortete {0}",
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Unbekannter oder abgelaufener Bestätigungsschlüssel: fordern Sie die Aktion erneut an"
 }
