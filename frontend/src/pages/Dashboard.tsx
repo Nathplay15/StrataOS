@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Container, Cpu, Database, HardDrive, Share2, Thermometer, XCircle } from "lucide-react";
+import { AlertTriangle, AppWindow, Box, Container, Cpu, Database, HardDrive, Package, Share2, Thermometer, XCircle } from "lucide-react";
 import { AppLink } from "../components/AppLink";
 import { api } from "../lib/api";
-import type { Me, Overview, Sample, SystemInfo } from "../lib/types";
+import type { Me, Overview, Sample, Stack, SystemInfo } from "../lib/types";
 import { bytes, duration, pct, rate } from "../lib/format";
 import { Card, Empty, Health, PageHeader, Progress, Spinner, Stat } from "../components/ui";
 import { AreaChart, Ring } from "../components/charts";
 import { tr, srv } from "../lib/i18n";
 import { ReplaceLink } from "./storage/ReplaceDisk";
+import { UpdateBadge, useDockerUpdates } from "./docker/updates";
 
 export default function Dashboard({ me }: { me: Me }) {
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => api.get<SystemInfo>("/api/system/info"), refetchInterval: 30000 });
@@ -42,6 +43,8 @@ export default function Dashboard({ me }: { me: Me }) {
         <Stat label={tr("Containers")} value={o ? `${o.containers.running}/${o.containers.total}` : "—"} sub={tr("running")} icon={<Container size={20} />} tone="accent" />
         <Stat label={tr("Max temperature")} value={hottest ? `${hottest.toFixed(0)} °C` : "—"} sub={i?.cpuModel} icon={<Thermometer size={20} />} tone={hottest > 80 ? "danger" : hottest > 65 ? "warn" : "ok"} />
       </div></div>
+
+      {me.role === "admin" && <AppsCard />}
 
       <div className="@container"><div className="grid gap-5 @4xl:grid-cols-3">
         <Card title={tr("Resources")} className="@4xl:col-span-1">
@@ -143,5 +146,45 @@ export default function Dashboard({ me }: { me: Me }) {
         </Card>
       )}
     </div>
+  );
+}
+
+function AppsCard() {
+  const info = useQuery({ queryKey: ["docker-info"], queryFn: () => api.get<{ available: boolean; error?: string }>("/api/docker/info"), staleTime: 30000, refetchInterval: 60000 });
+  const stacks = useQuery({ queryKey: ["stacks"], queryFn: () => api.get<Stack[]>("/api/docker/stacks"), refetchInterval: 8000, enabled: !!info.data?.available });
+  const upd = useDockerUpdates();
+  const list = stacks.data ?? [];
+  return (
+    <Card title={tr("Applications")} className="mt-5" actions={<AppLink to="/docker/stacks" className="text-accent text-[13px]">{tr("Manage")}</AppLink>}>
+      {info.isLoading ? (
+        <Spinner />
+      ) : !info.data?.available ? (
+        <Empty icon={<Box size={22} />} title={tr("Docker Engine is not available")} text={info.data?.error ?? tr("Install Docker Engine to manage containers and applications.")} />
+      ) : stacks.isLoading ? (
+        <Spinner />
+      ) : list.length === 0 ? (
+        <Empty icon={<Package size={22} />} title={tr("No applications installed")} text={tr("Install an application from the App Center or deploy a Compose stack.")} action={<AppLink to="/apps" className="text-accent">{tr("Open the App Center →")}</AppLink>} />
+      ) : (
+        <div className="@container"><div className="grid gap-3 @2xl:grid-cols-2 @4xl:grid-cols-3">
+          {list.map((s) => (
+            <AppLink key={s.name} to="/docker/stacks" className="block rounded-xl border border-line bg-panel-2 p-3.5 transition-colors hover:border-accent/40">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <AppWindow size={17} className="shrink-0 text-accent" />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{s.custom?.name || s.custom?.description || s.name}</div>
+                    <div className="text-muted text-[11.5px]">{tr("{0} of {1} running", s.running, s.services)}</div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {upd.data?.stacks?.[s.name] && <UpdateBadge />}
+                  <Health value={s.status} />
+                </div>
+              </div>
+            </AppLink>
+          ))}
+        </div></div>
+      )}
+    </Card>
   );
 }
