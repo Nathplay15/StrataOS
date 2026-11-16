@@ -280,6 +280,7 @@ func (s *Server) routes() {
 	s.dockerRoutes()
 	s.customAppRoutes()
 	s.fileRoutes()
+	s.recycleRoutes()
 	s.fulltextRoutes()
 	s.editorRoutes()
 	s.viewerRoutes()
