@@ -13,6 +13,8 @@ import okhttp3.HttpUrl
     val owner: String = "", val group: String = "", val mime: String = "", val changed: String = "",
 )
 @Serializable data class SearchResult(val path: String = "", val entries: List<FileEntry> = emptyList(), val truncated: Boolean = false)
+@Serializable data class FulltextHit(val path: String = "", val name: String = "", val size: Long = 0, val modTime: String = "", val snippet: String = "")
+@Serializable data class FulltextResult(val hits: List<FulltextHit> = emptyList(), val truncated: Boolean = false, val running: Boolean = false)
 @Serializable data class TrashResult(val recycled: Int = 0, val deleted: Int = 0)
 @Serializable data class ShareLink(
     val id: String = "", val owner: String = "", val path: String = "", val album: String = "", val dir: Boolean = false,
@@ -34,6 +36,9 @@ fun Api.listFiles(path: String, hidden: Boolean = false): FileList =
     call(if (hidden) get("/api/files", "path" to path, "hidden" to "1") else get("/api/files", "path" to path), FileList.serializer())
 
 fun Api.searchFiles(path: String, q: String): SearchResult = call(get("/api/files/search", "path" to path, "q" to q), SearchResult.serializer())
+
+/** Content search across the folders the account may read (full-text index). */
+fun Api.fulltext(q: String): FulltextResult = call(get("/api/files/fulltext", "q" to q), FulltextResult.serializer())
 
 /** Copies or moves items into a folder (a job on the NAS). */
 fun Api.copyFiles(paths: List<String>, to: String, move: Boolean): Job =

@@ -319,4 +319,6 @@
     <string name="state_running">En cours</string>
     <string name="state_partial">Partiel</string>
     <string name="state_stopped">Arrêté</string>
+    <string name="a_search_content">Rechercher dans le contenu des fichiers</string>
+    <string name="a_search_content_hint">Rechercher dans le contenu de tous vos fichiers</string>
 </resources>

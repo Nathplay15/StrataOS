@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Link
@@ -80,6 +81,7 @@ import io.github.nathplay15.strataos.data.favorites
 import io.github.nathplay15.strataos.net.FileEntry
 import io.github.nathplay15.strataos.net.FileList
 import io.github.nathplay15.strataos.net.copyFiles
+import io.github.nathplay15.strataos.net.fulltext
 import io.github.nathplay15.strataos.net.imageUrl
 import io.github.nathplay15.strataos.net.listFiles
 import io.github.nathplay15.strataos.net.photoThumbUrl
@@ -191,6 +193,10 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
     var query by rememberSaveable { mutableStateOf("") }
     val search = rememberLoad(path, query, searching) {
         if (!searching || query.trim().length < 2) null else { delay(400); api().searchFiles(path, query.trim()) }
+    }
+    var inContent by rememberSaveable { mutableStateOf(false) }
+    val contentSearch = rememberLoad(query, searching, inContent) {
+        if (!searching || !inContent || query.trim().length < 2) null else { delay(400); api().fulltext(query.trim()) }
     }
     var selected by remember(path) { mutableStateOf(setOf<String>()) }
     var progress by remember { mutableStateOf<Pair<String, Float>?>(null) }
@@ -359,10 +365,15 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                 )
                 searching -> TopAppBar(
                     title = {
-                        TextField(query, { query = it }, placeholder = { Text(stringResource(R.string.a_search_here)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        TextField(query, { query = it }, placeholder = { Text(stringResource(if (inContent) R.string.a_search_content_hint else R.string.a_search_here)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent))
                     },
                     navigationIcon = { IconButton(onClick = { searching = false; query = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                    actions = {
+                        IconButton(onClick = { inContent = !inContent }) {
+                            Icon(Icons.Default.FindInPage, stringResource(R.string.a_search_content), tint = if (inContent) MaterialTheme.colorScheme.primary else Color.Unspecified)
+                        }
+                    },
                 )
                 else -> TopAppBar(
                     title = { Text(list?.path?.let { if (it == ROOT) null else it.substringAfterLast('/') } ?: stringResource(R.string.tab_files), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -413,13 +424,26 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
             }
             if (list?.encrypted == true) Text(stringResource(R.string.e2e_folder_notice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 8.dp))
             if (inRecycle) Text(stringResource(R.string.a_recycle_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 8.dp))
-            if (searching && search.value?.truncated == true) Text(stringResource(R.string.a_search_truncated), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp, 4.dp))
-            val source = if (searching && query.trim().length >= 2) search else load
+            if (searching && (if (inContent) contentSearch.value?.truncated == true else search.value?.truncated == true)) Text(stringResource(R.string.a_search_truncated), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp, 4.dp))
+            val hits = if (searching && inContent && query.trim().length >= 2) contentSearch.value?.hits else null
+            val source = if (searching && inContent && query.trim().length >= 2) contentSearch else if (searching && query.trim().length >= 2) search else load
             Refreshable(source, Modifier.weight(1f)) { _ ->
                 @Suppress("UNUSED_EXPRESSION") favTick
                 val click = { e: FileEntry -> if (selected.isNotEmpty()) selected = if (e.path in selected) selected - e.path else selected + e.path else open(e) }
                 val long = { e: FileEntry -> selected = selected + e.path }
                 when {
+                    hits != null -> LazyColumn(Modifier.fillMaxSize()) {
+                        items(hits, key = { it.path }) { h ->
+                            ListItem(
+                                headlineContent = { Text(h.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = {
+                                    Text(listOf(displayPath(h.path.substringBeforeLast('/')), h.snippet).filter { it.isNotBlank() }.joinToString(" · "), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                },
+                                leadingContent = { Icon(iconOf(FileEntry(h.name, h.path)), null) },
+                                modifier = Modifier.combinedClickable(onClick = { open(FileEntry(h.name, h.path, size = h.size, modTime = h.modTime)) }),
+                            )
+                        }
+                    }
                     shown.isEmpty() && searching && query.trim().length < 2 -> EmptyState(Icons.Default.Search, stringResource(R.string.a_search_hint))
                     shown.isEmpty() -> EmptyState(if (searching) Icons.Default.Search else Icons.Default.FolderOff, stringResource(if (searching) R.string.a_no_results else R.string.empty_folder))
                     grid -> LazyVerticalGrid(GridCells.Adaptive(112.dp), Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
