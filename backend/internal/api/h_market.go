@@ -99,7 +99,7 @@ func (s *Server) loadCatalog(src store.CatalogSource) (*market.Catalog, []market
 	if err != nil {
 		return nil, nil, errors.New("catalog not downloaded yet: refresh it")
 	}
-	cat, invalid, err := market.Parse(b)
+	cat, invalid, err := market.ParseAny(b)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,7 +166,7 @@ func fetchVerified(ctx context.Context, loc market.Location, key string) (*marke
 			return nil, nil, nil, err
 		}
 	}
-	cat, invalid, err := market.Parse(f.Index)
+	cat, invalid, err := market.ParseAny(f.Index)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -499,7 +499,7 @@ func (s *Server) marketRoutes() {
 		marketState.mu.Lock()
 		b, err := os.ReadFile(s.catalogFile(id, true))
 		if err == nil {
-			_, _, err = market.Parse(b)
+			_, _, err = market.ParseAny(b)
 		}
 		if err == nil {
 			err = sys.WriteFileAtomic(s.catalogFile(id, false), b, 0o640)
@@ -511,7 +511,7 @@ func (s *Server) marketRoutes() {
 		if err != nil {
 			return nil, badRequest(err.Error())
 		}
-		cat, _, _ := market.Parse(b)
+		cat, _, _ := market.ParseAny(b)
 		_ = s.store.Update(func(st *store.State) error {
 			for _, x := range st.CatalogSources {
 				if x.ID == id {
