@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, CircleCheck, CircleX, SendHorizonal, User } from "lucide-react";
+import { Bot, CircleCheck, CircleX, MessageSquarePlus, SendHorizonal, User } from "lucide-react";
 import { api } from "../lib/api";
 import { Badge, Button, ErrorBox, Input, Notice, PageHeader, Spinner } from "../components/ui";
 import { tr } from "../lib/i18n";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+
+const suggestions = ["How much free space is left?", "Are my disks healthy?", "Which containers are running?", "Any failed backups?"];
 type ArmedAction = { token: string; tool: string; summary: string };
 type ActionState = ArmedAction & { status: "pending" | "done" | "cancelled"; result?: string };
 
@@ -21,8 +23,8 @@ export default function Assistant() {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, actions, busy]);
 
-  const send = async () => {
-    const q = text.trim();
+  const send = async (preset?: string) => {
+    const q = (preset ?? text).trim();
     if (!q || busy || !config.data?.enabled) return;
     setText("");
     setError(null);
@@ -48,7 +50,16 @@ export default function Assistant() {
   if (config.isLoading) return <Spinner />;
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col">
-      <PageHeader title={tr("Assistant")} subtitle={tr("Ask anything about your NAS")} icon={<Bot size={20} />} />
+      <PageHeader
+        title={tr("Assistant")}
+        subtitle={tr("Ask anything about your NAS")}
+        icon={<Bot size={20} />}
+        actions={
+          <Button size="sm" icon={<MessageSquarePlus size={14} />} disabled={!messages.length && !actions.length} onClick={() => { setMessages([]); setActions([]); setError(null); }}>
+            {tr("New conversation")}
+          </Button>
+        }
+      />
       <ErrorBox error={error} />
       {!config.data?.enabled ? (
         <Notice tone="warn">{tr("The assistant is not configured: an administrator must set an API endpoint in Settings.")}</Notice>
@@ -56,8 +67,13 @@ export default function Assistant() {
         <div className="flex min-h-64 flex-1 flex-col rounded-2xl border border-line bg-panel">
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !actions.length && (
-              <div className="flex h-full items-center justify-center p-6 text-center text-[13px] text-muted">
-                {tr("The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.")}
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                <div className="text-[13px] text-muted">{tr("The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.")}</div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {suggestions.map((s) => (
+                    <Button key={s} size="sm" variant="secondary" disabled={busy} onClick={() => send(s)}>{tr(s)}</Button>
+                  ))}
+                </div>
               </div>
             )}
             {messages.map((m, i) => (
@@ -96,7 +112,7 @@ export default function Assistant() {
               placeholder={tr("Send a message")}
               disabled={busy}
             />
-            <Button variant="primary" disabled={!text.trim()} loading={busy} onClick={send} icon={<SendHorizonal size={15} />} />
+            <Button variant="primary" disabled={!text.trim()} loading={busy} onClick={() => send()} icon={<SendHorizonal size={15} />} />
           </div>
         </div>
       )}

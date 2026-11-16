@@ -4624,5 +4624,10 @@
   "The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.": "De assistent antwoordt met jouw rechten; acties die de NAS wijzigen vragen altijd eerst om je bevestiging.",
   "The assistant is not configured: an administrator must set an API endpoint in Settings.": "De assistent is niet geconfigureerd: een beheerder moet een API-endpoint instellen bij Instellingen.",
   "Thinking…": "Denkt na…",
-  "e.g. mistral-small-latest": "bijv. mistral-small-latest"
+  "e.g. mistral-small-latest": "bijv. mistral-small-latest",
+  "New conversation": "Nieuw gesprek",
+  "How much free space is left?": "Hoeveel vrije ruimte is er nog?",
+  "Are my disks healthy?": "Zijn mijn schijven gezond?",
+  "Which containers are running?": "Welke containers draaien er?",
+  "Any failed backups?": "Zijn er mislukte back-ups?"
 }

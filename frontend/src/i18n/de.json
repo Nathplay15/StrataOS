@@ -4624,5 +4624,10 @@
   "The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.": "Der Assistent antwortet mit Ihren Berechtigungen; Aktionen, die das NAS ändern, verlangen zuerst immer Ihre Bestätigung.",
   "The assistant is not configured: an administrator must set an API endpoint in Settings.": "Der Assistent ist nicht konfiguriert: Ein Administrator muss einen API-Endpunkt in den Einstellungen festlegen.",
   "Thinking…": "Denkt nach…",
-  "e.g. mistral-small-latest": "z. B. mistral-small-latest"
+  "e.g. mistral-small-latest": "z. B. mistral-small-latest",
+  "New conversation": "Neue Unterhaltung",
+  "How much free space is left?": "Wie viel freier Platz ist noch übrig?",
+  "Are my disks healthy?": "Sind meine Festplatten gesund?",
+  "Which containers are running?": "Welche Container laufen?",
+  "Any failed backups?": "Gibt es fehlgeschlagene Sicherungen?"
 }

@@ -4624,5 +4624,10 @@
   "The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.": "助手以您的权限作答；修改 NAS 的操作总是先请求您的确认。",
   "The assistant is not configured: an administrator must set an API endpoint in Settings.": "助手未配置：管理员必须在设置中配置 API 端点。",
   "Thinking…": "思考中…",
-  "e.g. mistral-small-latest": "例如 mistral-small-latest"
+  "e.g. mistral-small-latest": "例如 mistral-small-latest",
+  "New conversation": "新对话",
+  "How much free space is left?": "还剩多少可用空间？",
+  "Are my disks healthy?": "我的硬盘健康吗？",
+  "Which containers are running?": "哪些容器正在运行？",
+  "Any failed backups?": "有失败的备份吗？"
 }
