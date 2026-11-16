@@ -2,6 +2,8 @@
 
 Besides its built-in catalog, the App Center of StrataOS (0.10 and later) reads **community catalogs**: lists of apps maintained by someone else, added by an administrator in App Center → **Community catalogs**. This page describes the format, for people who publish one. An example lives in [`packaging/catalog-example/`](../packaging/catalog-example/).
 
+**Foreign libraries are read too**: a source address may also be a **Portainer template list** (`templates.json`, containers and stacks) or a **CasaOS AppStore repository** (a Git repository with an `Apps/<name>/docker-compose.yml` per app). They are converted to this format when fetched — the CasaOS data folder becomes a `DATA_DIR` variable under `/srv/strata/apps/` and the first published port a `WEB_PORT` variable — and every converted app then passes the same checks and the same approvals as a native one. Converted catalogs have no signature: they are pinned by their checksum, like an unsigned source.
+
 StrataOS does not review community apps. It checks every app strictly before showing it, labels it "Community · not verified by StrataOS", and before an install or an update it shows exactly what the app gets on the NAS (ports, folders, privileges, devices). Anything risky needs an explicit approval, item by item.
 
 ## Where a catalog lives

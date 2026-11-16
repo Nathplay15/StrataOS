@@ -365,7 +365,7 @@ export function SourcesModal({ onClose }: { onClose: () => void }) {
         )}
         <div className="rounded-xl border border-line p-4 space-y-3">
           <div className="font-medium flex items-center gap-2"><Users size={15} />{tr("Add a catalog")}</div>
-          <Field label={tr("Address")} hint={tr("https://…/catalog.json, or a Git repository (https://…/repo.git, git+https://…#branch).")}>
+          <Field label={tr("Address")} hint={tr("https://…/catalog.json, a Git repository (https://…/repo.git, git+https://…#branch), a Portainer template list (templates.json) or a CasaOS AppStore repository.")}>
             <Input className="mono" value={url} placeholder="https://example.org/catalog.json" onChange={(e) => { setUrl(e.target.value); setConfirm(null); }} />
           </Field>
           <Field label={tr("Public key of the maintainer (optional)")} hint={tr("ed25519:… With a key, every update must be signed by it. Without one, the catalog is pinned to its current checksum and each change waits for your approval.")}>

@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -228,7 +229,16 @@ func fetchGit(ctx context.Context, l Location, f *Fetched) error {
 	}
 	b, err := read("catalog.json", MaxCatalogSize)
 	if err != nil {
-		return fmt.Errorf("the repository has no catalog.json at its root")
+		// No catalog.json: a CasaOS AppStore repository (Apps/<name>/
+		// docker-compose.yml) is converted into a catalog on the fly. Its
+		// generated index is pinned by its checksum, like any unsigned source.
+		cat, cerr := casaosCatalog(dir, repoName(l.URL), rawBase(l))
+		if cerr != nil {
+			return fmt.Errorf("the repository has no catalog.json at its root")
+		}
+		if b, err = json.Marshal(cat); err != nil {
+			return err
+		}
 	}
 	f.Index = b
 	if sig, err := read("catalog.json.sig", 4096); err == nil {
@@ -238,6 +248,33 @@ func fetchGit(ctx context.Context, l Location, f *Fetched) error {
 		f.Commit = strings.TrimSpace(out)
 	}
 	return nil
+}
+
+// repoName gives a display name from a Git address (last path segment).
+func repoName(u string) string {
+	s := strings.TrimSuffix(strings.TrimSuffix(strings.Split(u, "#")[0], "/"), ".git")
+	if i := strings.LastIndexByte(s, '/'); i >= 0 {
+		s = s[i+1:]
+	}
+	return s
+}
+
+// rawBase is the base of the raw file URLs of a GitHub repository (icons of
+// a CasaOS AppStore); "" for other hosts.
+func rawBase(l Location) string {
+	u, err := url.Parse(l.URL)
+	if err != nil || u.Host != "github.com" {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	ref := l.Ref
+	if ref == "" {
+		ref = "HEAD"
+	}
+	return "https://raw.githubusercontent.com/" + parts[0] + "/" + parts[1] + "/" + ref + "/Apps"
 }
 
 func lastLine(s string) string {
