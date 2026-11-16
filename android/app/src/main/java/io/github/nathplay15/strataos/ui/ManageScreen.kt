@@ -62,10 +62,10 @@ val LocalOpenOverlay = androidx.compose.runtime.staticCompositionLocalOf<(String
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ManageScreen(accountAction: @Composable () -> Unit) {
+fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? = null) {
     val admin = Graph.prefs.server?.isAdmin == true
     val sections = visibleSections(manageSectionsA + manageSectionsB, admin)
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
+    var open by rememberSaveable { mutableStateOf(sections.firstOrNull { it.id == initialSection }?.id) }
     val wide = LocalConfiguration.current.screenWidthDp >= WIDE_DP
     val current = sections.firstOrNull { it.id == open }
 

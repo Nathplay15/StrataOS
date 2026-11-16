@@ -40,7 +40,7 @@ import okio.source
 @Serializable data class ExistsRequest(val folder: String, val files: List<ExistsFile>)
 @Serializable data class ExistsResult(val name: String = "", val exists: Boolean = false, val `as`: String = "")
 @Serializable data class ExistsResponse(val files: List<ExistsResult> = emptyList())
-@Serializable data class NasEvent(val id: Long = 0, val time: String = "", val level: String = "info", val subject: String = "", val message: String = "")
+@Serializable data class NasEvent(val id: Long = 0, val time: String = "", val level: String = "info", val subject: String = "", val message: String = "", val kind: String = "")
 @Serializable data class Events(val cursor: Long = 0, val events: List<NasEvent> = emptyList())
 @Serializable data class Alert(val level: String = "", val message: String = "")
 @Serializable data class Volume(val name: String = "", val kind: String = "", val mountPoint: String = "", val total: Long = 0, val used: Long = 0, val free: Long = 0, val health: String = "")
