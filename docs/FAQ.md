@@ -29,7 +29,7 @@ Debian 14 (forky) is not released yet. The same StrataOS package already install
 
 ### Where is the web interface?
 
-At `http://<address>:7070`, or `https://<address>:7443` over HTTPS. The machine's screen shows the address when it starts. HTTPS uses a self-signed certificate until you import your own or get a Let's Encrypt one, so the browser warns you the first time.
+At `http://<address>:7070`, or `https://<address>:7443` over HTTPS. The machine's screen shows the address when it starts. HTTPS uses a self-signed certificate until you import your own or get a Let's Encrypt one, so the browser warns you the first time. The Let's Encrypt certificate is requested with the HTTP-01 challenge (port 80 forwarded) or the DNS-01 challenge (a Cloudflare API token, no port forwarding needed).
 
 ### I installed StrataOS but I can't find it on the network.
 
