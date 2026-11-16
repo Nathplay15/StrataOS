@@ -267,7 +267,6 @@
   "Alerts": "告警",
   "Alerts and health report, on all channels": "警报和健康报告，通过所有渠道发送",
   "Alerts and monthly report, on all channels": "通知和月度报告，通过所有渠道发送",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.": "发送的告警：RAID 降级、ZFS 存储池错误、磁盘 SMART 故障或状况下降、存储空间已满 90%、发现病毒、任务失败、断电。",
   "Align positions": "对齐位置",
   "All": "全部",
   "All ({0})": "全部（{0}）",
@@ -4632,5 +4631,17 @@
   "Any failed backups?": "有失败的备份吗？",
   "Delete this conversation?": "删除此对话？",
   "The messages of this conversation will be removed.": "此对话的消息将被删除。",
-  "Running {0}…": "正在运行 {0}…"
+  "Running {0}…": "正在运行 {0}…",
+  "Volume full alert (%)": "卷已满警报（%）",
+  "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "当卷超过此填充级别时发出警报和仪表板警告。50 到 99，默认 90。",
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "已发送的警报：RAID 降级、ZFS 池错误、SMART 磁盘故障或性能下降、卷已满、发现病毒、任务失败、断电。",
+  "Move to the trash": "移到回收站",
+  "Moved to the trash": "已移到回收站",
+  "Move to the trash?": "移到回收站？",
+  "{0} photo(s) will be moved to the trash of their share.": "{0} 张照片将被移到其共享文件夹的回收站。",
+  "{0} group(s) of similar photos": "{0} 组相似照片",
+  "{0} similar photos": "{0} 张相似照片",
+  "Select the older copies": "选择较旧的副本",
+  "No duplicates": "没有重复项",
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "相似照片（连拍、调整过大小的副本…）会在索引期间被检测到；请重新索引以分析近期照片。"
 }

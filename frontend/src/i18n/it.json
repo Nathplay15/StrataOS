@@ -267,7 +267,6 @@
   "Alerts": "Avvisi",
   "Alerts and health report, on all channels": "Avvisi e report sullo stato, su tutti i canali",
   "Alerts and monthly report, on all channels": "Avvisi e report mensile, su tutti i canali",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.": "Avvisi inviati: RAID degradato, errore del pool ZFS, disco SMART in avaria o in degrado, volume pieno al 90%, virus rilevato, attività non riuscita, interruzione di corrente.",
   "Align positions": "Allinea le posizioni",
   "All": "Tutte",
   "All ({0})": "Tutti ({0})",
@@ -4632,5 +4631,17 @@
   "Any failed backups?": "Ci sono backup falliti?",
   "Delete this conversation?": "Eliminare questa conversazione?",
   "The messages of this conversation will be removed.": "I messaggi di questa conversazione verranno rimossi.",
-  "Running {0}…": "Esecuzione di {0}…"
+  "Running {0}…": "Esecuzione di {0}…",
+  "Volume full alert (%)": "Avviso volume pieno (%)",
+  "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Avviso e segnalazione nel cruscotto quando un volume supera questo livello di riempimento. Da 50 a 99, predefinito 90.",
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Avvisi inviati: RAID degradato, errore del pool ZFS, disco SMART guasto o indebolito, volume pieno, virus rilevato, attività non riuscita, interruzione di corrente.",
+  "Move to the trash": "Sposta nel cestino",
+  "Moved to the trash": "Spostato nel cestino",
+  "Move to the trash?": "Spostare nel cestino?",
+  "{0} photo(s) will be moved to the trash of their share.": "{0} foto verranno spostate nel cestino della loro condivisione.",
+  "{0} group(s) of similar photos": "{0} gruppo(i) di foto simili",
+  "{0} similar photos": "{0} foto simili",
+  "Select the older copies": "Seleziona le copie più vecchie",
+  "No duplicates": "Nessun duplicato",
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Le foto simili (raffiche, copie ridimensionate…) vengono rilevate durante l'indicizzazione; reindicizza per analizzare le foto recenti."
 }

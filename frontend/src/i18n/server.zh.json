@@ -2596,5 +2596,6 @@
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "助手端点返回 {0}，内容无效",
  "l'endpoint de l'assistant a répondu {0} : {1}": "助手端点返回 {0}：{1}",
  "l'endpoint de l'assistant a répondu {0}": "助手端点返回 {0}",
- "jeton de confirmation inconnu ou expiré : redemandez l'action": "确认令牌未知或已过期：请重新请求该操作"
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "确认令牌未知或已过期：请重新请求该操作",
+ "Seuil de remplissage des volumes invalide": "无效的卷填充阈值"
 }

@@ -118,6 +118,12 @@ func (s *Server) photoRoutes() {
 		return out, nil
 	})
 
+	s.user("GET /api/photos/duplicates", func(r *http.Request) (any, error) {
+		roots := s.readableRoots(r)
+		groups := photos.Default.Duplicates(func(p string) bool { return under(roots, p) })
+		return map[string]any{"installed": photos.Installed(), "groups": groups}, nil
+	})
+
 	s.userRaw("GET /api/photos/thumb", func(w http.ResponseWriter, r *http.Request) {
 		p := filepath.Clean(r.URL.Query().Get("path"))
 		it, ok := photos.Default.Get(p)

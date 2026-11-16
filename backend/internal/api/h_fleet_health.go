@@ -326,7 +326,7 @@ func (s *Server) fleetDashboardView(fresh bool) fleetDashboard {
 		if r.Pending {
 			r.Reasons, r.Level = []fleetReason{}, levelOK
 		} else {
-			r.Reasons = fleetReasons(r.Online, r.Health)
+			r.Reasons = fleetReasons(r.Online, r.Health, s.volumeFullPct())
 			if r.Reasons == nil {
 				r.Reasons = []fleetReason{}
 			}

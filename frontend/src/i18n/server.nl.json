@@ -2596,5 +2596,6 @@
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "Het assistent-endpoint antwoordde {0} met een ongeldige inhoud",
  "l'endpoint de l'assistant a répondu {0} : {1}": "Het assistent-endpoint antwoordde {0}: {1}",
  "l'endpoint de l'assistant a répondu {0}": "Het assistent-endpoint antwoordde {0}",
- "jeton de confirmation inconnu ou expiré : redemandez l'action": "Onbekend of verlopen bevestigingstoken: vraag de actie opnieuw aan"
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Onbekend of verlopen bevestigingstoken: vraag de actie opnieuw aan",
+ "Seuil de remplissage des volumes invalide": "ongeldige vulgrens voor volumes"
 }

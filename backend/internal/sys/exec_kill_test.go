@@ -44,12 +44,31 @@ func TestCancelKillsProcessGroup(t *testing.T) {
 		t.Fatal("command not stopped")
 	}
 	for i := 0; i < 50; i++ {
-		if syscall.Kill(child, 0) != nil {
+		if !alive(child) {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("child %d still alive", child)
+}
+
+// alive reports whether a process still runs. A zombie counts as dead: it
+// was terminated and only waits for init to reap it, which a container init
+// may postpone (kill(pid, 0) still succeeds on a zombie).
+func alive(pid int) bool {
+	if syscall.Kill(pid, 0) != nil {
+		return false
+	}
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return true
+	}
+	s := string(b)
+	if i := strings.Index(s, ") "); i >= 0 {
+		f := strings.Fields(s[i+2:])
+		return len(f) > 0 && f[0] != "Z"
+	}
+	return true
 }
 
 // A child ignoring SIGTERM is killed after the grace period.

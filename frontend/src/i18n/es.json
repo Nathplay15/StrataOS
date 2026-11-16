@@ -267,7 +267,6 @@
   "Alerts": "Alertas",
   "Alerts and health report, on all channels": "Alertas e informe de estado, en todos los canales",
   "Alerts and monthly report, on all channels": "Alertas e informe mensual, en todos los canales",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.": "Alertas enviadas: RAID degradado, pool ZFS con errores, disco SMART defectuoso o en deterioro, volumen lleno al 90 %, virus detectado, fallo de una tarea, corte de corriente.",
   "Align positions": "Alinear posiciones",
   "All": "Todas",
   "All ({0})": "Todos ({0})",
@@ -4632,5 +4631,17 @@
   "Any failed backups?": "¿Hay copias de seguridad fallidas?",
   "Delete this conversation?": "¿Eliminar esta conversación?",
   "The messages of this conversation will be removed.": "Los mensajes de esta conversación se eliminarán.",
-  "Running {0}…": "Ejecutando {0}…"
+  "Running {0}…": "Ejecutando {0}…",
+  "Volume full alert (%)": "Alerta de volumen lleno (%)",
+  "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Alerta y aviso del panel cuando un volumen supera este nivel de llenado. De 50 a 99, por defecto 90.",
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Alertas enviadas: RAID degradado, error del pool ZFS, disco SMART fallando o debilitándose, volumen lleno, virus detectado, tarea fallida, corte de energía.",
+  "Move to the trash": "Mover a la papelera",
+  "Moved to the trash": "Movido a la papelera",
+  "Move to the trash?": "¿Mover a la papelera?",
+  "{0} photo(s) will be moved to the trash of their share.": "{0} foto(s) se moverán a la papelera de su carpeta compartida.",
+  "{0} group(s) of similar photos": "{0} grupo(s) de fotos similares",
+  "{0} similar photos": "{0} fotos similares",
+  "Select the older copies": "Seleccionar las copias antiguas",
+  "No duplicates": "Sin duplicados",
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Las fotos similares (ráfagas, copias redimensionadas…) se detectan durante la indexación; reindexa para analizar las fotos recientes."
 }

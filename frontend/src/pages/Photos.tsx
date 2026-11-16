@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
@@ -120,6 +120,43 @@ function Grid({ groups, selected, onToggle, onOpen }: { groups: { label: string;
   );
 }
 
+/** The photos visually similar to each other (perceptual hash), group by
+ * group: select the copies to move to the trash. */
+function DuplicatesView() {
+  const { confirm } = useUI();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [open, setOpen] = useState<number | null>(null);
+  const dupes = useQuery({ queryKey: ["photos-duplicates"], queryFn: () => api.get<{ installed: boolean; groups: Item[][] }>("/api/photos/duplicates") });
+  const trash = useAction((paths: string[]) => api.post("/api/files/trash", { paths }), { success: tr("Moved to the trash"), onDone: () => setSelected([]) });
+  if (dupes.isLoading) return <Spinner />;
+  const groups = dupes.data?.groups ?? [];
+  const flat = groups.flat();
+  let start = 0;
+  const gridGroups = groups.map((g) => {
+    const out = { label: tr("{0} similar photos", g.length), start, items: g };
+    start += g.length;
+    return out;
+  });
+  return (
+    <div>
+      {groups.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+          <span>{tr("{0} group(s) of similar photos", groups.length)}</span>
+          <div className="flex-1" />
+          {selected.length > 0 && <span>{tr("{0} selected", selected.length)}</span>}
+          <Button size="sm" variant="ghost" onClick={() => setSelected(groups.flatMap((g) => g.slice(1).map((i) => i.path)))}>{tr("Select the older copies")}</Button>
+          <Button size="sm" variant="danger" icon={<Trash2 size={14} />} disabled={!selected.length} loading={trash.isPending} onClick={async () => { if (await confirm({ title: tr("Move to the trash?"), text: tr("{0} photo(s) will be moved to the trash of their share.", selected.length), danger: true })) trash.mutate(selected); }}>{tr("Move to the trash")}</Button>
+        </div>
+      )}
+      {groups.length === 0 && (
+        <Card><Empty icon={<Copy />} title={dupes.data?.installed ? tr("No duplicates") : tr("Thumbnail tools are not installed")} text={dupes.data?.installed ? tr("Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.") : tr("libvips (with the iPhone HEIC format) and ffmpeg for videos.")} /></Card>
+      )}
+      {groups.length > 0 && <Grid groups={gridGroups} selected={selected} onToggle={(p) => setSelected((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]))} onOpen={(i) => setOpen(i)} />}
+      {open !== null && <Viewer items={flat} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
 function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
   const { data, isLoading } = useQuery({ queryKey: ["albums"], queryFn: () => api.get<Album[]>("/api/photos/albums") });
   const [name, setName] = useState<string | null>(null);
@@ -154,7 +191,7 @@ function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
 export default function Photos({ me }: { me: Me }) {
   const admin = me.role === "admin";
   const { confirm } = useUI();
-  const [tab, setTab] = useState<"all" | "albums">("all");
+  const [tab, setTab] = useState<"all" | "albums" | "dupes">("all");
   const [album, setAlbum] = useState<Album | null>(null);
   const [search, setSearch] = useState("");
   const [qText, setQText] = useState("");
@@ -220,7 +257,7 @@ export default function Photos({ me }: { me: Me }) {
   const tabs = !album && (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <div className="flex rounded-lg border border-line p-0.5 text-[13px]">
-        {(["all", "albums"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{t === "all" ? tr("Timeline") : tr("Albums")}</button>)}
+        {(["all", "albums", "dupes"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-1 ${tab === t ? "bg-panel-2 font-medium" : "text-muted"}`}>{t === "all" ? tr("Timeline") : t === "albums" ? tr("Albums") : tr("Duplicates")}</button>)}
       </div>
       {tab === "all" && <div className="relative min-w-[180px] max-w-xs flex-1"><Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" /><Input className="!pl-8" placeholder={tr("Search for a folder or file")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>}
     </div>
@@ -248,6 +285,7 @@ export default function Photos({ me }: { me: Me }) {
       {tabs}
       <ErrorBox error={error} />
       {tab === "albums" && !album && <AlbumsView onOpen={(a) => setAlbum(a)} />}
+      {tab === "dupes" && <DuplicatesView />}
       {showGrid && data && <>
         {!album && admin && data.folders?.length === 0 && <Card><Empty icon={<Images />} title={tr("No photo folders")} text={tr("Choose the shared folders that contain your photos.")} action={<Button variant="primary" onClick={() => setFolders(true)}>{tr("Choose folders")}</Button>} /></Card>}
         {data.total === 0 && !(admin && data.folders?.length === 0 && !album) && <Card><Empty icon={<Images />} title={album ? tr("Empty album") : qText ? tr("No results") : data.running ? tr("Indexing…") : tr("No photos")} text={album ? tr("Add photos from the timeline with \"Select\".") : qText ? undefined : tr("Drop photos into a photo folder (Files, SMB, WebDAV…); they appear here after indexing.")} /></Card>}
