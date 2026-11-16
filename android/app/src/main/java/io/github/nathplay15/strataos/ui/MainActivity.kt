@@ -242,7 +242,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
             when (tab) {
                 "photos" -> PhotosScreen(account)
                 "manage" -> ManageScreen(account)
-                "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") })
+                "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") }, onOpenManage = { setTab("manage") })
                 else -> FilesScreen(filesPath, { filesPath = it }, account)
             }
         }

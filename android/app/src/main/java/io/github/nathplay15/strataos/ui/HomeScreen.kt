@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -63,27 +64,31 @@ import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.Events
 import io.github.nathplay15.strataos.net.NasEvent
 import io.github.nathplay15.strataos.net.Overview
+import io.github.nathplay15.strataos.net.Stack
 import io.github.nathplay15.strataos.net.StatsHistory
 import io.github.nathplay15.strataos.net.SystemInfo
 import io.github.nathplay15.strataos.net.Volume
+import io.github.nathplay15.strataos.net.stacks
 import io.github.nathplay15.strataos.net.manage.PublishedLink
 import io.github.nathplay15.strataos.net.manage.publishedApps
 import io.github.nathplay15.strataos.net.manage.rasterIconUrl
 import io.github.nathplay15.strataos.net.manage.remoteState
+import io.github.nathplay15.strataos.ui.web.AppWebView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
-private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?, val apps: List<PublishedLink>)
+private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?, val apps: List<PublishedLink>, val stacks: List<Stack>)
 
 /**
- * The Home tab: a dashboard of the NAS — health, storage, live activity and
- * the latest notifications — with shortcuts to the main places of the app.
+ * The Home tab: a dashboard of the NAS — health, application status, storage,
+ * live activity and the latest notifications — with shortcuts to the main
+ * places of the app.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, onOpenPhotos: () -> Unit) {
+fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, onOpenPhotos: () -> Unit, onOpenManage: () -> Unit) {
     val admin = Graph.prefs.server?.isAdmin == true
     val loader = rememberLoad(Unit) {
         val a = api()
@@ -92,7 +97,13 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
             runCatching { a.stats() }.getOrNull(),
             if (admin) runCatching { a.events(0) }.getOrNull() else null,
             if (admin) runCatching { publishedApps(a.remoteState()) }.getOrDefault(emptyList()) else emptyList(),
+            if (admin) runCatching { a.stacks() }.getOrDefault(emptyList()) else emptyList(),
         )
+    }
+    var web by remember { mutableStateOf<Pair<String, String>?>(null) }
+    web?.let { (name, url) ->
+        AppWebView(name, url) { web = null }
+        return
     }
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text(stringResource(R.string.tab_home)) }, actions = {
@@ -102,8 +113,9 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
         Refreshable(loader) { d ->
             LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { HeroCard(d.info, d.overview) }
-                item { QuickActions(onOpenFiles, onOpenPhotos) }
-                if (d.apps.isNotEmpty()) item { AppsCard(d.apps) }
+                item { QuickActions(admin, onOpenFiles, onOpenPhotos, onOpenManage) }
+                if (d.stacks.isNotEmpty()) item { StacksCard(d.stacks, onOpenManage) }
+                if (d.apps.isNotEmpty()) item { AppsCard(d.apps, onOpen = { name, url -> web = name to url }) }
                 if (d.overview.volumes.isNotEmpty()) item { StorageCard(d.overview) }
                 if (d.stats != null && d.stats.history.size >= 2) item { ActivityCard(d.stats) }
                 d.events?.let { ev -> if (ev.events.isNotEmpty()) item { NotificationsCard(ev.events) } }
@@ -112,9 +124,35 @@ fun HomeScreen(accountAction: @Composable () -> Unit, onOpenFiles: () -> Unit, o
     }
 }
 
-/** The published apps of the NAS, opened in the browser. */
+/** The Docker stacks of the NAS with their health; opens the Manage tab. */
 @Composable
-private fun AppsCard(apps: List<PublishedLink>) {
+private fun StacksCard(stacks: List<Stack>, onOpenManage: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onOpenManage)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.home_apps), style = MaterialTheme.typography.titleMedium)
+            stacks.forEach { s ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(s.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    Text(stringResource(R.string.a_stack_counts, s.running, s.services), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    Chip(statusLabel(s.status), toneOf(s.status))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun statusLabel(status: String): String = when (status.lowercase()) {
+    "running" -> stringResource(R.string.state_running)
+    "partial" -> stringResource(R.string.state_partial)
+    "stopped" -> stringResource(R.string.state_stopped)
+    else -> status
+}
+
+/** The published apps of the NAS, opened in the app ([onOpen]); [onBrowser] for the outside one. */
+@Composable
+private fun AppsCard(apps: List<PublishedLink>, onOpen: (String, String) -> Unit) {
     val ctx = LocalContext.current
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -122,12 +160,15 @@ private fun AppsCard(apps: List<PublishedLink>) {
             apps.forEach { a ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } },
+                    modifier = Modifier.fillMaxWidth().clickable { onOpen(a.name, a.url) },
                 ) {
-                    AppIcon(a.icon, Icons.Default.OpenInNew, 20.dp)
+                    AppIcon(a.icon, Icons.Default.Apps, 20.dp)
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                         Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                         Text(a.url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                    IconButton({ runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } }) {
+                        Icon(Icons.Default.OpenInNew, stringResource(R.string.home_open_browser))
                     }
                 }
             }
@@ -186,13 +227,14 @@ private fun QuickAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun QuickActions(onOpenFiles: () -> Unit, onOpenPhotos: () -> Unit) {
+private fun QuickActions(admin: Boolean, onOpenFiles: () -> Unit, onOpenPhotos: () -> Unit, onOpenManage: () -> Unit) {
     val open = LocalOpenOverlay.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         QuickAction(Icons.Default.Folder, stringResource(R.string.tab_files), onOpenFiles)
         QuickAction(Icons.Default.PhotoLibrary, stringResource(R.string.a_photos), onOpenPhotos)
         QuickAction(Icons.Default.Backup, stringResource(R.string.tab_backup), { open("backup") })
         QuickAction(Icons.Default.Sync, stringResource(R.string.sync_title), { open("sync") })
+        if (admin) QuickAction(Icons.Default.Apps, stringResource(R.string.home_apps), onOpenManage)
     }
 }
 

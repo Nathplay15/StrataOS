@@ -314,4 +314,9 @@
     <string name="home_throughput">Réseau \u2193 %1$s \u2191 %2$s \u00b7 Disque \u2193 %3$s \u2191 %4$s</string>
     <string name="a_disks_n">%1$d disque(s)</string>
     <string name="a_open_in_app">Ouvrir</string>
+    <string name="home_apps">Applications</string>
+    <string name="home_open_browser">Ouvrir dans le navigateur</string>
+    <string name="state_running">En cours</string>
+    <string name="state_partial">Partiel</string>
+    <string name="state_stopped">Arrêté</string>
 </resources>

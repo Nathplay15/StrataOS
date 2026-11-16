@@ -313,4 +313,9 @@
     <string name="home_throughput">Netwerk \u2193 %1$s \u2191 %2$s \u00b7 Schijf \u2193 %3$s \u2191 %4$s</string>
     <string name="a_disks_n">%1$d schijf(en)</string>
     <string name="a_open_in_app">Openen</string>
+    <string name="home_apps">Applicaties</string>
+    <string name="home_open_browser">Openen in browser</string>
+    <string name="state_running">Actief</string>
+    <string name="state_partial">Gedeeltelijk</string>
+    <string name="state_stopped">Gestopt</string>
 </resources>

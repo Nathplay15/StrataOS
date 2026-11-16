@@ -313,4 +313,9 @@
     <string name="home_throughput">Red \u2193 %1$s \u2191 %2$s \u00b7 Disco \u2193 %3$s \u2191 %4$s</string>
     <string name="a_disks_n">%1$d disco(s)</string>
     <string name="a_open_in_app">Abrir</string>
+    <string name="home_apps">Aplicaciones</string>
+    <string name="home_open_browser">Abrir en el navegador</string>
+    <string name="state_running">En ejecución</string>
+    <string name="state_partial">Parcial</string>
+    <string name="state_stopped">Detenido</string>
 </resources>
