@@ -4631,5 +4631,6 @@
   "Which containers are running?": "Welche Container laufen?",
   "Any failed backups?": "Gibt es fehlgeschlagene Sicherungen?",
   "Delete this conversation?": "Diese Unterhaltung löschen?",
-  "The messages of this conversation will be removed.": "Die Nachrichten dieser Unterhaltung werden entfernt."
+  "The messages of this conversation will be removed.": "Die Nachrichten dieser Unterhaltung werden entfernt.",
+  "Running {0}…": "{0} wird ausgeführt…"
 }
