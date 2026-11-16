@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -58,6 +58,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/media", label: tr("Media"), icon: <Clapperboard size={17} /> },
       { to: "/links", label: tr("Shared links"), icon: <Link2 size={17} /> },
       { to: "/vpn", label: tr("My VPN devices"), icon: <Smartphone size={17} /> },
+      { to: "/activity", label: tr("My activity"), icon: <ScrollText size={17} /> },
       { to: "/shares", label: tr("Shared folders"), icon: <Share2 size={17} />, admin: true },
       { to: "/users", label: tr("Users"), icon: <Users size={17} />, admin: true },
       { to: "/system/fileservices", label: tr("File services"), icon: <FolderTree size={17} />, admin: true },
