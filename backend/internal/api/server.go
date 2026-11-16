@@ -51,6 +51,8 @@ type Server struct {
 	dataDir  string
 	mux      *http.ServeMux
 	certs    *certs.Manager
+	// dnsMu serializes the DNS-01 certificate requests of the main domain.
+	dnsMu sync.Mutex
 	// httpPort is the plain HTTP port, given to media receivers in stream URLs.
 	httpPort string
 	// diskAlerts: failing or weakening disks found by the last health check.
@@ -124,6 +126,7 @@ func New(c Config) *Server {
 	go s.vpnDockerEvents()
 	go s.photoLoop()
 	go s.fulltextLoop()
+	go s.certLoop()
 	go s.shareQuotaLoop()
 	go s.energyLoop()
 	go s.versionLinksLoop()

@@ -1,5 +1,6 @@
 // Package certs serves the HTTPS certificate: self-signed by default, an imported
-// certificate, or Let's Encrypt (HTTP-01 challenge on port 80).
+// certificate, or Let's Encrypt (HTTP-01 challenge on port 80, or DNS-01 with a
+// DNS provider: the ACME exchange of the DNS-01 variant is done by the caller).
 package certs
 
 import (
@@ -35,6 +36,8 @@ type Manager struct {
 	acme       *autocert.Manager
 	domain     string
 	email      string
+	dnsCert    *tls.Certificate // Let's Encrypt certificate obtained with the DNS-01 challenge
+	dnsDomain  string
 	httpSrv    *http.Server
 	httpH      http.Handler
 	// external: another server owns port 80 (app domains) and passes the
@@ -87,6 +90,7 @@ func (m *Manager) Files() (cert, key string) {
 func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	m.mu.RLock()
 	acme, domain, custom, self := m.acme, m.domain, m.custom, m.selfSigned
+	dnsCert, dnsDomain := m.dnsCert, m.dnsDomain
 	m.mu.RUnlock()
 	if acme != nil && strings.EqualFold(hello.ServerName, domain) {
 		if c, err := acme.GetCertificate(hello); err == nil {
@@ -94,6 +98,9 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 		} else {
 			slog.Warn("let's encrypt certificate unavailable, falling back", "err", err)
 		}
+	}
+	if dnsCert != nil && dnsCert.Leaf != nil && time.Now().Before(dnsCert.Leaf.NotAfter) && strings.EqualFold(hello.ServerName, dnsDomain) {
+		return dnsCert, nil
 	}
 	if custom != nil {
 		return custom, nil
@@ -190,6 +197,77 @@ func (m *Manager) SetACME(domain, email string) error {
 	return nil
 }
 
+// SetACMEDNS installs the Let's Encrypt certificate obtained with the DNS-01
+// challenge (the ACME exchange itself is done by the caller, which hands the
+// PEM pair over). An empty domain removes it.
+func (m *Manager) SetACMEDNS(domain, certPEM, keyPEM string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if domain == "" {
+		m.clearDNSLocked()
+		return nil
+	}
+	if !domainRe.MatchString(domain) {
+		return fmt.Errorf("invalid domain name")
+	}
+	c, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
+	if err != nil {
+		return fmt.Errorf("invalid certificate or key: %w", err)
+	}
+	d := filepath.Join(m.dir, "acme-dns")
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(d, domain+".crt"), []byte(certPEM), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(d, domain+".key"), []byte(keyPEM), 0o600); err != nil {
+		return err
+	}
+	m.dnsCert, m.dnsDomain = &c, strings.ToLower(domain)
+	return nil
+}
+
+// ClearACMEDNS removes the DNS-01 certificate.
+func (m *Manager) ClearACMEDNS() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clearDNSLocked()
+}
+
+func (m *Manager) clearDNSLocked() {
+	m.dnsCert, m.dnsDomain = nil, ""
+	_ = os.RemoveAll(filepath.Join(m.dir, "acme-dns"))
+}
+
+// LoadDNS re-enables the DNS-01 certificate after a restart, from the files
+// written by SetACMEDNS.
+func (m *Manager) LoadDNS() error {
+	entries, err := filepath.Glob(filepath.Join(m.dir, "acme-dns", "*.crt"))
+	if err != nil || len(entries) == 0 {
+		return err
+	}
+	c, err := tls.LoadX509KeyPair(entries[0], strings.TrimSuffix(entries[0], ".crt")+".key")
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.dnsCert, m.dnsDomain = &c, strings.ToLower(strings.TrimSuffix(filepath.Base(entries[0]), ".crt"))
+	m.mu.Unlock()
+	return nil
+}
+
+// DNSCert returns the domain and the expiry of the DNS-01 certificate;
+// ok is false when there is none.
+func (m *Manager) DNSCert() (domain string, notAfter time.Time, ok bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.dnsCert == nil || m.dnsCert.Leaf == nil {
+		return "", time.Time{}, false
+	}
+	return m.dnsDomain, m.dnsCert.Leaf.NotAfter, true
+}
+
 // SetExternalHTTP hands port 80 over to another server (on = true), which then
 // passes the requests it does not handle to HTTPHandler, or takes it back.
 func (m *Manager) SetExternalHTTP(on bool) error {
@@ -244,6 +322,11 @@ func (m *Manager) Status() (list []Info, domain, email string) {
 	list = append(list, self)
 	if m.custom != nil {
 		c := describe(m.custom, "custom")
+		c.Active = true
+		list = append(list, c)
+	}
+	if m.dnsCert != nil {
+		c := describe(m.dnsCert, "letsencrypt-dns")
 		c.Active = true
 		list = append(list, c)
 	}
