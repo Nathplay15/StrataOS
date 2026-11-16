@@ -2596,5 +2596,6 @@
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "El endpoint del asistente respondió {0} con un cuerpo no válido",
  "l'endpoint de l'assistant a répondu {0} : {1}": "El endpoint del asistente respondió {0}: {1}",
  "l'endpoint de l'assistant a répondu {0}": "El endpoint del asistente respondió {0}",
- "jeton de confirmation inconnu ou expiré : redemandez l'action": "Token de confirmación desconocido o caducado: vuelve a pedir la acción"
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Token de confirmación desconocido o caducado: vuelve a pedir la acción",
+ "Seuil de remplissage des volumes invalide": "umbral de llenado de volúmenes inválido"
 }

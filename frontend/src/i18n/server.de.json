@@ -2596,5 +2596,6 @@
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "Der Assistent-Endpunkt antwortete {0} mit einem ungültigen Körper",
  "l'endpoint de l'assistant a répondu {0} : {1}": "Der Assistent-Endpunkt antwortete {0}: {1}",
  "l'endpoint de l'assistant a répondu {0}": "Der Assistent-Endpunkt antwortete {0}",
- "jeton de confirmation inconnu ou expiré : redemandez l'action": "Unbekannter oder abgelaufener Bestätigungsschlüssel: fordern Sie die Aktion erneut an"
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Unbekannter oder abgelaufener Bestätigungsschlüssel: fordern Sie die Aktion erneut an",
+ "Seuil de remplissage des volumes invalide": "ungültiger Füllstandsgrenzwert für Volumes"
 }

@@ -425,6 +425,7 @@ export interface Settings {
   workgroup: string;
   serverString: string;
   sessionHours: number;
+  volumeFullPct?: number;
   webhookUrl: string;
   smtpHost: string;
   smtpPort: number;

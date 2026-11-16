@@ -96,8 +96,8 @@ func TestAlertDedup(t *testing.T) {
 	vol := func(used int64) volumeSummary {
 		return volumeSummary{Name: "main", Health: "healthy", Usage: storage.Usage{Total: 100, Used: used}}
 	}
-	first := storageAlerts([]storage.RaidArray{raid(12.5)}, nil, []volumeSummary{vol(91)}, false)
-	second := storageAlerts([]storage.RaidArray{raid(42.3)}, nil, []volumeSummary{vol(95)}, false)
+	first := storageAlerts([]storage.RaidArray{raid(12.5)}, nil, []volumeSummary{vol(91)}, false, 90)
+	second := storageAlerts([]storage.RaidArray{raid(42.3)}, nil, []volumeSummary{vol(95)}, false, 90)
 	if first[0].Message == second[0].Message || !strings.Contains(second[0].Message, "42.3%") {
 		t.Errorf("the dashboard must keep the live progress: %q", second[0].Message)
 	}

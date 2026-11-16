@@ -458,6 +458,7 @@ export const serverTexts: [string, string][] = [
   ["Étape invalide", "invalid step"],
   ["Sous-volume invalide", "invalid subvolume"],
   ["Chemin de sous-volume invalide", "invalid subvolume path"],
+  ["Seuil de remplissage des volumes invalide", "invalid volume fill threshold"],
   ["Seuil invalide", "invalid threshold"],
   ["Jeton invalide", "invalid token"],
   ["Unité invalide", "invalid unit"],

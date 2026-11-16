@@ -197,6 +197,9 @@ type Settings struct {
 	AssistantURL   string `json:"assistantUrl,omitempty"`
 	AssistantKey   string `json:"assistantKey,omitempty"`
 	AssistantModel string `json:"assistantModel,omitempty"`
+	// VolumeFullPct is the fill percentage above which a volume is alerted
+	// as full (dashboard and notifications); 0 keeps the default of 90.
+	VolumeFullPct int `json:"volumeFullPct,omitempty"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).

@@ -99,7 +99,6 @@ type fleetAlerts struct {
 // Thresholds of the dashboard.
 const (
 	fleetBackupStale = 8 * 24 * time.Hour
-	fleetFullPct     = 90
 	fleetWearPct     = 90
 	fleetCPUHot      = 85
 	fleetDiskHot     = 55
@@ -134,8 +133,9 @@ type fleetReason struct {
 	Text  string `json:"text"`
 }
 
-// fleetReasons lists what needs attention on a NAS (h nil: unreachable).
-func fleetReasons(online bool, h *fleetHealth) []fleetReason {
+// fleetReasons lists what needs attention on a NAS (h nil: unreachable);
+// fullPct is the volume fill threshold of the dashboard.
+func fleetReasons(online bool, h *fleetHealth, fullPct int) []fleetReason {
 	if !online || h == nil {
 		return []fleetReason{{levelCritical, "online", "This NAS does not answer"}}
 	}
@@ -167,7 +167,7 @@ func fleetReasons(online bool, h *fleetHealth) []fleetReason {
 	if h.Arrays.Rebuilding > 0 {
 		add(levelInfo, "arrays", "%d array(s) rebuilding", h.Arrays.Rebuilding)
 	}
-	if h.Space.FullestPct >= fleetFullPct {
+	if h.Space.FullestPct >= float64(fullPct) {
 		add(levelWarning, "space", "Volume %s is %.0f%% full", h.Space.Fullest, h.Space.FullestPct)
 	}
 	if h.Space.Unmounted > 0 {

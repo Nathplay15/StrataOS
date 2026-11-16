@@ -267,7 +267,6 @@
   "Alerts": "Alertas",
   "Alerts and health report, on all channels": "Alertas e relatório de integridade, em todos os canais",
   "Alerts and monthly report, on all channels": "Alertas e relatório mensal, em todos os canais",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.": "Alertas enviados: RAID degradado, erro no pool ZFS, disco com falha ou enfraquecendo (SMART), volume 90% cheio, vírus detectado, falha de tarefa, queda de energia.",
   "Align positions": "Alinhar posições",
   "All": "Todas",
   "All ({0})": "Todos ({0})",
@@ -4632,5 +4631,8 @@
   "Any failed backups?": "Há backups com falha?",
   "Delete this conversation?": "Eliminar esta conversa?",
   "The messages of this conversation will be removed.": "As mensagens desta conversa serão removidas.",
-  "Running {0}…": "A executar {0}…"
+  "Running {0}…": "A executar {0}…",
+  "Volume full alert (%)": "Alerta de volume cheio (%)",
+  "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Alerta e aviso no painel quando um volume excede este nível de enchimento. 50 a 99, por defeito 90.",
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Alertas enviados: RAID degradado, erro do pool ZFS, disco SMART a falhar ou a enfraquecer, volume cheio, vírus detetado, tarefa falhada, corte de energia."
 }

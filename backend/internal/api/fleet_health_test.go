@@ -16,11 +16,11 @@ func texts(rs []fleetReason) string {
 }
 
 func TestFleetReasons(t *testing.T) {
-	if rs := fleetReasons(false, nil); fleetLevel(rs) != levelCritical || rs[0].Kind != "online" {
+	if rs := fleetReasons(false, nil, 90); fleetLevel(rs) != levelCritical || rs[0].Kind != "online" {
 		t.Fatalf("offline: %v", rs)
 	}
 	healthy := &fleetHealth{Updates: &fleetUpdateInfo{}, Advisor: &fleetAdvisor{Score: 92}}
-	if rs := fleetReasons(true, healthy); len(rs) != 0 || fleetLevel(rs) != levelOK {
+	if rs := fleetReasons(true, healthy, 90); len(rs) != 0 || fleetLevel(rs) != levelOK {
 		t.Fatalf("healthy: %v", rs)
 	}
 	h := &fleetHealth{
@@ -33,7 +33,7 @@ func TestFleetReasons(t *testing.T) {
 		Alerts:  fleetAlerts{Errors: 3},
 		Updates: &fleetUpdateInfo{Candidate: "0.10.0", RebootRequired: true},
 	}
-	got := texts(fleetReasons(true, h))
+	got := texts(fleetReasons(true, h, 90))
 	for _, want := range []string{
 		"critical:1 disk(s) failing", "critical:1 degraded or failed array(s)", "warning:1 backup task(s) failed",
 		"warning:1 backup task(s) without success for 8 days", "warning:2 disk(s) with SMART warnings",
@@ -49,14 +49,14 @@ func TestFleetReasons(t *testing.T) {
 	if strings.Contains(got, "error alert") {
 		t.Errorf("error alerts counted twice: %s", got)
 	}
-	if fleetLevel(fleetReasons(true, h)) != levelCritical {
+	if fleetLevel(fleetReasons(true, h, 90)) != levelCritical {
 		t.Error("level should be critical")
 	}
 	only := &fleetHealth{Alerts: fleetAlerts{Errors: 2}, Advisor: &fleetAdvisor{Score: 50}}
-	if got := texts(fleetReasons(true, only)); got != "critical:2 error alert(s)|warning:Security score 50/100" {
+	if got := texts(fleetReasons(true, only, 90)); got != "critical:2 error alert(s)|warning:Security score 50/100" {
 		t.Errorf("alerts and score: %s", got)
 	}
-	if got := fleetLevel(fleetReasons(true, &fleetHealth{Partial: true})); got != levelInfo {
+	if got := fleetLevel(fleetReasons(true, &fleetHealth{Partial: true}, 90)); got != levelInfo {
 		t.Errorf("partial: %s", got)
 	}
 }
@@ -105,7 +105,7 @@ func TestFleetFromSummary(t *testing.T) {
 	if h.Updates == nil || h.Updates.Candidate != "0.10.0" || h.Updates.System != 2 || h.Access == nil || !h.Access.Updates {
 		t.Fatalf("%+v", h)
 	}
-	if fleetLevel(fleetReasons(true, h)) != levelCritical {
+	if fleetLevel(fleetReasons(true, h, 90)) != levelCritical {
 		t.Fatal("a failing disk is critical")
 	}
 }

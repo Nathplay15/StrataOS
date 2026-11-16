@@ -153,10 +153,21 @@ func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols [
 	if d := s.diskAlerts.Load(); d != nil {
 		out = append(out, (*d)...)
 	}
-	return append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken())...)
+	return append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken(), s.volumeFullPct())...)
 }
 
-func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volumeSummary, zfsBroken bool) []alert {
+// volumeFullPct is the fill percentage above which a volume is alerted as
+// full (Settings.VolumeFullPct, default 90).
+func (s *Server) volumeFullPct() int {
+	var set store.Settings
+	s.store.Read(func(st *store.State) { set = st.Settings })
+	if set.VolumeFullPct >= 50 && set.VolumeFullPct <= 99 {
+		return set.VolumeFullPct
+	}
+	return 90
+}
+
+func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volumeSummary, zfsBroken bool, fullPct int) []alert {
 	var out []alert
 	for _, r := range raids {
 		switch r.Health {
@@ -180,7 +191,7 @@ func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volu
 		if v.Health == "unmounted" {
 			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("Volume %s is not mounted", v.Name)})
 		}
-		if v.Total > 0 && float64(v.Used)/float64(v.Total) > 0.9 {
+		if v.Total > 0 && float64(v.Used)/float64(v.Total)*100 > float64(fullPct) {
 			out = append(out, alert{Level: "warning", Message: fmt.Sprintf("Volume %s is %.0f%% full", v.Name, 100*float64(v.Used)/float64(v.Total)), Key: "volume-full:" + v.Name})
 		}
 	}

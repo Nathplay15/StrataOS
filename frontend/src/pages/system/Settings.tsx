@@ -213,6 +213,7 @@ export default function SettingsPage() {
             {s.smtpHost && s.smtpSecurity !== "none" && <div className="sm:col-span-2"><TLSTrustField address={smtpAddress(s)} value={s.smtpTls ?? {}} onChange={(v) => set("smtpTls", v)} /></div>}
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
+            <Field label={tr("Volume full alert (%)")} hint={tr("Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.")}><Input type="number" min={50} max={99} value={s.volumeFullPct ?? 0} onChange={(e) => set("volumeFullPct", +e.target.value)} /></Field>
             <Field label={tr("Language of the messages sent by the NAS")} hint={tr("Alerts and health report, on all channels")}>
               <Select value={s.notifyLang ?? ""} onChange={(e) => set("notifyLang", e.target.value)}>
                 <option value="">{tr("Automatic: {0} (language of the first administrator)", languages.find((l) => l.id === (s.notifyLangAuto || "en"))?.name ?? "English")}</option>
@@ -232,7 +233,7 @@ export default function SettingsPage() {
             <Button size="sm" loading={report.isPending} onClick={() => report.mutate()}>{tr("Send a test report now")}</Button>
           </div>
           {report.data && <pre className="mono mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[12px]">{report.data.report}</pre>}
-          <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.")}</p>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.")}</p>
         </Card>
         <MetricsCard enabled={!!data?.metricsToken} />
         <Card id="settings-assistant" title={<span className="flex items-center gap-2"><Bot size={16} /> {" "}{tr("Assistant (AI)")}</span>} className="@4xl:col-span-2">

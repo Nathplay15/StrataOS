@@ -267,7 +267,6 @@
   "Alerts": "Waarschuwingen",
   "Alerts and health report, on all channels": "Meldingen en statusrapport, op alle kanalen",
   "Alerts and monthly report, on all channels": "Meldingen en maandrapport, via alle kanalen",
-  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.": "Verzonden meldingen: gedegradeerde RAID, ZFS-poolfout, defecte of verslechterende schijf (SMART), volume 90% vol, virus gevonden, mislukte taak, stroomuitval.",
   "Align positions": "Posities uitlijnen",
   "All": "Alle",
   "All ({0})": "Alle ({0})",
@@ -4632,5 +4631,8 @@
   "Any failed backups?": "Zijn er mislukte back-ups?",
   "Delete this conversation?": "Dit gesprek verwijderen?",
   "The messages of this conversation will be removed.": "De berichten van dit gesprek worden verwijderd.",
-  "Running {0}…": "{0} wordt uitgevoerd…"
+  "Running {0}…": "{0} wordt uitgevoerd…",
+  "Volume full alert (%)": "Waarschuwing volle schijf (%)",
+  "Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.": "Waarschuwing en dashboardmelding wanneer een schijf deze vullingsgraad overschrijdt. 50 tot 99, standaard 90.",
+  "Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), full volume, virus found, failed task, power outage.": "Verzonden waarschuwingen: gedegradeerde RAID, ZFS-poolfout, uitvallende of verzwakkende schijf (SMART), volle schijf, virus gevonden, mislukte taak, stroomuitval."
 }

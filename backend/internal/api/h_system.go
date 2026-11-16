@@ -340,6 +340,9 @@ func (s *Server) systemRoutes() {
 		default:
 			return nil, badRequest("invalid report period")
 		}
+		if req.VolumeFullPct != 0 && (req.VolumeFullPct < 50 || req.VolumeFullPct > 99) {
+			return nil, badRequest("invalid volume fill threshold")
+		}
 		req.AssistantURL = strings.TrimSpace(req.AssistantURL)
 		req.AssistantModel = strings.TrimSpace(req.AssistantModel)
 		if req.AssistantURL != "" && !strings.HasPrefix(req.AssistantURL, "http://") && !strings.HasPrefix(req.AssistantURL, "https://") {
