@@ -11,9 +11,9 @@ import "time"
 //   - "admin": everything, including administrator-only routes;
 //   - "mcp": the MCP endpoint (/api/mcp).
 type APIToken struct {
-	ID     string   `json:"id"`
-	Name   string   `json:"name"`
-	Prefix string   `json:"prefix"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Prefix string `json:"prefix"`
 	// TokenHash: SHA-256 hex of the full secret ("stt_…").
 	TokenHash string    `json:"tokenHash"`
 	Scopes    []string  `json:"scopes"`
