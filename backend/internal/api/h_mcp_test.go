@@ -132,3 +132,21 @@ func TestMCPWriteToolConfirmation(t *testing.T) {
 }
 
 var _ = json.Marshal
+
+func TestMCPNewToolsListed(t *testing.T) {
+	_, ts, tok := mcpServer(t)
+	cs := mcpClient(t, ts.URL, tok)
+	list, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	names := map[string]bool{}
+	for _, tl := range list.Tools {
+		names[tl.Name] = true
+	}
+	for _, want := range []string{"list_vms", "list_zfs_snapshots", "list_notifications", "vm_action", "create_zfs_snapshot"} {
+		if !names[want] {
+			t.Errorf("tool %s is not exposed", want)
+		}
+	}
+}

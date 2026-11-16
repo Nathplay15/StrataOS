@@ -17,6 +17,8 @@ interface TokenView {
   lastIp?: string;
 }
 
+const mcpPreset = (url: string, tok: string) => JSON.stringify({ mcpServers: { strataos: { url, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2);
+
 const SCOPES: { id: string; label: string }[] = [
   { id: "read", label: tr("Read (GET requests)") },
   { id: "write", label: tr("Write (changes on the NAS)") },
@@ -43,9 +45,10 @@ export function ApiTokensModal({ open, onClose }: { open: boolean; onClose: () =
   const [scopes, setScopes] = useState<string[]>(["read"]);
   const [days, setDays] = useState(0);
   const [created, setCreated] = useState<string | null>(null);
+  const [createdMcp, setCreatedMcp] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (!open) { setCreated(null); setName(""); setScopes(["read"]); setDays(0); setErr(null); } }, [open]);
+  useEffect(() => { if (!open) { setCreated(null); setCreatedMcp(false); setName(""); setScopes(["read"]); setDays(0); setErr(null); } }, [open]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setErr(null);
@@ -54,6 +57,7 @@ export function ApiTokensModal({ open, onClose }: { open: boolean; onClose: () =
   const create = () => run(async () => {
     const out = await api.post<{ token: string }>("/api/me/tokens", { name, scopes, days });
     setCreated(out.token);
+    setCreatedMcp(scopes.includes("mcp"));
     setName("");
   });
   const toggle = (id: string) => setScopes((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -71,6 +75,12 @@ export function ApiTokensModal({ open, onClose }: { open: boolean; onClose: () =
               <div className="space-y-2">
                 <p>{tr("Copy the token now: it is not shown again.")}</p>
                 <Copyable value={created} />
+                {createdMcp && (
+                  <div className="space-y-2">
+                    <p>{tr("MCP configuration with this token:")}</p>
+                    <Copyable value={mcpPreset(`${location.origin}/api/mcp`, created)} />
+                  </div>
+                )}
               </div>
             </Notice>
           )}
@@ -117,6 +127,16 @@ export function ApiTokensModal({ open, onClose }: { open: boolean; onClose: () =
                 </button>
               ))}
             </div>
+            {scopes.includes("mcp") && (
+              <div className="space-y-2 rounded-xl border border-line p-3 text-[13px]">
+                <p className="font-medium">{tr("Connect an AI assistant (MCP)")}</p>
+                <p className="opacity-70">{tr("Point your assistant to this endpoint:")}</p>
+                <Copyable value={`${location.origin}/api/mcp`} />
+                <p className="opacity-70">{tr("In your MCP client (Claude Desktop, Cursor…), add this server:")}</p>
+                <pre className="mono overflow-x-auto rounded-lg bg-panel-2 p-2.5 text-[12px]">{mcpPreset(`${location.origin}/api/mcp`, "YOUR_TOKEN")}</pre>
+                <p className="opacity-70">{tr("Write tools ask for a confirmation before each change; give the write scope only to assistants you trust.")}</p>
+              </div>
+            )}
             <ErrorBox error={err} />
             <Button disabled={busy || !name.trim() || scopes.length === 0} icon={<Plus size={15} />} onClick={create}>{tr("Create the token")}</Button>
           </div>
