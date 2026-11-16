@@ -699,6 +699,10 @@ type State struct {
 
 	// Datastores: backup repositories shared by tasks (store/datastore.go).
 	Datastores []*Datastore `json:"datastores,omitempty"`
+
+	// AssistantChats: saved conversations of the web assistant, per user
+	// (store/assistant.go).
+	AssistantChats []*AssistantChat `json:"assistantChats,omitempty"`
 }
 
 const maxEvents = 2000

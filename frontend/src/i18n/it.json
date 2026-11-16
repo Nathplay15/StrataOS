@@ -4629,5 +4629,7 @@
   "How much free space is left?": "Quanto spazio libero resta?",
   "Are my disks healthy?": "I miei dischi sono sani?",
   "Which containers are running?": "Quali contenitori sono in esecuzione?",
-  "Any failed backups?": "Ci sono backup falliti?"
+  "Any failed backups?": "Ci sono backup falliti?",
+  "Delete this conversation?": "Eliminare questa conversazione?",
+  "The messages of this conversation will be removed.": "I messaggi di questa conversazione verranno rimossi."
 }

@@ -4629,5 +4629,7 @@
   "How much free space is left?": "Combien reste-t-il d'espace libre ?",
   "Are my disks healthy?": "Mes disques sont-ils en bonne santé ?",
   "Which containers are running?": "Quels conteneurs tournent ?",
-  "Any failed backups?": "Des sauvegardes ont-elles échoué ?"
+  "Any failed backups?": "Des sauvegardes ont-elles échoué ?",
+  "Delete this conversation?": "Supprimer cette conversation ?",
+  "The messages of this conversation will be removed.": "Les messages de cette conversation seront supprimés."
 }

@@ -236,3 +236,99 @@ func TestAssistantConfirmOfAnotherUser(t *testing.T) {
 		t.Fatalf("a token armed by bob must not work for alice: %d", resp.StatusCode)
 	}
 }
+
+func TestAssistantConversations(t *testing.T) {
+	fl := &fakeLLM{steps: []fakeStep{{content: "here is the answer"}}}
+	llm := httptest.NewServer(http.HandlerFunc(fl.handler))
+	defer llm.Close()
+	s, ts, tok := assistantServer(t, llm.URL, true)
+
+	// No conversation yet.
+	resp, body := assistantDo(t, ts.URL, tok, "GET", "/api/assistant/conversations", nil)
+	if resp.StatusCode != 200 || strings.TrimSpace(string(body)) != "[]" {
+		t.Fatalf("empty list: %d %s", resp.StatusCode, body)
+	}
+
+	// One chat creates a conversation.
+	resp, body = assistantDo(t, ts.URL, tok, "POST", "/api/assistant/chat",
+		map[string]any{"messages": []map[string]string{{"role": "user", "content": "how is my NAS?"}}})
+	if resp.StatusCode != 200 {
+		t.Fatalf("chat: %d %s", resp.StatusCode, body)
+	}
+	var out struct {
+		Reply          string `json:"reply"`
+		ConversationID string `json:"conversationId"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Reply != "here is the answer" || out.ConversationID == "" {
+		t.Fatalf("chat = %+v", out)
+	}
+	convID := out.ConversationID
+
+	// The list shows it with the first user message as title.
+	resp, body = assistantDo(t, ts.URL, tok, "GET", "/api/assistant/conversations", nil)
+	var list []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil || len(list) != 1 {
+		t.Fatalf("list: %d %s %v", resp.StatusCode, body, err)
+	}
+	if list[0].ID != convID || list[0].Title != "how is my NAS?" {
+		t.Fatalf("list = %+v", list)
+	}
+
+	// Following the conversation keeps the same id and appends messages.
+	resp, body = assistantDo(t, ts.URL, tok, "POST", "/api/assistant/chat",
+		map[string]any{"conversationId": convID, "messages": []map[string]string{
+			{"role": "user", "content": "how is my NAS?"}, {"role": "assistant", "content": "here is the answer"},
+			{"role": "user", "content": "and the disks?"},
+		}})
+	if resp.StatusCode != 200 {
+		t.Fatalf("follow-up chat: %d %s", resp.StatusCode, body)
+	}
+	out = struct {
+		Reply          string `json:"reply"`
+		ConversationID string `json:"conversationId"`
+	}{}
+	if err := json.Unmarshal(body, &out); err != nil || out.ConversationID != convID {
+		t.Fatalf("follow-up = %s %v", body, err)
+	}
+
+	// The saved conversation holds the user/assistant messages only.
+	resp, body = assistantDo(t, ts.URL, tok, "GET", "/api/assistant/conversations/"+convID, nil)
+	var chat store.AssistantChat
+	if err := json.Unmarshal(body, &chat); err != nil {
+		t.Fatal(err)
+	}
+	if chat.ID != convID || len(chat.Messages) != 4 {
+		t.Fatalf("chat = %+v", chat)
+	}
+	if chat.Messages[2].Content != "and the disks?" || chat.Messages[3].Content != "here is the answer" {
+		t.Fatalf("messages = %+v", chat.Messages)
+	}
+
+	// Another user cannot read the conversation.
+	hash, _ := hashPassword("Secret-Pass-1")
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "alice", PasswordHash: hash})
+		return nil
+	})
+	other := createToken(t, s, "alice", []string{"read"}, 0)
+	resp, _ = assistantDo(t, ts.URL, other, "GET", "/api/assistant/conversations/"+convID, nil)
+	if resp.StatusCode != 404 {
+		t.Fatalf("alice must not read bob's conversation: %d", resp.StatusCode)
+	}
+
+	// Delete removes it for its owner.
+	resp, _ = assistantDo(t, ts.URL, tok, "DELETE", "/api/assistant/conversations/"+convID, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("delete: %d", resp.StatusCode)
+	}
+	resp, _ = assistantDo(t, ts.URL, tok, "GET", "/api/assistant/conversations/"+convID, nil)
+	if resp.StatusCode != 404 {
+		t.Fatalf("deleted conversation must be gone: %d", resp.StatusCode)
+	}
+}
