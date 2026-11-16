@@ -35,28 +35,43 @@ object Notifier {
         ))
     }
 
-    fun openApp(ctx: Context, tab: String? = null): PendingIntent = PendingIntent.getActivity(
-        ctx, tab.hashCode(), Intent(ctx, MainActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-    )
+    fun openApp(ctx: Context, tab: String? = null, section: String? = null): PendingIntent {
+        val i = Intent(ctx, MainActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (section != null) i.putExtra("section", section)
+        return PendingIntent.getActivity(
+            ctx, (tab + "\u0000" + section).hashCode(), i,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
 
     fun canPost(ctx: Context) = ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED ||
         android.os.Build.VERSION.SDK_INT < 33
 
-    /** A notification of the NAS (failing disk, failed backup…). */
-    fun nasEvent(ctx: Context, id: Long, level: String, subject: String, message: String, host: String) {
+    /** A notification of the NAS (failing disk, failed backup…); its kind picks the screen it opens. */
+    fun nasEvent(ctx: Context, id: Long, level: String, subject: String, message: String, host: String, kind: String = "") {
         if (!canPost(ctx)) return
+        val (tab, section) = routeOf(kind)
         val n = NotificationCompat.Builder(ctx, if (level == "info") INFO else ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (host.isNotEmpty()) "$subject · $host" else subject)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(if (level == "error") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(openApp(ctx, "status"))
+            .setContentIntent(openApp(ctx, tab, section))
             .setAutoCancel(true)
             .build()
         @Suppress("MissingPermission")
         NotificationManagerCompat.from(ctx).notify("nas", id.toInt(), n)
+    }
+
+    /** Where a tap on a NAS notification lands (the kinds of the NAS notification centre). */
+    private fun routeOf(kind: String): Pair<String, String?> = when (kind.lowercase()) {
+        "backup" -> "backup" to null
+        "storage" -> "manage" to "storage"
+        "docker" -> "manage" to "apps"
+        "vm" -> "manage" to "vms"
+        "surveillance" -> "manage" to "surveillance"
+        else -> "status" to null
     }
 
     fun signedOut(ctx: Context) {

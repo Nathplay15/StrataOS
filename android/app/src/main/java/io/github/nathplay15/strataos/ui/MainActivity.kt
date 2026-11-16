@@ -74,6 +74,7 @@ class MainActivity : FragmentActivity() {
     private var unlocked by mutableStateOf(false)
     private var tab by mutableStateOf("home")
     private var overlay by mutableStateOf<String?>(null)
+    private var section by mutableStateOf<String?>(null)
     private var pairLink by mutableStateOf<PairLink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +97,7 @@ class MainActivity : FragmentActivity() {
                         // it would leave unlocked unobserved, so the lock screen would not come
                         // back after the lock was turned on until something else recomposes.
                         !unlocked && Graph.prefs.biometricLock -> LockScreen { authenticate() }
-                        else -> Home(tab, { tab = it }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null })
+                        else -> Home(tab, { tab = it; section = null }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null })
                     }
                 }
             }
@@ -136,6 +137,7 @@ class MainActivity : FragmentActivity() {
 
     private fun handle(intent: Intent?) {
         intent?.getStringExtra("tab")?.let { destinationOf(it).let { (t, o) -> tab = t; overlay = o } }
+        section = intent?.getStringExtra("section")
         intent?.data?.toString()?.let { parsePairLink(it) }?.let { if (!signedIn) pairLink = it }
     }
 
@@ -241,7 +243,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }, LocalOpenOverlay provides setOverlay) {
             when (tab) {
                 "photos" -> PhotosScreen(account)
-                "manage" -> ManageScreen(account)
+                "manage" -> ManageScreen(account, initialSection = section)
                 "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") })
                 else -> FilesScreen(filesPath, { filesPath = it }, account)
             }
