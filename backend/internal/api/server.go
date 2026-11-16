@@ -57,6 +57,9 @@ type Server struct {
 	diskAlerts atomic.Pointer[[]alert]
 	// hist: SMART, SSD cache and volume usage history (h_health.go).
 	hist *health.Store
+	// recorded: every route registered through the helpers, for the
+	// OpenAPI document (openapi.go).
+	recorded []apiRoute
 }
 
 type Config struct {
@@ -213,13 +216,35 @@ func qInt(r *http.Request, key string, def int) int {
 	return def
 }
 
-// Route registration helpers.
-func (s *Server) public(pattern string, h handler) { s.mux.Handle(pattern, s.wrap(h)) }
+// Route registration helpers. Each helper records the pattern for the
+// OpenAPI document (openapi.go) before wiring the handler.
+func (s *Server) public(pattern string, h handler) {
+	s.record(pattern, "public")
+	s.mux.Handle(pattern, s.wrap(h))
+}
 func (s *Server) user(pattern string, h handler) {
+	s.record(pattern, "user")
 	s.mux.Handle(pattern, s.authenticate(s.wrap(h), false))
 }
 func (s *Server) admin(pattern string, h handler) {
+	s.record(pattern, "admin")
 	s.mux.Handle(pattern, s.authenticate(s.wrap(h), true))
+}
+
+// apiRoute is a recorded route for the OpenAPI document.
+type apiRoute struct {
+	Method string // HTTP method, or "" when the pattern accepts any
+	Path   string
+	Level  string // public | user | admin
+}
+
+// record parses a registration pattern ("GET /api/x" or "/api/x").
+func (s *Server) record(pattern, level string) {
+	method := ""
+	if m, p, ok := strings.Cut(pattern, " "); ok {
+		method, pattern = m, p
+	}
+	s.recorded = append(s.recorded, apiRoute{Method: method, Path: pattern, Level: level})
 }
 func (s *Server) adminRaw(pattern string, h http.HandlerFunc) {
 	s.mux.Handle(pattern, s.authenticate(h, true))
@@ -258,6 +283,7 @@ func (s *Server) routes() {
 	s.quotaRoutes()
 	s.twoFactorRoutes()
 	s.accessRoutes()
+	s.tokenRoutes()
 	s.passkeyRoutes()
 	s.secondFactorRoutes()
 	s.sessionRoutes()
@@ -309,6 +335,7 @@ func (s *Server) routes() {
 	s.marketRoutes()
 	s.syncE2ERoutes()
 	s.rpiKernelRoutes()
+	s.openapiRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
 	s.dockerUpdateRoutes()

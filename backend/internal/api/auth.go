@@ -38,6 +38,9 @@ type session struct {
 	// MFA: a second factor checked by the identity provider of an OIDC
 	// sign-in (oidc_login.go), which the two-factor policy may accept.
 	MFA string `json:"mfa,omitempty"`
+	// Scopes: what a scoped API token (stt_, h_tokens.go) may reach; nil for
+	// cookie and mobile-device sessions, which are unrestricted.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // sessions are keyed by the SHA-256 of the cookie token and persisted to disk

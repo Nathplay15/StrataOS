@@ -68,10 +68,16 @@ func fromDevice(r *http.Request) bool {
 	return ss != nil && ss.Device != ""
 }
 
-// bearerAuth authenticates a request carrying a device token (see authenticate).
+// bearerAuth authenticates a request carrying a bearer token (see
+// authenticate): a mobile device token (stdev_) or a scoped API token
+// (stt_, h_tokens.go).
 func (s *Server) bearerAuth(w http.ResponseWriter, r *http.Request, next http.Handler, adminOnly bool) {
 	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	ip := clientIP(r)
+	if strings.HasPrefix(tok, apiTokenPrefix) {
+		s.apiTokenAuth(w, r, next, adminOnly, tok, ip)
+		return
+	}
 	ss, dev := s.deviceSession(tok, ip)
 	if ss == nil {
 		s.guardFail(ip, "mobile app", "")
@@ -88,6 +94,26 @@ func (s *Server) bearerAuth(w http.ResponseWriter, r *http.Request, next http.Ha
 	}
 	ctx := context.WithValue(context.WithValue(r.Context(), ctxKey{}, ss), deviceCtxKey{}, dev)
 	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// apiTokenAuth authenticates a scoped API token: the scopes decide which
+// methods and routes the client may reach (h_tokens.go).
+func (s *Server) apiTokenAuth(w http.ResponseWriter, r *http.Request, next http.Handler, adminOnly bool, tok, ip string) {
+	ss := s.apiTokenSession(tok, ip)
+	if ss == nil {
+		s.guardFail(ip, "api token", "")
+		writeErr(w, errUnauthorized)
+		return
+	}
+	if adminOnly && (ss.Role != "admin" || !hasScope(ss.Scopes, "admin")) {
+		writeErr(w, errForbidden)
+		return
+	}
+	if !tokenAllows(ss, r, adminOnly) {
+		writeErr(w, &Error{Status: http.StatusForbidden, Msg: "token scope does not cover this request"})
+		return
+	}
+	next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, ss)))
 }
 
 // deviceSession finds the device of a token and returns a session with the

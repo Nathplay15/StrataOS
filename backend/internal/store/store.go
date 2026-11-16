@@ -39,6 +39,9 @@ type User struct {
 	Passkeys   []Passkey `json:"passkeys,omitempty"`
 	// Phones paired with the StrataOS app (store/mobile.go).
 	MobileDevices []MobileDevice `json:"mobileDevices,omitempty"`
+	// Scoped API tokens for scripts, automations and MCP assistants
+	// (store/tokens.go, api/h_tokens.go).
+	APITokens []APIToken `json:"apiTokens,omitempty"`
 	// Desktop: where the user placed the icons of the desktop mode, icon id
 	// → [column, row] of the grid. Absent icons go to the first free cell.
 	Desktop map[string][2]int `json:"desktop,omitempty"`
