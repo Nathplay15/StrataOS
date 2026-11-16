@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette,
+  Activity, AppWindow, BatteryCharging, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -12,6 +12,7 @@ import { SecurityKeysModal } from "./SecurityKeys";
 import { S3KeysModal } from "./S3Keys";
 import { TwoFactorPrompt } from "./TwoFactorPrompt";
 import { MobileDevicesModal } from "./MobileDevices";
+import { SessionsModal } from "./Sessions";
 import { api } from "../lib/api";
 import { useJobs } from "../lib/jobs";
 import type { Me, Overview } from "../lib/types";
@@ -220,6 +221,7 @@ export function Layout({ me }: { me: Me }) {
   const [keys, setKeys] = useState(false);
   const [s3, setS3] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const [sessions, setSessions] = useState(false);
   const [look, setLook] = useState(false);
   useAccent();
   useAccountDialog((d) => {
@@ -319,6 +321,7 @@ export function Layout({ me }: { me: Me }) {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setKeys(true); }}><KeyRound size={15} /> {" "}{tr("Security keys and sign-in")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setS3(true); }}><Database size={15} /> {" "}{tr("S3 access keys")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setMobile(true); }}><TabletSmartphone size={15} /> {" "}{tr("Phones and computers")}</button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setSessions(true); }}><History size={15} /> {" "}{tr("Sessions and sign-ins")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); nav_("/vpn"); }}><Smartphone size={15} /> {" "}{tr("My VPN devices")}</button>
                   <button className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2 lg:flex" onClick={() => setUIMode("desktop")}><LayoutGrid size={15} /> {" "}{tr("Desktop mode")}</button>
                   {me.role === "admin" && (
@@ -348,6 +351,7 @@ export function Layout({ me }: { me: Me }) {
       <SecurityKeysModal open={keys} onClose={() => setKeys(false)} />
       <S3KeysModal open={s3} onClose={() => setS3(false)} />
       <MobileDevicesModal open={mobile} onClose={() => setMobile(false)} />
+      <SessionsModal open={sessions} onClose={() => setSessions(false)} me={me} />
       <AppearanceModal open={look} onClose={() => setLook(false)} />
       <TwoFactorPrompt me={me} />
     </div>

@@ -668,7 +668,9 @@ type State struct {
 	// ConfigBackup: automatic exports of this configuration.
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`
-	Settings     Settings     `json:"settings"`
+	// Logins: the last sign-in attempts, successful or not (store/logins.go).
+	Logins   []Login  `json:"logins,omitempty"`
+	Settings Settings `json:"settings"`
 
 	// Updates: update channel and automatic updates.
 	Updates AutoUpdates `json:"updates,omitzero"`

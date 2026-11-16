@@ -168,6 +168,7 @@ func (s *Server) authRoutes() {
 				// Constant-ish time to avoid user enumeration.
 				checkPassword(dummyHash(), req.Password)
 			}
+			s.store.Login(req.Username, ip, false, "password")
 			s.store.Log("warning", "auth", req.Username, "Failed login from "+ip)
 			s.guardFail(ip, "web", req.Username)
 			writeErr(w, &Error{Status: http.StatusUnauthorized, Msg: errBadLogin.Error()})
@@ -192,13 +193,14 @@ func (s *Server) authRoutes() {
 				return
 			}
 			if !s.checkSecondFactor(u.Username, req.Code) {
+				s.store.Login(u.Username, ip, false, "twofactor")
 				s.store.Log("warning", "auth", u.Username, "Wrong two-factor code from "+ip)
 				s.guardFail(ip, "web", u.Username)
 				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "wrong two-factor code", "twoFactor": true, "methods": s.methodsOf(r, u)})
 				return
 			}
 		}
-		s.startSession(w, r, u, req.Remember, "", "Signed in from ")
+		s.startSession(w, r, u, req.Remember, "", "Signed in from ", "password")
 	}))
 
 	s.userRaw("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {

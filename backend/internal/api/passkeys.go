@@ -412,6 +412,7 @@ func (s *Server) passkeyRoutes() {
 				who = u.Username
 			}
 			slog.Info("passkey sign-in refused", "ip", ip, "user", who, "err", err)
+			s.store.Login(who, ip, false, "passkey")
 			s.store.Log("warning", "auth", who, "Failed passkey sign-in from "+ip)
 			s.guardFail(ip, "web", who)
 			writeErr(w, errPasskeyRefused)
@@ -423,6 +424,7 @@ func (s *Server) passkeyRoutes() {
 			ttl = 30 * 24 * time.Hour
 		}
 		s.setCookie(w, r, s.sessions.create(u.Username, u.Role, ip, ttl), ttl)
+		s.store.Login(u.Username, ip, true, "passkey")
 		s.store.Log("info", "auth", u.Username, "Signed in with a passkey from "+ip)
 		writeJSON(w, http.StatusOK, meResp{Username: u.Username, FullName: u.FullName, Role: u.Role, TwoFactor: hasSecondFactor(&u)})
 	}))

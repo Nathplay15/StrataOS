@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, ArchiveRestore, Bug, CalendarClock, Camera, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, ArchiveRestore, Bug, CalendarClock, Camera, GitCompare, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
-import { ago, cx, dateTime } from "../../lib/format";
+import { ago, bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { tr, srv } from "../../lib/i18n";
 import { RestoreWizard } from "../../components/RestoreWizard";
@@ -295,23 +295,97 @@ function retentionLabel(s: Schedule) {
 /** Snapshots a task made, newest first, with what its retention keeps; restore from them. */
 function SnapshotsModal({ s, onClose, onRestore }: { s: Schedule; onClose: () => void; onRestore: () => void }) {
   const { data, isLoading, error } = useQuery({ queryKey: ["schedule-snapshots", s.id], queryFn: () => api.get<Snap[]>(`/api/schedules/${s.id}/snapshots`) });
+  const [compare, setCompare] = useState(false);
   return (
-    <Modal open onClose={onClose} wide title={tr("Snapshots — {0}", s.name)} footer={<><Button icon={<ArchiveRestore size={15} />} onClick={onRestore}>{tr("Browse and restore…")}</Button><Button onClick={onClose}>{tr("Close")}</Button></>}>
+    <Modal open onClose={onClose} wide title={tr("Snapshots — {0}", s.name)} footer={<>
+      <Button icon={<GitCompare size={15} />} disabled={!data?.length || data.length < 2} onClick={() => setCompare(!compare)}>{compare ? tr("List the snapshots") : tr("Compare two snapshots")}</Button>
+      <Button icon={<ArchiveRestore size={15} />} onClick={onRestore}>{tr("Browse and restore…")}</Button>
+      <Button onClick={onClose}>{tr("Close")}</Button>
+    </>}>
       <ErrorBox error={error} />
-      {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<Camera />} title={tr("No snapshots yet")} /> : (
-        <div className="max-h-[60vh] space-y-1 overflow-y-auto">
-          {data.map((x) => (
-            <div key={x.name} className={cx("flex items-center gap-3 rounded-lg px-3 py-1.5 text-[12.5px]", x.keep ? "bg-panel-2" : "bg-warn/10")}>
-              <span className="w-40 shrink-0">{dateTime(x.time)}</span>
-              <span className="mono min-w-0 flex-1 truncate text-muted">{x.name}</span>
-              {x.locked && <Badge tone="accent">{tr("Locked")}</Badge>}
-              {!x.keep && <Badge tone="warn">{tr("Deleted at the next run")}</Badge>}
-            </div>
-          ))}
-        </div>
+      {isLoading ? <Spinner /> : !data?.length ? <Empty icon={<Camera />} title={tr("No snapshots yet")} /> : compare ? (
+        <SnapshotDiff s={s} snaps={data} />
+      ) : (
+        <>
+          <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+            {data.map((x) => (
+              <div key={x.name} className={cx("flex items-center gap-3 rounded-lg px-3 py-1.5 text-[12.5px]", x.keep ? "bg-panel-2" : "bg-warn/10")}>
+                <span className="w-40 shrink-0">{dateTime(x.time)}</span>
+                <span className="mono min-w-0 flex-1 truncate text-muted">{x.name}</span>
+                {x.locked && <Badge tone="accent">{tr("Locked")}</Badge>}
+                {!x.keep && <Badge tone="warn">{tr("Deleted at the next run")}</Badge>}
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[12px] text-muted">{tr("{0} snapshot(s), retention: {1}", data.length, retentionLabel(s))}</p>
+        </>
       )}
-      <p className="mt-3 text-[12px] text-muted">{tr("{0} snapshot(s), retention: {1}", data?.length ?? 0, retentionLabel(s))}</p>
     </Modal>
+  );
+}
+
+type DiffEntry = { path: string; name: string; dir?: boolean; change: "added" | "deleted" | "modified"; size?: number };
+
+/** What was added, removed and modified between two snapshots of the task. */
+function SnapshotDiff({ s, snaps }: { s: Schedule; snaps: Snap[] }) {
+  const [from, setFrom] = useState(snaps[1]?.name ?? "");
+  const [to, setTo] = useState(snaps[0]?.name ?? "");
+  const enabled = from !== "" && to !== "" && from !== to;
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["schedule-diff", s.id, from, to],
+    queryFn: () => api.get<{ changes: DiffEntry[]; truncated: boolean }>(`/api/schedules/${s.id}/snapshot-diff?${q({ from, to })}`),
+    enabled,
+  });
+  const changes = data?.changes ?? [];
+  const counts = {
+    added: changes.filter((c) => c.change === "added").length,
+    deleted: changes.filter((c) => c.change === "deleted").length,
+    modified: changes.filter((c) => c.change === "modified").length,
+  };
+  const tone = { added: "ok", deleted: "danger", modified: "warn" } as const;
+  const label = { added: tr("Added"), deleted: tr("Deleted"), modified: tr("Modified") };
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={tr("From (older)")}>
+          <Select value={from} onChange={(e) => setFrom(e.target.value)}>
+            {snaps.map((x) => <option key={x.name} value={x.name}>{dateTime(x.time)}</option>)}
+          </Select>
+        </Field>
+        <Field label={tr("To (newer)")}>
+          <Select value={to} onChange={(e) => setTo(e.target.value)}>
+            {snaps.map((x) => <option key={x.name} value={x.name}>{dateTime(x.time)}</option>)}
+          </Select>
+        </Field>
+      </div>
+      {!enabled ? <div className="text-[12.5px] text-muted">{tr("Pick two different snapshots to see what changed between them.")}</div> : isLoading ? <Spinner /> : (
+        <>
+          <ErrorBox error={error} />
+          <div className="flex flex-wrap gap-2 text-[12.5px]">
+            <Badge tone="ok">{tr("{0} added", counts.added)}</Badge>
+            <Badge tone="warn">{tr("{0} modified", counts.modified)}</Badge>
+            <Badge tone="danger">{tr("{0} deleted", counts.deleted)}</Badge>
+            {data?.truncated && <Badge tone="warn">{tr("List truncated")}</Badge>}
+          </div>
+          {changes.length === 0 ? <Empty icon={<GitCompare />} title={tr("Nothing changed between these two snapshots")} /> : (
+            <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-border">
+              <table className="table">
+                <thead><tr><th>{tr("Path")}</th><th>{tr("Change")}</th><th className="text-right">{tr("Size")}</th></tr></thead>
+                <tbody>
+                  {changes.map((c) => (
+                    <tr key={c.path}>
+                      <td className="max-w-[420px] truncate text-[12.5px]" title={c.path}><span className={c.dir ? "font-medium" : ""}>{c.dir ? c.path + "/" : c.path}</span></td>
+                      <td><Badge tone={tone[c.change]}>{label[c.change]}</Badge></td>
+                      <td className="whitespace-nowrap text-right text-muted text-[12px]">{c.dir ? "" : bytes(c.size ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
