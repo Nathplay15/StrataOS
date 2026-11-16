@@ -306,4 +306,10 @@
     <string name="a_with_recycle_bin">Com lixeira</string>
     <string name="a_zfs">ZFS</string>
     <string name="a_zfs_missing">O ZFS não está instalado. Instale-o em Configurações → Componentes na interface web.</string>
+    <string name="home_activity">Atividade</string>
+    <string name="home_cpu">Processador</string>
+    <string name="home_ram">Memória</string>
+    <string name="home_throughput">Rede \u2193 %1$s \u2191 %2$s \u00b7 Disco \u2193 %3$s \u2191 %4$s</string>
+    <string name="a_disks_n">%1$d disco(s)</string>
+    <string name="a_open_in_app">Abrir</string>
 </resources>

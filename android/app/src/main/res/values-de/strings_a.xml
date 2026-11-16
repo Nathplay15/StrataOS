@@ -306,4 +306,10 @@
     <string name="a_with_recycle_bin">Mit Papierkorb</string>
     <string name="a_zfs">ZFS</string>
     <string name="a_zfs_missing">ZFS ist nicht installiert. Installieren Sie es in der Weboberfläche unter Einstellungen → Komponenten.</string>
+    <string name="home_activity">Aktivität</string>
+    <string name="home_cpu">Prozessor</string>
+    <string name="home_ram">Arbeitsspeicher</string>
+    <string name="home_throughput">Netzwerk \u2193 %1$s \u2191 %2$s \u00b7 Festplatte \u2193 %3$s \u2191 %4$s</string>
+    <string name="a_disks_n">%1$d Festplatte(n)</string>
+    <string name="a_open_in_app">Öffnen</string>
 </resources>

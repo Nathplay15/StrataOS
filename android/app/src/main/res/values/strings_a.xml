@@ -307,4 +307,10 @@
     <string name="a_with_recycle_bin">With recycle bin</string>
     <string name="a_zfs">ZFS</string>
     <string name="a_zfs_missing">ZFS is not installed. Install it from Settings → Components in the web interface.</string>
+    <string name="home_activity">Activity</string>
+    <string name="home_cpu">CPU</string>
+    <string name="home_ram">Memory</string>
+    <string name="home_throughput">Network \u2193 %1$s \u2191 %2$s \u00b7 Disk \u2193 %3$s \u2191 %4$s</string>
+    <string name="a_disks_n">%1$d disk(s)</string>
+    <string name="a_open_in_app">Open</string>
 </resources>
