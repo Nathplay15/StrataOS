@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -241,11 +243,14 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
     val content: @Composable () -> Unit = {
         androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }, LocalOpenOverlay provides setOverlay) {
-            when (tab) {
-                "photos" -> PhotosScreen(account)
-                "manage" -> ManageScreen(account, initialSection = section)
-                "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") }, onOpenManage = { setTab("manage") })
-                else -> FilesScreen(filesPath, { filesPath = it }, account)
+            // Smooth fade between tabs instead of an abrupt swap.
+            Crossfade(targetState = tab, animationSpec = tween(220), label = "tab") { t ->
+                when (t) {
+                    "photos" -> PhotosScreen(account)
+                    "manage" -> ManageScreen(account, initialSection = section)
+                    "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") }, onOpenManage = { setTab("manage") })
+                    else -> FilesScreen(filesPath, { filesPath = it }, account)
+                }
             }
         }
     }
