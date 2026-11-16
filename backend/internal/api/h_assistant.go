@@ -119,6 +119,45 @@ func assistantTools() []llmTool {
 }
 
 func (s *Server) assistantRoutes() {
+	s.user("GET /api/assistant/conversations", func(r *http.Request) (any, error) {
+		type meta struct {
+			ID      string    `json:"id"`
+			Title   string    `json:"title"`
+			Updated time.Time `json:"updated"`
+		}
+		var out []meta
+		s.store.Read(func(st *store.State) {
+			for _, c := range st.AssistantChatsOf(userOf(r)) {
+				out = append(out, meta{c.ID, c.Title, c.Updated})
+			}
+		})
+		if out == nil {
+			out = []meta{}
+		}
+		return out, nil
+	})
+
+	s.user("GET /api/assistant/conversations/{id}", func(r *http.Request) (any, error) {
+		var chat *store.AssistantChat
+		s.store.Read(func(st *store.State) { chat = st.AssistantChat(userOf(r), r.PathValue("id")) })
+		if chat == nil {
+			return nil, notFound("unknown conversation")
+		}
+		return chat, nil
+	})
+
+	s.user("DELETE /api/assistant/conversations/{id}", func(r *http.Request) (any, error) {
+		err := s.store.Update(func(st *store.State) error {
+			st.DeleteAssistantChat(userOf(r), r.PathValue("id"))
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "assistant", "Conversation deleted")
+		return nil, nil
+	})
+
 	s.user("GET /api/assistant/config", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
@@ -131,7 +170,8 @@ func (s *Server) assistantRoutes() {
 
 	s.user("POST /api/assistant/chat", func(r *http.Request) (any, error) {
 		var req struct {
-			Messages []assistantMessage `json:"messages"`
+			Messages       []assistantMessage `json:"messages"`
+			ConversationID string             `json:"conversationId,omitempty"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -185,10 +225,51 @@ func (s *Server) assistantRoutes() {
 				break
 			}
 		}
+		// Save the conversation (user/assistant messages only): created on the
+		// first exchange, or extended when the client follows one.
+		var convID string
+		if err := s.store.Update(func(st *store.State) error {
+			var chat *store.AssistantChat
+			if req.ConversationID != "" {
+				chat = st.AssistantChat(userOf(r), req.ConversationID)
+			}
+			if chat == nil {
+				title := ""
+				for _, m := range req.Messages {
+					if m.Role == "user" && strings.TrimSpace(m.Content) != "" {
+						title = strings.TrimSpace(m.Content)
+						break
+					}
+				}
+				if len(title) > 60 {
+					title = title[:60]
+				}
+				chat = &store.AssistantChat{ID: token()[:16], User: userOf(r), Title: title}
+				st.AssistantChats = append(st.AssistantChats, chat)
+			}
+			chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "user", Content: req.Messages[len(req.Messages)-1].Content})
+			if reply != "" {
+				chat.Messages = append(chat.Messages, store.AssistantMsg{Role: "assistant", Content: reply})
+			}
+			if len(chat.Messages) > store.MaxAssistantMessages {
+				chat.Messages = chat.Messages[len(chat.Messages)-store.MaxAssistantMessages:]
+			}
+			for i := range chat.Messages {
+				if len(chat.Messages[i].Content) > store.MaxAssistantChars {
+					chat.Messages[i].Content = chat.Messages[i].Content[:store.MaxAssistantChars]
+				}
+			}
+			chat.Updated = time.Now()
+			convID = chat.ID
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 		return struct {
-			Reply   string            `json:"reply"`
-			Actions []assistantAction `json:"actions,omitempty"`
-		}{reply, actions}, nil
+			Reply          string            `json:"reply"`
+			ConversationID string            `json:"conversationId"`
+			Actions        []assistantAction `json:"actions,omitempty"`
+		}{reply, convID, actions}, nil
 	})
 
 	s.user("POST /api/assistant/confirm", func(r *http.Request) (any, error) {
