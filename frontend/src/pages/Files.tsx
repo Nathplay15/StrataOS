@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArchiveRestore, ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Lock, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
-import type { FileEntry, Me, UserQuota } from "../lib/types";
+import type { FileEntry, Me, Share, UserQuota } from "../lib/types";
 import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { VersionsModal } from "../components/VersionsModal";
 import { RestoreWizard } from "../components/RestoreWizard";
 import { CastButton } from "../components/Cast";
@@ -60,6 +61,9 @@ export default function Files() {
   const folderInput = useRef<HTMLInputElement>(null);
 
   const myQuotas = useQuery({ queryKey: ["my-quotas"], queryFn: () => api.get<UserQuota[]>("/api/me/quotas"), staleTime: 60000 });
+  const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares"), staleTime: 60000 });
+  const bin = shares.data?.find((s) => s.path === path && s.recycleBin);
+  const [recycle, setRecycle] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["files", path, hidden],
     queryFn: () => api.get<{ path: string; entries: FileEntry[]; writable: boolean; encrypted?: boolean }>(`/api/files${q({ path, hidden: hidden ? 1 : undefined })}`),
@@ -185,6 +189,7 @@ export default function Files() {
     )}
     <div className={cx(editing && "hidden")} onDragOver={(e) => { e.preventDefault(); if (data?.writable) setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop}>
       <PageHeader title={tr("Files")} subtitle={tr("Browse and manage the files on your volumes")} icon={<FolderOpen size={20} />} actions={<>
+        {bin && <Button variant="ghost" icon={<ArchiveRestore size={15} />} onClick={() => setRecycle(true)}>{tr("Recycle bin")}</Button>}
         <Button variant="ghost" icon={hidden ? <EyeOff size={15} /> : <Eye size={15} />} onClick={() => setHidden(!hidden)}>{hidden ? tr("Hide hidden") : tr("Hidden files")}</Button>
         <Button icon={<FolderPlus size={15} />} disabled={!data?.writable} onClick={() => setMkdir("")}>{tr("Folder")}</Button>
         <Button icon={<FilePlus size={15} />} disabled={!data?.writable || path === ROOT} onClick={() => setNewFile("")}>{tr("New file")}</Button>
@@ -233,6 +238,7 @@ export default function Files() {
         </div>
       )}
 
+      {recycle && bin && <RecycleBinModal share={bin.path} onClose={() => setRecycle(false)} />}
       <ErrorBox error={error} />
       <Card pad={false} className={cx(drag && "ring-2 ring-accent")}>
         {isLoading ? <Spinner /> : entries.length === 0 ? (
