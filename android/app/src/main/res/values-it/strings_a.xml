@@ -313,4 +313,9 @@
     <string name="home_throughput">Rete \u2193 %1$s \u2191 %2$s \u00b7 Disco \u2193 %3$s \u2191 %4$s</string>
     <string name="a_disks_n">%1$d disco/i</string>
     <string name="a_open_in_app">Apri</string>
+    <string name="home_apps">Applicazioni</string>
+    <string name="home_open_browser">Apri nel browser</string>
+    <string name="state_running">In esecuzione</string>
+    <string name="state_partial">Parziale</string>
+    <string name="state_stopped">Fermato</string>
 </resources>
