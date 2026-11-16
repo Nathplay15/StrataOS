@@ -26,10 +26,11 @@ import (
 // every file of a volume: they are reserved to administrators.
 
 var tools = struct {
-	mu      sync.Mutex
-	scans   map[string]string // analyzed path → running job id
-	dupJob  string
-	burnIns map[string]*storagetools.BurnIn // device → running test
+	mu        sync.Mutex
+	scans     map[string]string // analyzed path → running job id
+	dupJob    string
+	recodeJob string
+	burnIns   map[string]*storagetools.BurnIn // device → running test
 }{scans: map[string]string{}, burnIns: map[string]*storagetools.BurnIn{}}
 
 func (s *Server) toolsDir() string {
@@ -132,6 +133,20 @@ func writeJSONFile(p string, v any) error {
 }
 
 func (s *Server) dupFile() string { return filepath.Join(s.toolsDir(), "duplicates.json") }
+
+func (s *Server) recodeFile() string { return filepath.Join(s.toolsDir(), "recode.json") }
+
+func (s *Server) loadRecode() (*storagetools.RecodeReport, error) {
+	b, err := os.ReadFile(s.recodeFile())
+	if err != nil {
+		return nil, err
+	}
+	var r storagetools.RecodeReport
+	if err := json.Unmarshal(b, &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
 
 func (s *Server) loadDuplicates() (*storagetools.DupReport, error) {
 	b, err := os.ReadFile(s.dupFile())
@@ -412,6 +427,71 @@ func (s *Server) storageToolsRoutes() {
 		return map[string]any{"recycled": recycled, "deleted": removed, "freed": freed, "skipped": skipped}, nil
 	})
 
+	// ---- Video compression ----
+	s.admin("GET /api/storagetools/recode", func(r *http.Request) (any, error) {
+		tools.mu.Lock()
+		job := tools.recodeJob
+		tools.mu.Unlock()
+		out := map[string]any{"job": job, "ffmpeg": storagetools.FFmpegAvailable()}
+		if rep, err := s.loadRecode(); err == nil {
+			out["report"] = rep
+		}
+		return out, nil
+	})
+	s.admin("POST /api/storagetools/recode", func(r *http.Request) (any, error) {
+		var req struct {
+			Path    string `json:"path"`
+			MinSize int64  `json:"minSize"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if !storagetools.FFmpegAvailable() {
+			return nil, badRequest("install the media tools component first")
+		}
+		root, err := toolsFolder(req.Path)
+		if err != nil {
+			return nil, err
+		}
+		if req.MinSize < 0 {
+			return nil, badRequest("invalid minimum size")
+		}
+		if req.MinSize == 0 {
+			req.MinSize = storagetools.DefaultRecodeMinSize
+		}
+		s.audit(r, "storage", "Video compression of "+root)
+		tools.mu.Lock()
+		defer tools.mu.Unlock()
+		if tools.recodeJob != "" {
+			return nil, badRequest("a compression is already running")
+		}
+		j := s.jobs.Start("recode", "Video compression of "+root, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			defer func() {
+				tools.mu.Lock()
+				tools.recodeJob = ""
+				tools.mu.Unlock()
+			}()
+			files, err := storagetools.PlanRecode(ctx, root, req.MinSize, nil)
+			if err != nil {
+				return err
+			}
+			if len(files) == 0 {
+				j.Logf("No video to compress in %s", root)
+				return writeJSONFile(s.recodeFile(), &storagetools.RecodeReport{Started: time.Now(), Files: []storagetools.RecodeFile{}})
+			}
+			j.Logf("%d video(s) to compress in %s", len(files), root)
+			rep := storagetools.RecodeVideos(ctx, files, func(stage string, done, total int64) {
+				if stage == "recode" && total > 0 {
+					j.SetProgress(min(99, float64(done)*100/float64(total)))
+				}
+			})
+			j.Logf("%d video(s) compressed, %d kept, %d failed, %d MiB saved", len(rep.Files), countRecode(rep, "kept"), countRecode(rep, "failed"), rep.Saved>>20)
+			return writeJSONFile(s.recodeFile(), rep)
+		})
+		tools.recodeJob = j.ID
+		return j, nil
+	})
+
 	// ---- Burn-in test ----
 	s.admin("GET /api/storage/burnin", func(r *http.Request) (any, error) {
 		running := []storagetools.BurnInStatus{}
@@ -530,4 +610,15 @@ func (s *Server) storageToolsRoutes() {
 		})
 		return j, nil
 	})
+}
+
+// countRecode counts the files of a report with this status.
+func countRecode(rep *storagetools.RecodeReport, status string) int {
+	n := 0
+	for _, f := range rep.Files {
+		if f.Status == status {
+			n++
+		}
+	}
+	return n
 }
