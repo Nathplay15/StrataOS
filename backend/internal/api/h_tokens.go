@@ -224,16 +224,33 @@ func hasScope(sc []string, scope string) bool {
 	return false
 }
 
+// mcpInternalKey marks the in-process calls of the MCP tools (h_mcp.go):
+// the mcp scope was already checked on the outer request, and the tools
+// only reach a fixed set of endpoints.
+type mcpInternalKey struct{}
+
 // tokenAllows checks the scopes of a token session against the request.
 func tokenAllows(ss *session, r *http.Request, adminOnly bool) bool {
 	if ss.Scopes == nil {
 		return true
 	}
-	if tokenDenied(r.URL.Path) {
-		return false
+	if r.Context().Value(mcpInternalKey{}) != nil {
+		return true
 	}
 	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+		if r.URL.Path == "/api/mcp" {
+			return hasScope(ss.Scopes, "mcp")
+		}
+		if tokenDenied(r.URL.Path) {
+			return false
+		}
 		return hasScope(ss.Scopes, "read")
+	}
+	if r.URL.Path == "/api/mcp" {
+		return hasScope(ss.Scopes, "mcp")
+	}
+	if tokenDenied(r.URL.Path) {
+		return false
 	}
 	return hasScope(ss.Scopes, "write")
 }

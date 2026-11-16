@@ -60,6 +60,9 @@ type Server struct {
 	// recorded: every route registered through the helpers, for the
 	// OpenAPI document (openapi.go).
 	recorded []apiRoute
+	// mcp: the Model Context Protocol server (h_mcp.go), built once.
+	mcpOnce sync.Once
+	mcpHTTP http.Handler
 }
 
 type Config struct {
@@ -336,6 +339,7 @@ func (s *Server) routes() {
 	s.syncE2ERoutes()
 	s.rpiKernelRoutes()
 	s.openapiRoutes()
+	s.mcpRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
 	s.dockerUpdateRoutes()
