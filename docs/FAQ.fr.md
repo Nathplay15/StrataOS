@@ -29,7 +29,7 @@ Debian 14 (forky) n'est pas encore sortie. Le même paquet StrataOS s'installe e
 
 ### Où est l'interface web ?
 
-À l'adresse `http://<adresse>:7070`, ou `https://<adresse>:7443` en HTTPS. L'écran de la machine affiche l'adresse au démarrage. En HTTPS, le certificat est auto-signé tant que vous n'importez pas le vôtre ou n'en obtenez pas un de Let's Encrypt : le navigateur vous avertit la première fois.
+À l'adresse `http://<adresse>:7070`, ou `https://<adresse>:7443` en HTTPS. L'écran de la machine affiche l'adresse au démarrage. En HTTPS, le certificat est auto-signé tant que vous n'importez pas le vôtre ou n'en obtenez pas un de Let's Encrypt : le navigateur vous avertit la première fois. Le certificat Let's Encrypt est demandé par le challenge HTTP-01 (port 80 redirigé) ou DNS-01 (un jeton API Cloudflare, aucune redirection de port nécessaire).
 
 ### J'ai installé StrataOS mais je ne le trouve pas sur le réseau.
 

@@ -186,6 +186,11 @@ type Settings struct {
 	TrashDays   int    `json:"trashDays"`
 	ACMEDomain  string `json:"acmeDomain"`
 	ACMEEmail   string `json:"acmeEmail"`
+	// ACMEMode selects the Let's Encrypt challenge: "" or "http" (HTTP-01 on
+	// port 80) or "dns" (DNS-01 with a Cloudflare token).
+	ACMEMode   string `json:"acmeMode,omitempty"`
+	ACMEToken  string `json:"acmeToken,omitempty"`  // dedicated Cloudflare token (Zone DNS: edit); "" uses the dynamic DNS one
+	ACMEZoneID string `json:"acmeZoneId,omitempty"` // zone ID matching ACMEToken
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).

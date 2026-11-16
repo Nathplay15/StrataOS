@@ -22,22 +22,24 @@ import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
 import { SignInProviders } from "../../components/SignInProviders";
 import { revealElement } from "../../lib/intent";
 
-type CertInfo = { source: "self-signed" | "custom" | "letsencrypt"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
+type CertInfo = { source: "self-signed" | "custom" | "letsencrypt" | "letsencrypt-dns"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
+
+type AcmeForm = { domain: string; email: string; mode: "http" | "dns"; token: string; zoneId: string };
 
 function CertificatesCard() {
   const { confirm } = useUI();
-  const { data } = useQuery({ queryKey: ["certs"], queryFn: () => api.get<{ certificates: CertInfo[]; acmeDomain: string; acmeEmail: string }>("/api/system/certificates") });
+  const { data } = useQuery({ queryKey: ["certs"], queryFn: () => api.get<{ certificates: CertInfo[]; acmeDomain: string; acmeEmail: string; acmeMode: string; dnsReady: boolean }>("/api/system/certificates") });
   const [imp, setImp] = useState<{ cert: string; key: string } | null>(null);
-  const [acme, setAcme] = useState<{ domain: string; email: string } | null>(null);
+  const [acme, setAcme] = useState<AcmeForm | null>(null);
   const upload = useAction(() => api.put("/api/system/certificates/custom", imp), { success: tr("Certificate imported (active immediately)"), onDone: () => setImp(null) });
   const remove = useAction(() => api.del("/api/system/certificates/custom"), { success: tr("Imported certificate deleted") });
-  const saveAcme = useAction((v: { domain: string; email: string }) => api.put("/api/system/certificates/acme", v), { success: tr("Let's Encrypt disabled"), onDone: () => setAcme(null) });
-  const label = { "self-signed": tr("Self-signed"), custom: tr("Imported"), letsencrypt: "Let's Encrypt" };
+  const saveAcme = useAction((v: AcmeForm) => api.put("/api/system/certificates/acme", v), { success: tr("Let's Encrypt disabled"), onDone: () => setAcme(null) });
+  const label = { "self-signed": tr("Self-signed"), custom: tr("Imported"), letsencrypt: "Let's Encrypt", "letsencrypt-dns": "Let's Encrypt (DNS)" };
   const readFile = (f: File | undefined, k: "cert" | "key") => f?.text().then((t) => setImp((p) => ({ cert: "", key: "", ...p, [k]: t })));
   return (
     <Card id="settings-https" title={<span className="flex items-center gap-2"><Lock size={16} /> {" "}{tr("HTTPS certificate")}</span>} className="@4xl:col-span-2" actions={<>
       <Button size="sm" onClick={() => setImp({ cert: "", key: "" })}>{tr("Import a certificate")}</Button>
-      <Button size="sm" onClick={() => setAcme({ domain: data?.acmeDomain ?? "", email: data?.acmeEmail ?? "" })}>{tr("Let's Encrypt")}</Button>
+      <Button size="sm" onClick={() => setAcme({ domain: data?.acmeDomain ?? "", email: data?.acmeEmail ?? "", mode: data?.acmeMode === "dns" ? "dns" : "http", token: "", zoneId: "" })}>{tr("Let's Encrypt")}</Button>
     </>}>
       <div className="space-y-2">
         {data?.certificates.map((c) => (
@@ -65,15 +67,31 @@ function CertificatesCard() {
         )}
       </Modal>
       <Modal open={!!acme} onClose={() => setAcme(null)} title={tr("Let's Encrypt certificate")} footer={<>
-        {data?.acmeDomain && <Button className="mr-auto" variant="danger" onClick={() => saveAcme.mutate({ domain: "", email: "" })}>{tr("Disable")}</Button>}
+        {data?.acmeDomain && <Button className="mr-auto" variant="danger" onClick={() => saveAcme.mutate({ domain: "", email: "", mode: "http", token: "", zoneId: "" })}>{tr("Disable")}</Button>}
         <Button onClick={() => setAcme(null)}>{tr("Cancel")}</Button>
         <Button variant="primary" disabled={!acme?.domain} loading={saveAcme.isPending} onClick={() => saveAcme.mutate(acme!)}>{tr("Enable")}</Button>
       </>}>
         {acme && (
           <div className="space-y-4">
-            <Notice>{tr("Prerequisites: a domain name (e.g. nas.mydomain.com) pointing to your public IP address, and the")}{" "}<b>{tr("port 80")}</b> {" "}{tr("on your router forwarded to the NAS. The certificate is obtained and then renewed automatically.")}</Notice>
+            <Field label={tr("Challenge type")}>
+              <Select value={acme.mode} onChange={(e) => setAcme({ ...acme, mode: e.target.value as "http" | "dns" })}>
+                <option value="http">{tr("HTTP-01 (port 80 forwarded)")}</option>
+                <option value="dns">{tr("DNS-01 (Cloudflare)")}</option>
+              </Select>
+            </Field>
+            {acme.mode === "http" ? (
+              <Notice>{tr("Prerequisites: a domain name (e.g. nas.mydomain.com) pointing to your public IP address, and the")}{" "}<b>{tr("port 80")}</b> {" "}{tr("on your router forwarded to the NAS. The certificate is obtained and then renewed automatically.")}</Notice>
+            ) : (
+              <Notice>{tr("Prerequisites: a domain name (e.g. nas.mydomain.com) pointing to your public IP address. The certificate is obtained and then renewed automatically; no port forwarding is needed.")}</Notice>
+            )}
             <Field label={tr("Domain name")}><Input value={acme.domain} onChange={(e) => setAcme({ ...acme, domain: e.target.value })} /></Field>
             <Field label={tr("Email (expiration notice)")}><Input type="email" value={acme.email} onChange={(e) => setAcme({ ...acme, email: e.target.value })} /></Field>
+            {acme.mode === "dns" && (
+              <>
+                <Field label={tr("Cloudflare API token (Zone DNS: edit)")} hint={data?.dnsReady ? tr("Leave empty to reuse the token of the Cloudflare dynamic DNS.") : undefined}><Input value={acme.token} onChange={(e) => setAcme({ ...acme, token: e.target.value })} /></Field>
+                <Field label={tr("Cloudflare zone ID")} hint={data?.dnsReady ? tr("Leave empty to reuse the token of the Cloudflare dynamic DNS.") : undefined}><Input value={acme.zoneId} onChange={(e) => setAcme({ ...acme, zoneId: e.target.value })} /></Field>
+              </>
+            )}
             <ErrorBox error={saveAcme.error} />
           </div>
         )}
