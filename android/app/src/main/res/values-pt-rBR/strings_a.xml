@@ -125,6 +125,7 @@
     <string name="a_more">Mais</string>
     <string name="a_move_to">Mover para…</string>
     <string name="a_moved_to_bin">%1$d item(ns) movido(s) para a lixeira</string>
+    <string name="a_my_apps">Meus aplicativos</string>
     <string name="a_name_rule">Letras, dígitos, - e _ (no máximo 32)</string>
     <string name="a_need_devices">Esta organização exige pelo menos %1$d dispositivos.</string>
     <string name="a_network">Rede</string>

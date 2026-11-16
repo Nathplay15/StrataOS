@@ -126,6 +126,7 @@
     <string name="a_more">More</string>
     <string name="a_move_to">Move to…</string>
     <string name="a_moved_to_bin">%1$d item(s) moved to the recycle bin</string>
+    <string name="a_my_apps">My apps</string>
     <string name="a_name_rule">Letters, digits, - and _ (32 at most)</string>
     <string name="a_need_devices">This layout needs at least %1$d devices.</string>
     <string name="a_network">Network</string>

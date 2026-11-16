@@ -125,6 +125,7 @@
     <string name="a_more">Meer</string>
     <string name="a_move_to">Verplaatsen naar…</string>
     <string name="a_moved_to_bin">%1$d item(s) naar de prullenbak verplaatst</string>
+    <string name="a_my_apps">Mijn apps</string>
     <string name="a_name_rule">Letters, cijfers, - en _ (maximaal 32)</string>
     <string name="a_need_devices">Deze indeling vereist minstens %1$d apparaten.</string>
     <string name="a_network">Netwerk</string>

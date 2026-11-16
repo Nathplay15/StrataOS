@@ -126,6 +126,7 @@
     <string name="a_more">Plus</string>
     <string name="a_move_to">Déplacer vers…</string>
     <string name="a_moved_to_bin">%1$d élément(s) placé(s) dans la corbeille</string>
+    <string name="a_my_apps">Mes applications</string>
     <string name="a_name_rule">Lettres, chiffres, - et _ (32 au plus)</string>
     <string name="a_need_devices">Cette organisation demande au moins %1$d périphériques.</string>
     <string name="a_network">Réseau</string>

@@ -125,6 +125,7 @@
     <string name="a_more">Altro</string>
     <string name="a_move_to">Sposta in…</string>
     <string name="a_moved_to_bin">%1$d elementi spostati nel cestino</string>
+    <string name="a_my_apps">Le mie app</string>
     <string name="a_name_rule">Lettere, cifre, - e _ (32 al massimo)</string>
     <string name="a_need_devices">Questa disposizione richiede almeno %1$d dispositivi.</string>
     <string name="a_network">Rete</string>
