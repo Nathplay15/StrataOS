@@ -82,8 +82,15 @@ func (s *Server) systemRoutes() {
 				ev[len(st.Events)-1-i] = st.Events[i]
 			}
 		})
-		if len(ev) > 500 {
-			ev = ev[:500]
+		limit := qInt(r, "limit", 500)
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 2000 {
+			limit = 2000
+		}
+		if len(ev) > limit {
+			ev = ev[:limit]
 		}
 		return ev, nil
 	})
