@@ -2,18 +2,21 @@ package api
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"strataos/internal/i18n"
 	"strconv"
 	"strings"
 	"time"
 
+	"strataos/internal/docker"
 	"strataos/internal/health"
+	"strataos/internal/i18n"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/system"
 )
 
 func gb(n int64) string {
@@ -208,6 +211,48 @@ func (s *Server) healthReport(period string) (string, string) {
 		b.WriteString("\nShared folder quotas\n" + strings.Join(quotaLines, "\n") + "\n")
 	}
 
+	b.WriteString("\n📱 Applications\n")
+	ctr := map[string]int{"running": 0, "total": 0}
+	if docker.Available() {
+		var list []struct {
+			State string `json:"State"`
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if s.docker.Call(ctx, "GET", "/containers/json", map[string][]string{"all": {"1"}}, nil, &list) == nil {
+			ctr["total"] = len(list)
+			for _, c := range list {
+				if c.State == "running" {
+					ctr["running"]++
+				}
+			}
+		}
+	}
+	if ctr["total"] > 0 {
+		fmt.Fprintf(&b, "• %d container(s), %d running\n", ctr["total"], ctr["running"])
+	}
+	var updated []string
+	s.store.Read(func(st *store.State) {
+		for _, e := range st.Events {
+			if e.Time.Before(since) || e.Category != "docker" {
+				continue
+			}
+			if rest, ok := strings.CutPrefix(e.Message, "Updating "); ok {
+				updated = append(updated, rest)
+			}
+		}
+	})
+	if len(updated) == 0 {
+		b.WriteString("• no app updated\n")
+	} else {
+		names := uniq(updated)
+		more := ""
+		if len(names) > 5 {
+			names, more = names[:5], "…"
+		}
+		fmt.Fprintf(&b, "• %d app(s) updated: %s%s\n", len(updated), strings.Join(names, ", "), more)
+	}
+
 	b.WriteString("\n🔄 Updates\n")
 	if n := aptInstalledSince(since); n > 0 {
 		fmt.Fprintf(&b, "• %d package(s) installed\n", n)
@@ -249,6 +294,9 @@ func (s *Server) healthReport(period string) (string, string) {
 		fmt.Fprintf(&b, "• %d power event(s) (UPS)\n", ups)
 	}
 	fmt.Fprintf(&b, "\n🖥 System\n• StrataOS %s, running for %d day(s)\n", s.version, uptimeDays())
+	if mem := system.MemInfo(); mem["MemTotal"] > 0 {
+		fmt.Fprintf(&b, "• Memory: %s used of %s\n", gb(mem["MemTotal"]-mem["MemAvailable"]), gb(mem["MemTotal"]))
+	}
 	return subject, b.String()
 }
 
