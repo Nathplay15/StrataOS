@@ -335,6 +335,9 @@ type mcpConfirmations struct {
 func (c *mcpConfirmations) arm(user, tool string, args mcpWriteIn) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.m == nil {
+		c.m = map[string]mcpPending{}
+	}
 	now := time.Now()
 	for k, p := range c.m {
 		if now.After(p.expires) {
@@ -359,4 +362,19 @@ func (c *mcpConfirmations) consume(user, tool, tok string) (mcpWriteIn, error) {
 	}
 	delete(c.m, tok)
 	return p.args, nil
+}
+
+// consumeAny consumes a token whatever tool it was armed for (the tool is
+// stored in the pending confirmation); used by the assistant, whose confirm
+// endpoint only receives the token.
+func (c *mcpConfirmations) consumeAny(user, tok string) (mcpPending, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.m[tok]
+	if !ok || p.user != user || time.Now().After(p.expires) {
+		delete(c.m, tok)
+		return mcpPending{}, fmt.Errorf("unknown or expired confirmation token: ask for the action again")
+	}
+	delete(c.m, tok)
+	return p, nil
 }

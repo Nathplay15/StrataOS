@@ -2587,5 +2587,14 @@
  "éjectez d'abord l'image de CD-ROM {0} (le NAS de destination ne l'a pas au même endroit)": "expulse primero la imagen de CD-ROM {0} (el NAS de destino no la tiene en el mismo lugar)",
  "épinglé sur un condensat": "fijado a un digest",
  "étiquette introuvable dans le registre": "etiqueta no encontrada en el registro",
- "événement introuvable": "evento no encontrado"
+ "événement introuvable": "evento no encontrado",
+ "l'assistant n'est pas configuré : réglez-le dans les Paramètres": "El asistente no está configurado: configúralo en Ajustes",
+ "URL de l'assistant invalide": "URL del asistente no válida",
+ "l'endpoint de l'assistant est injoignable": "El endpoint del asistente no está accesible",
+ "conversation invalide": "Conversación no válida",
+ "l'endpoint de l'assistant n'a pas renvoyé de réponse": "El endpoint del asistente no devolvió ninguna respuesta",
+ "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "El endpoint del asistente respondió {0} con un cuerpo no válido",
+ "l'endpoint de l'assistant a répondu {0} : {1}": "El endpoint del asistente respondió {0}: {1}",
+ "l'endpoint de l'assistant a répondu {0}": "El endpoint del asistente respondió {0}",
+ "jeton de confirmation inconnu ou expiré : redemandez l'action": "Token de confirmación desconocido o caducado: vuelve a pedir la acción"
 }

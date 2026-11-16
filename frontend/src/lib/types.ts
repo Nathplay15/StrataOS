@@ -453,6 +453,10 @@ export interface Settings {
   quietHours?: QuietHours;
   smbMinProtocol: string;
   trashDays: number;
+  /** Conversational assistant: OpenAI-compatible endpoint (base URL), key and model. */
+  assistantUrl?: string;
+  assistantKey?: string;
+  assistantModel?: string;
 }
 
 export interface ScheduleRun {

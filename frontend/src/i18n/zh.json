@@ -4611,5 +4611,18 @@
   "Revoke the token {0}?": "要吊销令牌 {0} 吗？",
   "Token revoked": "令牌已吊销",
   "Used {0}": "{0} 使用",
-  "Write (changes on the NAS)": "写入（对 NAS 的更改）"
+  "Write (changes on the NAS)": "写入（对 NAS 的更改）",
+  "API endpoint (OpenAI-compatible)": "API 端点（兼容 OpenAI）",
+  "API key": "API 密钥",
+  "Ask anything about your NAS": "询问有关您 NAS 的任何问题",
+  "Assistant": "助手",
+  "Assistant (AI)": "助手（AI）",
+  "Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1": "chat/completions 端点的基础 URL，例如 https://api.mistral.ai/v1",
+  "Declined": "已拒绝",
+  "Send a message": "发送消息",
+  "The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.": "助手在界面中回答有关此 NAS 的问题。它只能看到已登录用户能看到的内容，且每个修改操作都需要明确确认。",
+  "The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.": "助手以您的权限作答；修改 NAS 的操作总是先请求您的确认。",
+  "The assistant is not configured: an administrator must set an API endpoint in Settings.": "助手未配置：管理员必须在设置中配置 API 端点。",
+  "Thinking…": "思考中…",
+  "e.g. mistral-small-latest": "例如 mistral-small-latest"
 }

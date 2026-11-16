@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Bell, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
+import { Activity, Bell, Bot, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { NotifyChannel, NotifyChannelId, NotifyLevel, Settings, SystemInfo } from "../../lib/types";
@@ -235,6 +235,16 @@ export default function SettingsPage() {
           <p className="mt-3 text-[12.5px] text-muted">{tr("Alerts sent: degraded RAID, ZFS pool error, failing or weakening disk (SMART), volume 90% full, virus found, failed task, power outage.")}</p>
         </Card>
         <MetricsCard enabled={!!data?.metricsToken} />
+        <Card id="settings-assistant" title={<span className="flex items-center gap-2"><Bot size={16} /> {" "}{tr("Assistant (AI)")}</span>} className="@4xl:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>
+              <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
+            </Field>
+            <Field label={tr("API key")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
+            <Field label={tr("Model")} hint={tr("e.g. mistral-small-latest")}><Input className="mono" value={s.assistantModel ?? ""} onChange={(e) => set("assistantModel", e.target.value)} /></Field>
+          </div>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.")}</p>
+        </Card>
         <Card id="settings-time" title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">
             <Field label={tr("Time zone")} className="flex-1">

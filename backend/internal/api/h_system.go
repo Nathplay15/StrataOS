@@ -282,7 +282,7 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken} {
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey} {
 			if *p != "" {
 				*p = "********"
 			}
@@ -340,6 +340,11 @@ func (s *Server) systemRoutes() {
 		default:
 			return nil, badRequest("invalid report period")
 		}
+		req.AssistantURL = strings.TrimSpace(req.AssistantURL)
+		req.AssistantModel = strings.TrimSpace(req.AssistantModel)
+		if req.AssistantURL != "" && !strings.HasPrefix(req.AssistantURL, "http://") && !strings.HasPrefix(req.AssistantURL, "https://") {
+			return nil, badRequest("invalid assistant URL")
+		}
 		err := s.store.Update(func(st *store.State) error {
 			if req.SMTPPassword == "********" {
 				req.SMTPPassword = st.Settings.SMTPPassword
@@ -349,6 +354,9 @@ func (s *Server) systemRoutes() {
 			}
 			if req.NtfyToken == "********" {
 				req.NtfyToken = st.Settings.NtfyToken
+			}
+			if req.AssistantKey == "********" {
+				req.AssistantKey = st.Settings.AssistantKey
 			}
 			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics
 			if req.SessionHours <= 0 || req.SessionHours > 24*30 {

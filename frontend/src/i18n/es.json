@@ -4611,5 +4611,18 @@
   "Revoke the token {0}?": "¿Revocar el token {0}?",
   "Token revoked": "Token revocado",
   "Used {0}": "Usado el {0}",
-  "Write (changes on the NAS)": "Escritura (cambios en el NAS)"
+  "Write (changes on the NAS)": "Escritura (cambios en el NAS)",
+  "API endpoint (OpenAI-compatible)": "Endpoint de API (compatible con OpenAI)",
+  "API key": "Clave de API",
+  "Ask anything about your NAS": "Pregunta lo que quieras sobre tu NAS",
+  "Assistant": "Asistente",
+  "Assistant (AI)": "Asistente (IA)",
+  "Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1": "URL base de un endpoint chat/completions, p. ej. https://api.mistral.ai/v1",
+  "Declined": "Rechazado",
+  "Send a message": "Enviar un mensaje",
+  "The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.": "El asistente responde a preguntas sobre este NAS en la interfaz. Solo ve lo que el usuario conectado puede, y cada acción de modificación requiere una confirmación explícita.",
+  "The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.": "El asistente responde con tus permisos; las acciones que modifican el NAS siempre piden primero tu confirmación.",
+  "The assistant is not configured: an administrator must set an API endpoint in Settings.": "El asistente no está configurado: un administrador debe definir un endpoint de API en Ajustes.",
+  "Thinking…": "Pensando…",
+  "e.g. mistral-small-latest": "p. ej. mistral-small-latest"
 }
