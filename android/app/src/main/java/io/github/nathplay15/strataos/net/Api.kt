@@ -47,6 +47,12 @@ import okio.source
 @Serializable data class Overview(val disks: Int = 0, val volumes: List<Volume> = emptyList(), val alerts: List<Alert> = emptyList(), val shares: Int = 0)
 @Serializable data class SystemInfo(val hostname: String = "", val version: String = "", val uptime: Double = 0.0, val cpuModel: String = "", val memTotal: Long = 0, val load: List<Double> = emptyList())
 @Serializable data class Quota(val name: String = "", val used: Long = 0, val limit: Long = 0)
+// One sample of the NAS monitor (api/system/stats, system/monitor.go).
+@Serializable data class StatsSample(
+    val t: Long = 0, val cpu: Double = 0.0, val memUsed: Long = 0, val memTotal: Long = 0,
+    val netRx: Double = 0.0, val netTx: Double = 0.0, val diskRead: Double = 0.0, val diskWrite: Double = 0.0,
+)
+@Serializable data class StatsHistory(val history: List<StatsSample> = emptyList(), val cores: List<Double> = emptyList())
 @Serializable private data class PairPassword(val username: String, val password: String, val code: String = "", val deviceName: String, val model: String, val app: String)
 @Serializable private data class PairCode(val pairingCode: String, val deviceName: String, val model: String, val app: String)
 @Serializable private data class PushRegistration(val pushUrl: String, val p256dh: String = "", val auth: String = "", val app: String = "")
@@ -114,6 +120,7 @@ class Api(baseUrl: String, val http: OkHttpClient, private val token: String?) {
     fun mkdir(path: String) = call(request(url("/api/files/mkdir")).post(body(PathBody(path))).build(), JsonObject.serializer())
     fun overview(): Overview = call(get("/api/system/overview"), Overview.serializer())
     fun systemInfo(): SystemInfo = call(get("/api/system/info"), SystemInfo.serializer())
+    fun stats(): StatsHistory = call(get("/api/system/stats"), StatsHistory.serializer())
     fun quotas(): List<Quota> = call(get("/api/me/quotas"), kotlinx.serialization.builtins.ListSerializer(Quota.serializer()))
     fun events(since: Long): Events = call(get("/api/mobile/events", "since" to since.toString()), Events.serializer())
 

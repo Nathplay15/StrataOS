@@ -306,4 +306,10 @@
     <string name="a_with_recycle_bin">启用回收站</string>
     <string name="a_zfs">ZFS</string>
     <string name="a_zfs_missing">未安装 ZFS。请在网页界面的“设置 → 组件”中安装。</string>
+    <string name="home_activity">活动</string>
+    <string name="home_cpu">处理器</string>
+    <string name="home_ram">内存</string>
+    <string name="home_throughput">网络 \u2193 %1$s \u2191 %2$s \u00b7 磁盘 \u2193 %3$s \u2191 %4$s</string>
+    <string name="a_disks_n">%1$d 块磁盘</string>
+    <string name="a_open_in_app">打开</string>
 </resources>

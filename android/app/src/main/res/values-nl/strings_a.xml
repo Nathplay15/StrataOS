@@ -306,4 +306,10 @@
     <string name="a_with_recycle_bin">Met prullenbak</string>
     <string name="a_zfs">ZFS</string>
     <string name="a_zfs_missing">ZFS is niet geïnstalleerd. Installeer het via Instellingen → Onderdelen in de webinterface.</string>
+    <string name="home_activity">Activiteit</string>
+    <string name="home_cpu">Processor</string>
+    <string name="home_ram">Geheugen</string>
+    <string name="home_throughput">Netwerk \u2193 %1$s \u2191 %2$s \u00b7 Schijf \u2193 %3$s \u2191 %4$s</string>
+    <string name="a_disks_n">%1$d schijf(en)</string>
+    <string name="a_open_in_app">Openen</string>
 </resources>

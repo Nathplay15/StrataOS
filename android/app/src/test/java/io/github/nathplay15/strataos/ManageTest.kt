@@ -53,10 +53,12 @@ class ManageTest {
     }
 
     @Test fun notificationTabs() {
-        assertEquals("manage" to null, destinationOf("status"))
+        assertEquals("home" to null, destinationOf("home"))
+        assertEquals("home" to null, destinationOf("status"))
+        assertEquals("manage" to null, destinationOf("manage"))
         assertEquals("files" to "backup", destinationOf("backup"))
         assertEquals("files" to "settings", destinationOf("settings"))
-        assertEquals("files" to null, destinationOf("whatever"))
+        assertEquals("home" to null, destinationOf("whatever"))
     }
 
     @Test fun updateStates() {

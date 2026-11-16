@@ -119,4 +119,5 @@
     <string name="channel_uploads">Uploads</string>
     <string name="signed_out_title">StrataOS: erneut anmelden</string>
     <string name="signed_out_text">Das NAS akzeptiert dieses Telefon nicht mehr. Öffnen Sie die App, um es erneut zu koppeln.</string>
+    <string name="tab_home">Start</string>
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Dashboard
@@ -71,7 +72,7 @@ import kotlin.concurrent.thread
 class MainActivity : FragmentActivity() {
     private var signedIn by mutableStateOf(false)
     private var unlocked by mutableStateOf(false)
-    private var tab by mutableStateOf("files")
+    private var tab by mutableStateOf("home")
     private var overlay by mutableStateOf<String?>(null)
     private var pairLink by mutableStateOf<PairLink?>(null)
 
@@ -182,12 +183,13 @@ private fun LockScreen(unlock: () -> Unit) {
 /** Where a tab name of a notification or an older version leads: (tab, overlay). */
 fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
     "photos" -> "photos" to null
-    "manage", "status" -> "manage" to null
+    "home", "status" -> "home" to null
+    "manage" -> "manage" to null
     "backup" -> "files" to "backup"
     "sync" -> "files" to "sync"
     "settings" -> "files" to "settings"
     "update" -> "files" to "update"
-    else -> "files" to null
+    else -> "home" to null
 }
 
 /** The account button of the top bars: who is signed in, photo backup, app settings. */
@@ -227,6 +229,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         return
     }
     val tabs = listOf(
+        Triple("home", R.string.tab_home, Icons.Default.Home),
         Triple("files", R.string.tab_files, Icons.Default.Folder),
         Triple("photos", R.string.a_photos, Icons.Default.PhotoLibrary),
         Triple("manage", R.string.a_manage, Icons.Default.Dashboard),
@@ -237,6 +240,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
             when (tab) {
                 "photos" -> PhotosScreen(account)
                 "manage" -> ManageScreen(account)
+                "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") })
                 else -> FilesScreen(filesPath, { filesPath = it }, account)
             }
         }

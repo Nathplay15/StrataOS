@@ -59,11 +59,14 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlin.math.roundToInt
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -186,6 +189,9 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
     var name by remember(album?.id) { mutableStateOf(album?.name ?: "") }
     var saving by remember { mutableStateOf<List<Photo>>(emptyList()) }
     val grid = rememberLazyGridState()
+    // Pinch to zoom the grid (size of a photo cell, in dp).
+    var cell by rememberSaveable { mutableIntStateOf(100) }
+    val pinch = rememberTransformableState { zoom, _, _ -> cell = (cell * zoom).roundToInt().coerceIn(60, 200) }
 
     suspend fun more() {
         if (loading || (total >= 0 && loaded.value.size >= total)) return
@@ -290,7 +296,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                 }))
                 total < 0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator() }
                 else -> { val locale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
-                LazyVerticalGrid(GridCells.Adaptive(100.dp), Modifier.fillMaxSize(), state = grid, contentPadding = PaddingValues(2.dp)) {
+                LazyVerticalGrid(GridCells.FixedSize(cell.dp), Modifier.fillMaxSize().transformable(pinch), state = grid, contentPadding = PaddingValues(2.dp)) {
                     var index = 0
                     for ((month, photos) in groupByMonth(list)) {
                         item(key = "m$month", span = { GridItemSpan(maxLineSpan) }) {

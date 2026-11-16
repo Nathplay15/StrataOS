@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -156,6 +157,11 @@ private fun AppCenter(u: DockerUpdates, refreshUpdates: () -> Unit) {
     var q by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("") }
     var open by remember { mutableStateOf<CatalogApp?>(null) }
+    var web by remember { mutableStateOf<Pair<String, String>?>(null) }
+    web?.let { (name, url) ->
+        io.github.nathplay15.strataos.ui.web.AppWebView(name, url) { web = null }
+        return
+    }
     Refreshable(load) { c ->
         val cats = c.apps.map { it.category }.distinct().sorted()
         LazyColumn(Modifier.fillMaxSize()) {
@@ -201,7 +207,7 @@ private fun AppCenter(u: DockerUpdates, refreshUpdates: () -> Unit) {
         }
         open?.let { a ->
             val customStack = a.id.removePrefix("custom:").takeIf { a.id.startsWith("custom:") }
-            AppDetail(a, c, customStack ?: c.installed[a.id], u, onDismiss = { open = null }) { load.reload(); refreshUpdates() }
+            AppDetail(a, c, customStack ?: c.installed[a.id], u, onDismiss = { open = null }, onOpenWeb = { url -> web = a.name to url }) { load.reload(); refreshUpdates() }
         }
     }
 }
@@ -215,7 +221,7 @@ private fun Letter(name: String) {
 
 /** An app: install it with its settings, or open, update and uninstall it. */
 @Composable
-private fun AppDetail(a: CatalogApp, c: AppCatalog, stack: String?, u: DockerUpdates, onDismiss: () -> Unit, changed: () -> Unit) {
+private fun AppDetail(a: CatalogApp, c: AppCatalog, stack: String?, u: DockerUpdates, onDismiss: () -> Unit, onOpenWeb: (String) -> Unit, changed: () -> Unit) {
     val ctx = LocalContext.current
     val act = rememberActions()
     var uninstalling by remember { mutableStateOf(false) }
@@ -228,7 +234,12 @@ private fun AppDetail(a: CatalogApp, c: AppCatalog, stack: String?, u: DockerUpd
             Text(stringResource(R.string.a_installed_as, stack), style = MaterialTheme.typography.bodySmall)
             val port = c.ports[a.id] ?: a.webPort.takeIf { it.toIntOrNull() != null } ?: ""
             appUrl(port)?.let { url ->
-                Button(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.a_open_app, url)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { onOpenWeb(url) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.a_open_in_app)) }
+                    OutlinedButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }) {
+                        Icon(Icons.Default.OpenInNew, null, Modifier.size(18.dp))
+                    }
+                }
             }
             if (u.stackHasUpdate(stack)) Card { Text(stringResource(R.string.a_update_ready), Modifier.padding(12.dp)) }
             OutlinedButton(onClick = { act.job(changed) { api().updateStack(stack) } }, modifier = Modifier.fillMaxWidth()) {

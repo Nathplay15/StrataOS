@@ -140,4 +140,5 @@
     <string name="channel_uploads">Uploads</string>
     <string name="signed_out_title">StrataOS: sign in again</string>
     <string name="signed_out_text">The NAS no longer accepts this phone. Open the app to pair it again.</string>
+    <string name="tab_home">Home</string>
 </resources>
