@@ -329,4 +329,15 @@
     <string name="vm_usb_given">设备已分配给虚拟机</string>
     <string name="vm_usb_taken">设备已收回</string>
     <string name="nas_docker_containers">Docker 容器</string>
+    <string name="a_assistant">助手</string>
+    <string name="a_assistant_disabled">助手未在 NAS 上配置（设置 → 助手）。</string>
+    <string name="a_assistant_hint">问问你的 NAS…</string>
+    <string name="a_assistant_thinking">思考中…</string>
+    <string name="a_assistant_new">新对话</string>
+    <string name="a_assistant_history">历史记录</string>
+    <string name="a_assistant_no_history">暂无对话</string>
+    <string name="a_assistant_asks">助手请求：</string>
+    <string name="a_assistant_confirm">确认</string>
+    <string name="a_assistant_empty">问问你的 NAS：存储、应用、备份、文件…</string>
+    <string name="a_assistant_done">完成</string>
 </resources>

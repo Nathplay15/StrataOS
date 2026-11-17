@@ -329,4 +329,15 @@
     <string name="vm_usb_given">Dispositivo dado à VM</string>
     <string name="vm_usb_taken">Dispositivo retomado</string>
     <string name="nas_docker_containers">Contêineres Docker</string>
+    <string name="a_assistant">Assistente</string>
+    <string name="a_assistant_disabled">O assistente não está configurado no NAS (Configurações → Assistente).</string>
+    <string name="a_assistant_hint">Pergunte ao seu NAS…</string>
+    <string name="a_assistant_thinking">Pensando…</string>
+    <string name="a_assistant_new">Nova conversa</string>
+    <string name="a_assistant_history">Histórico</string>
+    <string name="a_assistant_no_history">Nenhuma conversa ainda</string>
+    <string name="a_assistant_asks">O assistente pede para:</string>
+    <string name="a_assistant_confirm">Confirmar</string>
+    <string name="a_assistant_empty">Pergunte ao seu NAS: armazenamento, apps, backups, arquivos…</string>
+    <string name="a_assistant_done">Concluído</string>
 </resources>

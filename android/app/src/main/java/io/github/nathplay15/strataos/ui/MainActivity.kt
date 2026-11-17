@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -190,6 +191,7 @@ private fun LockScreen(unlock: () -> Unit) {
 fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
     "photos" -> "photos" to null
     "home", "status" -> "home" to null
+    "assistant" -> "assistant" to null
     "manage" -> "manage" to null
     "backup" -> "files" to "backup"
     "sync" -> "files" to "sync"
@@ -238,6 +240,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         Triple("home", R.string.tab_home, Icons.Default.Home),
         Triple("files", R.string.tab_files, Icons.Default.Folder),
         Triple("photos", R.string.a_photos, Icons.Default.PhotoLibrary),
+        Triple("assistant", R.string.a_assistant, Icons.Default.AutoAwesome),
         Triple("manage", R.string.a_manage, Icons.Default.Dashboard),
     )
     val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
@@ -247,6 +250,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
             Crossfade(targetState = tab, animationSpec = tween(220), label = "tab") { t ->
                 when (t) {
                     "photos" -> PhotosScreen(account)
+                    "assistant" -> io.github.nathplay15.strataos.ui.assistant.AssistantScreen(account)
                     "manage" -> ManageScreen(account, initialSection = section)
                     "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") }, onOpenManage = { setTab("manage") })
                     else -> FilesScreen(filesPath, { filesPath = it }, account)

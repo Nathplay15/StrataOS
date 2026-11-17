@@ -320,6 +320,7 @@
     <string name="state_stopped">Gestopt</string>
     <string name="a_search_content">Zoeken in bestandsinhoud</string>
     <string name="a_search_content_hint">Zoek in de inhoud van al je bestanden</string>
+<<<<<<< HEAD
     <string name="vm_usb">USB-apparaten</string>
     <string name="vm_usb_hint">Geef een USB-apparaat van de NAS aan deze VM: het wordt onthouden en komt na het loskoppelen terug; het wordt live aangesloten terwijl de VM draait.</string>
     <string name="vm_usb_empty">Geen USB-apparaat op de NAS</string>
@@ -329,4 +330,17 @@
     <string name="vm_usb_given">Apparaat aan de VM gegeven</string>
     <string name="vm_usb_taken">Apparaat teruggenomen</string>
     <string name="nas_docker_containers">Docker-containers</string>
+=======
+    <string name="a_assistant">Assistent</string>
+    <string name="a_assistant_disabled">De assistent is niet geconfigureerd op de NAS (Instellingen → Assistent).</string>
+    <string name="a_assistant_hint">Vraag je NAS…</string>
+    <string name="a_assistant_thinking">Denk na…</string>
+    <string name="a_assistant_new">Nieuwe chat</string>
+    <string name="a_assistant_history">Geschiedenis</string>
+    <string name="a_assistant_no_history">Nog geen gesprekken</string>
+    <string name="a_assistant_asks">De assistent wil:</string>
+    <string name="a_assistant_confirm">Bevestigen</string>
+    <string name="a_assistant_empty">Vraag je NAS: opslag, apps, back-ups, bestanden…</string>
+    <string name="a_assistant_done">Klaar</string>
+>>>>>>> origin/main
 </resources>

@@ -56,6 +56,7 @@ class ManageTest {
         assertEquals("home" to null, destinationOf("home"))
         assertEquals("home" to null, destinationOf("status"))
         assertEquals("manage" to null, destinationOf("manage"))
+        assertEquals("assistant" to null, destinationOf("assistant"))
         assertEquals("files" to "backup", destinationOf("backup"))
         assertEquals("files" to "settings", destinationOf("settings"))
         assertEquals("home" to null, destinationOf("whatever"))
