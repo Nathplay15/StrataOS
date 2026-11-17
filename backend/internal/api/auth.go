@@ -301,9 +301,12 @@ func userOf(r *http.Request) string {
 	return ""
 }
 
+// isAdmin reports whether the caller acts as an administrator: an
+// administrator's session, or an administrator's API token with the admin
+// scope (a read-only or MCP-only token of an administrator acts as a user).
 func isAdmin(r *http.Request) bool {
 	s := sessionFrom(r.Context())
-	return s != nil && s.Role == "admin"
+	return s != nil && s.Role == "admin" && (s.Scopes == nil || hasScope(s.Scopes, "admin"))
 }
 
 var errUnauthorized = &Error{Status: http.StatusUnauthorized, Msg: "authentication required"}

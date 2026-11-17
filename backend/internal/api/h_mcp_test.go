@@ -83,12 +83,15 @@ func TestMCPStatusTool(t *testing.T) {
 	}
 }
 
+// A write tool never runs on the model's word: the confirmation token it
+// gets only works once a person approved the request in the web interface
+// (review 0.12.0: the MCP confirmation was returned to the model).
 func TestMCPWriteToolConfirmation(t *testing.T) {
 	s, ts, _ := mcpServer(t)
 	wtok := createToken(t, s, "bob", []string{"mcp", "write"}, 0)
 	cs := mcpClient(t, ts.URL, wtok)
 
-	// First call: preview only, with a confirmation token.
+	// First call: a request waiting for approval, with a token.
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "create_folder", Arguments: map[string]any{"path": "/Data/newdir"},
 	})
@@ -96,8 +99,8 @@ func TestMCPWriteToolConfirmation(t *testing.T) {
 		t.Fatalf("call: %v", err)
 	}
 	txt := res.Content[0].(*mcp.TextContent).Text
-	if !strings.Contains(txt, "CONFIRMATION REQUIRED") {
-		t.Fatalf("expected the confirmation preview, got: %.200s", txt)
+	if !strings.Contains(txt, "APPROVAL REQUIRED") {
+		t.Fatalf("expected the approval request, got: %.200s", txt)
 	}
 	i := strings.Index(txt, "cfm_")
 	if i < 0 {
@@ -108,26 +111,107 @@ func TestMCPWriteToolConfirmation(t *testing.T) {
 		j++
 	}
 	confirm := txt[i:j]
-
-	// Second call with the token: it runs (here it fails on the missing
-	// share, which proves it reached the API).
-	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name: "create_folder", Arguments: map[string]any{"path": "/Data/newdir", "confirmToken": confirm},
-	})
-	if err != nil {
-		t.Fatalf("confirmed call: %v", err)
+	call := func() *mcp.CallToolResult {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+			Name: "create_folder", Arguments: map[string]any{"path": "/Data/newdir", "confirmToken": confirm},
+		})
+		if err != nil {
+			t.Fatalf("confirmed call: %v", err)
+		}
+		return res
 	}
-	txt = res.Content[0].(*mcp.TextContent).Text
-	if !strings.Contains(txt, "/api/files/mkdir") {
+
+	// The model echoing the token is not enough.
+	if res = call(); !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "not approved") {
+		t.Fatalf("ran without approval: %+v", res.Content[0])
+	}
+	// Nor can an API token approve it (that is what MCP clients hold).
+	if w := tokenReq(t, s, "POST", "/api/assistant/approvals/"+confirm, wtok, map[string]bool{"approve": true}); w.Code != http.StatusForbidden {
+		t.Fatalf("token approval: %d %s", w.Code, w.Body.String())
+	}
+	// The user sees it in the web interface and approves it.
+	bob := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("bob", "", "192.0.2.9", time.Hour)}}
+	w := bob.req("GET", "/api/assistant/approvals", nil)
+	var list []mcpRequest
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil || len(list) != 1 || list[0].ID != confirm || !strings.Contains(list[0].Summary, "/Data/newdir") {
+		t.Fatalf("approvals: %d %s", w.Code, w.Body.String())
+	}
+	if w = bob.req("POST", "/api/assistant/approvals/"+confirm, map[string]bool{"approve": true}); w.Code != 200 {
+		t.Fatalf("approve: %d %s", w.Code, w.Body.String())
+	}
+
+	// Now it runs (here it fails on the missing share, which proves it
+	// reached the API).
+	if txt = call().Content[0].(*mcp.TextContent).Text; !strings.Contains(txt, "/api/files/mkdir") {
 		t.Fatalf("expected the API answer, got: %.200s", txt)
 	}
-
 	// The token is single-use.
-	res, _ = cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name: "create_folder", Arguments: map[string]any{"path": "/Data/newdir", "confirmToken": confirm},
-	})
-	if res == nil || !res.IsError {
+	if res = call(); !res.IsError {
 		t.Fatal("a confirmation token must be single-use")
+	}
+
+	// A declined request is gone.
+	res, _ = cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "vm_action", Arguments: map[string]any{"id": "web", "action": "stop"}})
+	txt = res.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(txt, "Virtual machine web: shutdown") {
+		t.Fatalf("vm stop must be mapped to shutdown: %s", txt)
+	}
+	w = bob.req("GET", "/api/assistant/approvals", nil)
+	_ = json.Unmarshal(w.Body.Bytes(), &list)
+	if len(list) != 1 {
+		t.Fatalf("approvals: %s", w.Body.String())
+	}
+	if w = bob.req("POST", "/api/assistant/approvals/"+list[0].ID, map[string]bool{"approve": false}); w.Code != 200 {
+		t.Fatalf("decline: %d", w.Code)
+	}
+	if w = bob.req("GET", "/api/assistant/approvals", nil); strings.TrimSpace(w.Body.String()) != "[]" {
+		t.Fatalf("declined request kept: %s", w.Body.String())
+	}
+}
+
+// Only the actions that exist, on names that cannot reach another route.
+func TestMCPCheckWrite(t *testing.T) {
+	for _, c := range []struct {
+		tool, id, action string
+		ok               bool
+		want             string
+	}{
+		{"vm_action", "web", "start", true, "start"},
+		{"vm_action", "web", "force-stop", true, "destroy"},
+		{"vm_action", "web", "clone", false, ""},
+		{"vm_action", "web", "template", false, ""},
+		{"vm_action", "web", "rename", false, ""},
+		{"vm_action", "../x", "start", false, ""},
+		{"vm_action", "web/clone", "start", false, ""},
+		{"docker_container_action", "db", "restart", true, "restart"},
+		{"docker_container_action", "db", "kill", false, ""},
+	} {
+		got, err := mcpCheckWrite(c.tool, mcpWriteIn{ID: c.id, Action: c.action})
+		if (err == nil) != c.ok || (c.ok && got.Action != c.want) {
+			t.Errorf("%s %s %s: %+v %v", c.tool, c.id, c.action, got, err)
+		}
+	}
+}
+
+// Pending confirmations are capped per user, not only in all.
+func TestConfirmationsPerUserCap(t *testing.T) {
+	var c mcpConfirmations
+	for i := 0; i < maxPendingPerUser; i++ {
+		if _, err := c.arm("mallory", "create_folder", mcpWriteIn{Path: "/x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := c.arm("mallory", "create_folder", mcpWriteIn{Path: "/x"}); err == nil {
+		t.Fatal("per-user cap not applied")
+	}
+	if _, err := c.arm("bob", "create_folder", mcpWriteIn{Path: "/x"}); err != nil {
+		t.Fatalf("another user is blocked: %v", err)
+	}
+}
+
+func TestMCPSessionTimeout(t *testing.T) {
+	if mcpSessionTimeout <= 0 {
+		t.Fatal("MCP sessions must time out")
 	}
 }
 

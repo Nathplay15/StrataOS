@@ -112,6 +112,7 @@ func (s *Server) assistantModelRoutes() {
 			}
 			sc := bufio.NewScanner(io.LimitReader(resp.Body, 16<<20))
 			sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+			last := ""
 			for sc.Scan() {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -134,8 +135,16 @@ func (s *Server) assistantModelRoutes() {
 				if line.Status != "" && line.Total == 0 {
 					j.Logf("%s", line.Status)
 				}
+				if line.Status != "" {
+					last = line.Status
+				}
 			}
 			if err := sc.Err(); err != nil {
+				return err
+			}
+			// Ollama ends a complete download with the status "success": a
+			// stream cut before it is an incomplete model.
+			if err := pullComplete(last); err != nil {
 				return err
 			}
 			j.Logf("Model %s ready", req.Name)
@@ -177,9 +186,11 @@ func (s *Server) assistantModelRoutes() {
 				return err
 			}
 			digest := "sha256:" + hex.EncodeToString(h.Sum(nil))
-			if _, err := ollamaCall(ctx, http.MethodHead, "/api/blobs/"+digest, nil, ""); err != nil {
+			head, err := ollamaCall(ctx, http.MethodHead, "/api/blobs/"+digest, nil, "")
+			if err != nil {
 				return fmt.Errorf("Ollama is unreachable (install the Ollama app)")
 			}
+			head.Body.Close()
 			if _, err := f.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
@@ -240,4 +251,12 @@ func (s *Server) assistantModelRoutes() {
 		s.audit(r, "assistant", "Deleted model "+req.Name)
 		return nil, nil
 	})
+}
+
+// pullComplete checks the last status of an Ollama pull stream.
+func pullComplete(last string) error {
+	if last != "success" {
+		return fmt.Errorf("the download ended before it was complete (last status: %q): try again", last)
+	}
+	return nil
 }

@@ -22,7 +22,7 @@ const mcpPreset = (url: string, tok: string) => JSON.stringify({ mcpServers: { s
 const SCOPES: { id: string; label: string }[] = [
   { id: "read", label: tr("Read (GET requests)") },
   { id: "write", label: tr("Write (changes on the NAS)") },
-  { id: "admin", label: tr("Administrator (everything)") },
+  { id: "admin", label: tr("Administrator (everything but the account's sign-in settings)") },
   { id: "mcp", label: tr("MCP (AI assistants)") },
 ];
 
@@ -134,7 +134,7 @@ export function ApiTokensModal({ open, onClose }: { open: boolean; onClose: () =
                 <Copyable value={`${location.origin}/api/mcp`} />
                 <p className="opacity-70">{tr("In your MCP client (Claude Desktop, Cursor…), add this server:")}</p>
                 <pre className="mono overflow-x-auto rounded-lg bg-panel-2 p-2.5 text-[12px]">{mcpPreset(`${location.origin}/api/mcp`, "YOUR_TOKEN")}</pre>
-                <p className="opacity-70">{tr("Write tools ask for a confirmation before each change; give the write scope only to assistants you trust.")}</p>
+                <p className="opacity-70">{tr("Write tools need your approval before each change: approve the requests on the Assistant page. Give the write scope only to assistants you trust.")}</p>
               </div>
             )}
             <ErrorBox error={err} />

@@ -68,6 +68,9 @@ type Server struct {
 	// assistantConf holds the armed confirmations of the conversational
 	// assistant (h_assistant.go); zero value usable (arm lazy-inits the map).
 	assistantConf mcpConfirmations
+	// mcpConf holds the write requests of MCP clients waiting for a
+	// person's approval (h_mcp.go).
+	mcpConf mcpConfirmations
 }
 
 type Config struct {

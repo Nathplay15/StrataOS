@@ -200,12 +200,24 @@ func (s *Server) apiTokenSession(tok, ip string) *session {
 	return ss
 }
 
-// tokenDenied reports paths a scoped API token may never reach, even with
-// the admin scope: they manage the credentials and sessions themselves.
+// tokenMeAllowed are the only routes of the account (/api/me/…) a scoped
+// API token may reach: reading the profile, quotas and activity, and the
+// desktop preferences and language. Everything else there manages the
+// credentials of the account (password, recovery codes, two-factor, security
+// keys, OIDC links, S3 keys, devices, tokens) and stays out of reach, even
+// with the admin scope: a token must never be able to create another way in
+// that survives its revocation.
+var tokenMeAllowed = map[string]bool{
+	"/api/me/quotas": true, "/api/me/activity": true, "/api/me/desktop": true, "/api/me/lang": true,
+}
+
+// tokenDenied reports paths a scoped API token may never reach.
 func tokenDenied(path string) bool {
+	if strings.HasPrefix(path, "/api/me/") && !tokenMeAllowed[path] {
+		return true
+	}
 	for _, p := range []string{
-		"/api/logout", "/api/sessions", "/api/me/logins", "/api/me/passkeys",
-		"/api/me/2fa", "/api/me/devices", "/api/me/tokens", "/api/me/wallpaper",
+		"/api/logout", "/api/sessions", "/api/devices", "/api/assistant/approvals",
 	} {
 		if path == p || strings.HasPrefix(path, p+"/") {
 			return true
@@ -224,9 +236,10 @@ func hasScope(sc []string, scope string) bool {
 	return false
 }
 
-// mcpInternalKey marks the in-process calls of the MCP tools (h_mcp.go):
-// the mcp scope was already checked on the outer request, and the tools
-// only reach a fixed set of endpoints.
+// mcpInternalKey marks the in-process calls of the MCP tools and of the
+// assistant (h_mcp.go): the mcp scope already let the outer request in, so
+// it stands for read here; writes still need the write scope and the routes
+// a token may never reach stay closed.
 type mcpInternalKey struct{}
 
 // tokenAllows checks the scopes of a token session against the request.
@@ -234,23 +247,18 @@ func tokenAllows(ss *session, r *http.Request, adminOnly bool) bool {
 	if ss.Scopes == nil {
 		return true
 	}
-	if r.Context().Value(mcpInternalKey{}) != nil {
-		return true
-	}
-	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
-		if r.URL.Path == "/api/mcp" {
-			return hasScope(ss.Scopes, "mcp")
-		}
-		if tokenDenied(r.URL.Path) {
-			return false
-		}
-		return hasScope(ss.Scopes, "read")
-	}
+	read := r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions
 	if r.URL.Path == "/api/mcp" {
 		return hasScope(ss.Scopes, "mcp")
 	}
 	if tokenDenied(r.URL.Path) {
 		return false
+	}
+	if read {
+		if r.Context().Value(mcpInternalKey{}) != nil && hasScope(ss.Scopes, "mcp") {
+			return true
+		}
+		return hasScope(ss.Scopes, "read")
 	}
 	return hasScope(ss.Scopes, "write")
 }

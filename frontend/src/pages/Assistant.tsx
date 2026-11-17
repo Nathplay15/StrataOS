@@ -8,7 +8,8 @@ import { tr } from "../lib/i18n";
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 const suggestions = ["How much free space is left?", "Are my disks healthy?", "Which containers are running?", "Any failed backups?"];
-type ArmedAction = { token: string; tool: string; summary: string };
+type ArmedAction = { token: string; tool: string; summary: string; resume?: boolean };
+type ApprovalRequest = { id: string; tool: string; summary: string; approved: boolean; expires: string };
 type ActionState = ArmedAction & { status: "pending" | "done" | "cancelled"; result?: string };
 type ConvMeta = { id: string; title: string; updated: string };
 
@@ -20,6 +21,12 @@ export default function Assistant() {
   const qc = useQueryClient();
   const { confirm } = useUI();
   const convs = useQuery({ queryKey: ["assistant-conversations"], queryFn: () => api.get<ConvMeta[]>("/api/assistant/conversations") });
+  // Write requests of AI clients (MCP) waiting for this user's approval.
+  const approvals = useQuery({
+    queryKey: ["assistant-approvals"],
+    queryFn: () => api.get<ApprovalRequest[]>("/api/assistant/approvals"),
+    refetchInterval: 5000,
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [actions, setActions] = useState<ActionState[]>([]);
   const [convId, setConvId] = useState<string | null>(null);
@@ -30,22 +37,19 @@ export default function Assistant() {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, actions, busy]);
 
-  const send = async (preset?: string) => {
-    const q = (preset ?? text).trim();
-    if (!q || busy || !config.data?.enabled) return;
-    setText("");
-    setError(null);
-    const next = [...messages, { role: "user" as const, content: q }];
-    setMessages([...next, { role: "assistant" as const, content: "" }]);
+  /** Streams one answer of the assistant (chat or continuation after a
+   * confirmed web tool) after the messages in base. */
+  const runStream = async (url: string, body: unknown, base: ChatMessage[]) => {
+    setMessages([...base, { role: "assistant" as const, content: "" }]);
     setBusy(true);
     setTool(null);
-    const show = (reply: string) => setMessages([...next, { role: "assistant", content: reply }]);
+    const show = (reply: string) => setMessages([...base, { role: "assistant", content: reply }]);
     try {
-      const res = await fetch("/api/assistant/chat/stream", {
+      const res = await fetch(url, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-Strata": "1" },
-        body: JSON.stringify({ messages: next, conversationId: convId ?? undefined }),
+        body: JSON.stringify(body),
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null);
@@ -66,21 +70,31 @@ export default function Assistant() {
           buf = buf.slice(i + 2);
           const line = raw.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
-          const ev = JSON.parse(line.slice(5).trim()) as { type: string; text?: string; tool?: string; token?: string; summary?: string; conversationId?: string };
+          const ev = JSON.parse(line.slice(5).trim()) as { type: string; text?: string; tool?: string; token?: string; summary?: string; resume?: boolean; conversationId?: string };
           if (ev.type === "delta") { reply += ev.text ?? ""; show(reply); }
           else if (ev.type === "status") setTool(ev.tool ?? null);
-          else if (ev.type === "action" && ev.token) armed.push({ token: ev.token, tool: ev.tool ?? "", summary: ev.summary ?? "" });
+          else if (ev.type === "action" && ev.token) armed.push({ token: ev.token, tool: ev.tool ?? "", summary: ev.summary ?? "", resume: ev.resume });
           else if (ev.type === "error") throw new Error(ev.text || "assistant error");
-          else if (ev.type === "done") { setConvId(ev.conversationId || null); qc.invalidateQueries({ queryKey: ["assistant-conversations"] }); }
+          else if (ev.type === "done") { if (ev.conversationId) setConvId(ev.conversationId); qc.invalidateQueries({ queryKey: ["assistant-conversations"] }); }
         }
       }
+      if (!reply) setMessages(base);
       if (armed.length) setActions((a) => [...a, ...armed.map((x) => ({ ...x, status: "pending" as const }))]);
     } catch (e) {
       setError(e);
-      setMessages((ms) => (ms.length && ms[ms.length - 1].role === "assistant" && !ms[ms.length - 1].content ? next : ms));
+      setMessages((ms) => (ms.length && ms[ms.length - 1].role === "assistant" && !ms[ms.length - 1].content ? base : ms));
     }
     setTool(null);
     setBusy(false);
+  };
+
+  const send = async (preset?: string) => {
+    const q = (preset ?? text).trim();
+    if (!q || busy || !config.data?.enabled) return;
+    setText("");
+    setError(null);
+    const next = [...messages, { role: "user" as const, content: q }];
+    await runStream("/api/assistant/chat/stream", { messages: next, conversationId: convId ?? undefined }, next);
   };
 
   const newConversation = () => { setMessages([]); setActions([]); setConvId(null); setError(null); };
@@ -106,12 +120,27 @@ export default function Assistant() {
   };
 
   const confirmAction = async (i: number) => {
+    const a = actions[i];
+    if (a.resume) {
+      // A web page or search the user allowed: the assistant goes on with it.
+      if (busy) return;
+      setError(null);
+      setActions((xs) => xs.map((x, j) => (j === i ? { ...x, status: "done" as const } : x)));
+      await runStream("/api/assistant/resume", { token: a.token }, messages);
+      return;
+    }
     try {
       const r = await api.post<{ result: string }>("/api/assistant/confirm", { token: actions[i].token });
       setActions((xs) => xs.map((x, j) => (j === i ? { ...x, status: "done" as const, result: r.result } : x)));
     } catch (e) { setError(e); }
   };
   const cancel = (i: number) => setActions((xs) => xs.map((x, j) => (j === i ? { ...x, status: "cancelled" as const } : x)));
+  const decide = async (id: string, approve: boolean) => {
+    try {
+      await api.post(`/api/assistant/approvals/${encodeURIComponent(id)}`, { approve });
+      qc.invalidateQueries({ queryKey: ["assistant-approvals"] });
+    } catch (e) { setError(e); }
+  };
 
   if (config.isLoading) return <Spinner />;
   return (
@@ -127,6 +156,26 @@ export default function Assistant() {
         }
       />
       <ErrorBox error={error} />
+      {approvals.data && approvals.data.length > 0 && (
+        <div className="mb-3 space-y-2 rounded-2xl border border-warn/40 bg-warn/5 p-3">
+          <div className="text-[13px] font-medium">{tr("Requests from AI clients (MCP)")}</div>
+          <div className="text-[12px] text-muted">{tr("An application connected with one of your API tokens wants to change the NAS. Approve only what you asked it to do; it then has to call the tool again.")}</div>
+          {approvals.data.map((a) => (
+            <div key={a.id} className="flex flex-wrap items-center gap-2 text-[13px]">
+              <Bot size={14} className="text-muted" />
+              <span className="flex-1">{a.summary}</span>
+              {a.approved ? (
+                <Badge tone="ok"><CircleCheck size={12} /> {tr("Approved")}</Badge>
+              ) : (
+                <>
+                  <Button size="sm" variant="primary" onClick={() => decide(a.id, true)}>{tr("Approve")}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => decide(a.id, false)}>{tr("Decline")}</Button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {!config.data?.enabled ? (
         <Notice tone="warn">{tr("The assistant is not configured: an administrator must set an API endpoint in Settings.")}</Notice>
       ) : (
@@ -149,7 +198,7 @@ export default function Assistant() {
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !actions.length && (
               <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-                <div className="text-[13px] text-muted">{tr("The assistant answers with your permissions; actions that modify the NAS always ask for your confirmation first.")}</div>
+                <div className="text-[13px] text-muted">{tr("The assistant answers with your permissions; actions that modify the NAS, and opening web pages, always ask for your confirmation first.")}</div>
                 <div className="flex flex-wrap justify-center gap-2">
                   {suggestions.map((s) => (
                     <Button key={s} size="sm" variant="secondary" disabled={busy} onClick={() => send(s)}>{tr(s)}</Button>
@@ -174,7 +223,7 @@ export default function Assistant() {
                   <Bot size={14} className="text-muted" />
                   <span className="flex-1">{a.summary}</span>
                   {a.status === "pending" && <>
-                    <Button size="sm" variant="primary" onClick={() => confirmAction(i)}>{tr("Confirm")}</Button>
+                    <Button size="sm" variant="primary" disabled={busy && a.resume} onClick={() => confirmAction(i)}>{tr("Confirm")}</Button>
                     <Button size="sm" variant="ghost" onClick={() => cancel(i)}>{tr("Cancel")}</Button>
                   </>}
                   {a.status === "done" && <Badge tone="ok"><CircleCheck size={12} /> {tr("Done")}</Badge>}

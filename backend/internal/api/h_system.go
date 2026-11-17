@@ -356,15 +356,26 @@ func (s *Server) systemRoutes() {
 		}
 		err := s.store.Update(func(st *store.State) error {
 			if req.SMTPPassword == "********" {
+				if req.SMTPHost != st.Settings.SMTPHost && st.Settings.SMTPPassword != "" {
+					return badRequest("the mail server changed: type its password again")
+				}
 				req.SMTPPassword = st.Settings.SMTPPassword
 			}
 			if req.TelegramToken == "********" {
 				req.TelegramToken = st.Settings.TelegramToken
 			}
 			if req.NtfyToken == "********" {
+				if req.NtfyURL != st.Settings.NtfyURL && st.Settings.NtfyToken != "" {
+					return badRequest("the ntfy address changed: type its access token again")
+				}
 				req.NtfyToken = st.Settings.NtfyToken
 			}
 			if req.AssistantKey == "********" {
+				// A kept key is never sent to a new address: it may belong
+				// to someone else.
+				if req.AssistantURL != st.Settings.AssistantURL && st.Settings.AssistantKey != "" {
+					return badRequest("the assistant address changed: type its API key again")
+				}
 				req.AssistantKey = st.Settings.AssistantKey
 			}
 			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics

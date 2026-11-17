@@ -11,52 +11,36 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"strataos/internal/netguard"
 )
 
 // Web access of the assistant: a web_search tool (DuckDuckGo Lite, no API
 // key) and an open_url tool to read a public page. open_url refuses anything
 // but a public host: the NAS must not be made to call its own internal
-// services on the model's word (SSRF).
+// services on the model's word (SSRF). The check is made on the address
+// actually connected to, redirects included (netguard), so a name that
+// changes its answer between the check and the connection (DNS rebinding)
+// gains nothing.
 
 const webUA = "StrataOS-Assistant/1.0"
 
-// webClient follows a few redirects, each of them re-checked as public.
-var webClient = &http.Client{
-	Timeout: 20 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) > 3 {
-			return fmt.Errorf("too many redirects")
-		}
-		return publicURL(req.URL)
-	},
-}
+// webClient only connects to public addresses and follows a few redirects.
+var webClient = netguard.Client(netguard.Options{Timeout: 20 * time.Second, MaxRedirects: 3})
 
-func isPrivateIP(ip net.IP) bool {
-	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
-		return true
-	}
-	if v4 := ip.To4(); v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] < 128 {
-		return true // carrier-grade NAT (100.64.0.0/10)
-	}
-	return false
-}
-
-// publicURL refuses anything but a public http(s) address.
+// publicURL refuses anything but a public http(s) address. It gives an early,
+// readable answer; the dialer of webClient makes the real check.
 func publicURL(u *url.URL) error {
-	if u == nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return fmt.Errorf("only http and https addresses are allowed")
+	if err := netguard.CheckURL(u, false); err != nil {
+		return err
 	}
-	host := u.Hostname()
-	if host == "" {
-		return fmt.Errorf("invalid address")
-	}
-	ips, err := net.LookupIP(host)
+	ips, err := net.DefaultResolver.LookupNetIP(context.Background(), "ip", u.Hostname())
 	if err != nil {
-		return fmt.Errorf("cannot resolve %s", host)
+		return fmt.Errorf("cannot resolve %s", u.Hostname())
 	}
 	for _, ip := range ips {
-		if isPrivateIP(ip) {
-			return fmt.Errorf("internal addresses are not allowed")
+		if netguard.Blocked(ip) {
+			return netguard.ErrBlocked
 		}
 	}
 	return nil
@@ -86,6 +70,9 @@ func htmlText(s string) string {
 	s = nlSpaceRe.ReplaceAllString(s, "\n")
 	return strings.TrimSpace(nlRe.ReplaceAllString(s, "\n"))
 }
+
+// webSearchFn is webSearch (replaced in tests: no network).
+var webSearchFn = webSearch
 
 // webSearch queries DuckDuckGo Lite and returns the top results as text.
 func webSearch(ctx context.Context, query string) (string, error) {
@@ -178,7 +165,7 @@ func assistantWebTool(r *http.Request, name, arg string) string {
 	var out string
 	var err error
 	if name == "web_search" {
-		out, err = webSearch(ctx, arg)
+		out, err = webSearchFn(ctx, arg)
 	} else {
 		out, err = webFetch(ctx, arg)
 	}

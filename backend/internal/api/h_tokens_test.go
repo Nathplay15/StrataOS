@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -205,5 +206,84 @@ func TestOpenAPIDocument(t *testing.T) {
 	}
 	if _, ok := paths["/api/openapi.json"]; !ok {
 		t.Fatal("openapi route missing from the document")
+	}
+}
+
+// Whatever its scopes, a token cannot manage the credentials of the account:
+// everything under /api/me/ is closed except an explicit list (review 0.12.0:
+// a write token could create a permanent S3 key, remove security keys or
+// change the password).
+func TestTokenAccountRoutesClosed(t *testing.T) {
+	s := tokensServer(t)
+	for _, p := range []string{"POST /api/me/s3/keys", "POST /api/me/password", "POST /api/me/recovery-codes",
+		"DELETE /api/me/security-keys/{id}", "DELETE /api/me/oidc/{provider}", "POST /api/me/passkeys/begin",
+		"GET /api/me/quotas", "PUT /api/me/desktop", "GET /api/me/s3", "DELETE /api/devices/{id}"} {
+		s.user(p, func(r *http.Request) (any, error) { return map[string]bool{"ok": true}, nil })
+	}
+	tok := createToken(t, s, "admin", []string{"read", "write", "admin"}, 0)
+	for _, c := range []struct {
+		method, path string
+		code         int
+	}{
+		{"POST", "/api/me/s3/keys", 403},
+		{"POST", "/api/me/password", 403},
+		{"POST", "/api/me/recovery-codes", 403},
+		{"DELETE", "/api/me/security-keys/k1", 403},
+		{"DELETE", "/api/me/oidc/google", 403},
+		{"POST", "/api/me/passkeys/begin", 403},
+		{"GET", "/api/me/s3", 403},
+		{"DELETE", "/api/devices/d1", 403},
+		{"GET", "/api/me/quotas", 200},
+		{"PUT", "/api/me/desktop", 200},
+	} {
+		if w := tokenReq(t, s, c.method, c.path, tok, map[string]any{}); w.Code != c.code {
+			t.Errorf("%s %s: %d, want %d", c.method, c.path, w.Code, c.code)
+		}
+	}
+	// The OpenAPI document says so.
+	if !strings.Contains(scopeNote, "/api/me/quotas") || !strings.Contains(scopeNote, "S3 keys") {
+		t.Fatalf("scope note: %s", scopeNote)
+	}
+}
+
+// An administrator's token without the admin scope acts as a user, also for
+// the file routes that test isAdmin (review 0.12.0).
+func TestIsAdminFollowsTokenScopes(t *testing.T) {
+	s := tokensServer(t)
+	s.user("GET /api/whoami-test", func(r *http.Request) (any, error) {
+		return map[string]bool{"admin": isAdmin(r)}, nil
+	})
+	for scopes, want := range map[string]bool{"read": false, "mcp": false, "read,write": false, "admin": true} {
+		tok := createToken(t, s, "admin", strings.Split(scopes, ","), 0)
+		w := tokenReq(t, s, "GET", "/api/whoami-test", tok, nil)
+		if want != strings.Contains(w.Body.String(), `"admin":true`) {
+			t.Errorf("scopes %s: %d %s", scopes, w.Code, w.Body.String())
+		}
+	}
+	admin := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("admin", "admin", "192.0.2.9", time.Hour)}}
+	if w := admin.req("GET", "/api/whoami-test", nil); !strings.Contains(w.Body.String(), `"admin":true`) {
+		t.Fatalf("admin session: %s", w.Body.String())
+	}
+}
+
+// The in-process calls of the MCP tools and the assistant no longer skip the
+// token checks: the closed routes stay closed and writes need the write scope.
+func TestInternalCallsKeepTokenRules(t *testing.T) {
+	ss := &session{User: "bob", Scopes: []string{"mcp"}}
+	internal := func(method, path string) *http.Request {
+		r := httptest.NewRequest(method, "http://localhost"+path, nil)
+		return r.WithContext(context.WithValue(r.Context(), mcpInternalKey{}, true))
+	}
+	if !tokenAllows(ss, internal("GET", "/api/system/info"), false) {
+		t.Fatal("mcp token: internal read refused")
+	}
+	if tokenAllows(ss, internal("GET", "/api/me/tokens"), false) {
+		t.Fatal("internal call reached token management")
+	}
+	if tokenAllows(ss, internal("POST", "/api/files/mkdir"), false) {
+		t.Fatal("internal write without the write scope")
+	}
+	if tokenAllows(ss, httptest.NewRequest("GET", "http://localhost/api/system/info", nil), false) {
+		t.Fatal("mcp token: direct read allowed")
 	}
 }

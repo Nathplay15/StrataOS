@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +48,7 @@ func sessionScopes(r *http.Request) []string {
 }
 
 func (s *Server) mcpRoutes() {
+	s.mcpApprovalRoutes()
 	s.userRaw("/api/mcp", func(w http.ResponseWriter, r *http.Request) {
 		ss := sessionFrom(r.Context())
 		if ss == nil || (ss.Scopes != nil && !hasScope(ss.Scopes, "mcp")) {
@@ -62,16 +65,97 @@ func (s *Server) mcpRoutes() {
 	})
 }
 
+// mcpSessionTimeout closes the MCP sessions left idle (clients rarely close
+// theirs).
+const mcpSessionTimeout = 30 * time.Minute
+
+// mcpApprovalRoutes let a person approve or decline what MCP clients asked
+// for. Only a person signed in to the web interface or the mobile app may
+// decide: never an API token, which is what MCP clients use.
+func (s *Server) mcpApprovalRoutes() {
+	s.user("GET /api/assistant/approvals", func(r *http.Request) (any, error) {
+		return s.mcpConf.list(userOf(r)), nil
+	})
+	s.user("POST /api/assistant/approvals/{id}", func(r *http.Request) (any, error) {
+		var req struct {
+			Approve bool `json:"approve"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if sessionScopes(r) != nil || r.Context().Value(mcpInternalKey{}) != nil {
+			return nil, &Error{Status: http.StatusForbidden, Msg: "approve AI client requests from the web interface"}
+		}
+		if !s.mcpConf.decide(userOf(r), r.PathValue("id"), req.Approve) {
+			return nil, notFound("unknown or expired request")
+		}
+		verb := "declined"
+		if req.Approve {
+			verb = "approved"
+		}
+		s.audit(r, "assistant", "AI client request "+verb)
+		return nil, nil
+	})
+}
+
 // mcpHandler builds the MCP server and its tools once.
 func (s *Server) mcpHandler() http.Handler {
 	s.mcpOnce.Do(func() {
 		srv := mcp.NewServer(&mcp.Implementation{Name: "strataos", Title: "StrataOS NAS", Version: s.version}, nil)
 		s.mcpAddReadTools(srv)
 		s.mcpAddWriteTools(srv)
-		s.mcpHTTP = mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server { return srv }, nil)
+		s.mcpHTTP = mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server { return srv },
+			&mcp.StreamableHTTPOptions{SessionTimeout: mcpSessionTimeout})
 	})
 	return s.mcpHTTP
 }
+
+// mcpVMActions are the VM actions an assistant may ask for (vms.Action);
+// "stop" and "force-stop", which models like to use, are mapped to them.
+var mcpVMActions = map[string]string{
+	"start": "start", "shutdown": "shutdown", "stop": "shutdown", "reboot": "reboot",
+	"destroy": "destroy", "force-stop": "destroy", "suspend": "suspend", "resume": "resume",
+}
+
+// mcpDockerActions are the container actions an assistant may ask for.
+var mcpDockerActions = map[string]bool{"start": true, "stop": true, "restart": true}
+
+// mcpCheckWrite validates the arguments of a write tool before it is armed:
+// only the listed actions, on names that cannot reach another route.
+func mcpCheckWrite(tool string, in mcpWriteIn) (mcpWriteIn, error) {
+	in.ConfirmToken = ""
+	switch tool {
+	case "create_folder", "trash_file":
+		if strings.TrimSpace(in.Path) == "" {
+			return in, fmt.Errorf("a path is required")
+		}
+	case "docker_container_action":
+		if !mcpNameRe.MatchString(in.ID) {
+			return in, fmt.Errorf("invalid container id")
+		}
+		if !mcpDockerActions[in.Action] {
+			return in, fmt.Errorf("unknown action: use start, stop or restart")
+		}
+	case "vm_action":
+		if !mcpNameRe.MatchString(in.ID) {
+			return in, fmt.Errorf("invalid VM name")
+		}
+		a, ok := mcpVMActions[in.Action]
+		if !ok {
+			return in, fmt.Errorf("unknown action: use start, shutdown, reboot, destroy, suspend or resume")
+		}
+		in.Action = a
+	case "create_zfs_snapshot":
+		if in.Dataset == "" || in.SnapshotName == "" {
+			return in, fmt.Errorf("a dataset and a snapshot name are required")
+		}
+	default:
+		return in, fmt.Errorf("unknown tool: %s", tool)
+	}
+	return in, nil
+}
+
+var mcpNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
 
 // apiCall runs one API request in-process as the caller's session: the same
 // mux, the same permissions, the same audit trail.
@@ -262,29 +346,43 @@ type mcpWriteIn struct {
 	ConfirmToken string `json:"confirmToken,omitempty"`
 }
 
-// mcpWriteTools are gated twice: the write scope, then a confirmation token
-// the model must echo back after seeing what it is about to do.
+// mcpAddWriteTools adds the tools that change the NAS. They are gated three
+// times: the write scope of the token, the arguments checked against the
+// actions an assistant may take (mcpCheckWrite), then a person: the first call
+// only files a request that the user must approve in the web interface
+// (GET/POST /api/assistant/approvals); the model gets a token it can only
+// use, by calling the tool again, once that approval was given. A model can
+// therefore never confirm its own action.
 func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
-	pending := &mcpConfirmations{m: map[string]mcpPending{}}
+	pending := &s.mcpConf
 
 	gated := func(name, desc string, summarize func(mcpWriteIn) string, exec func(*http.Request, mcpWriteIn) (*mcp.CallToolResult, any, error)) {
-		mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc + " Two-step confirmation: call it once to preview, then again with the returned confirmToken."}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
+		mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc + " Needs the user's approval: the first call files a request that the user approves in the StrataOS web interface (Assistant page); call the tool again with the returned confirmToken once they did."}, func(ctx context.Context, req *mcp.CallToolRequest, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			r := requestFrom(ctx)
+			fail := func(msg string) (*mcp.CallToolResult, any, error) {
+				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: msg}}}, nil, nil
+			}
 			if !hasScope(sessionScopes(r), "write") {
-				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "this tool needs an API token with the write scope"}}}, nil, nil
+				return fail("this tool needs an API token with the write scope")
 			}
 			if in.ConfirmToken == "" {
-				tok, err := pending.arm(userOf(r), name, in)
+				checked, err := mcpCheckWrite(name, in)
 				if err != nil {
-					return nil, nil, err
+					return fail(err.Error())
 				}
+				summary := summarize(checked)
+				tok, err := pending.armPending(mcpPending{tool: name, user: userOf(r), args: checked, summary: summary}, 10*time.Minute)
+				if err != nil {
+					return fail(err.Error())
+				}
+				s.audit(r, "assistant", "AI client request waiting for approval: "+summary)
 				return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{
-					Text: fmt.Sprintf("CONFIRMATION REQUIRED\n%s\nCall this tool again with {\"confirmToken\": %q} within 5 minutes to execute.", summarize(in), tok),
+					Text: fmt.Sprintf("APPROVAL REQUIRED\n%s\nThe user must approve this request in the StrataOS web interface (Assistant page) within 10 minutes. Once they did, call this tool again with {\"confirmToken\": %q}.", summary, tok),
 				}}}, nil, nil
 			}
-			stored, err := pending.consume(userOf(r), name, in.ConfirmToken)
+			stored, err := pending.consumeApproved(userOf(r), name, in.ConfirmToken)
 			if err != nil {
-				return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, nil, nil
+				return fail(err.Error())
 			}
 			return exec(r, stored)
 		})
@@ -305,7 +403,7 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/docker/containers/"+url.PathEscape(in.ID)+"/"+url.PathEscape(in.Action), nil)
 		})
-	gated("vm_action", "Start, stop, force-stop, reboot or shut down a virtual machine (id: VM name, action: start, stop, force-stop, reboot, shutdown).",
+	gated("vm_action", "Start, shut down, force off, reboot, suspend or resume a virtual machine (id: VM name, action: start, shutdown, destroy, reboot, suspend, resume).",
 		func(in mcpWriteIn) string { return "Virtual machine " + in.ID + ": " + in.Action },
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/vms/"+url.PathEscape(in.ID)+"/"+url.PathEscape(in.Action), nil)
@@ -321,9 +419,21 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 type mcpPending struct {
 	tool    string
 	user    string
+	summary string
 	args    mcpWriteIn
 	expires time.Time
+	// approved: a person approved this MCP request in the web interface.
+	approved bool
+	// resume: the assistant conversation to continue once confirmed (web
+	// tools of the assistant, h_assistant.go).
+	resume *assistantResume
 }
+
+const (
+	// Pending confirmations kept per user, and in all.
+	maxPendingPerUser = 20
+	maxPendingTotal   = 1000
+)
 
 // mcpConfirmations holds the armed confirmations in memory (a restart
 // cancels them).
@@ -333,22 +443,31 @@ type mcpConfirmations struct {
 }
 
 func (c *mcpConfirmations) arm(user, tool string, args mcpWriteIn) (string, error) {
+	return c.armPending(mcpPending{tool: tool, user: user, args: args}, 5*time.Minute)
+}
+
+// armPending stores p under a new token valid for ttl.
+func (c *mcpConfirmations) armPending(p mcpPending, ttl time.Duration) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.m == nil {
 		c.m = map[string]mcpPending{}
 	}
 	now := time.Now()
-	for k, p := range c.m {
-		if now.After(p.expires) {
+	mine := 0
+	for k, x := range c.m {
+		if now.After(x.expires) {
 			delete(c.m, k)
+		} else if x.user == p.user {
+			mine++
 		}
 	}
-	if len(c.m) > 100 {
-		return "", fmt.Errorf("too many pending confirmations")
+	if mine >= maxPendingPerUser || len(c.m) >= maxPendingTotal {
+		return "", fmt.Errorf("too many pending confirmations: confirm or decline the waiting ones first")
 	}
 	tok := "cfm_" + token()[:24]
-	c.m[tok] = mcpPending{tool: tool, user: user, args: args, expires: now.Add(5 * time.Minute)}
+	p.expires = now.Add(ttl)
+	c.m[tok] = p
 	return tok, nil
 }
 
@@ -359,6 +478,23 @@ func (c *mcpConfirmations) consume(user, tool, tok string) (mcpWriteIn, error) {
 	if !ok || p.user != user || p.tool != tool || time.Now().After(p.expires) {
 		delete(c.m, tok)
 		return mcpWriteIn{}, fmt.Errorf("unknown or expired confirmation token: call the tool again to get a new one")
+	}
+	delete(c.m, tok)
+	return p.args, nil
+}
+
+// consumeApproved consumes an MCP request once a person approved it; until
+// then it stays pending.
+func (c *mcpConfirmations) consumeApproved(user, tool, tok string) (mcpWriteIn, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.m[tok]
+	if !ok || p.user != user || p.tool != tool || time.Now().After(p.expires) {
+		delete(c.m, tok)
+		return mcpWriteIn{}, fmt.Errorf("unknown, declined or expired request: call the tool again to ask for a new approval")
+	}
+	if !p.approved {
+		return mcpWriteIn{}, fmt.Errorf("not approved yet: the user must approve this request in the StrataOS web interface (Assistant page), then call the tool again with the same confirmToken")
 	}
 	delete(c.m, tok)
 	return p.args, nil
@@ -377,4 +513,65 @@ func (c *mcpConfirmations) consumeAny(user, tok string) (mcpPending, error) {
 	}
 	delete(c.m, tok)
 	return p, nil
+}
+
+// setConversation records the saved conversation an armed assistant step
+// belongs to (known only once the exchange is saved).
+func (c *mcpConfirmations) setConversation(tok, convID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p, ok := c.m[tok]; ok && p.resume != nil {
+		p.resume.convID = convID
+	}
+}
+
+// attach stores the conversation an armed assistant web tool continues.
+func (c *mcpConfirmations) attach(tok string, r *assistantResume) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p, ok := c.m[tok]; ok {
+		p.resume = r
+		c.m[tok] = p
+	}
+}
+
+// mcpRequest is a pending MCP write request as the web interface lists it.
+type mcpRequest struct {
+	ID       string    `json:"id"`
+	Tool     string    `json:"tool"`
+	Summary  string    `json:"summary"`
+	Approved bool      `json:"approved"`
+	Expires  time.Time `json:"expires"`
+}
+
+// list returns the pending requests of a user, oldest first.
+func (c *mcpConfirmations) list(user string) []mcpRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := []mcpRequest{}
+	now := time.Now()
+	for k, p := range c.m {
+		if p.user == user && now.Before(p.expires) {
+			out = append(out, mcpRequest{ID: k, Tool: p.tool, Summary: p.summary, Approved: p.approved, Expires: p.expires})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Expires.Before(out[j].Expires) })
+	return out
+}
+
+// decide approves or declines a pending request of a user.
+func (c *mcpConfirmations) decide(user, tok string, approve bool) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.m[tok]
+	if !ok || p.user != user || time.Now().After(p.expires) {
+		return false
+	}
+	if approve {
+		p.approved = true
+		c.m[tok] = p
+	} else {
+		delete(c.m, tok)
+	}
+	return true
 }
