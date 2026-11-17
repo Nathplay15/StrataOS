@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film,
+  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -85,6 +85,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/system/monitor", label: tr("Monitor"), icon: <Activity size={17} />, admin: true },
       { to: "/fleet", label: tr("Multi-NAS Console"), icon: <Network size={17} />, admin: true },
       { to: "/system/schedules", label: tr("Scheduled tasks"), icon: <CalendarClock size={17} />, admin: true },
+      { to: "/system/routines", label: tr("Routines"), icon: <Workflow size={17} />, admin: true },
       { to: "/system/services", label: tr("Services"), icon: <Cpu size={17} />, admin: true },
       { to: "/system/network", label: tr("Network"), icon: <Network size={17} />, admin: true },
       { to: "/system/remote", label: tr("Remote access"), icon: <Waypoints size={17} />, admin: true },

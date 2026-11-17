@@ -39,6 +39,7 @@ const Logs = lazy(() => import("./pages/system/Logs"));
 const TerminalPage = lazy(() => import("./pages/system/TerminalPage"));
 const SettingsPage = lazy(() => import("./pages/system/Settings"));
 const Schedules = lazy(() => import("./pages/system/Schedules"));
+const Routines = lazy(() => import("./pages/system/Routines"));
 const Backups = lazy(() => import("./pages/system/Backups"));
 const UPSPage = lazy(() => import("./pages/system/UPS"));
 const VirtualMachines = lazy(() => import("./pages/vms/VirtualMachines"));
@@ -144,6 +145,7 @@ function Root() {
             <Route path="system/terminal" element={A(<TerminalPage />)} />
             <Route path="system/settings" element={A(<SettingsPage />)} />
             <Route path="system/schedules" element={A(<Schedules />)} />
+            <Route path="system/routines" element={A(<Routines />)} />
             <Route path="backup" element={A(<Backups />)} />
             <Route path="system/ups" element={A(<UPSPage />)} />
             <Route path="system/energy" element={A(<EnergyPage />)} />

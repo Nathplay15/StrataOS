@@ -503,6 +503,24 @@ export interface ScheduleTarget {
   subvolumes?: string[];
 }
 
+export interface RoutineAction {
+  kind: "notify" | "webhook";
+  message?: string;
+  url?: string;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  enabled: boolean;
+  trigger: "cpu" | "mem" | "volume-full" | "disk-failed" | "disk-weak" | "backup-failed";
+  value?: number;
+  target?: string;
+  actions: RoutineAction[];
+  cooldown?: number;
+  lastFired?: string;
+}
+
 export interface BackupTask {
   /** Certificate of an S3 endpoint or REST server (components/TLSTrust). */
   tlsCert?: string;
