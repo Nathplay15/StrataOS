@@ -56,7 +56,8 @@ data class Release(
     @SerialName("published_at") val publishedAt: String = "",
     val assets: List<Asset> = emptyList(),
 ) {
-    val version get() = AppVersion.parse(tag)
+    /** Only the releases of the app (tag android-v…) count; the NAS and desktop ones are ignored. */
+    val version get() = if (tag.startsWith("android-")) AppVersion.parse(tag.removePrefix("android-")) else null
 }
 
 @Serializable
@@ -77,10 +78,10 @@ object Releases {
         releases.filter { !it.draft && (beta || !it.prerelease) && it.version != null && (beta || it.version?.prerelease == false) }
             .maxByOrNull { it.version!! }
 
-    /** The APK of a release (strataos-<file version>.apk) and its SHA256SUMS, or null when one is missing. */
+    /** The APK of a release (strataos-android-<file version>.apk) and its SHA256SUMS, or null when one is missing. */
     fun files(r: Release): ReleaseFiles? {
         val v = r.version ?: return null
-        val apk = r.assets.firstOrNull { it.name == "strataos-${v.fileVersion}.apk" } ?: return null
+        val apk = r.assets.firstOrNull { it.name == "strataos-android-${v.fileVersion}.apk" } ?: return null
         val sums = r.assets.firstOrNull { it.name == SUMS } ?: return null
         return ReleaseFiles(apk, sums)
     }

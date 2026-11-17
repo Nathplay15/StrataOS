@@ -1,0 +1,174 @@
+# Publishes the desktop app (StrataOS Sync) when a version tag
+# (desktop-v1.2.3, matching desktop/VERSION) is pushed: Windows setup .exe and
+# .msi, macOS .dmg, Linux .deb and .AppImage for amd64 and arm64, the headless
+# engine as .tar.gz and .zip, and latest.json for the app's own updater. The
+# updater signatures need the TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets (docs/DEVELOPMENT.md). The
+# checksums are signed with the archive key (SHA256SUMS.asc, secret
+# APT_SIGNING_KEY). Release notes: packaging/release-notes/desktop-<version>.md
+# when it exists (followed by packaging/release-notes/footer.md), otherwise a
+# short generated note. The updater reads latest.json from the website, which
+# pages.yml publishes from the newest final desktop release; it is started at
+# the end. Pre-releases: desktop/VERSION 0.8.0~beta.1, tag desktop-v0.8.0-beta.1,
+# published as a GitHub pre-release.
+name: Release desktop
+
+on:
+  push:
+    tags: ["desktop-v*"]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  # ---- Desktop app: one job per system, files handed over as artifacts. ----
+  desktop-linux:
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+          command -v rustc >/dev/null || { curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH=$HOME/.cargo/bin:$PATH; }
+          (cd desktop && go test ./...)
+          desktop/packaging/build.sh app
+          if [ "$(uname -m)" = x86_64 ]; then desktop/packaging/build.sh cli; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-linux-${{ matrix.runner }}
+          path: dist/strataos-sync-*
+
+  desktop-macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          desktop/packaging/build.sh app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos
+          path: dist/strataos-sync-*
+
+  desktop-windows:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: desktop/packaging/build.sh app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: dist/strataos-sync-*
+
+  release:
+    needs: [desktop-linux, desktop-macos, desktop-windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the version
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          # FV: the version in tags and file names ("~" of desktop/VERSION
+          # becomes "-"), V: the same in the MSI, PRE: a GitHub pre-release.
+          FV=${GITHUB_REF_NAME#desktop-v}
+          V=${FV//-/~}
+          case $FV in
+            *-alpha.* | *-beta.* | *-rc.*) PRE=true ;;
+            *) PRE=false ;;
+          esac
+          echo "FV=$FV" >> "$GITHUB_ENV"
+          echo "V=$V" >> "$GITHUB_ENV"
+          echo "PRE=$PRE" >> "$GITHUB_ENV"
+          test "$GITHUB_REF_NAME" = "desktop-v$(cat desktop/VERSION)" || { echo "tag $GITHUB_REF_NAME does not match desktop/VERSION $(cat desktop/VERSION)"; exit 1; }
+          test -n "$APT_SIGNING_KEY" || { echo "the APT_SIGNING_KEY secret is missing (see docs/DEVELOPMENT.md)"; exit 1; }
+
+      # The desktop app built by the desktop-* jobs (already named after the tag form).
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: dist
+
+      - name: Updater manifest and checksums
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          # The app's updater: latest.json lists the signed packages (the .sig files
+          # stay out of the release, their contents are in latest.json).
+          desktop/packaging/build.sh latest-json
+          cd dist
+          rm -f strataos-sync-"${FV}"-*.sig
+          files=$(ls strataos-sync-"${FV}"-*)
+          [ -f latest.json ] && files="$files latest.json"
+          sha256sum $files > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
+          ./packaging/make-repo.sh sign dist/SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=()
+          [ "$PRE" = true ] && pre=(--prerelease)
+          if [ -f "packaging/release-notes/desktop-$FV.md" ]; then
+            # Every release ends with how to check its files.
+            cat "packaging/release-notes/desktop-$FV.md" packaging/release-notes/footer.md > release-notes.md
+          else
+            {
+              echo "## StrataOS Sync $FV"
+              echo
+              echo "Desktop app and sync engine. Install the package for your system, or update from the app."
+            } > release-notes.md
+            cat packaging/release-notes/footer.md >> release-notes.md
+          fi
+          gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS Sync $FV" --notes-file release-notes.md \
+            $(ls dist/strataos-sync-"${FV}"-*) $(ls dist/latest.json 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
+
+      - name: Update the website (desktop updater manifest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref "${{ github.event.repository.default_branch }}"
