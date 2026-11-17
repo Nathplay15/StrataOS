@@ -2026,6 +2026,7 @@
   "Named rule lists to reuse on several guests (\"web server\", \"admin from the office\"…): add them to a rule list with \"Add a security group\".": "Listes de règles nommées à réutiliser sur plusieurs invités (« serveur web », « admin depuis le bureau »…) : ajoutez-les à une liste de règles avec « Ajouter un groupe de sécurité ».",
   "Names": "Noms",
   "Names in your Cloudflare zone are validated through DNS (dynamic DNS token): port 80 does not need to be reachable for them.": "Les noms de votre zone Cloudflare sont validés par DNS (jeton DNS dynamique) : le port 80 n'a pas besoin d'être joignable pour eux.",
+  "Names of {0} share the wildcard certificate *.{0} (DNS-01): new sub-domains get a valid certificate right away.": "Les noms de {0} partagent le certificat wildcard *.{0} (DNS-01) : les nouveaux sous-domaines ont un certificat valide tout de suite.",
   "Native AES-256-GCM encryption": "Chiffrement natif AES-256-GCM",
   "Needed by Docker in an unprivileged container": "Nécessaire à Docker dans un conteneur non privilégié",
   "Needs attention": "À surveiller",

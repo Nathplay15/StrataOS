@@ -163,8 +163,11 @@ func RealIP(r *http.Request) netip.Addr {
 type Server struct {
 	mu     sync.RWMutex
 	routes Table
-	srv80  *http.Server
-	srv443 *http.Server
+	// wildcard is the base domain whose one-level sub-domains are served the
+	// wildcard certificate ("" = none; see SetWildcard).
+	wildcard string
+	srv80    *http.Server
+	srv443   *http.Server
 
 	Certs *CertStore
 	// UI serves the StrataOS interface (routes without target).
@@ -194,6 +197,14 @@ func (s *Server) SetRoutes(t Table) {
 	}
 	s.mu.Lock()
 	s.routes = t
+	s.mu.Unlock()
+}
+
+// SetWildcard sets the base domain whose one-level sub-domains are served
+// the wildcard certificate ("" = none).
+func (s *Server) SetWildcard(base string) {
+	s.mu.Lock()
+	s.wildcard = base
 	s.mu.Unlock()
 }
 
@@ -280,8 +291,17 @@ func (s *Server) Stop() {
 	}
 }
 
-// getCertificate picks the certificate of the SNI name.
+// getCertificate picks the certificate of the SNI name: the wildcard one
+// when the name is covered, otherwise the certificate of the route.
 func (s *Server) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	s.mu.RLock()
+	wildcard := s.wildcard
+	s.mu.RUnlock()
+	if s.Certs != nil && wildcard != "" && WildcardMatch(wildcard, hello.ServerName) {
+		if c, err := s.Certs.GetWildcard(wildcard); err == nil {
+			return c, nil
+		}
+	}
 	if r, ok := s.lookup(hello.ServerName); ok && s.Certs != nil {
 		if c, err := s.Certs.Get(r.Host); err == nil {
 			return c, nil

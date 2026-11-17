@@ -2026,6 +2026,7 @@
   "Named rule lists to reuse on several guests (\"web server\", \"admin from the office\"…): add them to a rule list with \"Add a security group\".": "可在多个访客间复用的命名规则列表（“Web 服务器”“办公室管理”…）：通过“添加安全组”将它们加入规则列表。",
   "Names": "名称",
   "Names in your Cloudflare zone are validated through DNS (dynamic DNS token): port 80 does not need to be reachable for them.": "您的 Cloudflare 区域中的名称通过 DNS 验证（动态 DNS 令牌）：无需 80 端口可访问。",
+  "Names of {0} share the wildcard certificate *.{0} (DNS-01): new sub-domains get a valid certificate right away.": "{0} 的名称共用通配符证书 *.{0}（DNS-01）：新增的子域名立即获得有效证书。",
   "Native AES-256-GCM encryption": "原生 AES-256-GCM 加密",
   "Needed by Docker in an unprivileged container": "在非特权容器中运行 Docker 所需",
   "Needs attention": "需要关注",
