@@ -1,12 +1,10 @@
 package io.github.nathplay15.strataos.ui
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,13 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
@@ -40,7 +38,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,13 +48,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.Graph
 import io.github.nathplay15.strataos.R
@@ -71,13 +67,8 @@ import io.github.nathplay15.strataos.net.Volume
 import io.github.nathplay15.strataos.net.stacks
 import io.github.nathplay15.strataos.net.manage.PublishedLink
 import io.github.nathplay15.strataos.net.manage.publishedApps
-import io.github.nathplay15.strataos.net.manage.rasterIconUrl
 import io.github.nathplay15.strataos.net.manage.remoteState
 import io.github.nathplay15.strataos.ui.web.AppWebView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Request
 
 private data class HomeData(val info: SystemInfo, val overview: Overview, val stats: StatsHistory?, val events: Events?, val apps: List<PublishedLink>, val stacks: List<Stack>)
 
@@ -150,50 +141,39 @@ private fun statusLabel(status: String): String = when (status.lowercase()) {
     else -> status
 }
 
-/** The published apps of the NAS, opened in the app ([onOpen]); [onBrowser] for the outside one. */
+/** The published apps of the NAS as a launcher grid: a tap opens in the app, a long press in the browser. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun AppsCard(apps: List<PublishedLink>, onOpen: (String, String) -> Unit) {
     val ctx = LocalContext.current
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.a_my_apps), style = MaterialTheme.typography.titleMedium)
-            apps.forEach { a ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { onOpen(a.name, a.url) },
-                ) {
-                    AppIcon(a.icon, Icons.Default.Apps, 20.dp)
-                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                        Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                        Text(a.url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            apps.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { a ->
+                        AppTile(a, Modifier.weight(1f), onOpen = { onOpen(a.name, a.url) },
+                            onBrowser = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } })
                     }
-                    IconButton({ runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.url))) } }) {
-                        Icon(Icons.Default.OpenInNew, stringResource(R.string.home_open_browser))
-                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
     }
 }
 
-/** The icon of an app, fetched without credentials (it is a public address); [fallback] while loading or on failure. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun AppIcon(icon: String, fallback: ImageVector, size: androidx.compose.ui.unit.Dp) {
-    var bmp by remember(icon) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(icon) { if (bmp == null && icon.isNotEmpty()) bmp = loadIcon(icon) }
-    val b = bmp
-    if (b != null) Image(b.asImageBitmap(), null, Modifier.size(size))
-    else Icon(fallback, null, Modifier.size(size), tint = MaterialTheme.colorScheme.primary)
-}
-
-private suspend fun loadIcon(icon: String): Bitmap? = withContext(Dispatchers.IO) {
-    val u = rasterIconUrl(icon)?.toHttpUrlOrNull() ?: return@withContext null
-    val http = Graph.api()?.http ?: return@withContext null
-    runCatching {
-        http.newCall(Request.Builder().url(u).build()).execute().use { r ->
-            if (!r.isSuccessful) null else BitmapFactory.decodeStream(r.body.byteStream())
+private fun AppTile(a: PublishedLink, modifier: Modifier, onOpen: () -> Unit, onBrowser: () -> Unit) {
+    Column(
+        modifier.combinedClickable(onClick = onOpen, onLongClick = onBrowser).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(56.dp)) {
+            Box(contentAlignment = Alignment.Center) { AppIcon(a.icon, Icons.Default.Apps, 32.dp) }
         }
-    }.getOrNull()
+        Text(a.name, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable

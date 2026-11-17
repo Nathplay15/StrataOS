@@ -64,6 +64,7 @@ import io.github.nathplay15.strataos.net.uninstallPlan
 import io.github.nathplay15.strataos.net.updateAll
 import io.github.nathplay15.strataos.net.updateStack
 import io.github.nathplay15.strataos.ui.Actions
+import io.github.nathplay15.strataos.ui.AppIcon
 import io.github.nathplay15.strataos.ui.Chip
 import io.github.nathplay15.strataos.ui.ConfirmDialog
 import io.github.nathplay15.strataos.ui.EmptyState
@@ -193,7 +194,7 @@ private fun AppCenter(u: DockerUpdates, refreshUpdates: () -> Unit) {
                     headlineContent = { Text(a.name) },
                     supportingContent = { Text(a.description, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     overlineContent = { Text(a.category) },
-                    leadingContent = { Letter(a.name) },
+                    leadingContent = { AppLeading(a.icon, a.name) },
                     trailingContent = {
                         when {
                             stack != null && u.stackHasUpdate(stack) -> UpdateChip()
@@ -210,6 +211,12 @@ private fun AppCenter(u: DockerUpdates, refreshUpdates: () -> Unit) {
             AppDetail(a, c, customStack ?: c.installed[a.id], u, onDismiss = { open = null }, onOpenWeb = { url -> web = a.name to url }) { load.reload(); refreshUpdates() }
         }
     }
+}
+
+/** The icon of a catalog app when it has one, the first letter otherwise (custom apps have none). */
+@Composable
+private fun AppLeading(icon: String, name: String) {
+    if (icon.isNotEmpty()) AppIcon(icon, Icons.Default.Apps, 40.dp) else Letter(name)
 }
 
 @Composable
