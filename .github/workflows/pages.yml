@@ -48,9 +48,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          # Pre-releases too: make-repo.sh puts them in "testing" only.
-          for t in $(gh release list --limit 100 --exclude-drafts --json tagName -q '.[].tagName'); do
-            gh release download "$t" --pattern '*.deb' --dir dist --skip-existing
+          # OS releases only (the desktop ones hold strataos-sync-*.deb), pre-releases
+          # too: make-repo.sh puts them in "testing" only.
+          for t in $(gh release list --limit 200 --exclude-drafts --json tagName -q '.[].tagName' | grep -E '^v[0-9]'); do
+            gh release download "$t" --pattern 'strataos_*.deb' --dir dist --skip-existing
           done
           ls dist
 
@@ -66,8 +67,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The latest final release (gh never shows a pre-release as latest).
-          V=$(gh release view --json tagName -q .tagName | sed 's/^v//')
+          # The newest final OS release, by version: not "the latest release",
+          # which an app release could become if it were ever marked so.
+          V=$(gh release list --limit 200 --exclude-drafts --exclude-pre-releases --json tagName -q '.[].tagName' |
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | sort -V | tail -1)
+          test -n "$V" || { echo "no final OS release"; exit 1; }
+          echo "OS version on the download page: $V"
           (cd frontend && npm ci --no-audit --no-fund)
           VERSION=$V REPO=$GITHUB_REPOSITORY node frontend/scripts/docs-site.mjs site
           cp -r dist/apt site/apt
@@ -78,16 +83,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The desktop app reads its updates from here (tauri.conf.json), so the
-          # newest final desktop release must always be the one served.
-          t=$(gh release list --limit 100 --exclude-drafts --json tagName,isPrerelease -q '.[] | select(.isPrerelease | not) | .tagName' | grep '^desktop-v' | head -1)
-          if [ -n "$t" ]; then
-            mkdir -p site/desktop
-            gh release download "$t" --pattern 'latest.json' --dir site/desktop --clobber
-            ls -l site/desktop
-          else
-            echo 'no desktop release yet: no latest.json to publish'
-          fi
+          # The desktop app reads its updates from here (tauri.conf.json): the
+          # newest final desktop release that has a latest.json (none without
+          # the Tauri signing secrets). Never fatal: the APT repository and the
+          # site above must be published whatever happens to the desktop app.
+          mkdir -p site/desktop
+          for v in $(gh release list --limit 200 --exclude-drafts --exclude-pre-releases --json tagName -q '.[].tagName' |
+            grep -E '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^desktop-v//' | sort -rV); do
+            if gh release download "desktop-v$v" --pattern latest.json --dir site/desktop --clobber; then
+              echo "latest.json of desktop-v$v published"
+              break
+            fi
+            echo "::warning title=No desktop updater manifest::desktop-v$v has no latest.json"
+          done
+          ls -l site/desktop
 
       - uses: actions/upload-pages-artifact@v5
         with:

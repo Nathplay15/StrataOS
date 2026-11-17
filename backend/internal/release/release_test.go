@@ -2,6 +2,7 @@ package release
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,17 @@ func TestVersions(t *testing.T) {
 	for _, bad := range []string{"0.8.0", "v0.8", "v0.8.0-beta", "v0.8.0-beta.0", "v0.8.0-preview.1", "v0.8.0~beta.1", "v01.2.3", "v0.8.0-beta.1-x", "v0.8.0+1"} {
 		if v, err := FromTag(bad); err == nil {
 			t.Errorf("FromTag(%s) accepted: %s", bad, v)
+		}
+	}
+	for tag, want := range map[string]string{"android-v0.12.1": "0.12.1", "android-v0.13.0-beta.2": "0.13.0~beta.2", "desktop-v1.0.0-rc.1": "1.0.0~rc.1"} {
+		prefix := tag[:strings.Index(tag, "-v")+1]
+		if v, err := FromAppTag(tag, prefix); err != nil || v != want {
+			t.Errorf("FromAppTag(%s, %s) = %q, %v", tag, prefix, v, err)
+		}
+	}
+	for _, bad := range []string{"v0.12.1", "android-0.12.1", "android-v0.12.1~beta.1", "desktop-v0.12.1", "android-v0.8.0-beta"} {
+		if v, err := FromAppTag(bad, "android-"); err == nil {
+			t.Errorf("FromAppTag(%s) accepted: %s", bad, v)
 		}
 	}
 	for _, bad := range []string{"0.8.0-beta.1", "0.8", "0.8.0~beta", "0.8.0~Beta.1", ""} {

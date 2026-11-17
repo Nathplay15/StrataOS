@@ -81,7 +81,10 @@
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkxQjU2MkMyRERDRkZCNDkKUldSSis4L2R3bUsxa2M5dFppYUFvcnVWNWN4Yk9aZ0RkVllqeVhiM3JNNlJBcTJtNU1jNkNBSDkK",
-      "endpoints": ["https://nathplay15.github.io/StrataOS/desktop/latest.json"]
+      "endpoints": [
+        "https://nathplay15.github.io/StrataOS/desktop/latest.json",
+        "https://github.com/Nathplay15/StrataOS/releases/latest/download/latest.json"
+      ]
     }
   }
 }

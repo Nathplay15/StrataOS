@@ -57,6 +57,21 @@ func FromTag(tag string) (string, error) {
 	return v, nil
 }
 
+// FromAppTag returns the version a tag of one of the apps stands for:
+// android-v0.12.1-beta.1 with prefix "android-". The apps' VERSION files
+// follow the same rules as the OS one (~ for pre-releases).
+func FromAppTag(tag, prefix string) (string, error) {
+	t, ok := strings.CutPrefix(tag, prefix)
+	if !ok || prefix == "" {
+		return "", fmt.Errorf("invalid tag %q: expected %sv1.2.3 or %sv1.2.3-beta.1", tag, prefix, prefix)
+	}
+	v, err := FromTag(t)
+	if err != nil {
+		return "", fmt.Errorf("invalid tag %q: expected %sv1.2.3 or %sv1.2.3-beta.1", tag, prefix, prefix)
+	}
+	return v, nil
+}
+
 // Suites lists the APT suites a version is published to.
 func Suites(v string) []string {
 	if Prerelease(v) {

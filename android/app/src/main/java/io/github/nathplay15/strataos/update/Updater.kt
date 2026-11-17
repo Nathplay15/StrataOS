@@ -134,9 +134,10 @@ object Updater {
         val p = prefs(ctx)
         val api = ReleaseSource.api(ctx)
         // The NAS, desktop and app releases live side by side: pick() keeps
-        // the android-v* tags only, so the list is read in both modes.
+        // the android-v* tags only, so the list is read in both modes (100, the
+        // most GitHub returns at once: the OS and desktop releases come between).
         val list = try {
-            get("$api/releases?per_page=30").use { json.decodeFromString(ListSerializer(Release.serializer()), it.body.string()) }
+            get("$api/releases?per_page=100").use { json.decodeFromString(ListSerializer(Release.serializer()), it.body.string()) }
         } catch (e: IOException) {
             throw UpdateException(UpdateException.Kind.NETWORK, e.message ?: e.javaClass.simpleName, e)
         }

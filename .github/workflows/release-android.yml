@@ -30,20 +30,21 @@ jobs:
           cache: gradle
           cache-dependency-path: android/gradle/libs.versions.toml
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
       - name: Check the version
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
           # FV: the version in tags and file names ("~" of android/VERSION
-          # becomes "-"), PRE: a GitHub pre-release.
-          FV=${GITHUB_REF_NAME#android-v}
-          case $FV in
-            *-alpha.* | *-beta.* | *-rc.*) PRE=true ;;
-            *) PRE=false ;;
-          esac
-          echo "FV=$FV" >> "$GITHUB_ENV"
-          echo "PRE=$PRE" >> "$GITHUB_ENV"
-          test "$GITHUB_REF_NAME" = "android-v$(cat android/VERSION)" || { echo "tag $GITHUB_REF_NAME does not match android/VERSION $(cat android/VERSION)"; exit 1; }
+          # becomes "-"), PRERELEASE: a GitHub pre-release; the same rules as
+          # the OS release (backend/internal/release).
+          (cd backend && go run ./cmd/release-info -prefix android- "$GITHUB_REF_NAME" "$(cat ../android/VERSION)") > release.env
+          cat release.env
+          grep -E '^(V|FV|PRERELEASE)=' release.env >> "$GITHUB_ENV"
           test -n "$APT_SIGNING_KEY" || { echo "the APT_SIGNING_KEY secret is missing (see docs/DEVELOPMENT.md)"; exit 1; }
 
       # The runner's Android SDK, completed with the platform the app compiles against.
@@ -85,8 +86,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pre=()
-          [ "$PRE" = true ] && pre=(--prerelease)
+          # Never marked latest: the OS release keeps that mark, apps installed
+          # at 0.12.0 or before read releases/latest (release.yml).
+          pre=(--latest=false)
+          [ "$PRERELEASE" = true ] && pre+=(--prerelease)
           if [ -f "packaging/release-notes/android-$FV.md" ]; then
             # Every release ends with how to check its files.
             cat "packaging/release-notes/android-$FV.md" packaging/release-notes/footer.md > release-notes.md

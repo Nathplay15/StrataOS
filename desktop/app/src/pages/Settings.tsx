@@ -145,8 +145,9 @@ function AccountCard({ a }: { a: Account }) {
   );
 }
 
-/** Updates of the app itself: Tauri's updater reads latest.json of the
- *  latest GitHub release and checks each package's minisign signature. */
+/** Updates of the app itself: Tauri's updater reads latest.json from the
+ *  website (or, failing that, the latest GitHub release) and checks each
+ *  package's minisign signature. */
 function AppUpdate() {
   const [upd, setUpd] = useState<Update | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
