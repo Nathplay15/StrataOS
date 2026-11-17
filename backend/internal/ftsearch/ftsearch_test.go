@@ -85,7 +85,7 @@ func TestScanSearchPersist(t *testing.T) {
 	}
 
 	// Snippet around the first match.
-	sn := x.Snippet(filepath.Join(root, "notes.md"), tokenize("quota"))
+	sn := x.Snippet(hitOf(t, x, filepath.Join(root, "notes.md")), tokenize("quota"))
 	if !strings.Contains(sn, "quota") {
 		t.Fatalf("snippet %q", sn)
 	}
@@ -181,7 +181,7 @@ func TestExtractOffice(t *testing.T) {
 	dir := t.TempDir()
 	docx := filepath.Join(dir, "d.docx")
 	buildDocx(t, docx, "Le rapport trimestriel mentionne le quota btrfs.")
-	text, err := extract(docx, ".docx", 0)
+	text, err := extractPath(t, docx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,14 +198,14 @@ func TestExtractOffice(t *testing.T) {
 	if err := os.WriteFile(odt, buf.Bytes(), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if text, err = extract(odt, ".odt", 0); err != nil || !strings.Contains(text, "open document") {
+	if text, err = extractPath(t, odt); err != nil || !strings.Contains(text, "open document") {
 		t.Fatalf("odt: %q %v", text, err)
 	}
 	// Corrupted zip: error, no panic.
 	if err := os.WriteFile(filepath.Join(dir, "bad.docx"), []byte("not a zip"), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := extract(filepath.Join(dir, "bad.docx"), ".docx", 0); err == nil {
+	if _, err := extractPath(t, filepath.Join(dir, "bad.docx")); err == nil {
 		t.Fatal("corrupted docx must fail")
 	}
 	// Binary plain-text file rejected.
@@ -213,7 +213,7 @@ func TestExtractOffice(t *testing.T) {
 	if err := os.WriteFile(bin, bytes.Repeat([]byte{0x00, 0x01}, 64), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := extract(bin, ".log", 0); err != errBinary {
+	if _, err := extractPath(t, bin); err != errBinary {
 		t.Fatalf("binary: %v", err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -38,7 +39,7 @@ func (s *Server) fulltextRoutes() {
 			if err != nil {
 				return nil, err
 			}
-			roots = []string{t.abs}
+			roots = narrowRoots(roots, t.abs)
 		}
 		out := make([]fulltextHit, 0, limit)
 		truncated := false
@@ -48,7 +49,7 @@ func (s *Server) fulltextRoutes() {
 			}
 			out = append(out, fulltextHit{
 				Path: h.Path, Name: h.Name, Size: h.Size, ModTime: time.Unix(h.Mtime, 0),
-				Score: h.Score, Snippet: ftsearch.Default.Snippet(h.Path, terms),
+				Score: h.Score, Snippet: ftsearch.Default.Snippet(h, terms),
 			})
 			if len(out) >= limit {
 				break
@@ -70,6 +71,22 @@ func (s *Server) fulltextRoutes() {
 			return err
 		}), nil
 	})
+}
+
+// narrowRoots limits the readable roots to the folder p: the parts of p a
+// root covers. A folder above the user's shares (traversal access only) is
+// narrowed to the shares below it, never widened to everything under it.
+func narrowRoots(roots []string, p string) []string {
+	var out []string
+	for _, r := range roots {
+		switch {
+		case under([]string{r}, p):
+			out = append(out, p)
+		case under([]string{p}, r):
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // fulltextHit is one content match, with an extract of the document.
@@ -94,16 +111,31 @@ func (s *Server) fulltextRoots() []string {
 	return roots
 }
 
-// fulltextLoop loads the index and refreshes it every 30 minutes.
+// fulltextLoop loads the index and refreshes it every 30 minutes. PDFs are
+// parsed by "strata ftsearch-pdf" in a separate, limited process.
 func (s *Server) fulltextLoop() {
+	if exe, err := os.Executable(); err == nil {
+		ftsearch.SetHelper(exe)
+	}
 	ftsearch.Default.Load()
 	time.Sleep(2 * time.Minute)
 	for {
 		if roots := s.fulltextRoots(); len(roots) > 0 && !ftsearch.Default.Running() {
-			if _, err := ftsearch.Default.Scan(context.Background(), roots, func(string, ...any) {}); err != nil {
-				slog.Warn("fulltext indexing", "err", err)
-			}
+			s.fulltextScanOnce(roots)
 		}
 		time.Sleep(30 * time.Minute)
+	}
+}
+
+// fulltextScanOnce runs one background scan; a bug in the indexer must never
+// take the daemon (and every other service) down with it.
+func (s *Server) fulltextScanOnce(roots []string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("fulltext indexing crashed", "panic", r)
+		}
+	}()
+	if _, err := ftsearch.Default.Scan(context.Background(), roots, func(string, ...any) {}); err != nil {
+		slog.Warn("fulltext indexing", "err", err)
 	}
 }

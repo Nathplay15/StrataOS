@@ -122,3 +122,48 @@ func TestFullTextSearchRealFiles(t *testing.T) {
 		t.Fatalf("snippet: %q", out.Hits[0].Snippet)
 	}
 }
+
+// A folder above the user's shares only gives traversal access: searching
+// from there must not widen the results to every share (review 0.12.0 #1).
+func TestFullTextSearchAncestorPath(t *testing.T) {
+	s := fulltextServer(t)
+	bob := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("bob", "", "192.0.2.9", time.Hour)}}
+	// (The share folder itself does not exist in tests, so locate refuses it:
+	// narrowRoots is checked directly below.)
+	for _, p := range []string{"/srv/strata", "/srv/strata/"} {
+		w := bob.req("GET", "/api/files/fulltext?q=quota+btrfs&path="+p, nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", p, w.Code, w.Body.String())
+		}
+		var out struct {
+			Hits []fulltextHit `json:"hits"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		for _, h := range out.Hits {
+			if !strings.HasPrefix(h.Path, "/srv/strata/main/") {
+				t.Fatalf("path=%s leaks %s", p, h.Path)
+			}
+		}
+		if len(out.Hits) != 1 {
+			t.Fatalf("path=%s: %d hits", p, len(out.Hits))
+		}
+	}
+	roots := []string{"/srv/strata/main", "/srv/strata/media"}
+	for p, want := range map[string]string{
+		"/srv/strata":             "/srv/strata/main|/srv/strata/media",
+		"/srv/strata/main":        "/srv/strata/main",
+		"/srv/strata/main/sub":    "/srv/strata/main/sub",
+		"/srv/strata/mainly":      "",
+		"/srv/strata/private/doc": "",
+	} {
+		if got := strings.Join(narrowRoots(roots, p), "|"); got != want {
+			t.Fatalf("narrowRoots(%s) = %q, want %q", p, got, want)
+		}
+	}
+	// A folder bob cannot reach at all stays refused.
+	if w := bob.req("GET", "/api/files/fulltext?q=quota+btrfs&path=/srv/strata/private", nil); w.Code != http.StatusForbidden {
+		t.Fatalf("private: %d", w.Code)
+	}
+}

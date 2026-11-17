@@ -18,6 +18,7 @@ import (
 	"strataos/internal/certs"
 	"strataos/internal/console"
 	"strataos/internal/docker"
+	"strataos/internal/ftsearch"
 	"strataos/internal/store"
 	"strataos/web"
 )
@@ -32,6 +33,12 @@ func env(key, def string) string {
 }
 
 func main() {
+	// strata ftsearch-pdf: the full-text indexer's PDF parser, run in its own
+	// limited process so a malformed PDF cannot take the daemon down.
+	if len(os.Args) > 1 && os.Args[1] == ftsearch.HelperArg {
+		ftsearch.HelperMain()
+		return
+	}
 	// strata console: the appliance screen on tty1 (strata-console.service).
 	if len(os.Args) > 1 && os.Args[1] == "console" {
 		fs := flag.NewFlagSet("console", flag.ExitOnError)

@@ -1,14 +1,19 @@
 // Optional OCR: images and scanned PDFs are indexed when the "Text
 // recognition" component (tesseract, poppler-utils) is installed. Results are
-// cached on disk because extraction runs again for every search snippet.
+// cached on disk so a lost index or a reindex does not recognize everything
+// again. The tools run at the lowest priority with a memory cap
+// (limitedCommand) and read the file from their standard input.
 
 package ftsearch
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +41,8 @@ const (
 	maxOcrPdf = 10 * time.Minute
 	// Results kept in the OCR cache.
 	maxOcrCache = 2000
+	// Memory of one tesseract or pdftoppm run.
+	maxOcrMemory = "1G"
 )
 
 // ocrState remembers what the tools can do: they do not change while running.
@@ -95,32 +102,47 @@ func parseLangs(out string) []string {
 	return langs
 }
 
-// ocrImage recognizes the text of an image file.
-func ocrImage(path string) (string, error) {
+// ocrImage recognizes the text of an open image file.
+func ocrImage(f *os.File, path string, info fs.FileInfo) (string, error) {
 	if !ocrAvailable() {
 		return "", extractError("OCR not installed")
 	}
-	return ocrCached(path, ocrRun)
+	return ocrCached(f, path, info, func(f *os.File) (string, error) {
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return "", err
+		}
+		// tesseract reads the image from its standard input: it never opens
+		// a path inside a share.
+		return ocrRun("stdin", f)
+	})
 }
 
-// ocrRun runs tesseract on one image.
-func ocrRun(path string) (string, error) {
+// ocrRun runs tesseract on one image (stdin: the image is read from in).
+func ocrRun(path string, in io.Reader) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), maxOcrRun)
 	defer cancel()
 	args := []string{path, "stdout"}
 	if ocrState.langs != "" {
 		args = append(args, "-l", ocrState.langs)
 	}
-	out, err := exec.CommandContext(ctx, "tesseract", args...).Output()
-	if err != nil {
+	cmd := limitedCommand(ctx, maxOcrMemory, "tesseract", args...)
+	cmd.Stdin = in
+	// One thread: OCR is background work, it must not take every core.
+	cmd.Env = append(os.Environ(), "OMP_THREAD_LIMIT=1")
+	var out bytes.Buffer
+	cmd.Stdout = &limitedWriter{w: &out, n: maxTextBytes + 4}
+	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("tesseract: %w", err)
 	}
-	return truncate(string(out)), nil
+	return truncate(out.String()), nil
 }
 
 // ocrPdf recognizes a scanned PDF: its pages are rasterized with pdftoppm,
 // then each image goes through tesseract.
-func ocrPdf(path string) (string, error) {
+func ocrPdf(f *os.File) (string, error) {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
 	dir, err := os.MkdirTemp("", "strata-ocr")
 	if err != nil {
 		return "", err
@@ -128,8 +150,10 @@ func ocrPdf(path string) (string, error) {
 	defer os.RemoveAll(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), maxOcrPdf)
 	defer cancel()
-	if err := exec.CommandContext(ctx, "pdftoppm", "-png", "-r", "120", "-f", "1",
-		"-l", strconv.Itoa(maxOcrPages), path, filepath.Join(dir, "page")).Run(); err != nil {
+	cmd := limitedCommand(ctx, maxOcrMemory, "pdftoppm", "-png", "-r", "120", "-f", "1",
+		"-l", strconv.Itoa(maxOcrPages), "-", filepath.Join(dir, "page"))
+	cmd.Stdin = f
+	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("pdftoppm: %w", err)
 	}
 	pages, err := filepath.Glob(filepath.Join(dir, "page-*.png"))
@@ -139,7 +163,10 @@ func ocrPdf(path string) (string, error) {
 	sort.Strings(pages)
 	var out strings.Builder
 	for _, p := range pages {
-		text, err := ocrRun(p)
+		if ctx.Err() != nil {
+			break
+		}
+		text, err := ocrRun(p, nil)
 		if err != nil {
 			continue
 		}
@@ -152,17 +179,14 @@ func ocrPdf(path string) (string, error) {
 	return truncate(out.String()), nil
 }
 
-// ocrCached returns the saved recognition of path, running run only when the
-// file changed since the last one.
-func ocrCached(path string, run func(string) (string, error)) (string, error) {
-	key, ok := ocrKey(path)
-	if !ok {
-		return run(path)
-	}
+// ocrCached returns the saved recognition of a file, running run only when
+// the file changed since the last one.
+func ocrCached(f *os.File, path string, info fs.FileInfo, run func(*os.File) (string, error)) (string, error) {
+	key := ocrKey(path, info)
 	if b, err := os.ReadFile(filepath.Join(Dir, "ocr", key)); err == nil {
 		return string(b), nil
 	}
-	text, err := run(path)
+	text, err := run(f)
 	if err != nil {
 		return "", err
 	}
@@ -179,14 +203,11 @@ func ocrCached(path string, run func(string) (string, error)) (string, error) {
 
 var ocrWrites int
 
-// ocrKey turns the path and the stamp of a file into a cache file name.
-func ocrKey(path string) (string, bool) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", false
-	}
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d\x00%d", path, info.Size(), info.ModTime().Unix())))
-	return hex.EncodeToString(sum[:16]), true
+// ocrKey turns the path and the stamp of a file into a cache file name
+// (the same names as before 0.12.1: the cache stays valid).
+func ocrKey(path string, info fs.FileInfo) string {
+	sum := sha256.Sum256(fmt.Appendf(nil, "%s\x00%d\x00%d", path, info.Size(), info.ModTime().Unix()))
+	return hex.EncodeToString(sum[:16])
 }
 
 // ocrPrune caps the OCR cache: the oldest results go first.

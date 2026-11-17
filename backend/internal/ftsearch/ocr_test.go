@@ -34,22 +34,22 @@ func TestOcrKey(t *testing.T) {
 	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	key, ok := ocrKey(p)
-	if !ok || key == "" {
-		t.Fatal("ocrKey failed on an existing file")
+	stat := func() os.FileInfo {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return info
 	}
-	again, _ := ocrKey(p)
-	if key != again {
+	key := ocrKey(p, stat())
+	if key == "" || key != ocrKey(p, stat()) {
 		t.Fatal("ocrKey must be stable for an unchanged file")
 	}
 	if err := os.Chtimes(p, time.Now(), time.Now().Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if changed, _ := ocrKey(p); changed == key {
+	if ocrKey(p, stat()) == key {
 		t.Fatal("ocrKey must change when the file changes")
-	}
-	if _, ok := ocrKey(filepath.Join(p, "missing")); ok {
-		t.Fatal("ocrKey must fail on a missing file")
 	}
 }
 
@@ -61,13 +61,19 @@ func TestOcrCached(t *testing.T) {
 	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	f, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	info, _ := f.Stat()
 	calls := 0
-	run := func(string) (string, error) { calls++; return "recognized text", nil }
-	a, err := ocrCached(p, run)
+	run := func(*os.File) (string, error) { calls++; return "recognized text", nil }
+	a, err := ocrCached(f, p, info, run)
 	if err != nil || a != "recognized text" {
 		t.Fatalf("ocrCached = %q, %v", a, err)
 	}
-	b, err := ocrCached(p, run)
+	b, err := ocrCached(f, p, info, run)
 	if err != nil || b != "recognized text" {
 		t.Fatalf("ocrCached = %q, %v", b, err)
 	}

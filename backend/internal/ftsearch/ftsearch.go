@@ -8,6 +8,7 @@ package ftsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -31,9 +33,12 @@ const (
 	// Only this much text is kept per document.
 	maxTextBytes = 512 << 10
 	// Distinct terms kept per document.
-	maxTermsPerDoc = 20000
+	maxTermsPerDoc = 10000
 	// Documents kept in the index.
 	maxDocs = 100000
+	// Term/document pairs kept in the index: bounds its memory (roughly
+	// 150 bytes each) whatever the documents look like.
+	maxPostings = 8_000_000
 	// Minimum length of a searchable term.
 	minTermLen = 2
 )
@@ -46,6 +51,9 @@ type doc struct {
 	Mtime  int64          `json:"mtime"`
 	Counts map[string]int `json:"counts"`
 	Total  int            `json:"total"`
+	// Failed: the text could not be extracted (the parser crashed, timed out
+	// or rejected the file). The file is skipped until it changes.
+	Failed bool `json:"failed,omitempty"`
 }
 
 // Hit is a document matching a query.
@@ -59,15 +67,18 @@ type Hit struct {
 
 // Index is the in-memory inverted index, saved to disk after every scan.
 type Index struct {
-	mu      sync.RWMutex
-	docs    map[string]*doc
-	inv     map[string]map[string]int // term -> path -> count
-	Updated time.Time
-	running bool
+	mu     sync.RWMutex
+	docs   map[string]*doc
+	inv    map[string]map[string]int // term -> path -> count
+	failed map[string]*doc
+	// postings counts the term/document pairs of inv.
+	postings int
+	Updated  time.Time
+	running  bool
 }
 
 // Default is the index of the NAS.
-var Default = &Index{docs: map[string]*doc{}, inv: map[string]map[string]int{}}
+var Default = &Index{docs: map[string]*doc{}, inv: map[string]map[string]int{}, failed: map[string]*doc{}}
 
 func indexFile() string { return filepath.Join(Dir, "index.json") }
 
@@ -83,9 +94,16 @@ func (x *Index) Load() {
 	}
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	x.docs, x.inv = map[string]*doc{}, map[string]map[string]int{}
+	x.docs, x.inv, x.failed, x.postings = map[string]*doc{}, map[string]map[string]int{}, map[string]*doc{}, 0
 	for _, d := range docs {
-		if d.Path == "" || len(d.Counts) == 0 {
+		if d.Path == "" {
+			continue
+		}
+		if d.Failed {
+			x.failed[d.Path] = d
+			continue
+		}
+		if len(d.Counts) == 0 {
 			continue
 		}
 		x.add(d)
@@ -97,8 +115,11 @@ func (x *Index) save() {
 	if err := os.MkdirAll(Dir, 0o750); err != nil {
 		return
 	}
-	docs := make([]*doc, 0, len(x.docs))
+	docs := make([]*doc, 0, len(x.docs)+len(x.failed))
 	for _, d := range x.docs {
+		docs = append(docs, d)
+	}
+	for _, d := range x.failed {
 		docs = append(docs, d)
 	}
 	b, err := json.Marshal(docs)
@@ -122,6 +143,7 @@ func (x *Index) add(d *doc) {
 		}
 		m[d.Path] = n
 	}
+	x.postings += len(d.Counts)
 }
 
 // remove drops a path from the maps (caller holds the write lock).
@@ -131,6 +153,7 @@ func (x *Index) remove(p string) {
 		return
 	}
 	delete(x.docs, p)
+	x.postings -= len(d.Counts)
 	for term := range d.Counts {
 		if m := x.inv[term]; m != nil {
 			delete(m, p)
@@ -156,6 +179,7 @@ func Seed(docs map[string]SeedDoc) {
 		x.remove(p)
 		if d := indexText(p, sd.Name, sd.Text, int64(len(sd.Text)), time.Now().Unix()); d != nil {
 			x.add(d)
+			saveText(d, sd.Text)
 		}
 	}
 }
@@ -227,6 +251,7 @@ func skipName(name string) bool {
 
 // Scan walks the roots and (re)indexes the supported files whose size or
 // modification time changed. It returns the number of documents indexed.
+// Documents of folders that are no longer roots (removed shares) are dropped.
 func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...any)) (int, error) {
 	x.mu.Lock()
 	if x.running {
@@ -234,6 +259,9 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 		return 0, nil
 	}
 	x.running = true
+	if x.failed == nil {
+		x.failed = map[string]*doc{}
+	}
 	x.mu.Unlock()
 	defer func() {
 		x.mu.Lock()
@@ -246,9 +274,18 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 		logf = func(string, ...any) {}
 	}
 	seen := map[string]bool{}
+	// Roots that could not be opened (an unmounted volume): their documents
+	// are kept until the folder comes back.
+	unreachable := map[string]bool{}
 	indexed := 0
+	full := false
 	for _, root := range roots {
-		if err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		rt, err := openRoot(root)
+		if err != nil {
+			unreachable[root] = true
+			continue
+		}
+		err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return nil // unreadable entry: skip it
 			}
@@ -276,52 +313,130 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 				return nil
 			}
 			seen[p] = true
+			size, mtime := info.Size(), info.ModTime().Unix()
 			x.mu.RLock()
 			old, known := x.docs[p]
+			bad := x.failed[p]
 			x.mu.RUnlock()
-			if known && old.Size == info.Size() && old.Mtime == info.ModTime().Unix() {
-				return nil
+			if known && old.Size == size && old.Mtime == mtime && hasText(old) {
+				return nil // unchanged (indexes made before 0.12.1 lack the saved text once)
 			}
-			text, err := extract(p, ext, info.Size())
+			if bad != nil && bad.Size == size && bad.Mtime == mtime {
+				return nil // failed before and unchanged since: not again
+			}
+			if full {
+				return nil // keep walking: seen files must not be dropped
+			}
+			text, err := extractAt(rt, root, p, ext, info)
 			if err != nil {
 				logf("skipped", "path", p, "err", err)
+				if !errors.Is(err, errChanged) {
+					slog.Warn("fulltext: cannot extract text", "path", p, "err", err)
+					x.mu.Lock()
+					x.remove(p)
+					x.failed[p] = &doc{Path: p, Name: d.Name(), Size: size, Mtime: mtime, Failed: true}
+					x.mu.Unlock()
+				}
 				return nil
 			}
-			nd := indexText(p, d.Name(), text, info.Size(), info.ModTime().Unix())
+			nd := indexText(p, d.Name(), text, size, mtime)
 			x.mu.Lock()
 			x.remove(p)
+			delete(x.failed, p)
 			if nd != nil {
-				if len(x.docs) >= maxDocs {
+				if len(x.docs) >= maxDocs || x.postings+len(nd.Counts) > maxPostings {
 					x.mu.Unlock()
-					return filepath.SkipAll
+					if !full {
+						slog.Warn("fulltext: index full, some documents are not indexed", "docs", maxDocs, "postings", maxPostings)
+					}
+					full = true
+					return nil
 				}
 				x.add(nd)
 				indexed++
 			}
 			x.mu.Unlock()
+			if nd != nil {
+				saveText(nd, text)
+			}
 			return nil
-		}); err != nil {
+		})
+		rt.Close()
+		if err != nil {
 			return indexed, err
 		}
 	}
 
-	// Drop documents whose file disappeared or is no longer under a root.
+	// Drop documents whose file disappeared, and those of folders that are
+	// no longer indexed (a removed share).
 	x.mu.Lock()
 	drop := make([]string, 0, 16)
 	for p := range x.docs {
-		if !seen[p] && underAny(roots, p) {
+		if !seen[p] && !underAny(keys(unreachable), p) {
 			drop = append(drop, p)
 		}
 	}
 	for _, p := range drop {
 		x.remove(p)
 	}
+	for p := range x.failed {
+		if !seen[p] && !underAny(keys(unreachable), p) {
+			delete(x.failed, p)
+		}
+	}
 	x.save()
+	live := make(map[string]bool, len(x.docs))
+	for _, d := range x.docs {
+		live[textKey(d)] = true
+	}
 	x.mu.Unlock()
+	pruneTexts(live)
 	if n := len(drop); n > 0 {
 		slog.Debug("fulltext scan", "removed", n)
 	}
 	return indexed, nil
+}
+
+func keys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// errChanged: the file changed between the listing and its opening (it was
+// replaced, possibly by a symbolic link). It is looked at again next scan.
+var errChanged = errors.New("file changed during the scan")
+
+// openRoot opens a folder to index. A root that is itself a symbolic link is
+// refused, as for the file manager.
+func openRoot(root string) (*os.Root, error) {
+	if real, err := filepath.EvalSymlinks(root); err != nil || real != root {
+		return nil, errChanged
+	}
+	return os.OpenRoot(root)
+}
+
+// extractAt opens p inside rt (which stops ".." and symbolic links leading
+// out of the root), checks it is still the regular file the walk listed, and
+// extracts its text from the open file.
+func extractAt(rt *os.Root, root, p, ext string, listed fs.FileInfo) (string, error) {
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return "", errChanged
+	}
+	// O_NONBLOCK: a file swapped for a FIFO must not block the scan.
+	f, err := rt.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return "", errChanged
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || !os.SameFile(info, listed) {
+		return "", errChanged
+	}
+	return extract(f, p, ext, info)
 }
 
 func underAny(roots []string, p string) bool {
@@ -402,13 +517,13 @@ func dedupe(terms []string) []string {
 	return out
 }
 
-// Snippet returns an extract of the document around the first term found,
-// with the terms of the query highlighted. Empty when the file cannot be
-// read any more.
-func (x *Index) Snippet(path string, terms []string) string {
-	ext := strings.ToLower(filepath.Ext(path))
-	text, err := extract(path, ext, maxFileBytes)
-	if err != nil {
+// Snippet returns an extract of a hit around the first term found, with the
+// terms of the query highlighted. It reads the text saved when the document
+// was indexed, never the file itself: the search runs no parser and opens
+// nothing inside the shares. Empty when the saved text is gone.
+func (x *Index) Snippet(h Hit, terms []string) string {
+	text := loadText(h.Path, h.Size, h.Mtime)
+	if text == "" {
 		return ""
 	}
 	text = strings.Join(strings.Fields(text), " ")
