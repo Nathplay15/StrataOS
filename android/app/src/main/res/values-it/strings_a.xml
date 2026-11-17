@@ -328,4 +328,15 @@
     <string name="vm_usb_take">Riprendi</string>
     <string name="vm_usb_given">Dispositivo dato alla VM</string>
     <string name="vm_usb_taken">Dispositivo ripreso</string>
+    <string name="a_assistant">Assistente</string>
+    <string name="a_assistant_disabled">L’assistente non è configurato sul NAS (Impostazioni → Assistente).</string>
+    <string name="a_assistant_hint">Chiedi al tuo NAS…</string>
+    <string name="a_assistant_thinking">Sta pensando…</string>
+    <string name="a_assistant_new">Nuova chat</string>
+    <string name="a_assistant_history">Cronologia</string>
+    <string name="a_assistant_no_history">Nessuna conversazione</string>
+    <string name="a_assistant_asks">L’assistente chiede di:</string>
+    <string name="a_assistant_confirm">Conferma</string>
+    <string name="a_assistant_empty">Chiedi al tuo NAS: archiviazione, app, backup, file…</string>
+    <string name="a_assistant_done">Fatto</string>
 </resources>
