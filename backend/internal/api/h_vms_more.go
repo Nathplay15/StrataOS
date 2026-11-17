@@ -486,6 +486,55 @@ func (s *Server) vmMoreRoutes() {
 		return nil, nil
 	})
 
+	// ---- Extra disks ----
+	s.admin("POST /api/vms/{name}/disks", func(r *http.Request) (any, error) {
+		var req struct {
+			SizeGB int `json:"sizeGb"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		name := r.PathValue("name")
+		if err := vms.AttachDisk(name, req.SizeGB); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		s.audit(r, "vms", fmt.Sprintf("VM %s: %d GB disk attached", name, req.SizeGB))
+		return nil, nil
+	})
+	s.admin("DELETE /api/vms/{name}/disks/{target}", func(r *http.Request) (any, error) {
+		name, target := r.PathValue("name"), r.PathValue("target")
+		if err := vms.DetachDisk(name, target); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		s.audit(r, "vms", "VM "+name+": disk "+target+" detached (image kept)")
+		return nil, nil
+	})
+
+	s.admin("POST /api/vms/{name}/rename", func(r *http.Request) (any, error) {
+		var req struct {
+			Name string `json:"name"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		old := r.PathValue("name")
+		if err := vms.Rename(old, req.Name); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		if err := s.store.Update(func(st *store.State) error {
+			for i := range st.VMs.Autostart {
+				if st.VMs.Autostart[i].Name == old {
+					st.VMs.Autostart[i].Name = req.Name
+				}
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		s.audit(r, "vms", "VM "+old+" renamed to "+req.Name)
+		return nil, nil
+	})
+
 	// ---- Backups ----
 	s.admin("GET /api/vms/backups", func(r *http.Request) (any, error) {
 		var tasks []store.BackupTask

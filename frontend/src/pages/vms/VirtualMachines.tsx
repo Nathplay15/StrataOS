@@ -181,7 +181,7 @@ export default function VirtualMachines() {
       {creatingCT && <CreateContainer bridges={lx?.bridges ?? bridges} onClose={() => setCreatingCT(false)} onImport={() => { setCreatingCT(false); setImporting(true); }} />}
       {importing && <ImportContainer onClose={() => setImporting(false)} />}
       {console && <Console name={console} onClose={() => setConsole(null)} />}
-      {editing && <EditVM vm={editing} onClose={() => setEditing(null)} />}
+      {editing && <EditVM vm={allVMs.find((v) => v.name === editing.name) ?? editing} onClose={() => setEditing(null)} />}
       {snaps && <Snapshots vm={snaps} onClose={() => setSnaps(null)} />}
       {cloning && <CloneVM vm={cloning} onClose={() => setCloning(null)} />}
       {log && <ConsoleLog vm={log} onClose={() => setLog(null)} />}
@@ -451,6 +451,12 @@ function EditVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
   const media = useAction(() => api.post(`${base}/media`, { iso }), { success: tr("CD drive updated") });
   const auto = useAction((v: boolean) => api.post(`${base}/autostart`, { autostart: v }), { success: tr("Auto-start changed") });
   const resources = useAction(() => api.post(`${base}/resources`, res), { success: tr("Resources modified"), onDone: onClose });
+  const disks = vm.disks.filter((d) => d.device === "disk");
+  const [newDisk, setNewDisk] = useState(10);
+  const attach = useAction(() => api.post(`${base}/disks`, { sizeGb: newDisk }), { success: tr("Disk added") });
+  const detach = useAction((t: string) => api.del(`${base}/disks/${t}`), { success: tr("Disk removed (its image is kept)") });
+  const [name, setName] = useState(vm.name);
+  const doRename = useAction(() => api.post(`${base}/rename`, { name }), { success: tr("VM renamed"), onDone: onClose });
   const off = vm.state === "shut off";
 
   return (
@@ -478,6 +484,31 @@ function EditVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
             <Field label={tr("Memory (MiB)")}><Input type="number" min={256} step={256} disabled={!off} value={res.memoryMb} onChange={(e) => setRes({ ...res, memoryMb: +e.target.value })} /></Field>
           </div>
           <Button variant="primary" disabled={!off} loading={resources.isPending} onClick={() => resources.mutate()}>{tr("Save")}</Button>
+        </div>
+        <div className="space-y-3 rounded-xl border border-line p-4">
+          <div className="font-medium text-[13px]">{tr("Disks")}</div>
+          {disks.map((d) => (
+            <div key={d.target} className="flex items-center gap-2 text-[13px]">
+              <HardDrive size={15} className="text-muted" />
+              <span className="mono">{d.target}</span>
+              <span className="text-muted">{d.bus}{d.size ? ` · ${bytes(d.size)}` : ""}</span>
+              <div className="flex-1" />
+              <IconButton title={tr("Remove the disk (its image is kept)")} onClick={() => detach.mutate(d.target)}><Trash2 size={15} /></IconButton>
+            </div>
+          ))}
+          {disks.length <= 1 && <div className="text-muted text-[12px]">{tr("The last disk cannot be removed.")}</div>}
+          <div className="flex items-end gap-2">
+            <Field label={tr("New disk (GB)")} className="flex-1"><Input type="number" min={1} max={65536} value={newDisk} onChange={(e) => setNewDisk(+e.target.value)} /></Field>
+            <Button icon={<Plus size={14} />} loading={attach.isPending} disabled={newDisk < 1} onClick={() => attach.mutate()}>{tr("Add")}</Button>
+          </div>
+        </div>
+        <div className="space-y-3 rounded-xl border border-line p-4">
+          <div className="font-medium text-[13px]">{tr("Name")}</div>
+          {!off && <Notice>{tr("Stop the VM to rename it.")}</Notice>}
+          <div className="flex items-end gap-2">
+            <Field label={tr("New name")} className="flex-1"><Input value={name} disabled={!off} onChange={(e) => setName(e.target.value)} /></Field>
+            <Button variant="primary" disabled={!off || !name || name === vm.name} loading={doRename.isPending} onClick={() => doRename.mutate()}>{tr("Rename")}</Button>
+          </div>
         </div>
       </div>
     </Modal>

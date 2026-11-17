@@ -4668,5 +4668,12 @@
   "Archive name": "Nombre del archivo comprimido",
   "The archive is created in the current folder.": "El archivo comprimido se crea en la carpeta actual.",
   "Extract here": "Extraer aquí",
-  "Permissions updated": "Permisos actualizados"
+  "Permissions updated": "Permisos actualizados",
+  "Disk added": "Disco añadido",
+  "Disk removed (its image is kept)": "Disco retirado (su imagen se conserva)",
+  "Remove the disk (its image is kept)": "Retirar el disco (su imagen se conserva)",
+  "The last disk cannot be removed.": "El último disco no se puede retirar.",
+  "New disk (GB)": "Nuevo disco (GB)",
+  "VM renamed": "VM renombrada",
+  "Stop the VM to rename it.": "Apague la VM para renombrarla."
 }

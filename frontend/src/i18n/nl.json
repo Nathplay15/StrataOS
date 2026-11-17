@@ -4668,5 +4668,12 @@
   "Archive name": "Archiefnaam",
   "The archive is created in the current folder.": "Het archief wordt in de huidige map aangemaakt.",
   "Extract here": "Hier uitpakken",
-  "Permissions updated": "Rechten bijgewerkt"
+  "Permissions updated": "Rechten bijgewerkt",
+  "Disk added": "Schijf toegevoegd",
+  "Disk removed (its image is kept)": "Schijf verwijderd (zijn image blijft bewaard)",
+  "Remove the disk (its image is kept)": "Schijf verwijderen (zijn image blijft bewaard)",
+  "The last disk cannot be removed.": "De laatste schijf kan niet worden verwijderd.",
+  "New disk (GB)": "Nieuwe schijf (GB)",
+  "VM renamed": "VM hernoemd",
+  "Stop the VM to rename it.": "Stop de VM om te hernoemen."
 }

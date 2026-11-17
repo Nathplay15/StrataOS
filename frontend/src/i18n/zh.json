@@ -4668,5 +4668,12 @@
   "Archive name": "压缩包名称",
   "The archive is created in the current folder.": "压缩包将在当前文件夹中创建。",
   "Extract here": "解压到此处",
-  "Permissions updated": "权限已更新"
+  "Permissions updated": "权限已更新",
+  "Disk added": "磁盘已添加",
+  "Disk removed (its image is kept)": "磁盘已移除（其镜像保留）",
+  "Remove the disk (its image is kept)": "移除磁盘（其镜像保留）",
+  "The last disk cannot be removed.": "最后一个磁盘无法移除。",
+  "New disk (GB)": "新磁盘 (GB)",
+  "VM renamed": "虚拟机已重命名",
+  "Stop the VM to rename it.": "请先关闭虚拟机再重命名。"
 }
