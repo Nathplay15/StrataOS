@@ -320,7 +320,6 @@
     <string name="state_stopped">Fermato</string>
     <string name="a_search_content">Cerca nel contenuto dei file</string>
     <string name="a_search_content_hint">Cerca nel contenuto di tutti i file</string>
-<<<<<<< HEAD
     <string name="vm_usb">Dispositivi USB</string>
     <string name="vm_usb_hint">Dà a questa VM un dispositivo USB del NAS: viene memorizzato e torna dopo lo scollegamento; viene collegato a caldo mentre la VM è in esecuzione.</string>
     <string name="vm_usb_empty">Nessun dispositivo USB sul NAS</string>
@@ -330,7 +329,6 @@
     <string name="vm_usb_given">Dispositivo dato alla VM</string>
     <string name="vm_usb_taken">Dispositivo ripreso</string>
     <string name="nas_docker_containers">Contenitori Docker</string>
-=======
     <string name="a_assistant">Assistente</string>
     <string name="a_assistant_disabled">L’assistente non è configurato sul NAS (Impostazioni → Assistente).</string>
     <string name="a_assistant_hint">Chiedi al tuo NAS…</string>
@@ -342,5 +340,4 @@
     <string name="a_assistant_confirm">Conferma</string>
     <string name="a_assistant_empty">Chiedi al tuo NAS: archiviazione, app, backup, file…</string>
     <string name="a_assistant_done">Fatto</string>
->>>>>>> origin/main
 </resources>
