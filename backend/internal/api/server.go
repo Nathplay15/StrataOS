@@ -350,6 +350,7 @@ func (s *Server) routes() {
 	s.openapiRoutes()
 	s.mcpRoutes()
 	s.assistantRoutes()
+	s.assistantModelRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
 	s.filePropsRoutes()
