@@ -53,6 +53,7 @@ class StorageWidget : AppWidgetProvider() {
                 v.setTextColor(R.id.widgetHealth, 0xFF8AB4F8.toInt())
                 v.setProgressBar(R.id.widgetProgress, 100, 0, false)
                 v.setTextViewText(R.id.widgetUsage, "")
+                v.setTextViewText(R.id.widgetLoad, "")
                 v.setTextViewText(R.id.widgetUpdated, "")
                 return v
             }
@@ -72,6 +73,13 @@ class StorageWidget : AppWidgetProvider() {
                 }
                 v.setProgressBar(R.id.widgetProgress, 100, pct, false)
                 v.setTextViewText(R.id.widgetUsage, context.getString(R.string.status_usage, formatBytes(used), formatBytes(total), formatBytes(total - used)))
+                val sample = api.stats().history.lastOrNull()
+                if (sample != null) {
+                    val mem = context.getString(R.string.status_usage, formatBytes(sample.memUsed), formatBytes(sample.memTotal), formatBytes(sample.memTotal - sample.memUsed))
+                    v.setTextViewText(R.id.widgetLoad, context.getString(R.string.widget_load, "%.0f %%".format(sample.cpu), mem))
+                } else {
+                    v.setTextViewText(R.id.widgetLoad, "")
+                }
                 v.setTextViewText(R.id.widgetUpdated, context.getString(R.string.widget_updated, formatTime(System.currentTimeMillis())))
             } catch (e: Exception) {
                 v.setTextViewText(R.id.widgetHost, Graph.prefs.server?.hostname ?: context.getString(R.string.app_name))
@@ -79,6 +87,7 @@ class StorageWidget : AppWidgetProvider() {
                 v.setTextColor(R.id.widgetHealth, 0xFFFDD663.toInt())
                 v.setProgressBar(R.id.widgetProgress, 100, 0, false)
                 v.setTextViewText(R.id.widgetUsage, "")
+                v.setTextViewText(R.id.widgetLoad, "")
                 v.setTextViewText(R.id.widgetUpdated, "")
             }
             return v

@@ -40,7 +40,7 @@ import okio.source
 @Serializable data class ExistsRequest(val folder: String, val files: List<ExistsFile>)
 @Serializable data class ExistsResult(val name: String = "", val exists: Boolean = false, val `as`: String = "")
 @Serializable data class ExistsResponse(val files: List<ExistsResult> = emptyList())
-@Serializable data class NasEvent(val id: Long = 0, val time: String = "", val level: String = "info", val subject: String = "", val message: String = "", val kind: String = "")
+@Serializable data class NasEvent(val id: Long = 0, val time: String = "", val level: String = "info", val subject: String = "", val message: String = "", val kind: String = "", val action: String = "", val link: String = "")
 @Serializable data class Events(val cursor: Long = 0, val events: List<NasEvent> = emptyList())
 @Serializable data class Alert(val level: String = "", val message: String = "")
 @Serializable data class Volume(val name: String = "", val kind: String = "", val mountPoint: String = "", val total: Long = 0, val used: Long = 0, val free: Long = 0, val health: String = "")
@@ -56,6 +56,7 @@ import okio.source
 @Serializable private data class PairPassword(val username: String, val password: String, val code: String = "", val deviceName: String, val model: String, val app: String)
 @Serializable private data class PairCode(val pairingCode: String, val deviceName: String, val model: String, val app: String)
 @Serializable private data class PushRegistration(val pushUrl: String, val p256dh: String = "", val auth: String = "", val app: String = "")
+@Serializable private data class NotifRead(val upTo: Long)
 @Serializable private data class PathBody(val path: String)
 
 /** An answer of the NAS other than 2xx. [twoFactor]: a two-factor code is required or was wrong. */
@@ -123,6 +124,8 @@ class Api(baseUrl: String, val http: OkHttpClient, private val token: String?) {
     fun stats(): StatsHistory = call(get("/api/system/stats"), StatsHistory.serializer())
     fun quotas(): List<Quota> = call(get("/api/me/quotas"), kotlinx.serialization.builtins.ListSerializer(Quota.serializer()))
     fun events(since: Long): Events = call(get("/api/mobile/events", "since" to since.toString()), Events.serializer())
+    /** Marks the notifications up to an event as read (the bell of the web interface). */
+    fun markRead(upTo: Long) = call(request(url("/api/notifications/read")).post(body(NotifRead(upTo))).build(), JsonObject.serializer())
 
     fun registerPush(endpoint: String, p256dh: String, auth: String, app: String) =
         call(request(url("/api/mobile/device")).put(body(PushRegistration(endpoint, p256dh, auth, app))).build(), JsonObject.serializer())

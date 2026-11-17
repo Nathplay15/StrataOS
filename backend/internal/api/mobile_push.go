@@ -180,10 +180,14 @@ var pushClient = &http.Client{
 
 // pushPayload is what the app receives (and decrypts when keys are set).
 func pushPayload(host string, e mobileEvent) []byte {
-	b, _ := json.Marshal(map[string]any{"type": "notification", "host": host, "id": e.ID, "level": e.Level, "subject": e.Subject, "message": e.Message, "time": e.Time.Unix()})
+	body := func(e mobileEvent) map[string]any {
+		return map[string]any{"type": "notification", "host": host, "id": e.ID, "level": e.Level, "subject": e.Subject,
+			"message": e.Message, "time": e.Time.Unix(), "kind": e.Kind, "action": e.Action, "link": e.Link}
+	}
+	b, _ := json.Marshal(body(e))
 	if len(b) > webpush.MaxPlaintext {
 		e.Message = e.Message[:min(len(e.Message), 2000)] + "…"
-		b, _ = json.Marshal(map[string]any{"type": "notification", "host": host, "id": e.ID, "level": e.Level, "subject": e.Subject, "message": e.Message, "time": e.Time.Unix()})
+		b, _ = json.Marshal(body(e))
 	}
 	return b
 }

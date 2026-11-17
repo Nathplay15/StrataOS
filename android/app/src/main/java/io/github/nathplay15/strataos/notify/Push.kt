@@ -44,6 +44,8 @@ class StrataPushService : PushService() {
             o["message"]?.jsonPrimitive?.contentOrNull ?: "",
             o["host"]?.jsonPrimitive?.contentOrNull ?: "",
             o["kind"]?.jsonPrimitive?.contentOrNull ?: "",
+            o["action"]?.jsonPrimitive?.contentOrNull ?: "",
+            o["link"]?.jsonPrimitive?.contentOrNull ?: "",
         )
     }
 

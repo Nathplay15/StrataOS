@@ -17,11 +17,11 @@ import kotlinx.coroutines.withContext
 /** Shows the NAS events not shown yet (push and polling share the cursor, so nothing shows twice). */
 object EventSync {
     @Synchronized
-    fun show(ctx: Context, id: Long, level: String, subject: String, message: String, host: String, kind: String = "") {
+    fun show(ctx: Context, id: Long, level: String, subject: String, message: String, host: String, kind: String = "", action: String = "", link: String = "") {
         val p = Graph.prefs
         if (id <= p.lastEventId) return
         p.lastEventId = id
-        Notifier.nasEvent(ctx, id, level, subject, message, host, kind)
+        Notifier.nasEvent(ctx, id, level, subject, message, host, kind, action, link)
     }
 
     /** Reads the feed; the first time it only sets the cursor (no flood of old alerts). */
@@ -35,7 +35,7 @@ object EventSync {
             return
         }
         val host = p.server?.hostname ?: ""
-        ev.events.forEach { show(ctx, it.id, it.level, it.subject, it.message, host, it.kind) }
+        ev.events.forEach { show(ctx, it.id, it.level, it.subject, it.message, host, it.kind, it.action, it.link) }
         if (ev.cursor < since) p.lastEventId = ev.cursor // feed reset on the NAS
     }
 }

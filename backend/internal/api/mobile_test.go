@@ -270,3 +270,13 @@ func TestMobileFeed(t *testing.T) {
 		t.Fatalf("reloaded: %v %d", ev, cur)
 	}
 }
+
+func TestPushPayloadCarriesKind(t *testing.T) {
+	e := mobileEvent{ID: 3, Level: "warning", Subject: "Updates available", Message: "2 updates", Kind: "update", Action: "update", Link: "/system/updates"}
+	b := string(pushPayload("nas", e))
+	for _, want := range []string{`"type":"notification"`, `"kind":"update"`, `"action":"update"`, `"link":"/system/updates"`, `"host":"nas"`} {
+		if !strings.Contains(b, want) {
+			t.Fatalf("payload misses %s: %s", want, b)
+		}
+	}
+}

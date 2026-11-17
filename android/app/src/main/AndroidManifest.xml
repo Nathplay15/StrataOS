@@ -127,6 +127,11 @@
             android:name=".sync.SyncActionReceiver"
             android:exported="false" />
 
+        <!-- Answers of the NAS notification actions (mark as read). -->
+        <receiver
+            android:name=".notify.EventActionReceiver"
+            android:exported="false" />
+
         <!-- App updates: result of an installation, and the first start of a new version. -->
         <receiver
             android:name=".update.InstallReceiver"
