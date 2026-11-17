@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -210,5 +213,68 @@ func TestCatalogSourceAddress(t *testing.T) {
 		if code, _ := call("POST", "/api/apps/sources", `{"url":"`+u+`"}`); code != 400 {
 			t.Errorf("%s: %d", u, code)
 		}
+	}
+}
+
+// A Portainer list is converted when it is fetched: its stack compose files
+// are fetched then (never while the catalog is read), and a change of one
+// upstream puts the pinned source back to "waiting for approval" (review
+// 0.12.0).
+func TestCatalogPortainerStackPinned(t *testing.T) {
+	compose := "services:\n  web:\n    image: nginx:1.27\n"
+	var mu sync.Mutex
+	fetches := 0
+	old := market.DefaultStackFetcher
+	market.DefaultStackFetcher = func(_ context.Context, u string) ([]byte, int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fetches++
+		if strings.HasSuffix(u, "/HEAD/stacks/web/docker-compose.yml") && strings.HasPrefix(u, "https://raw.githubusercontent.com/") {
+			return []byte(compose), 200, nil
+		}
+		return nil, 404, errors.New("not found")
+	}
+	defer func() { market.DefaultStackFetcher = old }()
+
+	_, call := marketTestServer(t)
+	cs := &catalogServer{index: []byte(`{"version":"2","templates":[
+		{"type":3,"title":"Web","repository":{"url":"https://github.com/me/tpl","stackfile":"stacks/web/docker-compose.yml"}},
+		{"type":1,"title":"Whoami","image":"traefik/whoami:v1.10","ports":["8099:80/tcp"]}]}`)}
+	srv := httptest.NewServer(cs)
+	defer srv.Close()
+	u := srv.URL + "/catalog.json"
+	code, res := call("POST", "/api/apps/sources", `{"url":"`+u+`"}`)
+	conf, _ := res["confirm"].(map[string]any)
+	if code != 200 || conf == nil || conf["apps"].(float64) != 2 {
+		t.Fatalf("confirm: %d %v", code, res)
+	}
+	sha := conf["sha256"].(string)
+	code, res = call("POST", "/api/apps/sources", `{"url":"`+u+`","sha256":"`+sha+`"}`)
+	if code != 200 || res["apps"].(float64) != 2 {
+		t.Fatalf("add: %d %v", code, res)
+	}
+	id := res["id"].(string)
+	mu.Lock()
+	before := fetches
+	mu.Unlock()
+	_, res = call("GET", "/api/apps/community", "")
+	if len(res["apps"].([]any)) != 2 {
+		t.Fatalf("apps: %v", res)
+	}
+	mu.Lock()
+	if fetches != before {
+		t.Fatal("reading the catalog fetched compose files")
+	}
+	compose = "services:\n  web:\n    image: evil/miner:latest\n"
+	mu.Unlock()
+	// Same template list, new compose file upstream: waiting for approval,
+	// and the approved compose file is still the one offered.
+	code, res = call("POST", "/api/apps/sources/"+id+"/refresh", "")
+	if pending, _ := res["pending"].(string); code != 200 || pending == "" || pending == sha {
+		t.Fatalf("refresh: %d %v", code, res)
+	}
+	code, res = call("POST", "/api/apps/community/"+id+"/web/check", `{}`)
+	if code != 200 || !strings.Contains(fmt.Sprint(res["grants"]), "nginx:1.27") {
+		t.Fatalf("offered: %d %v", code, res)
 	}
 }

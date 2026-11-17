@@ -11,31 +11,97 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"strataos/internal/docker"
+	"strataos/internal/netguard"
 )
 
 // ParseAny reads a catalog index in the StrataOS format, or converts the
-// Portainer template list format. CasaOS repositories are converted in
-// fetchGit (their layout is a folder tree, not one file).
+// Portainer template list format without any network access (stack
+// templates then wait for Convert: see there). CasaOS repositories are
+// converted in fetchGit (their layout is a folder tree, not one file).
 func ParseAny(b []byte) (*Catalog, []Invalid, error) {
 	cat, invalid, err := Parse(b)
 	if err == nil {
 		return cat, invalid, nil
 	}
-	if pcat, pinv, perr := parsePortainer(context.Background(), b); perr == nil {
+	if pcat, pinv, perr := parsePortainer(context.Background(), b, nil); perr == nil {
 		return pcat, pinv, nil
 	}
 	return nil, nil, err
+}
+
+// Convert turns a downloaded index into the StrataOS format: a native index
+// is returned as is; a Portainer list is converted, the compose files of its
+// stack templates fetched now (outside any lock, through fetch). What the
+// administrator approves (its checksum) is then the converted catalog, with
+// those compose files in it: an upstream change of one shows as a change of
+// the catalog, waiting for approval again.
+func Convert(ctx context.Context, b []byte, fetch StackFetcher) ([]byte, error) {
+	if _, _, err := Parse(b); err == nil {
+		return b, nil
+	}
+	if fetch == nil {
+		fetch = DefaultStackFetcher
+	}
+	cat, bad, err := parsePortainer(ctx, b, fetch)
+	if err != nil {
+		_, _, perr := Parse(b)
+		return nil, perr
+	}
+	cat.Skipped = bad
+	out, err := json.Marshal(cat)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) > MaxCatalogSize {
+		return nil, fmt.Errorf("the converted catalog is too large (%d MiB at most)", MaxCatalogSize>>20)
+	}
+	return out, nil
+}
+
+// StackFetcher downloads the compose file of a stack template.
+type StackFetcher func(ctx context.Context, url string) ([]byte, int, error)
+
+// DefaultStackFetcher is the fetcher of Convert (replaced in tests).
+var DefaultStackFetcher StackFetcher = fetchStack
+
+// stackClient fetches compose files named by a template: https only, public
+// addresses only (checked on the address connected to, redirects included).
+var stackClient = netguard.Client(netguard.Options{Timeout: 30 * time.Second, HTTPSOnly: true, MaxRedirects: 5})
+
+// maxStackFile bounds one compose file of a stack template.
+const maxStackFile = 64 << 10
+
+// fetchStack downloads one compose file with stackClient.
+func fetchStack(ctx context.Context, u string) ([]byte, int, error) {
+	resp, err := netguard.Get(ctx, stackClient, u, true)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, resp.StatusCode, fmt.Errorf("%s: %s", u, resp.Status)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, maxStackFile+1))
+	if err != nil {
+		return nil, 200, err
+	}
+	if len(b) > maxStackFile {
+		return nil, 200, fmt.Errorf("%s is too large", u)
+	}
+	return b, 200, nil
 }
 
 // slug turns a title into an app id (lowercase letters, digits and -).
@@ -88,16 +154,77 @@ func firstNonEmpty(vals ...string) string {
 
 // ---- Portainer templates.json ----
 
+// portainerEnv is a variable of a template. preset is a boolean in the
+// current format (the default value is fixed, not asked) and was a string
+// value in older lists; select offers choices, one of them the default.
 type portainerEnv struct {
-	Name    string `json:"name"`
-	Label   string `json:"label"`
-	Default string `json:"default"`
-	Preset  string `json:"preset"`
+	Name        string          `json:"name"`
+	Label       string          `json:"label"`
+	Description string          `json:"description"`
+	Default     string          `json:"default"`
+	Preset      json.RawMessage `json:"preset"`
+	Select      []struct {
+		Text    string `json:"text"`
+		Value   string `json:"value"`
+		Default bool   `json:"default"`
+	} `json:"select"`
 }
 
+// fixed returns the value of a variable that is not asked (preset).
+func (e portainerEnv) fixed() (string, bool) {
+	var b bool
+	if json.Unmarshal(e.Preset, &b) == nil {
+		return e.Default, b
+	}
+	var v string
+	if json.Unmarshal(e.Preset, &v) == nil && v != "" {
+		return v, true
+	}
+	return "", false
+}
+
+// defaultValue is the value proposed for a variable.
+func (e portainerEnv) defaultValue() string {
+	for _, o := range e.Select {
+		if o.Default {
+			return o.Value
+		}
+	}
+	if e.Default == "" && len(e.Select) > 0 {
+		return e.Select[0].Value
+	}
+	return e.Default
+}
+
+// portainerVolume is a volume of a container template: {container, bind,
+// readonly} in the current format; older lists used {"/path": {bind, mode}}.
 type portainerVolume struct {
-	Bind string `json:"bind"`
-	Mode string `json:"mode"`
+	Container string
+	Bind      string
+	ReadOnly  bool
+}
+
+func (v *portainerVolume) UnmarshalJSON(b []byte) error {
+	var cur struct {
+		Container string `json:"container"`
+		Bind      string `json:"bind"`
+		ReadOnly  bool   `json:"readonly"`
+	}
+	if err := json.Unmarshal(b, &cur); err == nil && cur.Container != "" {
+		*v = portainerVolume{Container: cur.Container, Bind: cur.Bind, ReadOnly: cur.ReadOnly}
+		return nil
+	}
+	var old map[string]struct {
+		Bind string `json:"bind"`
+		Mode string `json:"mode"`
+	}
+	if err := json.Unmarshal(b, &old); err != nil || len(old) != 1 {
+		return errors.New("bad volume")
+	}
+	for container, o := range old {
+		*v = portainerVolume{Container: container, Bind: o.Bind, ReadOnly: o.Mode == "ro"}
+	}
+	return nil
 }
 
 type portainerRepo struct {
@@ -105,30 +232,39 @@ type portainerRepo struct {
 	Stackfile string `json:"stackfile"`
 }
 
+// Template types of Portainer.
+const (
+	portainerContainer = 1
+	portainerSwarm     = 2
+	portainerCompose   = 3
+)
+
 type portainerTmpl struct {
-	Type        int                          `json:"type"` // 1 container, 2 stack, 3 arm
-	Name        string                       `json:"name"`
-	Title       string                       `json:"title"`
-	Description string                       `json:"description"`
-	Note        string                       `json:"note"`
-	Categories  []string                     `json:"categories"`
-	Logo        string                       `json:"logo"`
-	Image       string                       `json:"image"`
-	Ports       []string                     `json:"ports"`
-	Volumes     []map[string]portainerVolume `json:"volumes"`
-	Env         []portainerEnv               `json:"env"`
-	Command     string                       `json:"command"`
-	Network     string                       `json:"network"`
-	Restart     string                       `json:"restart_policy"`
-	Privileged  bool                         `json:"privileged"`
-	Repository  portainerRepo                `json:"repository"`
+	Type        int               `json:"type"`
+	Name        string            `json:"name"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Note        string            `json:"note"`
+	Categories  []string          `json:"categories"`
+	Logo        string            `json:"logo"`
+	Image       string            `json:"image"`
+	Ports       []string          `json:"ports"`
+	Volumes     []portainerVolume `json:"volumes"`
+	Env         []portainerEnv    `json:"env"`
+	Command     string            `json:"command"`
+	Network     string            `json:"network"`
+	Restart     string            `json:"restart_policy"`
+	Privileged  bool              `json:"privileged"`
+	Repository  portainerRepo     `json:"repository"`
 }
 
 var portainerEnvKey = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 
 // parsePortainer converts a Portainer template list (an array, or an object
-// with a "templates" key). Stack templates fetch their compose file.
-func parsePortainer(ctx context.Context, b []byte) (*Catalog, []Invalid, error) {
+// with a "templates" key). Compose stack templates fetch their compose file
+// with fetch; without one (nil) they are left out until the catalog is
+// fetched again.
+func parsePortainer(ctx context.Context, b []byte, fetch StackFetcher) (*Catalog, []Invalid, error) {
 	if !json.Valid(b) {
 		return nil, nil, errors.New("not json")
 	}
@@ -144,15 +280,31 @@ func parsePortainer(ctx context.Context, b []byte) (*Catalog, []Invalid, error) 
 			return nil, nil, errors.New("not a Portainer template list")
 		}
 	}
+	if len(tpls) > 500 {
+		tpls = tpls[:500]
+	}
 	cat := &Catalog{Format: FormatVersion, Name: "Portainer templates", Maintainer: "imported from Portainer"}
 	var bad []Invalid
+	seen := map[string]bool{}
+	stacks := 0
 	for i := range tpls {
 		t := tpls[i]
-		a, err := t.app(ctx)
+		id := cut(slug(firstNonEmpty(t.Title, t.Name, fmt.Sprintf("app-%d", i+1))), 40)
+		if t.Type == portainerCompose {
+			if stacks++; stacks > maxStackTemplates {
+				bad = append(bad, Invalid{ID: id, Error: fmt.Sprintf("more than %d stack templates", maxStackTemplates)})
+				continue
+			}
+		}
+		a, err := t.app(ctx, fetch)
+		if err == nil && seen[a.ID] {
+			err = errors.New("duplicate app id")
+		}
 		if err != nil {
-			bad = append(bad, Invalid{ID: cut(slug(firstNonEmpty(t.Title, t.Name, fmt.Sprintf("app-%d", i+1))), 40), Error: err.Error()})
+			bad = append(bad, Invalid{ID: id, Error: cut(err.Error(), 300)})
 			continue
 		}
+		seen[a.ID] = true
 		cat.Apps = append(cat.Apps, *a)
 	}
 	if len(tpls) > 0 && len(cat.Apps) == 0 && len(bad) == 0 {
@@ -161,9 +313,13 @@ func parsePortainer(ctx context.Context, b []byte) (*Catalog, []Invalid, error) 
 	return cat, bad, nil
 }
 
-// app converts one Portainer template. Stacks (type 2) fetch their compose
-// file from the template's repository.
-func (t portainerTmpl) app(ctx context.Context) (*App, error) {
+// Stack templates whose compose file is fetched, at most.
+const maxStackTemplates = 100
+
+// app converts one Portainer template: a container (type 1) is turned into
+// a compose file, a compose stack (type 3) fetches its compose file from the
+// template's repository; Swarm stacks (type 2) do not run on a single NAS.
+func (t portainerTmpl) app(ctx context.Context, fetch StackFetcher) (*App, error) {
 	id := slug(firstNonEmpty(t.Title, t.Name))
 	if id == "" {
 		return nil, errors.New("no name")
@@ -183,14 +339,19 @@ func (t portainerTmpl) app(ctx context.Context) (*App, error) {
 	var vars []docker.AppVar
 	var err error
 	switch t.Type {
-	case 1, 3:
+	case portainerContainer, 0:
 		if t.Image == "" {
 			return nil, errors.New("no image")
 		}
 		a.Version = imageTag(t.Image)
 		a.Compose, vars, err = t.containerCompose()
-	case 2:
-		a.Compose, vars, err = t.stackCompose(ctx)
+	case portainerSwarm:
+		return nil, errors.New("Docker Swarm stacks are not supported (a NAS is a single Docker host)")
+	case portainerCompose:
+		if fetch == nil {
+			return nil, errors.New("compose stack: refresh the catalog to fetch its compose file")
+		}
+		a.Compose, vars, err = t.stackCompose(ctx, fetch)
 	default:
 		return nil, fmt.Errorf("template type %d not supported", t.Type)
 	}
@@ -208,6 +369,59 @@ func (t portainerTmpl) app(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+// portSpec is a published port: [ip:][host:]container[/proto].
+type portSpec struct {
+	IP, Host, Container, Proto string
+}
+
+// parsePort splits a short port syntax; IPv6 addresses come in brackets.
+func parsePort(p string) portSpec {
+	var ps portSpec
+	if i := strings.LastIndexByte(p, '/'); i >= 0 {
+		p, ps.Proto = p[:i], p[i+1:]
+	}
+	if strings.HasPrefix(p, "[") {
+		if i := strings.Index(p, "]:"); i > 0 {
+			ps.IP, p = p[:i+1], p[i+2:]
+		}
+	}
+	parts := strings.Split(p, ":")
+	switch len(parts) {
+	case 1:
+		ps.Container = parts[0]
+	case 2:
+		ps.Host, ps.Container = parts[0], parts[1]
+	default:
+		ps.IP, ps.Host, ps.Container = strings.Join(parts[:len(parts)-2], ":"), parts[len(parts)-2], parts[len(parts)-1]
+	}
+	return ps
+}
+
+// webPortSpec rewrites the published port of ps to ${webVar}; it returns the
+// rewritten spec and the default host port ("" when ps cannot carry it: UDP,
+// a range).
+func webPortSpec(ps portSpec, webVar string) (string, string) {
+	if (ps.Proto != "" && ps.Proto != "tcp") || strings.Contains(ps.Host+ps.Container, "-") || !portRe.MatchString(ps.Container) {
+		return "", ""
+	}
+	def := ps.Host
+	if def == "" {
+		// Only the container port is given: propose it, moved above 1024.
+		def = ps.Container
+		if n, err := strconv.Atoi(def); err == nil && n < 1024 {
+			def = strconv.Itoa(n + 8000)
+		}
+	}
+	spec := "${" + webVar + "}:" + ps.Container
+	if ps.IP != "" {
+		spec = ps.IP + ":" + spec
+	}
+	if ps.Proto != "" {
+		spec += "/" + ps.Proto
+	}
+	return spec, def
 }
 
 // containerCompose builds the compose template of a container template, with
@@ -235,27 +449,17 @@ func (t portainerTmpl) containerCompose() (string, []docker.AppVar, error) {
 	var ports []any
 	webSet := false
 	for _, p := range t.Ports {
-		spec, target := p, p
-		proto := ""
-		if i := strings.LastIndexByte(spec, '/'); i >= 0 {
-			target, proto = spec[:i], spec[i+1:]
-		}
-		host := ""
-		if i := strings.IndexByte(target, ':'); i >= 0 {
-			host, target = target[:i], target[i+1:]
-		}
-		if target == "" {
+		ps := parsePort(p)
+		if ps.Container == "" {
 			continue
 		}
-		if host != "" && !webSet && (proto == "" || proto == "tcp") {
-			suffix := ""
-			if proto != "" && proto != "tcp" {
-				suffix = "/" + proto
+		if !webSet {
+			if spec, def := webPortSpec(ps, "WEB_PORT"); spec != "" {
+				ports = append(ports, spec)
+				vars = append(vars, docker.AppVar{Key: "WEB_PORT", Label: "Web port", Default: def, Type: "port"})
+				webSet = true
+				continue
 			}
-			ports = append(ports, "${WEB_PORT}:"+target+suffix)
-			vars = append(vars, docker.AppVar{Key: "WEB_PORT", Label: "Web port", Default: host, Type: "port"})
-			webSet = true
-			continue
 		}
 		ports = append(ports, p)
 	}
@@ -263,35 +467,29 @@ func (t portainerTmpl) containerCompose() (string, []docker.AppVar, error) {
 		svc["ports"] = ports
 	}
 	var vols []any
-	for _, m := range t.Volumes {
-		for container, v := range m {
-			if v.Bind == "" {
-				continue
-			}
-			spec := v.Bind + ":" + container
-			if v.Mode != "" && v.Mode != "rw" {
-				spec += ":" + v.Mode
-			}
-			vols = append(vols, spec)
+	for _, v := range t.Volumes {
+		if v.Container == "" {
+			continue
 		}
+		spec := v.Container // anonymous volume
+		if v.Bind != "" {
+			spec = v.Bind + ":" + v.Container
+			if v.ReadOnly {
+				spec += ":ro"
+			}
+		}
+		vols = append(vols, spec)
 	}
 	if len(vols) > 0 {
 		sort.Slice(vols, func(i, j int) bool { return fmt.Sprintf("%v", vols[i]) < fmt.Sprintf("%v", vols[j]) })
 		svc["volumes"] = vols
 	}
 	env := map[string]any{}
-	for _, e := range t.Env {
-		key := strings.ToUpper(strings.NewReplacer("-", "_", " ", "_").Replace(e.Name))
-		if !portainerEnvKey.MatchString(key) {
-			continue
-		}
-		if e.Preset != "" {
-			env[key] = e.Preset
-			continue
-		}
-		env[key] = "${" + key + "}"
-		vars = append(vars, docker.AppVar{Key: key, Label: cut(firstNonEmpty(e.Label, key), 80), Default: cut(e.Default, 512), Type: "text"})
+	envVars := t.envVars(func(key, value string) { env[key] = value })
+	for _, v := range envVars {
+		env[v.Key] = "${" + v.Key + "}"
 	}
+	vars = append(vars, envVars...)
 	if len(env) > 0 {
 		svc["environment"] = env
 	}
@@ -305,17 +503,55 @@ func (t portainerTmpl) containerCompose() (string, []docker.AppVar, error) {
 	return string(out), vars, nil
 }
 
-// stackCompose fetches the compose file of a stack template.
-func (t portainerTmpl) stackCompose(ctx context.Context) (string, []docker.AppVar, error) {
+// envVars turns the variables of a template into app variables; preset ones
+// are passed to fixed (they are not asked).
+func (t portainerTmpl) envVars(fixed func(key, value string)) []docker.AppVar {
+	var vars []docker.AppVar
+	for _, e := range t.Env {
+		key := strings.ToUpper(strings.NewReplacer("-", "_", " ", "_").Replace(e.Name))
+		if !portainerEnvKey.MatchString(key) {
+			continue
+		}
+		if reservedVar.MatchString(key) {
+			// Not a variable of the app: a literal value, when there is one.
+			if v := e.defaultValue(); v != "" && fixed != nil {
+				fixed(key, v)
+			}
+			continue
+		}
+		if v, ok := e.fixed(); ok {
+			if fixed != nil {
+				fixed(key, v)
+			}
+			continue
+		}
+		typ := "text"
+		def := cut(e.defaultValue(), 512)
+		if strings.Contains(key, "PASSWORD") || strings.Contains(key, "SECRET") {
+			typ, def = "password", ""
+		}
+		vars = append(vars, docker.AppVar{Key: key, Label: cut(firstNonEmpty(e.Label, key), 80), Default: def, Type: typ})
+	}
+	return vars
+}
+
+// stackCompose fetches the compose file of a compose stack template from
+// its repository (https only); the variables of the template are declared
+// for the compose file to use them.
+func (t portainerTmpl) stackCompose(ctx context.Context, fetch StackFetcher) (string, []docker.AppVar, error) {
 	u, sf := strings.TrimSuffix(strings.TrimSpace(t.Repository.URL), "/"), strings.TrimPrefix(t.Repository.Stackfile, "/")
-	if u == "" || sf == "" {
+	if u == "" || sf == "" || strings.Contains(sf, "..") {
 		return "", nil, errors.New("stack template without a repository")
 	}
+	hu, err := url.Parse(u)
+	if err != nil || hu.Scheme != "https" || hu.Host == "" || hu.User != nil {
+		return "", nil, errors.New("the stack repository must be an https address")
+	}
 	var candidates []string
-	if hu, err := url.Parse(u); err == nil && hu.Host == "github.com" {
+	if hu.Host == "github.com" {
 		parts := strings.Split(strings.Trim(hu.Path, "/"), "/")
 		if len(parts) >= 2 {
-			candidates = append(candidates, "https://raw.githubusercontent.com/"+parts[0]+"/"+parts[1]+"/HEAD/"+sf)
+			candidates = append(candidates, "https://raw.githubusercontent.com/"+parts[0]+"/"+strings.TrimSuffix(parts[1], ".git")+"/HEAD/"+sf)
 		}
 	}
 	candidates = append(candidates, u+"/raw/HEAD/"+sf, u+"/"+sf)
@@ -323,12 +559,21 @@ func (t portainerTmpl) stackCompose(ctx context.Context) (string, []docker.AppVa
 	defer cancel()
 	var lastErr error
 	for _, c := range candidates {
-		b, code, err := get(cctx, c, 64<<10)
+		b, code, err := fetch(cctx, c)
 		if err == nil {
 			var doc map[string]any
 			if yaml.Unmarshal(b, &doc) == nil {
 				if _, ok := doc["services"]; ok {
-					return string(b), nil, nil
+					delete(doc, "name") // refused by the format (docker compose project name)
+					out, err := yaml.Marshal(doc)
+					if err != nil {
+						return "", nil, err
+					}
+					vars := t.envVars(nil)
+					if len(vars) > 30 {
+						return "", nil, errors.New("too many variables (30 at most)")
+					}
+					return string(out), vars, nil
 				}
 			}
 		} else if code != 404 && code != 403 && code != 410 {
@@ -401,7 +646,11 @@ func casaosApp(folder string, b []byte, icon string) *App {
 	id := slug(folder)
 	image, _ := main["image"].(string)
 	webPort := casaosRewritePorts(main, "WEB_PORT")
-	casaosRewriteVolumes(main, "DATA_DIR")
+	for _, svc := range services {
+		if m, ok := svc.(map[string]any); ok {
+			casaosRewriteVolumes(m, "DATA_DIR")
+		}
+	}
 	vars := []docker.AppVar{
 		{Key: "DATA_DIR", Label: "Data folder", Type: "path", Default: "/srv/strata/apps/" + id},
 	}
@@ -414,6 +663,14 @@ func casaosApp(folder string, b []byte, icon string) *App {
 	if err != nil {
 		return nil
 	}
+	compose := casaosAppID.ReplaceAllString(string(out), id)
+	// The variables CasaOS fills in itself (user and group of the files,
+	// time zone) become variables of the app with the usual defaults.
+	for _, v := range casaosSystemVars {
+		if strings.Contains(compose, "$"+v.Key) || strings.Contains(compose, "${"+v.Key+"}") || strings.Contains(compose, "${"+v.Key+":") {
+			vars = append(vars, v)
+		}
+	}
 	return &App{
 		ID:          id,
 		Name:        cut(casaosText(meta, "title", folder), 64),
@@ -422,10 +679,20 @@ func casaosApp(folder string, b []byte, icon string) *App {
 		Description: cut(firstNonEmpty(casaosText(meta, "description", ""), casaosText(meta, "tagline", "")), 500),
 		Category:    cut(casaosText(meta, "category", ""), 32),
 		Icon:        icon,
-		Compose:     string(out),
+		Compose:     compose,
 		Vars:        vars,
 		WebPort:     webPortKey,
 	}
+}
+
+// casaosAppID matches the $AppID references of a CasaOS compose file.
+var casaosAppID = regexp.MustCompile(`\$\{AppID\}|\$AppID\b`)
+
+// casaosSystemVars are the variables CasaOS provides to every app.
+var casaosSystemVars = []docker.AppVar{
+	{Key: "PUID", Label: "User ID of the files", Default: "1000", Type: "text"},
+	{Key: "PGID", Label: "Group ID of the files", Default: "1000", Type: "text"},
+	{Key: "TZ", Label: "Time zone", Default: "Etc/UTC", Type: "text"},
 }
 
 // casaosIcon builds the raw URL of the app icon when the folder has one.
@@ -441,31 +708,37 @@ func casaosIcon(dir, rawBase, folder string) string {
 	return ""
 }
 
-// casaosRewritePorts turns the first published port of the service into
+// casaosRewritePorts turns the first published TCP port of the service into
 // ${WEB_PORT} and returns the published port it found ("" when none).
 func casaosRewritePorts(svc map[string]any, webVar string) string {
 	ports, _ := svc["ports"].([]any)
 	found := ""
 	for i, p := range ports {
+		if found != "" {
+			break
+		}
 		switch v := p.(type) {
 		case map[string]any:
 			pub := str(v["published"])
-			if pub != "" && found == "" {
+			proto := str(v["protocol"])
+			if pub != "" && portRe.MatchString(pub) && !strings.Contains(pub, "-") && (proto == "" || proto == "tcp") {
 				v["published"] = "${" + webVar + "}"
 				found = pub
 			}
 		case string:
-			target := v
-			if i := strings.LastIndexByte(target, '/'); i >= 0 {
-				target = target[:i]
+			ps := parsePort(v)
+			if ps.Host == "" {
+				continue // no published port: nothing to ask
 			}
-			if j := strings.IndexByte(target, ':'); j > 0 && found == "" {
-				ports[i] = "${" + webVar + "}" + target[j:]
-				found = target[:j]
+			if spec, def := webPortSpec(ps, webVar); spec != "" {
+				ports[i] = spec
+				found = def
 			}
 		}
 	}
-	svc["ports"] = ports
+	if ports != nil {
+		svc["ports"] = ports
+	}
 	return found
 }
 
@@ -490,7 +763,9 @@ func casaosRewriteVolumes(svc map[string]any, dataVar string) {
 			}
 		}
 	}
-	svc["volumes"] = vols
+	if vols != nil {
+		svc["volumes"] = vols
+	}
 }
 
 // casaosDataPath rewrites /DATA/AppData/$AppID[/sub] (the CasaOS data folder)
@@ -516,8 +791,10 @@ func casaosText(meta map[string]any, key, def string) string {
 			return v
 		}
 	case map[string]any:
-		if en, ok := v["en_US"].(string); ok && en != "" {
-			return en
+		for _, k := range []string{"en_US", "en_us", "en"} {
+			if en, ok := v[k].(string); ok && en != "" {
+				return en
+			}
 		}
 		for _, x := range v {
 			if s, ok := x.(string); ok && s != "" {

@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,8 +152,8 @@ func (s *Server) viewSource(src store.CatalogSource) sourceView {
 	return v
 }
 
-// fetchVerified downloads a source and checks its signature (signed
-// sources) and format.
+// fetchVerified downloads a source, checks its signature (signed sources)
+// and converts it to the StrataOS format.
 func fetchVerified(ctx context.Context, loc market.Location, key string) (*market.Fetched, *market.Catalog, []market.Invalid, error) {
 	f, err := market.Fetch(ctx, loc)
 	if err != nil {
@@ -166,7 +168,20 @@ func fetchVerified(ctx context.Context, loc market.Location, key string) (*marke
 			return nil, nil, nil, err
 		}
 	}
-	cat, invalid, err := market.ParseAny(f.Index)
+	// Foreign formats are converted now, outside any lock (Portainer stack
+	// templates fetch their compose files): the stored index and its
+	// checksum, which a pinned source's administrator approves, are those
+	// of the converted catalog, compose files included.
+	conv, err := market.Convert(ctx, f.Index, nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if string(conv) != string(f.Index) {
+		f.Index, f.Converted = conv, true
+		sum := sha256.Sum256(conv)
+		f.SHA256 = hex.EncodeToString(sum[:])
+	}
+	cat, invalid, err := market.Parse(f.Index)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -190,7 +205,7 @@ func (s *Server) refreshSource(ctx context.Context, id string) (sourceView, erro
 	case ferr != nil:
 	case f.SHA256 == src.SHA256:
 		_ = os.Remove(s.catalogFile(id, true))
-	case src.PublicKey != "":
+	case src.PublicKey != "" && !f.Converted:
 		ferr = sys.WriteFileAtomic(s.catalogFile(id, false), f.Index, 0o640)
 	default:
 		ferr = sys.WriteFileAtomic(s.catalogFile(id, true), f.Index, 0o640)
@@ -210,7 +225,7 @@ func (s *Server) refreshSource(ctx context.Context, id string) (sourceView, erro
 			switch {
 			case f.SHA256 == x.SHA256:
 				x.Pending = ""
-			case x.PublicKey != "":
+			case x.PublicKey != "" && !f.Converted:
 				x.SHA256, x.Commit, x.Name, x.Pending = f.SHA256, f.Commit, cat.Name, ""
 			default:
 				if x.Pending != f.SHA256 {

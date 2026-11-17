@@ -32,6 +32,9 @@ type Catalog struct {
 	Maintainer  string `json:"maintainer,omitempty"`
 	Homepage    string `json:"homepage,omitempty"`
 	Apps        []App  `json:"apps"`
+	// Skipped: apps a converted catalog (Portainer) could not take, and why;
+	// shown with the apps left out.
+	Skipped []Invalid `json:"skipped,omitempty"`
 }
 
 // App is a community app: metadata, variables and a compose template.
@@ -133,6 +136,15 @@ func Parse(b []byte) (*Catalog, []Invalid, error) {
 		ok = append(ok, a)
 	}
 	c.Apps = ok
+	if len(c.Skipped) > 500 {
+		c.Skipped = c.Skipped[:500]
+	}
+	for _, x := range c.Skipped {
+		if oneLine(x.ID, 40, "id", false) == nil && oneLine(x.Error, 300, "error", false) == nil {
+			bad = append(bad, x)
+		}
+	}
+	c.Skipped = nil
 	return &c, bad, nil
 }
 

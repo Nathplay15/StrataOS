@@ -108,6 +108,10 @@ type Fetched struct {
 	Sig    []byte // nil when there is none
 	SHA256 string
 	Commit string // git only
+	// Converted: Index is a conversion (Portainer list, with the compose
+	// files of its stacks fetched elsewhere): a signature of the original
+	// list does not cover all of it.
+	Converted bool
 }
 
 func httpClient(timeout time.Duration) *http.Client {

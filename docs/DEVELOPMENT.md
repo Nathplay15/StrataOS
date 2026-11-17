@@ -445,6 +445,8 @@ On the NAS (`api/sync_e2e.go`): `locate` marks paths inside an encrypted folder 
 | `POST /api/apps/community/{source}/{app}/check` `{name, values}` / `…/install` `{name, values, approve}` | Grants and required approval / install job |
 | `POST /api/apps/community/stacks/{stack}/check` / `…/update` `{approve}` | Same for updating an installed app to the catalog's version |
 
+Foreign formats (`market/convert.go`) are converted by `market.Convert` in `fetchVerified`, outside `marketState.mu`; the stored index and `SHA256` are those of the converted catalog (`Fetched.Converted`: a signed source whose conversion changed waits for approval too, the signature not covering fetched compose files). `ParseAny` never touches the network: a Portainer compose stack read from a 0.12.0 index stays left out until a refresh. Stack compose files go through `DefaultStackFetcher` (`netguard`, https only, 64 KB, 100 stacks).
+
 Tests: `go test ./internal/market` (strict refusals, grants, interpolation, signatures, git fetch from a local repository, and the comparison with `docker compose config` when docker compose is installed), `api/h_market_test.go` (pinned and signed sources against a test server), `vm/e2e.d/90c-app-sources.sh` (a catalog served on the NAS, installs, approval refusals, update, signatures). The example catalog in `packaging/catalog-example/` is signed with a published test key; `TestExampleCatalog` checks the signature.
 
 ## Jobs that can be stopped, servers with private certificates, folder picker (0.11.1)
