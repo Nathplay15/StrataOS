@@ -7,16 +7,16 @@ import (
 
 func TestPublicURL(t *testing.T) {
 	for raw, want := range map[string]bool{
-		"http://127.0.0.1/x":        false,
-		"http://[::1]/x":            false,
-		"http://192.168.1.5/x":      false,
-		"http://10.0.0.2/x":         false,
-		"http://169.254.1.1/x":      false,
-		"http://100.64.0.1/x":       false,
-		"ftp://example.com/x":       false,
-		"http://localhost/x":        false,
-		"http://user@127.0.0.1/":    false,
-		"https://example.com/x": true,
+		"http://127.0.0.1/x":     false,
+		"http://[::1]/x":         false,
+		"http://192.168.1.5/x":   false,
+		"http://10.0.0.2/x":      false,
+		"http://169.254.1.1/x":   false,
+		"http://100.64.0.1/x":    false,
+		"ftp://example.com/x":    false,
+		"http://localhost/x":     false,
+		"http://user@127.0.0.1/": false,
+		"https://example.com/x":  true,
 	} {
 		u, err := url.Parse(raw)
 		if err != nil {
