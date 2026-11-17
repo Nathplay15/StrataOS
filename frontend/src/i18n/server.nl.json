@@ -1,4 +1,6 @@
 {
+ "Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "Geheugengebruik is hoog: {0} % gemiddeld over de laatste minuut (drempel {1} %)",
+ "Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "CPU-gebruik is hoog: {0} % gemiddeld over de laatste minuut (drempel {1} %)",
  "A des partitions montées": "Heeft gekoppelde partities",
  "A quitté le cluster {0}": "Het cluster {0} verlaten",
  "A rejoint le cluster {0} (ajouté par {1})": "Lid geworden van het cluster {0} (toegevoegd door {1})",

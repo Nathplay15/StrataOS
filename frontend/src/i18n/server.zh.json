@@ -1,4 +1,6 @@
 {
+ "Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "内存使用率过高：最近一分钟平均 {0}%（阈值 {1}%）",
+ "Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "CPU 使用率过高：最近一分钟平均 {0}%（阈值 {1}%）",
  "A des partitions montées": "有已挂载的分区",
  "A quitté le cluster {0}": "已离开集群 {0}",
  "A rejoint le cluster {0} (ajouté par {1})": "已加入集群 {0}（由 {1} 添加）",

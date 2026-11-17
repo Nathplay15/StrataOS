@@ -426,6 +426,8 @@ export interface Settings {
   serverString: string;
   sessionHours: number;
   volumeFullPct?: number;
+  cpuAlertPct?: number;
+  memAlertPct?: number;
   webhookUrl: string;
   smtpHost: string;
   smtpPort: number;

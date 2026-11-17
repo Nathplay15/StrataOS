@@ -35,6 +35,8 @@ export const serverTexts: [string, string][] = [
   ["Le pool ZFS {0} est en état {1}", "ZFS pool {0} is {1}"],
   ["Le volume {0} n'est pas monté", "Volume {0} is not mounted"],
   ["Le volume {0} est plein à {1} %", "Volume {0} is {1}% full"],
+  ["Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)", "CPU usage is high: {0}% on average over the last minute (threshold {1}%)"],
+  ["Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)", "Memory usage is high: {0}% on average over the last minute (threshold {1}%)"],
   ["Le disque {0} ({1}) échoue au contrôle de santé SMART : remplacez-le", "Disk {0} ({1}) fails its SMART health check: replace it"],
   ["La grappe RAID {0} ne peut pas démarrer : trop de disques manquants ({1})", "RAID array {0} cannot start: too many disks missing ({1})"],
   ["La grappe RAID {0} a démarré en mode dégradé : un disque manque, remplacez-le rapidement", "RAID array {0} started degraded: a disk is missing, replace it soon"],

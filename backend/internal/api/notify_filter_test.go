@@ -11,6 +11,7 @@ import (
 
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/system"
 )
 
 func at(hhmm string) time.Time {
@@ -225,5 +226,31 @@ func TestSendNotificationFilters(t *testing.T) {
 	defer mu.Unlock()
 	if strings.Join(got, ",") != "info event,error event,error event" {
 		t.Errorf("delivered: %v", got)
+	}
+}
+
+func TestResourceAlerts(t *testing.T) {
+	sample := func(cpu float64, used, total int64) system.Sample {
+		return system.Sample{CPU: cpu, MemUsed: used, MemTotal: total}
+	}
+	if got := resourceAlertList(42, 50, 0, 0); len(got) != 0 {
+		t.Errorf("thresholds disabled: %+v", got)
+	}
+	got := resourceAlertList(91.4, 82.5, 90, 80)
+	if len(got) != 2 || got[0].Key != "resource:cpu" || got[1].Key != "resource:mem" {
+		t.Fatalf("over the thresholds: %+v", got)
+	}
+	if !strings.Contains(got[0].Message, "91%") || !strings.Contains(got[1].Message, "threshold 80%") {
+		t.Errorf("messages: %q / %q", got[0].Message, got[1].Message)
+	}
+	if got := resourceAlertList(89.9, 79.9, 90, 80); len(got) != 0 {
+		t.Errorf("under the thresholds: %+v", got)
+	}
+	cpu, mem := resourceAverages([]system.Sample{sample(60, 4, 10), sample(80, 6, 10)})
+	if cpu != 70 || mem != 50 {
+		t.Errorf("averages: cpu=%v mem=%v", cpu, mem)
+	}
+	if cpu, mem := resourceAverages(nil); cpu != 0 || mem != 0 {
+		t.Errorf("empty history: cpu=%v mem=%v", cpu, mem)
 	}
 }

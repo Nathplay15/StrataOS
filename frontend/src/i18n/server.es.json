@@ -1,4 +1,6 @@
 {
+ "Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "El uso de memoria es alto: {0} % de media en el último minuto (umbral {1} %)",
+ "Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "El uso de CPU es alto: {0} % de media en el último minuto (umbral {1} %)",
  "A des partitions montées": "Tiene particiones montadas",
  "A quitté le cluster {0}": "Ha salido del clúster {0}",
  "A rejoint le cluster {0} (ajouté par {1})": "Se ha unido al clúster {0} (añadido por {1})",

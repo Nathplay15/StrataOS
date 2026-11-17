@@ -1,4 +1,6 @@
 {
+ "Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "L'uso della memoria è alto: {0} % in media nell'ultimo minuto (soglia {1} %)",
+ "Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "L'uso della CPU è alto: {0} % in media nell'ultimo minuto (soglia {1} %)",
  "A des partitions montées": "Ha partizioni montate",
  "A quitté le cluster {0}": "Ha lasciato il cluster {0}",
  "A rejoint le cluster {0} (ajouté par {1})": "Si è unito al cluster {0} (aggiunto da {1})",

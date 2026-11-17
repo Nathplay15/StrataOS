@@ -343,6 +343,12 @@ func (s *Server) systemRoutes() {
 		if req.VolumeFullPct != 0 && (req.VolumeFullPct < 50 || req.VolumeFullPct > 99) {
 			return nil, badRequest("invalid volume fill threshold")
 		}
+		if req.CpuAlertPct != 0 && (req.CpuAlertPct < 10 || req.CpuAlertPct > 99) {
+			return nil, badRequest("invalid CPU alert threshold")
+		}
+		if req.MemAlertPct != 0 && (req.MemAlertPct < 10 || req.MemAlertPct > 99) {
+			return nil, badRequest("invalid memory alert threshold")
+		}
 		req.AssistantURL = strings.TrimSpace(req.AssistantURL)
 		req.AssistantModel = strings.TrimSpace(req.AssistantModel)
 		if req.AssistantURL != "" && !strings.HasPrefix(req.AssistantURL, "http://") && !strings.HasPrefix(req.AssistantURL, "https://") {

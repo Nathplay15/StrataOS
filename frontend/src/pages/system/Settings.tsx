@@ -215,6 +215,8 @@ export default function SettingsPage() {
             <Field label={tr("Sender")}><Input value={s.smtpFrom} onChange={(e) => set("smtpFrom", e.target.value)} /></Field>
             <Field label={tr("Alert recipient")}><Input type="email" value={s.notifyEmail} onChange={(e) => set("notifyEmail", e.target.value)} /></Field>
             <Field label={tr("Volume full alert (%)")} hint={tr("Alert and dashboard warning when a volume exceeds this fill level. 50 to 99, default 90.")}><Input type="number" min={50} max={99} value={s.volumeFullPct ?? 0} onChange={(e) => set("volumeFullPct", +e.target.value)} /></Field>
+            <Field label={tr("CPU alert (%)")} hint={tr("Warning when the CPU stays above this level on average. 10 to 99, 0 disables.")}><Input type="number" min={0} max={99} value={s.cpuAlertPct ?? 0} onChange={(e) => set("cpuAlertPct", +e.target.value)} /></Field>
+            <Field label={tr("Memory alert (%)")} hint={tr("Warning when the memory stays above this level on average. 10 to 99, 0 disables.")}><Input type="number" min={0} max={99} value={s.memAlertPct ?? 0} onChange={(e) => set("memAlertPct", +e.target.value)} /></Field>
             <Field label={tr("Language of the messages sent by the NAS")} hint={tr("Alerts and health report, on all channels")}>
               <Select value={s.notifyLang ?? ""} onChange={(e) => set("notifyLang", e.target.value)}>
                 <option value="">{tr("Automatic: {0} (language of the first administrator)", languages.find((l) => l.id === (s.notifyLangAuto || "en"))?.name ?? "English")}</option>
