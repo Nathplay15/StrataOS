@@ -320,4 +320,15 @@
     <string name="state_stopped">Detenido</string>
     <string name="a_search_content">Buscar en el contenido de los archivos</string>
     <string name="a_search_content_hint">Buscar en el contenido de todos tus archivos</string>
+    <string name="a_assistant">Asistente</string>
+    <string name="a_assistant_disabled">El asistente no está configurado en el NAS (Ajustes → Asistente).</string>
+    <string name="a_assistant_hint">Pregunta a tu NAS…</string>
+    <string name="a_assistant_thinking">Pensando…</string>
+    <string name="a_assistant_new">Nueva conversación</string>
+    <string name="a_assistant_history">Historial</string>
+    <string name="a_assistant_no_history">Aún no hay conversaciones</string>
+    <string name="a_assistant_asks">El asistente pide:</string>
+    <string name="a_assistant_confirm">Confirmar</string>
+    <string name="a_assistant_empty">Pregunta por tu NAS: almacenamiento, apps, copias, archivos…</string>
+    <string name="a_assistant_done">Hecho</string>
 </resources>

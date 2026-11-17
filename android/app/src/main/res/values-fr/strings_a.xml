@@ -321,4 +321,15 @@
     <string name="state_stopped">Arrêté</string>
     <string name="a_search_content">Rechercher dans le contenu des fichiers</string>
     <string name="a_search_content_hint">Rechercher dans le contenu de tous vos fichiers</string>
+    <string name="a_assistant">Assistant</string>
+    <string name="a_assistant_disabled">L’assistant n’est pas configuré sur le NAS (Paramètres → Assistant).</string>
+    <string name="a_assistant_hint">Demandez à votre NAS…</string>
+    <string name="a_assistant_thinking">Réflexion…</string>
+    <string name="a_assistant_new">Nouvelle discussion</string>
+    <string name="a_assistant_history">Historique</string>
+    <string name="a_assistant_no_history">Aucune conversation</string>
+    <string name="a_assistant_asks">L’assistant demande à :</string>
+    <string name="a_assistant_confirm">Confirmer</string>
+    <string name="a_assistant_empty">Interrogez votre NAS : stockage, applications, sauvegardes, fichiers…</string>
+    <string name="a_assistant_done">Terminé</string>
 </resources>

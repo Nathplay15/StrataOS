@@ -321,4 +321,15 @@
     <string name="state_stopped">Stopped</string>
     <string name="a_search_content">Search in file contents</string>
     <string name="a_search_content_hint">Search the contents of all your files</string>
+    <string name="a_assistant">Assistant</string>
+    <string name="a_assistant_disabled">The assistant is not configured on the NAS (Settings → Assistant).</string>
+    <string name="a_assistant_hint">Ask your NAS…</string>
+    <string name="a_assistant_thinking">Thinking…</string>
+    <string name="a_assistant_new">New chat</string>
+    <string name="a_assistant_history">History</string>
+    <string name="a_assistant_no_history">No conversation yet</string>
+    <string name="a_assistant_asks">The assistant asks to:</string>
+    <string name="a_assistant_confirm">Confirm</string>
+    <string name="a_assistant_empty">Ask about your NAS: storage, apps, backups, files…</string>
+    <string name="a_assistant_done">Done</string>
 </resources>
