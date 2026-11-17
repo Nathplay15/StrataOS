@@ -4675,5 +4675,15 @@
   "The last disk cannot be removed.": "最后一个磁盘无法移除。",
   "New disk (GB)": "新磁盘 (GB)",
   "VM renamed": "虚拟机已重命名",
-  "Stop the VM to rename it.": "请先关闭虚拟机再重命名。"
+  "Stop the VM to rename it.": "请先关闭虚拟机再重命名。",
+  "Local models (Ollama app)": "本地模型（Ollama 应用）",
+  "Ollama is not reachable. Install the Ollama app from the App Center (default port 11434) to download and run models on the NAS.": "无法连接 Ollama。请从应用商店安装 Ollama 应用（默认端口 11434），以便在 NAS 上下载并运行模型。",
+  "Used by the assistant": "助手正在使用",
+  "Use": "使用",
+  "No model yet: download one from the library or import a .gguf file.": "还没有模型：请从模型库下载或导入 .gguf 文件。",
+  "Download a model": "下载模型",
+  "e.g. mistral:7b, llama3.2:3b, qwen2.5-coder:7b": "例如 mistral:7b、llama3.2:3b、qwen2.5-coder:7b",
+  "Import a .gguf file": "导入 .gguf 文件",
+  "Path of a GGUF file in a volume": "卷中 GGUF 文件的路径",
+  "The model is removed from the NAS. It can be downloaded again.": "模型将从 NAS 中移除。可以重新下载。"
 }

@@ -20,6 +20,7 @@ import { ComponentUninstallModal, uninstallable } from "../../components/Uninsta
 import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
 import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
 import { SignInProviders } from "../../components/SignInProviders";
+import { LocalModels } from "../../components/LocalModels";
 import { revealElement } from "../../lib/intent";
 
 type CertInfo = { source: "self-signed" | "custom" | "letsencrypt" | "letsencrypt-dns"; subject: string; issuer: string; dnsNames: string[] | null; notAfter: string; active: boolean };
@@ -245,6 +246,7 @@ export default function SettingsPage() {
             <Field label={tr("Model")} hint={tr("e.g. mistral-small-latest")}><Input className="mono" value={s.assistantModel ?? ""} onChange={(e) => set("assistantModel", e.target.value)} /></Field>
           </div>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.")}</p>
+          <LocalModels current={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: s.assistantKey || "ollama", assistantModel: name })} />
         </Card>
         <Card id="settings-time" title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">

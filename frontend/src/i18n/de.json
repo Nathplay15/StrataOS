@@ -4675,5 +4675,15 @@
   "The last disk cannot be removed.": "Die letzte Festplatte kann nicht entfernt werden.",
   "New disk (GB)": "Neue Festplatte (GB)",
   "VM renamed": "VM umbenannt",
-  "Stop the VM to rename it.": "Fahren Sie die VM herunter, um sie umzubenennen."
+  "Stop the VM to rename it.": "Fahren Sie die VM herunter, um sie umzubenennen.",
+  "Local models (Ollama app)": "Lokale Modelle (Ollama-App)",
+  "Ollama is not reachable. Install the Ollama app from the App Center (default port 11434) to download and run models on the NAS.": "Ollama ist nicht erreichbar. Installiere die Ollama-App aus dem App-Center (Standardport 11434), um Modelle auf dem NAS herunterzuladen und auszuführen.",
+  "Used by the assistant": "Vom Assistenten verwendet",
+  "Use": "Verwenden",
+  "No model yet: download one from the library or import a .gguf file.": "Noch kein Modell: Lade eines aus der Bibliothek herunter oder importiere eine .gguf-Datei.",
+  "Download a model": "Ein Modell herunterladen",
+  "e.g. mistral:7b, llama3.2:3b, qwen2.5-coder:7b": "z. B. mistral:7b, llama3.2:3b, qwen2.5-coder:7b",
+  "Import a .gguf file": "Eine .gguf-Datei importieren",
+  "Path of a GGUF file in a volume": "Pfad einer GGUF-Datei in einem Volume",
+  "The model is removed from the NAS. It can be downloaded again.": "Das Modell wird vom NAS entfernt. Es kann erneut heruntergeladen werden."
 }
