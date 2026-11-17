@@ -69,3 +69,60 @@ func TestExifAndScan(t *testing.T) {
 		t.Error("index not saved")
 	}
 }
+
+// An index made before hashes existed (or whose hash failed) gets them at
+// the next scans, failures being retried only after hashRetry.
+func TestScanFillsMissingHashes(t *testing.T) {
+	Dir = t.TempDir()
+	root := t.TempDir()
+	for _, n := range []string{"a.jpg", "b.jpg", "broken.jpg", "clip.mp4"} {
+		if err := os.WriteFile(filepath.Join(root, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	calls := map[string]int{}
+	hashImage = func(_ context.Context, p string) uint64 {
+		calls[filepath.Base(p)]++
+		if filepath.Base(p) == "broken.jpg" {
+			return 0
+		}
+		return 42
+	}
+	oldCan := canHash
+	defer func() { hashImage, canHash = dhash, oldCan }()
+	// First scan without the tools: no hash, as in an old index.
+	canHash = func() bool { return false }
+	x := &Index{byPath: map[string]int{}}
+	if _, err := x.Scan(context.Background(), []string{root}, func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	if it, _ := x.Get(filepath.Join(root, "a.jpg")); it.Hash != 0 {
+		t.Fatal("hashed without the tools")
+	}
+	canHash = func() bool { return true }
+	if _, err := x.Scan(context.Background(), []string{root}, func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"a.jpg", "b.jpg"} {
+		if it, _ := x.Get(filepath.Join(root, n)); it.Hash != 42 {
+			t.Errorf("%s: hash %d after the second scan", n, it.Hash)
+		}
+	}
+	if it, _ := x.Get(filepath.Join(root, "broken.jpg")); it.Hash != 0 || it.HashFailed == 0 {
+		t.Errorf("broken.jpg: %+v", it)
+	}
+	if calls["clip.mp4"] != 0 {
+		t.Error("a video was hashed")
+	}
+	// A failure is not retried at every scan…
+	if _, err := x.Scan(context.Background(), []string{root}, func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	if calls["broken.jpg"] != 1 || calls["a.jpg"] != 1 {
+		t.Errorf("calls %v", calls)
+	}
+	// …but once hashRetry has passed.
+	if !needsHash(Item{HashFailed: time.Now().Add(-hashRetry - time.Hour).Unix()}, time.Now()) {
+		t.Error("an old failure is not retried")
+	}
+}

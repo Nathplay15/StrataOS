@@ -39,6 +39,27 @@ type Item struct {
 	// Hash is the 64-bit perceptual hash of an image (dhash.go), used to
 	// find similar photos; 0 when it was not computed (videos, tools missing).
 	Hash uint64 `json:"hash,omitempty"`
+	// HashFailed: when the hash last failed (Unix time); retried after hashRetry.
+	HashFailed int64 `json:"hashFailed,omitempty"`
+}
+
+const (
+	// hashRetry: a picture whose hash failed is tried again after this.
+	hashRetry = 7 * 24 * time.Hour
+	// hashBudget bounds the hashes caught up per scan (libraries indexed
+	// before hashes existed): the rest follows at the next scans.
+	hashBudget = 20 * time.Minute
+)
+
+// For the tests.
+var (
+	hashImage = dhash
+	canHash   = func() bool { return sys.Has("vipsthumbnail") }
+)
+
+// needsHash: a picture without a hash, never tried or tried long ago.
+func needsHash(it Item, now time.Time) bool {
+	return !it.Video && it.Hash == 0 && (it.HashFailed == 0 || now.Sub(time.Unix(it.HashFailed, 0)) > hashRetry)
 }
 
 // Installed reports whether thumbnails can be made.
@@ -143,7 +164,9 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 
 	var items []Item
 	added := 0
-	hashable := sys.Has("vipsthumbnail")
+	hashable := canHash()
+	now := time.Now()
+	var missing []int // unchanged pictures still without a hash
 	for _, root := range roots {
 		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if ctx.Err() != nil {
@@ -172,12 +195,17 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 			}
 			it := Item{Path: p, Mtime: fi.ModTime().Unix(), Size: fi.Size(), Video: video}
 			if o, ok := old[p]; ok && o.Mtime == it.Mtime && o.Size == it.Size {
+				if hashable && needsHash(o, now) {
+					missing = append(missing, len(items))
+				}
 				items = append(items, o)
 				return nil
 			}
 			it.Date = takenAt(p, ext, fi.ModTime())
 			if hashable && !video {
-				it.Hash = dhash(ctx, p)
+				if it.Hash = hashImage(ctx, p); it.Hash == 0 {
+					it.HashFailed = now.Unix()
+				}
 			}
 			items = append(items, it)
 			added++
@@ -189,6 +217,24 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 	}
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
+	}
+	// Pictures indexed without a hash (before 0.11, or a failure some days
+	// ago): caught up within a budget per scan, so the Duplicates tab fills
+	// in over the next scans without holding the index back.
+	hashed := 0
+	for _, i := range missing {
+		if ctx.Err() != nil || time.Since(now) > hashBudget {
+			break
+		}
+		if items[i].Hash = hashImage(ctx, items[i].Path); items[i].Hash == 0 {
+			items[i].HashFailed = time.Now().Unix()
+		} else {
+			items[i].HashFailed = 0
+			hashed++
+		}
+	}
+	if hashed > 0 {
+		logf("%d earlier photos hashed for the duplicates (%d waiting)", hashed, len(missing)-hashed)
 	}
 	x.mu.Lock()
 	x.items, x.Updated = items, time.Now()

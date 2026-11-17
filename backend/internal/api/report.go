@@ -5,8 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	stdmaps "maps"
 	"net/http"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -260,17 +263,9 @@ func (s *Server) healthReport(period string) (string, string) {
 	if ctr["total"] > 0 {
 		fmt.Fprintf(&b, "• %d container(s), %d running\n", ctr["total"], ctr["running"])
 	}
-	var updated []string
-	s.store.Read(func(st *store.State) {
-		for _, e := range st.Events {
-			if e.Time.Before(since) || e.Category != "docker" {
-				continue
-			}
-			if rest, ok := strings.CutPrefix(e.Message, "Updating "); ok {
-				updated = append(updated, rest)
-			}
-		}
-	})
+	var events []store.Event
+	s.store.Read(func(st *store.State) { events = slices.Clone(st.Events) })
+	updated := updatedApps(events, since)
 	if len(updated) == 0 {
 		b.WriteString("• no app updated\n")
 	} else {
@@ -281,36 +276,37 @@ func (s *Server) healthReport(period string) (string, string) {
 		}
 		fmt.Fprintf(&b, "• %d app(s) updated: %s%s\n", len(updated), strings.Join(names, ", "), more)
 	}
-	// Insight: an app whose image is months old misses security fixes.
-	if stacks, err := docker.ListStacks(context.Background(), s.docker); err == nil {
-		lastTouch := map[string]time.Time{}
-		s.store.Read(func(st *store.State) {
-			for _, e := range st.Events {
-				name, ok := strings.CutPrefix(e.Message, "Installing ")
-				if !ok {
-					name, ok = strings.CutPrefix(e.Message, "Updating ")
-				}
-				if ok && e.Time.After(lastTouch[name]) {
-					lastTouch[name] = e.Time
-				}
-			}
-		})
-		var stale []string
-		for _, k := range stacks {
-			t, ok := lastTouch[k.Name]
-			if !ok || k.ModifiedAt.After(t) {
-				t, ok = k.ModifiedAt, !k.ModifiedAt.IsZero()
-			}
-			if ok && now.Sub(t) > 182*24*time.Hour {
-				stale = append(stale, k.Name)
-			}
+	// Insight: an app not recreated for months runs images that miss
+	// security fixes. Its last update is when its newest container was
+	// created (an install, an update or a change of its settings), or a
+	// later update event; the stack folder's date says nothing about it.
+	if stacks, err := docker.ListStacks(context.Background(), s.docker); err == nil && docker.Available() {
+		var list []struct {
+			Created int64             `json:"Created"`
+			Labels  map[string]string `json:"Labels"`
 		}
-		if len(stale) > 0 {
-			names, more := uniq(stale), ""
-			if len(names) > 5 {
-				names, more = names[:5], "…"
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if s.docker.Call(ctx, "GET", "/containers/json", map[string][]string{"all": {"1"}}, nil, &list) == nil {
+			created := map[string]time.Time{}
+			for _, c := range list {
+				if p := c.Labels["com.docker.compose.project"]; p != "" {
+					if t := time.Unix(c.Created, 0); t.After(created[p]) {
+						created[p] = t
+					}
+				}
 			}
-			fmt.Fprintf(&b, "• not updated in over 6 months: %s%s — check for image updates\n", strings.Join(names, ", "), more)
+			var names []string
+			for _, k := range stacks {
+				names = append(names, k.Name)
+			}
+			if stale := staleApps(names, created, events, now); len(stale) > 0 {
+				more := ""
+				if len(stale) > 5 {
+					stale, more = stale[:5], "…"
+				}
+				fmt.Fprintf(&b, "• not updated in over 6 months: %s%s — check for image updates\n", strings.Join(stale, ", "), more)
+			}
 		}
 	}
 
@@ -389,6 +385,56 @@ func aptInstalledSince(since time.Time) int {
 		}
 	}
 	return n
+}
+
+// updatedApps lists the containers and stacks updated since a time, one
+// entry per successful update (manual or automatic): the events
+// "Container X updated (image)" and "Stack X updated". The audit lines
+// "Updating …" are requests (they may fail, "all containers" is no app).
+func updatedApps(events []store.Event, since time.Time) []string {
+	var out []string
+	for _, e := range events {
+		if e.Time.Before(since) || e.Category != "docker" {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(e.Message, "Container "); ok {
+			if name, _, ok := strings.Cut(rest, " updated ("); ok {
+				out = append(out, name)
+			}
+		} else if rest, ok := strings.CutPrefix(e.Message, "Stack "); ok {
+			if name, ok := strings.CutSuffix(rest, " updated"); ok {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+// staleApps lists the stacks whose last update is more than 6 months old:
+// the creation of their newest container, or a later "Stack X updated"
+// event. Stacks without containers (never started) are left out.
+func staleApps(stacks []string, created map[string]time.Time, events []store.Event, now time.Time) []string {
+	last := stdmaps.Clone(created)
+	for _, e := range events {
+		if e.Category != "docker" {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(e.Message, "Stack "); ok {
+			if name, ok := strings.CutSuffix(rest, " updated"); ok && e.Time.After(last[name]) {
+				if _, known := last[name]; known {
+					last[name] = e.Time
+				}
+			}
+		}
+	}
+	var out []string
+	for _, n := range stacks {
+		if t, ok := last[n]; ok && now.Sub(t) > 182*24*time.Hour {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func uniq(l []string) []string {

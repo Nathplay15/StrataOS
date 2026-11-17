@@ -218,8 +218,9 @@ func isSecuritySource(src string) bool {
 	return false
 }
 
-// autoUpdateSteps checks for updates and installs what the settings ask,
-// StrataOS last (its service restarts: the new one finishes the run).
+// autoUpdateSteps checks for updates and installs what the settings ask:
+// system packages, containers, then StrataOS last (its service restarts:
+// the new one finishes the run).
 func (s *Server) autoUpdateSteps(ctx context.Context, j *jobs.Job, c store.AutoUpdates, run *store.AutoUpdateRun) error {
 	if run.DryRun {
 		j.Logf("Simulation: nothing is installed and no restore point is taken")
@@ -276,6 +277,14 @@ func (s *Server) autoUpdateSteps(ctx context.Context, j *jobs.Job, c store.AutoU
 	case c.System == store.UpdateNotify:
 		run.Available = sec + others
 	}
+	// Containers before StrataOS: installing StrataOS restarts this service,
+	// and the new one only finishes the run (the containers were skipped
+	// whenever both came in the same window). A container failure does not
+	// hold StrataOS back; it is reported at the end.
+	var cerr error
+	if c.Containers == store.UpdateInstall {
+		cerr = s.autoUpdateContainers(ctx, j, run)
+	}
 	if cand != "" {
 		switch c.Strata {
 		case store.UpdateNotify:
@@ -294,12 +303,7 @@ func (s *Server) autoUpdateSteps(ctx context.Context, j *jobs.Job, c store.AutoU
 			run.Phase = ""
 		}
 	}
-	if c.Containers == store.UpdateInstall {
-		if err := s.autoUpdateContainers(ctx, j, run); err != nil {
-			return err
-		}
-	}
-	return nil
+	return cerr
 }
 
 // autoUpdateResume finishes a run that was installing StrataOS when the
