@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"strataos/internal/sys"
@@ -97,6 +99,7 @@ type imgInfo struct {
 	Format      string `json:"format"`
 	VirtualSize int64  `json:"virtual-size"`
 	BackingFile string `json:"backing-filename"`
+	FullBacking string `json:"full-backing-filename"`
 }
 
 func imageInfo(path string) (imgInfo, error) {
@@ -109,11 +112,55 @@ func imageInfo(path string) (imgInfo, error) {
 	return i, err
 }
 
-// linkImage creates a thin qcow2 overlay of [src]: a linked clone reads the
-// source disk and only stores its own changes. The source must be kept (its
-// deletion is refused while a clone points into its folder).
-func linkImage(src, dst string) error {
-	_, err := sys.Run("qemu-img", "create", "-f", "qcow2", "-b", src, "-F", "qcow2", "--", dst)
+// standalone refuses a downloaded image that names other files: a qcow2
+// backing file or external data file would be opened by qemu-img and QEMU
+// on the host (a /dev/sda backing file hands the host disk to the VM).
+// The format is given, never guessed.
+func standalone(path, format string) error {
+	out, err := sys.Run("qemu-img", "info", "-f", format, "--output=json", "--", path)
+	if err != nil {
+		return err
+	}
+	return standaloneInfo(filepath.Base(path), out)
+}
+
+func standaloneInfo(name, out string) error {
+	var i struct {
+		Backing  string `json:"backing-filename"`
+		Specific struct {
+			Data struct {
+				DataFile string `json:"data-file"`
+			} `json:"data"`
+		} `json:"format-specific"`
+	}
+	if err := json.Unmarshal([]byte(out), &i); err != nil {
+		return fmt.Errorf("%s: unreadable image information", name)
+	}
+	if i.Backing != "" {
+		return fmt.Errorf("%s depends on another file (%s): refused", name, i.Backing)
+	}
+	if i.Specific.Data.DataFile != "" {
+		return fmt.Errorf("%s keeps its data in another file (%s): refused", name, i.Specific.Data.DataFile)
+	}
+	return nil
+}
+
+// linkImage creates a thin qcow2 overlay of [src] (format [format], "" = the
+// one qemu-img reads): a linked clone reads the source disk and only stores
+// its own changes. The source must be kept (its deletion is refused while a
+// clone reads it).
+func linkImage(src, format, dst string) error {
+	if format == "" {
+		info, err := imageInfo(src)
+		if err != nil {
+			return err
+		}
+		format = info.Format
+	}
+	if !imgFormats[format] {
+		return fmt.Errorf("unsupported disk format %s", format)
+	}
+	_, err := sys.Run("qemu-img", "create", "-f", "qcow2", "-b", src, "-F", format, "--", dst)
 	return err
 }
 
@@ -170,4 +217,38 @@ func defineXML(doc string) error {
 	f.Close()
 	_, err = virsh("define", f.Name())
 	return err
+}
+
+// downloads holds one lock per file being downloaded: two jobs fetching the
+// same ISO or image would otherwise write the same .part file at once. The
+// second waits, then finds the file the first one completed.
+var downloads = struct {
+	sync.Mutex
+	m map[string]chan struct{}
+}{m: map[string]chan struct{}{}}
+
+// lockDownload takes the lock of a target file (waiting for another job that
+// holds it, or until ctx ends) and returns its release.
+func lockDownload(ctx context.Context, path string) (func(), error) {
+	for {
+		downloads.Lock()
+		ch, busy := downloads.m[path]
+		if !busy {
+			ch = make(chan struct{})
+			downloads.m[path] = ch
+			downloads.Unlock()
+			return func() {
+				downloads.Lock()
+				delete(downloads.m, path)
+				downloads.Unlock()
+				close(ch)
+			}, nil
+		}
+		downloads.Unlock()
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }

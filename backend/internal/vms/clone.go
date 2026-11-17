@@ -152,6 +152,11 @@ func Clone(ctx context.Context, src string, r CloneReq, p Progress) error {
 	if vm.State != "shut off" {
 		return fmt.Errorf("shut the VM down first")
 	}
+	// The source of a linked clone must never change again: only a template
+	// (it cannot start, take snapshots or change its disks) can be one.
+	if r.Linked && !vm.Template {
+		return fmt.Errorf("linked clones are made from templates only: convert %s to a template first, or make a full copy", src)
+	}
 	if _, err := virsh("dominfo", r.Name); err == nil {
 		return fmt.Errorf("a VM named %s already exists", r.Name)
 	}
@@ -196,7 +201,7 @@ func Clone(ctx context.Context, src string, r CloneReq, p Progress) error {
 		dst := filepath.Join(dir, fmt.Sprintf("disk%d.qcow2", i))
 		if r.Linked {
 			p.log("Linking %s", d.Source)
-			if err := linkImage(d.Source, dst); err != nil {
+			if err := linkImage(d.Source, d.Format, dst); err != nil {
 				return err
 			}
 		} else {
@@ -244,7 +249,8 @@ func Clone(ctx context.Context, src string, r CloneReq, p Progress) error {
 }
 
 // SetTemplate converts a stopped VM into a template (or back into a VM).
-// Templates cannot start; their libvirt autostart is turned off.
+// Templates cannot start; their libvirt autostart is turned off. A template
+// with linked clones stays one: as a VM it could write their base.
 func SetTemplate(name string, on bool) error {
 	vm, err := Get(name)
 	if err != nil {
@@ -252,6 +258,15 @@ func SetTemplate(name string, on bool) error {
 	}
 	if on && vm.State != "shut off" {
 		return fmt.Errorf("shut the VM down first")
+	}
+	if !on && vm.Template {
+		clones, err := clonesOf(name)
+		if err != nil {
+			return err
+		}
+		if len(clones) > 0 {
+			return fmt.Errorf("the VMs %s are linked clones of this template: delete them (or replace them with full copies) first", strings.Join(clones, ", "))
+		}
 	}
 	m := readMeta(name)
 	m.Template = ""

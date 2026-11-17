@@ -71,6 +71,11 @@ func EnsureInstaller(ctx context.Context, id, storage string, p Progress) (strin
 		return "", err
 	}
 	path := filepath.Join(dir, ins.File)
+	unlock, err := lockDownload(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	if fi, err := os.Stat(path); err == nil && fi.Size() > 64<<20 {
 		p.log("%s is already there", ins.File)
 		p.set(100)

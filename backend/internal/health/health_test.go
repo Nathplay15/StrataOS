@@ -212,8 +212,9 @@ func TestAdvise(t *testing.T) {
 	f.FailingDisks, f.WeakDisks = []string{"/dev/sdc"}, []string{"/dev/sda (24 reallocated sector(s))"}
 	f.NTP, f.NotifyConfigured = &off, false
 	f.Privileged, f.HostNet = []string{"ha"}, []string{"plex"}
+	f.UnsafeClones = []string{"web2 (web)"}
 	items := Advise(f, []string{"docker-hostnet"})
-	want := "admin-2fa,ssh-root,smb-guest,guard,backup-failed,disk-failing,certificate,security-updates,strata-update,ransomware,backup-old,disk-weak,notify,ssh-password,smb-proto,share-everyone,system-updates,restore-points,ntp,exposure,docker-privileged,docker-hostnet"
+	want := "admin-2fa,ssh-root,smb-guest,guard,backup-failed,disk-failing,certificate,security-updates,strata-update,ransomware,backup-old,disk-weak,notify,vm-linked-clone,ssh-password,smb-proto,share-everyone,system-updates,restore-points,ntp,exposure,docker-privileged,docker-hostnet"
 	if got := ids(items); got != want {
 		t.Errorf("items\n got %s\nwant %s", got, want)
 	}

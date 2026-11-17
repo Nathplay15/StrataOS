@@ -70,12 +70,15 @@ func MacOSVersions() []MacOSVersion {
 }
 
 const (
-	recoveryHost  = "osrecovery.apple.com"
-	recoveryUA    = "InternetRecovery/1.0"
-	openCoreURL   = "https://raw.githubusercontent.com/kholia/OSX-KVM/master/OpenCore/OpenCore.qcow2"
-	applesmcOSK   = "ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
-	appleKeyHex   = "C3E748CAD9CD384329E10E25A91E43E1A762FF529ADE578C935BDDF9B13F2179D4855E6FC89E9E29CA12517D17DFA1EDCE0BEBF0EA7B461FFE61D94E2BDF72C196F89ACD3536B644064014DAE25A15DB6BB0852ECBD120916318D1CCDEA3C84C92ED743FC176D0BACA920D3FCF3158AFF731F88CE0623182A8ED67E650515F75745909F07D415F55FC15A35654D118C55A462D37A3ACDA08612F3F3F6571761EFCCBCC299AEE99B3A4FD6212CCFFF5EF37A2C334E871191F7E1C31960E010A54E86FA3F62E6D6905E1CD57732410A3EB0C6B4DEFDABE9F59BF1618758C751CD56CEF851D1C0EAA1C558E37AC108DA9089863D20E2E7E4BF475EC66FE6B3EFDCF"
-	recoveryMagic = "CNKL"
+	recoveryHost = "osrecovery.apple.com"
+	recoveryUA   = "InternetRecovery/1.0"
+	// OSX-KVM's OpenCore boot disk, pinned to a commit and its SHA-256: an
+	// update of the project's branch is never taken without review.
+	openCoreURL    = "https://raw.githubusercontent.com/kholia/OSX-KVM/4c378a4b5e0b219783683012bec680325eb40719/OpenCore/OpenCore.qcow2"
+	openCoreSHA256 = "6ed36c0c2a4206ccc695f6b1a734a1cc6f94d288b0517c705d351c63cb92a6f3"
+	applesmcOSK    = "ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
+	appleKeyHex    = "C3E748CAD9CD384329E10E25A91E43E1A762FF529ADE578C935BDDF9B13F2179D4855E6FC89E9E29CA12517D17DFA1EDCE0BEBF0EA7B461FFE61D94E2BDF72C196F89ACD3536B644064014DAE25A15DB6BB0852ECBD120916318D1CCDEA3C84C92ED743FC176D0BACA920D3FCF3158AFF731F88CE0623182A8ED67E650515F75745909F07D415F55FC15A35654D118C55A462D37A3ACDA08612F3F3F6571761EFCCBCC299AEE99B3A4FD6212CCFFF5EF37A2C334E871191F7E1C31960E010A54E86FA3F62E6D6905E1CD57732410A3EB0C6B4DEFDABE9F59BF1618758C751CD56CEF851D1C0EAA1C558E37AC108DA9089863D20E2E7E4BF475EC66FE6B3EFDCF"
+	recoveryMagic  = "CNKL"
 )
 
 func randHex(n int) string {
@@ -220,7 +223,12 @@ func verifyChunklistSignature(chunklist []byte, sigOffset int, digest []byte) er
 	return nil
 }
 
+// maxChunk bounds a chunk of BaseSystem.dmg (Apple's are 10 MiB).
+const maxChunk = 64 << 20
+
 // verifyChunklist checks BaseSystem.dmg against Apple's signed chunklist.
+// Only RSA-signed chunklists (method 1) are accepted: method 2 holds a bare
+// digest anyone can compute, and the recovery protocol is plain HTTP.
 func verifyChunklist(dmgPath, cnkPath string) error {
 	cnk, err := os.ReadFile(cnkPath)
 	if err != nil {
@@ -229,15 +237,15 @@ func verifyChunklist(dmgPath, cnkPath string) error {
 	if len(cnk) < 0x24 || string(cnk[0:4]) != recoveryMagic || binary.LittleEndian.Uint32(cnk[4:8]) != 0x24 || cnk[8] != 1 || cnk[9] != 1 {
 		return fmt.Errorf("unsupported chunklist")
 	}
-	sigMethod := cnk[10]
+	if cnk[10] != 1 {
+		return fmt.Errorf("the chunklist is not signed by Apple (method %d)", cnk[10])
+	}
 	count := binary.LittleEndian.Uint64(cnk[12:20])
 	chunkOffset := binary.LittleEndian.Uint64(cnk[20:28])
 	sigOffset := binary.LittleEndian.Uint64(cnk[28:36])
-	trailing := 32 // signature method 2: the digest itself
-	if sigMethod == 1 {
-		trailing = 256 // RSA-2048 signature
-	}
-	if chunkOffset != 0x24 || sigOffset != chunkOffset+36*count || int(sigOffset)+trailing > len(cnk) {
+	// Bounded before any arithmetic: 36*count must not wrap around.
+	if chunkOffset != 0x24 || count == 0 || count > uint64(len(cnk))/36 ||
+		sigOffset != chunkOffset+36*count || sigOffset+256 > uint64(len(cnk)) {
 		return fmt.Errorf("malformed chunklist")
 	}
 	h := sha256.New()
@@ -252,6 +260,9 @@ func verifyChunklist(dmgPath, cnkPath string) error {
 		e := cnk[entries : entries+36]
 		size := binary.LittleEndian.Uint32(e[0:4])
 		want := e[4:36] // 32 bytes of SHA-256
+		if size == 0 || size > maxChunk {
+			return fmt.Errorf("malformed chunklist")
+		}
 		h.Write(e)
 		chunk := make([]byte, size)
 		if _, err := io.ReadFull(f, chunk); err != nil {
@@ -266,24 +277,27 @@ func verifyChunklist(dmgPath, cnkPath string) error {
 	if rest, err := io.ReadAll(io.LimitReader(f, 1)); err == nil && len(rest) > 0 {
 		return fmt.Errorf("BaseSystem.dmg is larger than its chunklist")
 	}
-	if sigMethod == 2 {
-		if !bytes.Equal(cnk[sigOffset:sigOffset+32], digest) {
-			return fmt.Errorf("invalid chunklist signature")
-		}
-		return nil
-	}
-	return verifyChunklistSignature(cnk, int(sigOffset), digest)
+	return checkChunklistSignature(cnk, int(sigOffset), digest)
 }
 
-// EnsureOpenCore downloads the OpenCore boot disk (OSX-KVM's prebuilt image)
-// once into the volume's cache folder.
+// checkChunklistSignature is replaced by the tests (only Apple can sign).
+var checkChunklistSignature = verifyChunklistSignature
+
+// EnsureOpenCore downloads the OpenCore boot disk (OSX-KVM's prebuilt image,
+// pinned) once into the volume's cache folder, under a name of its own: the
+// unpinned OpenCore.qcow2 of earlier versions stays for the VMs that use it.
 func EnsureOpenCore(ctx context.Context, cacheDir string, p Progress) (string, error) {
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}
-	path := filepath.Join(cacheDir, "OpenCore.qcow2")
-	if fi, err := os.Stat(path); err == nil && fi.Size() > 8<<20 {
-		return path, nil
+	path := filepath.Join(cacheDir, "OpenCore-"+openCoreSHA256[:12]+".qcow2")
+	unlock, err := lockDownload(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	if verifyChecksum(path, "sha256", openCoreSHA256) == nil {
+		return path, standalone(path, "qcow2")
 	}
 	p.log("Downloading the OpenCore boot disk (OSX-KVM)")
 	resp, err := httpGet(ctx, openCoreURL)
@@ -296,11 +310,17 @@ func EnsureOpenCore(ctx context.Context, cacheDir string, p Progress) (string, e
 	if err != nil {
 		return "", err
 	}
-	_, err = io.Copy(f, resp.Body)
+	_, err = io.Copy(f, io.LimitReader(resp.Body, 256<<20))
 	f.Close()
+	if err == nil {
+		err = verifyChecksum(tmp, "sha256", openCoreSHA256)
+	}
+	if err == nil {
+		err = standalone(tmp, "qcow2")
+	}
 	if err != nil {
 		_ = os.Remove(tmp)
-		return "", err
+		return "", fmt.Errorf("OpenCore boot disk: %v", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		return "", err
@@ -315,6 +335,11 @@ func EnsureBaseSystem(ctx context.Context, v MacOSVersion, cacheDir string, p Pr
 		return "", err
 	}
 	img := filepath.Join(cacheDir, "BaseSystem-"+v.ID+".img")
+	unlock, err := lockDownload(ctx, img)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	if fi, err := os.Stat(img); err == nil && fi.Size() > 64<<20 {
 		p.set(100)
 		return img, nil
@@ -354,6 +379,29 @@ func EnsureBaseSystem(ctx context.Context, v MacOSVersion, cacheDir string, p Pr
 type MacOSReq struct {
 	CreateReq
 	Version string `json:"version"`
+	// IgnoreMSRs lets KVM ignore the CPU registers (MSR) it does not know,
+	// which macOS reads: a setting of the whole NAS (every VM), kept after
+	// a restart. Only changed when asked.
+	IgnoreMSRs bool `json:"ignoreMsrs"`
+}
+
+const (
+	ignoreMSRsParam = "/sys/module/kvm/parameters/ignore_msrs"
+	ignoreMSRsConf  = "/etc/modprobe.d/strataos-macos.conf"
+)
+
+// ignoringMSRs reports whether KVM ignores unknown MSRs now.
+func ignoringMSRs() bool {
+	b, err := os.ReadFile(ignoreMSRsParam)
+	return err == nil && (strings.TrimSpace(string(b)) == "Y" || strings.TrimSpace(string(b)) == "1")
+}
+
+// ignoreMSRs turns ignore_msrs on now and at every start of the NAS.
+func ignoreMSRs() error {
+	if err := os.WriteFile(ignoreMSRsParam, []byte("1"), 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(ignoreMSRsConf, []byte("# Written by StrataOS (macOS VMs): KVM ignores unknown MSRs, for every VM.\noptions kvm ignore_msrs=1 report_ignored_msrs=0\n"), 0o644)
 }
 
 // CreateMacOS builds a macOS VM: OpenCore boot disk, Apple's BaseSystem and an
@@ -385,8 +433,20 @@ func CreateMacOS(ctx context.Context, r MacOSReq, p Progress) error {
 			_ = os.RemoveAll(dir)
 		}
 	}()
-	// macOS mis-reads some MSR registers under KVM unless they are ignored.
-	_ = os.WriteFile("/sys/module/kvm/parameters/ignore_msrs", []byte("1"), 0o644)
+	// macOS reads MSR registers KVM does not emulate: unless they are
+	// ignored (a host-wide KVM setting, no per-VM equivalent), it can stop
+	// at boot. Changed only when asked, and said either way.
+	switch {
+	case ignoringMSRs():
+	case r.IgnoreMSRs:
+		if err := ignoreMSRs(); err != nil {
+			p.log("Warning: cannot make KVM ignore unknown MSRs: %v", err)
+		} else {
+			p.log("KVM now ignores unknown MSRs for every VM of this NAS, also after a restart (%s)", ignoreMSRsConf)
+		}
+	default:
+		p.log("Warning: KVM does not ignore unknown MSRs: macOS may stop at boot (option of the macOS VM creation)")
+	}
 	cache := filepath.Join(VolumeRoot(dir), cacheDirName)
 	oc, err := EnsureOpenCore(ctx, cache, p.scaled(0, 5))
 	if err != nil {
@@ -396,14 +456,24 @@ func CreateMacOS(ctx context.Context, r MacOSReq, p Progress) error {
 	if err != nil {
 		return err
 	}
+	// The cache's images are shared by every macOS VM of the volume and only
+	// ever read: each VM writes to its own overlays, in its own folder (two
+	// macOS VMs can run at once, and the VM's folder is its first disk's).
+	ocDisk, baseDisk := filepath.Join(dir, "opencore.qcow2"), filepath.Join(dir, "basesystem.qcow2")
+	if err := linkImage(oc, "qcow2", ocDisk); err != nil {
+		return err
+	}
+	if err := linkImage(base, "raw", baseDisk); err != nil {
+		return err
+	}
 	disk := filepath.Join(dir, "disk0.qcow2")
 	if _, err := sys.Run("qemu-img", "create", "-f", "qcow2", "--", disk, fmt.Sprintf("%dG", r.DiskGB)); err != nil {
 		return err
 	}
 	spec := installSpec{import_: true, video: "vmvga",
 		disks: []string{
-			"path=" + oc + ",format=qcow2,bus=sata,readonly=on,boot.order=1",
-			"path=" + base + ",format=raw,bus=sata,cache=none,boot.order=2",
+			"path=" + ocDisk + ",format=qcow2,bus=sata,boot.order=1",
+			"path=" + baseDisk + ",format=qcow2,bus=sata,cache=none,boot.order=2",
 			"path=" + disk + ",format=qcow2,bus=sata,cache=none,discard=unmap,boot.order=3",
 		},
 		// The serial console logs the boot; OpenCore prints its progress there.

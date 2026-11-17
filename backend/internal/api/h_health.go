@@ -24,6 +24,7 @@ import (
 	"strataos/internal/store"
 	"strataos/internal/sys"
 	"strataos/internal/system"
+	"strataos/internal/vms"
 )
 
 // recordSmart adds a SMART reading to the history of its disk (at most
@@ -545,6 +546,15 @@ func (s *Server) advisorFacts() health.Facts {
 				}
 				if s.docker.Call(ctx, "GET", "/containers/"+c.ID+"/json", nil, nil, &ins) == nil && ins.HostConfig.Privileged {
 					f.Privileged = append(f.Privileged, name)
+				}
+			}
+		}
+	}
+	if vms.Installed() {
+		if clones, err := vms.LinkedClones(); err == nil {
+			for _, c := range clones {
+				if !c.SourceTemplate && !slices.Contains(f.UnsafeClones, c.Clone+" ("+c.Source+")") {
+					f.UnsafeClones = append(f.UnsafeClones, c.Clone+" ("+c.Source+")")
 				}
 			}
 		}

@@ -150,6 +150,11 @@ func EnsureImage(ctx context.Context, id, cacheDir string, p Progress) (string, 
 		return "", err
 	}
 	path := filepath.Join(cacheDir, img.File)
+	unlock, err := lockDownload(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	marker := path + ".verified" // digest of the cached file, checked when it was downloaded
 	sctx, cancel := context.WithTimeout(ctx, time.Minute)
 	resp, err := httpGet(sctx, img.Base+img.Sums)
@@ -278,6 +283,9 @@ func CreateFromCloud(ctx context.Context, r CloudReq, p Progress) error {
 	}()
 	src, err := EnsureImage(ctx, img.ID, filepath.Join(VolumeRoot(dir), cacheDirName), p.scaled(0, 70))
 	if err != nil {
+		return err
+	}
+	if err := standalone(src, "qcow2"); err != nil {
 		return err
 	}
 	disk := filepath.Join(dir, "disk0.qcow2")

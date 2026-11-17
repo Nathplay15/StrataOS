@@ -36,6 +36,9 @@ func AttachDisk(name string, sizeGB int) error {
 	if err != nil {
 		return err
 	}
+	if vm.Template {
+		return errTemplate(name)
+	}
 	if vm.Dir == "" {
 		return fmt.Errorf("the VM has no managed disk folder")
 	}
@@ -97,6 +100,9 @@ func DetachDisk(name, target string) error {
 	if err != nil {
 		return err
 	}
+	if vm.Template {
+		return errTemplate(name)
+	}
 	disks := 0
 	var disk Disk
 	for _, d := range vm.Disks {
@@ -117,8 +123,12 @@ func DetachDisk(name, target string) error {
 	return detachXML(name, diskXML(disk.Source, disk.Target, disk.Bus, disk.Format), deviceFlags(vm.State))
 }
 
-// Rename renames a shut-off VM: the libvirt definition, the disk paths and the
-// VM's folder (when it is managed).
+// Rename renames a shut-off VM: the libvirt definition and, when the VM has
+// its own folder (named after it, see ownsDir), that folder and the disk
+// paths. A folder it shares (the macOS image cache, the shared folder of an
+// imported disk) stays where it is: only the definition is renamed. Moving
+// the folder of a VM with linked clones is refused (their overlays name its
+// disks). Every step is undone when a later one fails.
 func Rename(old, name string) error {
 	if old == name {
 		return fmt.Errorf("the VM already has this name")
@@ -136,37 +146,63 @@ func Rename(old, name string) error {
 	if _, err := virsh("dominfo", name); err == nil {
 		return fmt.Errorf("a VM named %s already exists", name)
 	}
-	oldDir, newDir := vm.Dir, ""
-	if oldDir != "" && strings.HasPrefix(oldDir, "/srv/strata/") {
+	list, err := List()
+	if err != nil {
+		return err
+	}
+	oldDir, newDir := filepath.Clean(vm.Dir), ""
+	if ownsDir(*vm, old, list) {
 		newDir = filepath.Join(filepath.Dir(oldDir), name)
-		if _, err := os.Stat(newDir); err == nil {
+		if _, err := os.Lstat(newDir); err == nil {
 			return fmt.Errorf("%s already exists", newDir)
+		}
+		for _, c := range findLinked(list, backingOf) {
+			if c.Source == old {
+				return fmt.Errorf("the VM %s is a linked clone of this one: its disks read this VM's folder, which renaming would move", c.Clone)
+			}
 		}
 	}
 	if _, err := virsh("domrename", old, name); err != nil {
 		return err
 	}
-	if newDir != "" {
-		if err := os.Rename(oldDir, newDir); err != nil {
-			_, _ = virsh("domrename", name, old)
-			return err
-		}
-		// The definition still points at the old folder: rewrite its paths.
-		out, err := virsh("dumpxml", name)
-		if err != nil {
-			return err
-		}
-		def := strings.ReplaceAll(out, oldDir+"/", newDir+"/")
-		f, err := os.CreateTemp("", "strata-vm-*.xml")
-		if err != nil {
-			return err
-		}
-		_, _ = f.WriteString(def)
-		f.Close()
-		defer os.Remove(f.Name())
-		if _, err := virsh("define", f.Name()); err != nil {
-			return err
-		}
+	if newDir == "" {
+		return nil
+	}
+	undoName := func() { _, _ = virsh("domrename", name, old) }
+	if err := os.Rename(oldDir, newDir); err != nil {
+		undoName()
+		return err
+	}
+	undoDir := func() { _ = os.Rename(newDir, oldDir) }
+	// The definition still points at the old folder: rewrite its paths.
+	doc, err := virsh("dumpxml", "--inactive", name)
+	if err == nil {
+		doc, err = movePaths(doc, oldDir, newDir)
+	}
+	if err == nil {
+		err = defineXML(doc)
+	}
+	if err != nil {
+		undoDir()
+		undoName()
+		return err
 	}
 	return nil
+}
+
+// movePaths rewrites every path of a domain definition inside [from] (disks,
+// cloud-init seed…) to the same path inside [to].
+func movePaths(doc, from, to string) (string, error) {
+	root, err := parseXML(doc)
+	if err != nil {
+		return "", err
+	}
+	root.walk(func(n *node) {
+		for _, a := range n.attrs {
+			if rest, ok := strings.CutPrefix(a.Value, from+"/"); ok {
+				n.setAttr(rawName(a.Name), to+"/"+rest)
+			}
+		}
+	})
+	return root.String(), nil
 }

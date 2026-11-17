@@ -189,6 +189,9 @@ func RevertSnapshot(name, snap string) error {
 	if err := ValidName(name); err != nil {
 		return err
 	}
+	if IsTemplate(name) {
+		return errTemplate(name)
+	}
 	if err := validSnap(snap); err != nil {
 		return err
 	}
@@ -203,6 +206,9 @@ func RevertSnapshot(name, snap string) error {
 func DeleteSnapshot(name, snap string) error {
 	if err := ValidName(name); err != nil {
 		return err
+	}
+	if IsTemplate(name) {
+		return errTemplate(name)
 	}
 	if err := validSnap(snap); err != nil {
 		return err

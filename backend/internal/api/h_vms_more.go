@@ -16,6 +16,7 @@ import (
 	"strataos/internal/backup"
 	"strataos/internal/jobs"
 	"strataos/internal/store"
+	"strataos/internal/vmcluster"
 	"strataos/internal/vms"
 )
 
@@ -518,15 +519,39 @@ func (s *Server) vmMoreRoutes() {
 			return nil, err
 		}
 		old := r.PathValue("name")
+		// High availability names the VM in the shared table: the new name
+		// must be free there, and the table is changed (quorum) or the
+		// rename undone, so no member ever restarts it under its old name.
+		ha := false
+		if s.clusterState().ID != "" {
+			t := s.vmcTable()
+			if vmcluster.Find(t, req.Name) >= 0 {
+				return nil, badRequest("a VM of the cluster is already named " + req.Name)
+			}
+			ha = vmcluster.Find(t, old) >= 0
+		}
 		if err := vms.Rename(old, req.Name); err != nil {
 			return nil, badRequest(err.Error())
 		}
-		if err := s.store.Update(func(st *store.State) error {
-			for i := range st.VMs.Autostart {
-				if st.VMs.Autostart[i].Name == old {
-					st.VMs.Autostart[i].Name = req.Name
-				}
+		if ha {
+			x, err := vms.InactiveXML(req.Name)
+			if err == nil {
+				err = s.vmcCommit(r.Context(), func(t *store.VMCluster) error {
+					if i := vmcluster.Find(*t, old); i >= 0 {
+						t.HA[i].Name, t.HA[i].XML = req.Name, x
+					}
+					return nil
+				})
 			}
+			if err != nil {
+				if uerr := vms.Rename(req.Name, old); uerr != nil {
+					slog.Error("VM rename not undone", "vm", req.Name, "err", uerr)
+				}
+				return nil, err
+			}
+		}
+		if err := s.store.Update(func(st *store.State) error {
+			renameVMRefs(st, old, req.Name)
 			return nil
 		}); err != nil {
 			return nil, err
@@ -592,4 +617,22 @@ func (s *Server) vmMoreRoutes() {
 			return err
 		}), nil
 	})
+}
+
+// renameVMRefs follows a VM rename in what the state keys by VM name: the
+// start order and the backup tasks (high availability goes through the
+// cluster, see the rename route).
+func renameVMRefs(st *store.State, old, name string) {
+	for i := range st.VMs.Autostart {
+		if st.VMs.Autostart[i].Name == old {
+			st.VMs.Autostart[i].Name = name
+		}
+	}
+	for i := range st.Backups {
+		for j, v := range st.Backups[i].VMs {
+			if v == old {
+				st.Backups[i].VMs[j] = name
+			}
+		}
+	}
 }

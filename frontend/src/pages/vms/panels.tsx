@@ -97,9 +97,11 @@ export function CloneVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
         <Field label={tr("Name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus /></Field>
         <Field label={tr("Disk locations")}><StorageSelect allowSame value={f.storage} onChange={(v) => setF({ ...f, storage: v })} /></Field>
         <Checkbox checked={f.start} onChange={(v) => setF({ ...f, start: v })} label={tr("Start it once created")} />
-        <Checkbox checked={f.linked} onChange={(v) => setF({ ...f, linked: v })} label={tr("Linked clone (thin copy)")} />
-        <Notice>{f.linked
-          ? tr("A linked clone shares the disks of the source through overlays: it is created in seconds and takes almost no space, but the source VM must be kept (it cannot be deleted while the clone exists).")
+        {vm.template
+          ? <Checkbox checked={f.linked} onChange={(v) => setF({ ...f, linked: v })} label={tr("Linked clone (thin copy)")} />
+          : <p className="text-muted text-[12.5px]">{tr("Linked clones (thin copies) are made from templates only: convert this VM into a template first.")}</p>}
+        <Notice>{f.linked && vm.template
+          ? tr("A linked clone shares the disks of the template through overlays: it is created in seconds and takes almost no space. The template must be kept, and stays a template while the clone exists (it cannot start or change).")
           : tr("A full copy: the disks are copied (snapshots are not), the copy gets new MAC addresses and a new identity. VMs made from a cloud image get a new host name and SSH host keys at first boot.")}</Notice>
       </div>
     </Modal>

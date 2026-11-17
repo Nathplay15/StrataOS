@@ -66,6 +66,10 @@ type Facts struct {
 
 	NotifyConfigured bool
 
+	// UnsafeClones: linked clones of VMs that are not templates (made by
+	// StrataOS up to 0.12.0), as "clone (source)".
+	UnsafeClones []string
+
 	Now time.Time
 }
 
@@ -255,6 +259,10 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 	if len(f.HostNet) > 0 {
 		add("docker-hostnet", "info", sub("Containers on the host network: {0}", list(f.HostNet)),
 			"They can listen on any port of the NAS and see its network traffic. Usual for some apps (Home Assistant, Plex…); otherwise prefer a bridge network.", "", "/docker/containers")
+	}
+	if len(f.UnsafeClones) > 0 {
+		add("vm-linked-clone", "medium", sub("Linked clones of VMs that are not templates: {0}", list(f.UnsafeClones)),
+			"These VMs read the disks of another VM. Starting that VM, taking a snapshot of it or backing it up while it runs changes those disks and silently corrupts the clones. Keep it shut down and convert it into a template, or replace each clone with a full copy.", "", "/vms")
 	}
 	order := map[string]int{"high": 0, "medium": 1, "low": 2, "info": 3}
 	slices.SortStableFunc(out, func(a, b store.AdvisorItem) int { return order[a.Severity] - order[b.Severity] })

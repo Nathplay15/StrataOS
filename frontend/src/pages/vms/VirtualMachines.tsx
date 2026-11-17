@@ -301,7 +301,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const keys = useQuery({ queryKey: ["vm-ssh-keys"], queryFn: () => api.get<string[]>("/api/vms/ssh-keys"), enabled: source === "cloud" });
   const files = useQuery({ queryKey: ["vm-importable"], queryFn: () => api.get<string[]>("/api/vms/importable"), enabled: source === "import" });
   const macos = useQuery({ queryKey: ["vm-macos"], queryFn: () => api.get<MacOSVersion[]>("/api/vms/macos"), enabled: source === "macos" });
-  const [mac, setMac] = useState({ version: "tahoe" });
+  const [mac, setMac] = useState({ version: "tahoe", ignoreMsrs: true });
   const inspect = useAction((p: string) => api.post<ImportInfo>("/api/vms/import/inspect", { source: p }), {
     onDone: (r) => {
       setInfo(r);
@@ -311,7 +311,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const list = (s: string) => s.split(/[\s,]+/).filter(Boolean);
   const create = useAction(() => {
     if (source === "iso") return api.post("/api/vms", f);
-    if (source === "macos") return api.post("/api/vms/macos", { ...f, os: "other", version: mac.version });
+    if (source === "macos") return api.post("/api/vms/macos", { ...f, os: "other", version: mac.version, ignoreMsrs: mac.ignoreMsrs });
     if (source === "import") return api.post("/api/vms/import", { ...f, source: imp.source, diskGb: 0 });
     return api.post("/api/vms/cloud", {
       ...f, os: "linux", image: ci.image,
@@ -360,7 +360,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
         <Field label={tr("Name")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-server" autoFocus /></Field>
         {source === "macos" ? (
           <Field label={tr("macOS version")}>
-            <Select value={mac.version} onChange={(e) => setMac({ version: e.target.value })}>
+            <Select value={mac.version} onChange={(e) => setMac({ ...mac, version: e.target.value })}>
               {(macos.data ?? [{ id: "tahoe", name: "macOS Tahoe (26)" }]).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </Select>
           </Field>
@@ -436,6 +436,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
       {/* Rendered even once a bridge shows up: it holds the trial confirmation. */}
       <QuickBridge what="vm" className="mt-4" onCreated={(b) => set({ network: b })} />
       {source !== "cloud" && f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
+      {source === "macos" && <div className="mt-4"><Checkbox checked={mac.ignoreMsrs} onChange={(v) => setMac({ ...mac, ignoreMsrs: v })} label={tr("Let KVM ignore unknown CPU registers (needed by macOS; applies to every VM of the NAS, also after a restart)")} /></div>}
       {source === "macos" && <div className="mt-4"><Notice>{tr("Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.")}</Notice></div>}
       <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Start the VM with the NAS")} /></div>
     </Modal>

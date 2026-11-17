@@ -19,5 +19,16 @@
   ["seules les adresses https sont acceptées", "only https addresses are allowed"],
   ["les adresses internes ne sont pas autorisées", "internal addresses are not allowed"],
   ["Identifiant de l'utilisateur des fichiers", "User ID of the files"],
-  ["Identifiant du groupe des fichiers", "Group ID of the files"]
+  ["Identifiant du groupe des fichiers", "Group ID of the files"],
+  ["les clones liés se font uniquement à partir d'un modèle : convertissez d'abord {0} en modèle, ou faites une copie complète", "linked clones are made from templates only: convert {0} to a template first, or make a full copy"],
+  ["les VM {0} sont des clones liés de ce modèle : supprimez-les (ou remplacez-les par des copies complètes) d'abord", "the VMs {0} are linked clones of this template: delete them (or replace them with full copies) first"],
+  ["{0} est un modèle : ses disques servent de base à des clones liés et ne peuvent pas changer (reconvertissez-le d'abord en VM)", "{0} is a template: its disks are the base of linked clones and cannot change (convert it back to a VM first)"],
+  ["la VM {0} est un clone lié de celle-ci : ses disques lisent le dossier de cette VM, que le renommage déplacerait", "the VM {0} is a linked clone of this one: its disks read this VM's folder, which renaming would move"],
+  ["une VM du cluster s'appelle déjà {0}", "a VM of the cluster is already named {0}"],
+  ["Clones liés de VM qui ne sont pas des modèles : {0}", "Linked clones of VMs that are not templates: {0}"],
+  ["Ces VM lisent les disques d'une autre VM. Démarrer cette VM, en prendre un snapshot ou la sauvegarder pendant qu'elle tourne modifie ces disques et abîme les clones sans prévenir. Gardez-la éteinte et convertissez-la en modèle, ou remplacez chaque clone par une copie complète.", "These VMs read the disks of another VM. Starting that VM, taking a snapshot of it or backing it up while it runs changes those disks and silently corrupts the clones. Keep it shut down and convert it into a template, or replace each clone with a full copy."],
+  ["la liste de contrôle n'est pas signée par Apple (méthode {0})", "the chunklist is not signed by Apple (method {0})"],
+  ["{0} dépend d'un autre fichier ({1}) : refusé", "{0} depends on another file ({1}): refused"],
+  ["{0} garde ses données dans un autre fichier ({1}) : refusé", "{0} keeps its data in another file ({1}): refused"],
+  ["Disque de démarrage OpenCore : {0}", "OpenCore boot disk: {0}"]
 ]

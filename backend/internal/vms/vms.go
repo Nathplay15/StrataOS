@@ -638,11 +638,11 @@ func Delete(name string, removeDisks bool) error {
 	if err != nil {
 		return err
 	}
-	if removeDisks && vm.Dir != "" {
-		if clone, err := linkedCloneOf(vm.Dir, name); err != nil {
+	if removeDisks {
+		if clones, err := clonesOf(name); err != nil {
 			return err
-		} else if clone != "" {
-			return fmt.Errorf("the VM %s is a linked clone of this one: delete it first", clone)
+		} else if len(clones) > 0 {
+			return fmt.Errorf("the VM %s is a linked clone of this one: delete it first", clones[0])
 		}
 	}
 	if vm.State != "shut off" {
@@ -664,38 +664,6 @@ func Delete(name string, removeDisks bool) error {
 		return os.RemoveAll(vm.Dir)
 	}
 	return nil
-}
-
-// linkedCloneOf returns the name of a VM whose disks are qcow2 overlays with
-// a backing file inside [dir] (a linked clone of the VM that lives there);
-// "" when none does. [self] is skipped (its own disks are not a clone of it).
-func linkedCloneOf(dir, self string) (string, error) {
-	list, err := List()
-	if err != nil {
-		return "", err
-	}
-	for _, vm := range list {
-		if vm.Name == self {
-			continue
-		}
-		for _, d := range vm.Disks {
-			if d.Device != "disk" || d.Source == "" {
-				continue
-			}
-			info, err := imageInfo(d.Source)
-			if err != nil || info.BackingFile == "" {
-				continue
-			}
-			abs, err := filepath.Abs(info.BackingFile)
-			if err != nil {
-				continue
-			}
-			if abs == dir || strings.HasPrefix(abs, dir+string(os.PathSeparator)) {
-				return vm.Name, nil
-			}
-		}
-	}
-	return "", nil
 }
 
 // ISOs lists .iso files found under /srv/strata (depth-limited).
