@@ -26,6 +26,7 @@ import (
 	"strataos/internal/docker"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/system"
 	"strataos/internal/tlstrust"
 )
 
@@ -153,7 +154,8 @@ func (s *Server) alerts(raids []storage.RaidArray, pools []storage.ZPool, vols [
 	if d := s.diskAlerts.Load(); d != nil {
 		out = append(out, (*d)...)
 	}
-	return append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken(), s.volumeFullPct())...)
+	out = append(out, storageAlerts(raids, pools, vols, storage.ZFSBroken(), s.volumeFullPct())...)
+	return append(out, s.resourceAlerts()...)
 }
 
 // volumeFullPct is the fill percentage above which a volume is alerted as
@@ -165,6 +167,55 @@ func (s *Server) volumeFullPct() int {
 		return set.VolumeFullPct
 	}
 	return 90
+}
+
+// resourceAlerts warns when the average CPU or memory usage of the last
+// minute exceeds the configured thresholds (Settings.CpuAlertPct /
+// MemAlertPct, 0 disables a check).
+func (s *Server) resourceAlerts() []alert {
+	var set store.Settings
+	s.store.Read(func(st *store.State) { set = st.Settings })
+	if set.CpuAlertPct == 0 && set.MemAlertPct == 0 {
+		return nil
+	}
+	h, _ := s.monitor.History()
+	if len(h) > 30 { // last minute at the 2 s sampling rate
+		h = h[len(h)-30:]
+	}
+	cpuAvg, memAvg := resourceAverages(h)
+	return resourceAlertList(cpuAvg, memAvg, set.CpuAlertPct, set.MemAlertPct)
+}
+
+// resourceAverages returns the mean CPU and memory percentages of the samples.
+func resourceAverages(h []system.Sample) (cpu, mem float64) {
+	if len(h) == 0 {
+		return 0, 0
+	}
+	var cpuSum float64
+	var used, total int64
+	for _, s := range h {
+		cpuSum += s.CPU
+		used += s.MemUsed
+		total += s.MemTotal
+	}
+	cpu = cpuSum / float64(len(h))
+	if total > 0 {
+		mem = 100 * float64(used) / float64(total)
+	}
+	return cpu, mem
+}
+
+// resourceAlertList builds the CPU and memory alerts for average usages
+// above the thresholds (0 disables a check).
+func resourceAlertList(cpuAvg, memAvg float64, cpuPct, memPct int) []alert {
+	var out []alert
+	if cpuPct > 0 && cpuAvg >= float64(cpuPct) {
+		out = append(out, alert{Level: "warning", Message: fmt.Sprintf("CPU usage is high: %.0f%% on average over the last minute (threshold %d%%)", cpuAvg, cpuPct), Key: "resource:cpu"})
+	}
+	if memPct > 0 && memAvg >= float64(memPct) {
+		out = append(out, alert{Level: "warning", Message: fmt.Sprintf("Memory usage is high: %.0f%% on average over the last minute (threshold %d%%)", memAvg, memPct), Key: "resource:mem"})
+	}
+	return out
 }
 
 func storageAlerts(raids []storage.RaidArray, pools []storage.ZPool, vols []volumeSummary, zfsBroken bool, fullPct int) []alert {

@@ -1,4 +1,6 @@
 {
+ "Utilisation mémoire élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "Arbeitsspeicher-Auslastung ist hoch: {0} % im Durchschnitt über die letzte Minute (Schwelle {1} %)",
+ "Utilisation CPU élevée : {0} % en moyenne sur la dernière minute (seuil {1} %)": "CPU-Auslastung ist hoch: {0} % im Durchschnitt über die letzte Minute (Schwelle {1} %)",
  "A des partitions montées": "Hat eingehängte Partitionen",
  "A quitté le cluster {0}": "Cluster {0} verlassen",
  "A rejoint le cluster {0} (ajouté par {1})": "Cluster {0} beigetreten (hinzugefügt von {1})",

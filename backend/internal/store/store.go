@@ -200,6 +200,11 @@ type Settings struct {
 	// VolumeFullPct is the fill percentage above which a volume is alerted
 	// as full (dashboard and notifications); 0 keeps the default of 90.
 	VolumeFullPct int `json:"volumeFullPct,omitempty"`
+	// CpuAlertPct and MemAlertPct are the average CPU and memory percentages
+	// above which an alert is raised (dashboard and notifications); 0
+	// disables each check.
+	CpuAlertPct int `json:"cpuAlertPct,omitempty"`
+	MemAlertPct int `json:"memAlertPct,omitempty"`
 }
 
 // Schedule is a periodic maintenance task (snapshot, scrub or SMART test).
