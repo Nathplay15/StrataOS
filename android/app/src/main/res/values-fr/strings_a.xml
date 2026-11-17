@@ -321,4 +321,12 @@
     <string name="state_stopped">Arrêté</string>
     <string name="a_search_content">Rechercher dans le contenu des fichiers</string>
     <string name="a_search_content_hint">Rechercher dans le contenu de tous vos fichiers</string>
+    <string name="vm_usb">Périphériques USB</string>
+    <string name="vm_usb_hint">Donnez un périphérique USB du NAS à cette VM : il est mémorisé et revient après débranchement ; il est branché à chaud quand la VM tourne.</string>
+    <string name="vm_usb_empty">Aucun périphérique USB sur le NAS</string>
+    <string name="vm_usb_used_by">Donné à {0}</string>
+    <string name="vm_usb_give">Donner</string>
+    <string name="vm_usb_take">Reprendre</string>
+    <string name="vm_usb_given">Périphérique donné à la VM</string>
+    <string name="vm_usb_taken">Périphérique repris</string>
 </resources>

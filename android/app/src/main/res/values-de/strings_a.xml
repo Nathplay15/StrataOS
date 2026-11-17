@@ -320,4 +320,12 @@
     <string name="state_stopped">Gestoppt</string>
     <string name="a_search_content">In Dateiinhalten suchen</string>
     <string name="a_search_content_hint">Den Inhalt aller Dateien durchsuchen</string>
+    <string name="vm_usb">USB-Geräte</string>
+    <string name="vm_usb_hint">Gib ein USB-Gerät des NAS an diese VM: Es wird gemerkt und kommt nach dem Abstecken zurück; es wird live angesteckt, während die VM läuft.</string>
+    <string name="vm_usb_empty">Kein USB-Gerät am NAS</string>
+    <string name="vm_usb_used_by">An {0} gegeben</string>
+    <string name="vm_usb_give">Geben</string>
+    <string name="vm_usb_take">Zurücknehmen</string>
+    <string name="vm_usb_given">Gerät an die VM gegeben</string>
+    <string name="vm_usb_taken">Gerät zurückgenommen</string>
 </resources>

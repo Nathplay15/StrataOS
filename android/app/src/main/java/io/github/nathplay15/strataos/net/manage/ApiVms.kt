@@ -54,6 +54,11 @@ import kotlinx.serialization.builtins.serializer
 
 @Serializable private data class VmActionReq(val iso: String = "", val autostart: Boolean = false, val vcpus: Int = 0, val memoryMb: Int = 0, val order: Int = 0, val delay: Int = 0)
 @Serializable private data class SnapReq(val name: String, val description: String)
+@Serializable data class VmUsbDevice(
+    val vendor: String = "", val product: String = "", val serial: String = "", val name: String = "",
+    val speed: String = "", val usedBy: String = "", val missing: Boolean = false, val internal: Boolean = false,
+)
+@Serializable private data class UsbReq(val vendor: String, val product: String, val serial: String = "")
 @Serializable data class VolumeUsage(val total: Long = 0, val used: Long = 0, val free: Long = 0)
 @Serializable data class StorageVolume(val id: String = "", val name: String = "", val mountPoint: String = "", val mounted: Boolean = false, val usage: VolumeUsage = VolumeUsage())
 
@@ -76,6 +81,10 @@ fun Api.vmSnapshots(name: String): List<VmSnapshot> = call(get("/api/vms/$name/s
 fun Api.createSnapshot(vm: String, name: String, description: String) = call(sendJson("POST", "/api/vms/$vm/snapshots", SnapReq(name, description)), okSer)
 fun Api.revertSnapshot(vm: String, snap: String) = ok("POST", "/api/vms/$vm/snapshots/$snap/revert")
 fun Api.deleteSnapshot(vm: String, snap: String) = ok("DELETE", "/api/vms/$vm/snapshots/$snap")
+
+fun Api.hostUsb(): List<VmUsbDevice> = call(get("/api/vms/usb"), listSer(VmUsbDevice.serializer()))
+fun Api.attachUsb(vm: String, d: VmUsbDevice) = call(sendJson("POST", "/api/vms/$vm/usb", UsbReq(d.vendor, d.product, d.serial)), okSer)
+fun Api.detachUsb(vm: String, vendor: String, product: String) = ok("DELETE", "/api/vms/$vm/usb/$vendor/$product")
 
 /** The websocket of the VM console (RFB relayed to the VM's VNC server). */
 fun Api.vncUrl(name: String) = url("/api/vms/$name/vnc")

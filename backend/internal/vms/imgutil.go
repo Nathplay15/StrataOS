@@ -109,6 +109,14 @@ func imageInfo(path string) (imgInfo, error) {
 	return i, err
 }
 
+// linkImage creates a thin qcow2 overlay of [src]: a linked clone reads the
+// source disk and only stores its own changes. The source must be kept (its
+// deletion is refused while a clone points into its folder).
+func linkImage(src, dst string) error {
+	_, err := sys.Run("qemu-img", "create", "-f", "qcow2", "-b", src, "-F", "qcow2", "--", dst)
+	return err
+}
+
 // resizeImage grows a disk image to gb GiB (never shrinks).
 func resizeImage(path string, gb int) error {
 	info, err := imageInfo(path)

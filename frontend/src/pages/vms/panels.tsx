@@ -87,7 +87,7 @@ export function Snapshots({ vm, onClose }: { vm: VM; onClose: () => void }) {
 /* ---------- Clone / create from template ---------- */
 
 export function CloneVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
-  const [f, setF] = useState({ name: vm.template ? "" : `${vm.name}-clone`, storage: "", start: vm.template });
+  const [f, setF] = useState({ name: vm.template ? "" : `${vm.name}-clone`, storage: "", start: vm.template, linked: false });
   const clone = useAction(() => api.post(`/api/vms/${enc(vm.name)}/clone`, f), { onDone: onClose });
   return (
     <Modal open onClose={onClose} title={vm.template ? tr("New VM from template {0}", vm.name) : tr("Clone {0}", vm.name)}
@@ -97,7 +97,10 @@ export function CloneVM({ vm, onClose }: { vm: VM; onClose: () => void }) {
         <Field label={tr("Name")}><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus /></Field>
         <Field label={tr("Disk locations")}><StorageSelect allowSame value={f.storage} onChange={(v) => setF({ ...f, storage: v })} /></Field>
         <Checkbox checked={f.start} onChange={(v) => setF({ ...f, start: v })} label={tr("Start it once created")} />
-        <Notice>{tr("A full copy: the disks are copied (snapshots are not), the copy gets new MAC addresses and a new identity. VMs made from a cloud image get a new host name and SSH host keys at first boot.")}</Notice>
+        <Checkbox checked={f.linked} onChange={(v) => setF({ ...f, linked: v })} label={tr("Linked clone (thin copy)")} />
+        <Notice>{f.linked
+          ? tr("A linked clone shares the disks of the source through overlays: it is created in seconds and takes almost no space, but the source VM must be kept (it cannot be deleted while the clone exists).")
+          : tr("A full copy: the disks are copied (snapshots are not), the copy gets new MAC addresses and a new identity. VMs made from a cloud image get a new host name and SSH host keys at first boot.")}</Notice>
       </div>
     </Modal>
   );
