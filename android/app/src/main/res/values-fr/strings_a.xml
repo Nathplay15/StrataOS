@@ -329,4 +329,5 @@
     <string name="vm_usb_take">Reprendre</string>
     <string name="vm_usb_given">Périphérique donné à la VM</string>
     <string name="vm_usb_taken">Périphérique repris</string>
+    <string name="nas_docker_containers">Conteneurs Docker</string>
 </resources>

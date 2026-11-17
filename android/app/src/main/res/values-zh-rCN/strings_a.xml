@@ -328,4 +328,5 @@
     <string name="vm_usb_take">收回</string>
     <string name="vm_usb_given">设备已分配给虚拟机</string>
     <string name="vm_usb_taken">设备已收回</string>
+    <string name="nas_docker_containers">Docker 容器</string>
 </resources>

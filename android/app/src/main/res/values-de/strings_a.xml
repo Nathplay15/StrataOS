@@ -328,4 +328,5 @@
     <string name="vm_usb_take">Zurücknehmen</string>
     <string name="vm_usb_given">Gerät an die VM gegeben</string>
     <string name="vm_usb_taken">Gerät zurückgenommen</string>
+    <string name="nas_docker_containers">Docker-Container</string>
 </resources>

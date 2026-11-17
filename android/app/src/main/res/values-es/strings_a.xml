@@ -328,4 +328,5 @@
     <string name="vm_usb_take">Recuperar</string>
     <string name="vm_usb_given">Dispositivo dado a la VM</string>
     <string name="vm_usb_taken">Dispositivo recuperado</string>
+    <string name="nas_docker_containers">Contenedores Docker</string>
 </resources>

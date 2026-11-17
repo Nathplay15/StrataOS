@@ -25,6 +25,7 @@ import (
 
 	"strataos/internal/docker"
 	"strataos/internal/jobs"
+	"strataos/internal/store"
 )
 
 // Update states of a container.
@@ -224,6 +225,71 @@ func (s *Server) checkDockerUpdates(ctx context.Context, logf func(string, ...an
 	slices.SortFunc(out, func(a, b containerUpdate) int { return strings.Compare(a.Name, b.Name) })
 	s.setDockerUpdates(func(st *dockerUpdateState) { st.Containers, st.Checked, st.Running = out, time.Now(), false })
 	return out, nil
+}
+
+// autoUpdateContainers runs in the maintenance window when the automatic
+// updates are set to install the container updates too: every container (or
+// whole stack) with an update available is updated. A failure is logged and
+// does not stop the run (the system packages may already be updated); the
+// next window tries again.
+func (s *Server) autoUpdateContainers(ctx context.Context, j *jobs.Job, run *store.AutoUpdateRun) error {
+	if !docker.Available() {
+		j.Logf("Docker is not available: no container update")
+		return nil
+	}
+	if !dockerUpdating.TryLock() {
+		j.Logf("A manual container update is running: skipped")
+		return nil
+	}
+	defer dockerUpdating.Unlock()
+	list, err := s.checkDockerUpdates(ctx, j.Logf)
+	if err != nil {
+		j.Logf("Update check failed: %v", err)
+		return nil
+	}
+	n := 0
+	for _, c := range list {
+		if c.Status == updAvailable {
+			n++
+		}
+	}
+	if n == 0 {
+		j.Logf(">> Containers: nothing to update")
+		return nil
+	}
+	j.Logf(">> Containers: %d update(s) available", n)
+	if run.DryRun {
+		run.Containers = n
+		return nil
+	}
+	var failed []string
+	stacks := map[string]bool{}
+	for _, c := range list {
+		if c.Status != updAvailable {
+			continue
+		}
+		var err error
+		switch {
+		case c.Stack != "" && stacks[c.Stack]:
+			continue
+		case c.Stack != "":
+			stacks[c.Stack] = true
+			err = s.updateStack(ctx, c.Stack, j)
+		default:
+			err = s.updateContainer(ctx, c.ID, j)
+		}
+		if err != nil {
+			j.Logf("%s: %v", firstNonEmpty(c.Stack, c.Name), err)
+			failed = append(failed, firstNonEmpty(c.Stack, c.Name))
+		} else {
+			run.Containers++
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("container update failed for %s", strings.Join(failed, ", "))
+	}
+	s.store.Log("info", "docker", "", fmt.Sprintf("Automatic update of %d container(s)", run.Containers))
+	return nil
 }
 
 // notifyDockerUpdates tells about updates not notified before.

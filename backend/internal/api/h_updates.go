@@ -294,6 +294,11 @@ func (s *Server) autoUpdateSteps(ctx context.Context, j *jobs.Job, c store.AutoU
 			run.Phase = ""
 		}
 	}
+	if c.Containers == store.UpdateInstall {
+		if err := s.autoUpdateContainers(ctx, j, run); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -402,7 +407,8 @@ func latestStable() string {
 func validAutoUpdates(c store.AutoUpdates) error {
 	if !slices.Contains([]string{store.UpdateOff, store.UpdateNotify, store.UpdateInstall}, c.Strata) ||
 		!slices.Contains([]string{store.UpdateOff, store.UpdateInstall}, c.Security) ||
-		!slices.Contains([]string{store.UpdateOff, store.UpdateNotify, store.UpdateInstall}, c.System) {
+		!slices.Contains([]string{store.UpdateOff, store.UpdateNotify, store.UpdateInstall}, c.System) ||
+		!slices.Contains([]string{store.UpdateOff, store.UpdateInstall}, c.Containers) {
 		return badRequest("invalid automatic update mode")
 	}
 	if c.Hour < 0 || c.Hour > 23 || len(c.Days) > 7 {
@@ -425,7 +431,7 @@ func (s *Server) updateRoutes() {
 		}
 		_, err := os.Stat(system.StrataSources)
 		out := map[string]any{
-			"strata": c.Strata, "security": c.Security, "system": c.System,
+			"strata": c.Strata, "security": c.Security, "system": c.System, "containers": c.Containers,
 			"days": c.Days, "hour": c.Hour, "reboot": c.Reboot,
 			"channel": system.Channel(), "repository": err == nil,
 			"installed": installed, "beta": release.Prerelease(installed),
