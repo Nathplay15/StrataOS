@@ -22,6 +22,7 @@ const Lvm = lazy(() => import("./pages/storage/Lvm"));
 const Iscsi = lazy(() => import("./pages/storage/Iscsi"));
 const SpaceAnalyzer = lazy(() => import("./pages/storage/SpaceAnalyzer"));
 const Duplicates = lazy(() => import("./pages/storage/Duplicates"));
+const Trends = lazy(() => import("./pages/storage/Trends"));
 const MediaOptimizer = lazy(() => import("./pages/storage/MediaOptimizer"));
 const Ceph = lazy(() => import("./pages/storage/Ceph"));
 const Shares = lazy(() => import("./pages/Shares"));
@@ -122,6 +123,7 @@ function Root() {
             <Route path="storage/iscsi" element={A(<Iscsi />)} />
             <Route path="storage/analyzer" element={A(<SpaceAnalyzer />)} />
             <Route path="storage/duplicates" element={A(<Duplicates />)} />
+            <Route path="storage/trends" element={A(<Trends />)} />
             <Route path="storage/media" element={A(<MediaOptimizer />)} />
             <Route path="storage/ceph" element={A(<Ceph />)} />
             <Route path="files" element={<Files />} />

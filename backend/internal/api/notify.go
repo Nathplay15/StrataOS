@@ -292,6 +292,7 @@ func (s *Server) healthWatcher() {
 		}
 		s.diskAlerts.Store(&weak)
 		s.recordHealthHistory(vols)
+		s.recordShareUsage()
 		var fresh []alert
 		fresh, known = freshAlerts(known, s.alerts(raids, pools, vols))
 		for _, a := range fresh {

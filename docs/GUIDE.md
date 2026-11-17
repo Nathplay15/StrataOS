@@ -87,6 +87,7 @@ StrataOS refuses, and says why, when the replacement would put data at risk: no 
 
 - **Space analyzer** (Storage → Space analyzer): shows what takes up space in a volume or a shared folder, by folder and by file type, with the largest files and the large files not modified for a year. The analysis runs in the background; the result is kept until the next scan.
 - **Duplicates** (Storage → Duplicates): finds identical files (same content, not just the same name). Check the copies to remove, or use "Select all but the oldest". At least one copy of each group is always kept, and files go to the recycle bin of their shared folder when it has one.
+- **Trends** (Storage → Trends): shows how each volume, shared folder and account grows over time (7 and 30 days), and projects for each volume how long it still has before it is full. The usage of the shared folders and of the accounts is walked once a day in the background.
 
 ## 5. Users and shared folders
 
