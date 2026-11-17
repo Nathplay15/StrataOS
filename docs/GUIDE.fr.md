@@ -230,7 +230,7 @@ Le plus sûr est le **VPN WireGuard** (Accès à distance) : ajoutez un appareil
 
 - **Tailscale** : relie vos appareils dans un réseau privé sans ouvrir de port sur la box. Installez-le, connectez-vous avec un navigateur, puis installez Tailscale sur votre téléphone ou ordinateur avec le même compte. Il peut aussi partager votre réseau local ou servir de nœud de sortie.
 - **Cloudflare Tunnel** : publie des services web sous votre domaine via Cloudflare, sans ouvrir aucun port. Collez le jeton du tunnel, puis ajoutez un nom d'hôte public par service dans le tableau de bord Cloudflare.
-- **Domaines des apps** : donnez à vos apps des adresses propres comme `https://jellyfin.example.com`, avec un certificat Let's Encrypt gratuit par nom, renouvelé automatiquement. Redirigez les ports 80 et 443 vers le NAS. Pour les apps sans connexion propre, choisissez « Réseau local uniquement », ou passez par le VPN ou Tailscale.
+- **Domaines des apps** : donnez à vos apps des adresses propres comme `https://jellyfin.example.com`, avec un certificat Let's Encrypt gratuit par nom, renouvelé automatiquement. Redirigez les ports 80 et 443 vers le NAS. Quand Let's Encrypt utilise le challenge DNS-01 (un jeton Cloudflare dans les réglages des certificats), les noms de ce domaine partagent un certificat wildcard : les nouveaux sous-domaines ont un certificat valide tout de suite. Pour les apps sans connexion propre, choisissez « Réseau local uniquement », ou passez par le VPN ou Tailscale.
 
 Tout ce qui est publié sur Internet est accessible à tous : gardez la connexion et la double authentification activées.
 

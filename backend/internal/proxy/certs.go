@@ -133,8 +133,9 @@ type DNSSolver interface {
 }
 
 // Obtain asks Let's Encrypt for a certificate: DNS-01 when dns is set,
-// HTTP-01 on port 80 otherwise.
-func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolver, logf func(string, ...any)) error {
+// HTTP-01 on port 80 otherwise. Extra names (e.g. "*.example.com") are added
+// to the certificate as SANs; they need the DNS-01 challenge.
+func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolver, logf func(string, ...any), extra ...string) error {
 	key, err := c.accountKey()
 	if err != nil {
 		return err
@@ -177,8 +178,11 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 			if err != nil {
 				return err
 			}
-			logf("Publishing the DNS record _acme-challenge.%s…", host)
-			cleanup, err := dns.Present(ctx, "_acme-challenge."+host, val)
+			// The identifier of a wildcard authorization is "*.name"; the TXT
+			// record goes to _acme-challenge of the name itself.
+			name := strings.TrimPrefix(z.Identifier.Value, "*.")
+			logf("Publishing the DNS record _acme-challenge.%s…", name)
+			cleanup, err := dns.Present(ctx, "_acme-challenge."+name, val)
 			if err != nil {
 				return err
 			}
@@ -213,7 +217,7 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 	if err != nil {
 		return err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: host}, DNSNames: []string{host}}, ck)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: host}, DNSNames: append([]string{host}, extra...)}, ck)
 	if err != nil {
 		return err
 	}
@@ -230,8 +234,60 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 	}
 	c.mu.Lock()
 	delete(c.cache, host)
+	delete(c.cache, "*."+host)
 	c.mu.Unlock()
 	return nil
+}
+
+// WildcardMatch tells whether host is covered by a wildcard certificate of
+// base: base itself, or a one-level sub-domain of it (the SAN *.base does
+// not cover deeper names such as a.b.base).
+func WildcardMatch(base, host string) bool {
+	base = strings.TrimSuffix(strings.ToLower(base), ".")
+	if base == "" {
+		return false
+	}
+	host = hostOnly(host)
+	if host == base {
+		return true
+	}
+	rest, ok := strings.CutSuffix(host, "."+base)
+	return ok && rest != "" && !strings.Contains(rest, ".")
+}
+
+// coversWildcard tells whether a certificate holds the SAN *.base.
+func coversWildcard(leaf *x509.Certificate, base string) bool {
+	for _, n := range leaf.DNSNames {
+		if strings.EqualFold(n, "*."+base) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetWildcard returns the certificate covering the sub-domains of base (the
+// files <base>.crt/.key obtained with the SAN *.base); it fails when there
+// is none or it expired.
+func (c *CertStore) GetWildcard(base string) (*tls.Certificate, error) {
+	key := "*." + base
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cert, ok := c.cache[key]; ok && cert.Leaf != nil && time.Now().Before(cert.Leaf.NotAfter) {
+		return cert, nil
+	}
+	cert, err := tls.LoadX509KeyPair(c.path(base, ".crt"), c.path(base, ".key"))
+	if err != nil || cert.Leaf == nil || time.Now().After(cert.Leaf.NotAfter) || !coversWildcard(cert.Leaf, base) {
+		return nil, fmt.Errorf("no wildcard certificate for %s", base)
+	}
+	c.cache[key] = &cert
+	return &cert, nil
+}
+
+// NeedsWildcard reports whether base has no wildcard certificate or one
+// expiring within 30 days.
+func (c *CertStore) NeedsWildcard(base string) bool {
+	cert, err := tls.LoadX509KeyPair(c.path(base, ".crt"), c.path(base, ".key"))
+	return err != nil || cert.Leaf == nil || !coversWildcard(cert.Leaf, base) || time.Until(cert.Leaf.NotAfter) < 30*24*time.Hour
 }
 
 func (c *CertStore) accountKey() (crypto.Signer, error) {

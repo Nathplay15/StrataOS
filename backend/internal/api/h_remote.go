@@ -254,10 +254,21 @@ func wakeProxy() {
 	}
 }
 
-// dnsSolver uses the Cloudflare token of the dynamic DNS for names of its zone.
+// dnsSolver uses the Cloudflare token of the Let's Encrypt (DNS-01) settings,
+// then the one of the dynamic DNS, for names of their zone.
 func (s *Server) dnsSolver(ctx context.Context, host string) proxy.DNSSolver {
 	var d store.DDNS
-	s.store.Read(func(st *store.State) { d = st.DDNS })
+	var mode, token, zone string
+	s.store.Read(func(st *store.State) {
+		d = st.DDNS
+		mode, token, zone = st.Settings.ACMEMode, st.Settings.ACMEToken, st.Settings.ACMEZoneID
+	})
+	if mode == "dns" && token != "" && zone != "" {
+		cf := &proxy.Cloudflare{Token: token, ZoneID: zone}
+		if cf.Covers(ctx, host) {
+			return cf
+		}
+	}
 	if d.Provider != "cloudflare" || d.Token == "" || d.ZoneID == "" {
 		return nil
 	}
@@ -268,8 +279,27 @@ func (s *Server) dnsSolver(ctx context.Context, host string) proxy.DNSSolver {
 	return cf
 }
 
+// wildcardBase returns the domain whose sub-domains are covered by a
+// wildcard certificate: the Let's Encrypt domain of the interface, when a
+// Cloudflare token can solve the DNS-01 challenge it needs ("" = none).
+func (s *Server) wildcardBase() string {
+	var mode, domain, token, zone string
+	var d store.DDNS
+	s.store.Read(func(st *store.State) {
+		mode, domain, token, zone = st.Settings.ACMEMode, st.Settings.ACMEDomain, st.Settings.ACMEToken, st.Settings.ACMEZoneID
+		d = st.DDNS
+	})
+	if domain == "" || proxy.LocalName(domain) {
+		return ""
+	}
+	if mode == "dns" && ((token != "" && zone != "") || (d.Provider == "cloudflare" && d.Token != "" && d.ZoneID != "")) {
+		return domain
+	}
+	return ""
+}
+
 // obtainCert asks Let's Encrypt for the certificate of one domain and records the result.
-func (s *Server) obtainCert(ctx context.Context, host string, logf func(string, ...any)) error {
+func (s *Server) obtainCert(ctx context.Context, host string, logf func(string, ...any), extra ...string) error {
 	if _, busy := obtaining.LoadOrStore(host, struct{}{}); busy {
 		return fmt.Errorf("a certificate request for %s is already running", host)
 	}
@@ -284,7 +314,7 @@ func (s *Server) obtainCert(ctx context.Context, host string, logf func(string, 
 	logf("Requesting a certificate for %s (%s)…", host, method)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	err := appProxy.Certs.Obtain(ctx, host, email, dns, logf)
+	err := appProxy.Certs.Obtain(ctx, host, email, dns, logf, extra...)
 	_ = s.store.Update(func(st *store.State) error {
 		for _, d := range st.Remote.Proxy.Domains {
 			if d.Host == host {
@@ -316,6 +346,8 @@ func (s *Server) proxyLoop() {
 	for {
 		var p store.AppProxy
 		s.store.Read(func(st *store.State) { p = st.Remote.Proxy })
+		base := s.wildcardBase()
+		appProxy.SetWildcard(base)
 		if p.Enabled && (appProxy.Running() || time.Since(lastFail) > 10*time.Minute) {
 			if err := s.startProxy(context.Background()); err != nil {
 				if lastFail.IsZero() {
@@ -328,8 +360,11 @@ func (s *Server) proxyLoop() {
 		}
 		if appProxy.Running() && time.Since(lastCheck) > 6*time.Hour {
 			lastCheck = time.Now()
+			if base != "" && appProxy.Certs.NeedsWildcard(base) {
+				_ = s.obtainCert(context.Background(), base, func(string, ...any) {}, "*."+base)
+			}
 			for _, d := range p.Domains {
-				if proxy.LocalName(d.Host) || !appProxy.Certs.NeedsCertificate(d.Host) {
+				if proxy.LocalName(d.Host) || (base != "" && proxy.WildcardMatch(base, d.Host)) || !appProxy.Certs.NeedsCertificate(d.Host) {
 					continue
 				}
 				// After a failure, wait before trying again (Let's Encrypt limits failed attempts).
@@ -496,8 +531,14 @@ func (s *Server) remoteRoutes() {
 			d = st.DDNS
 		})
 		list := []domainView{}
+		wildcard := s.wildcardBase()
 		for _, x := range p.Domains {
-			v := domainView{AppDomain: *x, Cert: appProxy.Certs.Info(x.Host), LocalName: proxy.LocalName(x.Host)}
+			v := domainView{AppDomain: *x, LocalName: proxy.LocalName(x.Host)}
+			if wildcard != "" && proxy.WildcardMatch(wildcard, x.Host) {
+				v.Cert = appProxy.Certs.Info(wildcard)
+			} else {
+				v.Cert = appProxy.Certs.Info(x.Host)
+			}
 			_, v.Obtaining = obtaining.Load(x.Host)
 			switch x.Kind {
 			case "app":
@@ -531,6 +572,7 @@ func (s *Server) remoteRoutes() {
 		return map[string]any{
 			"enabled": p.Enabled, "running": appProxy.Running(), "email": p.Email, "domains": list, "apps": apps,
 			"dnsChallenge": d.Provider == "cloudflare" && d.Token != "" && d.ZoneID != "", "publicIp": d.LastIP,
+			"wildcard": wildcard,
 		}, nil
 	})
 	s.admin("PUT /api/remote/domains/settings", func(r *http.Request) (any, error) {
@@ -620,6 +662,9 @@ func (s *Server) remoteRoutes() {
 		}
 		s.audit(r, "remote", "App domain "+host+" saved")
 		appProxy.SetRoutes(s.proxyTable())
+		if base := s.wildcardBase(); base != "" && proxy.WildcardMatch(base, host) {
+			return d, nil
+		}
 		if appProxy.Running() && !proxy.LocalName(host) && appProxy.Certs.NeedsCertificate(host) {
 			return s.jobs.Start("acme", "Let's Encrypt certificate for "+host, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 				return s.obtainCert(ctx, host, j.Logf)
@@ -671,6 +716,11 @@ func (s *Server) remoteRoutes() {
 		}
 		if !appProxy.Running() {
 			return nil, badRequest("enable the app domains first")
+		}
+		if base := s.wildcardBase(); base != "" && proxy.WildcardMatch(base, host) {
+			return s.jobs.Start("acme", "Let's Encrypt certificate for wildcard for "+base, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+				return s.obtainCert(ctx, base, j.Logf, "*."+base)
+			}), nil
 		}
 		return s.jobs.Start("acme", "Let's Encrypt certificate for "+host, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			return s.obtainCert(ctx, host, j.Logf)

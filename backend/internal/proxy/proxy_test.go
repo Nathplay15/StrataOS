@@ -113,6 +113,60 @@ func TestLookupAndSNI(t *testing.T) {
 	}
 }
 
+func TestWildcardMatch(t *testing.T) {
+	for _, x := range []struct {
+		base, host string
+		want       bool
+	}{
+		{"example.com", "example.com", true},
+		{"example.com", "jellyfin.example.com", true},
+		{"example.com", "JELLYFIN.example.com.", true},
+		{"example.com", "jellyfin.example.com:443", true},
+		{"example.com", "a.b.example.com", false},
+		{"example.com", "evilexample.com", false},
+		{"example.com", "notexample.org", false},
+		{"example.com", "", false},
+		{"", "example.com", false},
+	} {
+		if got := WildcardMatch(x.base, x.host); got != x.want {
+			t.Errorf("WildcardMatch(%q, %q) = %v", x.base, x.host, got)
+		}
+	}
+}
+
+func TestWildcardCertificate(t *testing.T) {
+	cs, err := NewCertStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.GetWildcard("example.com"); err == nil {
+		t.Error("no wildcard certificate must fail")
+	}
+	if !cs.NeedsWildcard("example.com") {
+		t.Error("a missing wildcard certificate must be needed")
+	}
+	if _, err := selfSigned("*.example.com", cs.path("example.com", ".crt"), cs.path("example.com", ".key")); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cs.GetWildcard("example.com")
+	if err != nil || c.Leaf == nil || !coversWildcard(c.Leaf, "example.com") {
+		t.Fatalf("wildcard certificate: %v %v", c, err)
+	}
+	again, err := cs.GetWildcard("example.com")
+	if err != nil || again != c {
+		t.Error("wildcard certificate not cached")
+	}
+	if cs.NeedsWildcard("example.com") {
+		t.Error("a fresh wildcard certificate must not be needed")
+	}
+	if _, err := selfSigned("other.example.com", cs.path("other.com", ".crt"), cs.path("other.com", ".key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.GetWildcard("other.com"); err == nil {
+		t.Error("a certificate without the wildcard SAN must fail")
+	}
+}
+
 func TestForwardedFor(t *testing.T) {
 	h := http.Header{}
 	h.Set("Cf-Connecting-IP", "203.0.113.7")

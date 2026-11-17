@@ -174,7 +174,7 @@ type Domain = {
   address?: string; problem?: string; localName?: boolean; obtaining?: boolean;
 };
 type AppRef = { stack: string; name: string; address: string; status: string };
-type DomainsData = { enabled: boolean; running: boolean; email: string; domains: Domain[]; apps: AppRef[]; dnsChallenge: boolean; publicIp: string };
+type DomainsData = { enabled: boolean; running: boolean; email: string; domains: Domain[]; apps: AppRef[]; dnsChallenge: boolean; publicIp: string; wildcard?: string };
 type Edit = { id?: string; host: string; kind: Domain["kind"]; app: string; target: string; lanOnly: boolean; allowedIPs: string };
 
 function DomainModal({ edit, apps, onClose }: { edit: Edit; apps: AppRef[]; onClose: () => void }) {
@@ -243,6 +243,7 @@ export function AppDomains() {
             {data.dnsChallenge ? tr("Names in your Cloudflare zone are validated through DNS (dynamic DNS token): port 80 does not need to be reachable for them.") : tr("Certificates are validated over port 80: forward ports 80 and 443 of your router to the NAS. With a Cloudflare token in the dynamic DNS settings, names of that zone are validated through DNS instead.")}
             {data.publicIp && ` ${tr("Public address: {0}", data.publicIp)}`}
           </div>
+          {data.wildcard && <div className="text-[12.5px] text-muted"><ShieldCheck size={13} className="mr-1 inline shrink-0" />{tr("Names of {0} share the wildcard certificate *.{0} (DNS-01): new sub-domains get a valid certificate right away.", data.wildcard)}</div>}
         </div>
       </Card>
       <Card title={tr("Published names")} actions={<Button size="sm" icon={<Plus size={14} />} onClick={() => setEdit({ host: "", kind: "app", app: data.apps[0]?.stack ?? "", target: "", lanOnly: false, allowedIPs: "" })}>{tr("Add")}</Button>}>
