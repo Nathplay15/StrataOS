@@ -10,6 +10,7 @@ import { ShareLinkModal } from "../components/ShareLinkModal";
 import { PropertiesModal } from "../components/PropertiesModal";
 import { RecycleBinModal } from "../components/RecycleBinModal";
 import { VersionsModal } from "../components/VersionsModal";
+import { SnapshotsBrowser } from "../components/SnapshotsBrowser";
 import { RestoreWizard } from "../components/RestoreWizard";
 import { CastButton } from "../components/Cast";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Progress, Spinner, useUI } from "../components/ui";
@@ -49,6 +50,7 @@ export default function Files() {
   const [props, setProps] = useState<FileEntry | null>(null);
   const [zip, setZip] = useState<{ name: string; paths: string[] } | null>(null);
   const [versions, setVersions] = useState<{ path: string; name: string } | null>(null);
+  const [snapshots, setSnapshots] = useState<{ path: string; name: string } | null>(null);
   const [restoreAt, setRestoreAt] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; e: FileEntry } | null>(null);
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me"), staleTime: 60000 });
@@ -196,6 +198,7 @@ export default function Files() {
     <div className={cx(editing && "hidden")} onDragOver={(e) => { e.preventDefault(); if (data?.writable) setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop}>
       <PageHeader title={tr("Files")} subtitle={tr("Browse and manage the files on your volumes")} icon={<FolderOpen size={20} />} actions={<>
         {bin && <Button variant="ghost" icon={<ArchiveRestore size={15} />} onClick={() => setRecycle(true)}>{tr("Recycle bin")}</Button>}
+        {path !== ROOT && <Button variant="ghost" icon={<History size={15} />} onClick={() => setSnapshots({ path, name: crumbs[crumbs.length - 1] ?? "" })}>{tr("Previous versions")}</Button>}
         <Button variant="ghost" icon={hidden ? <EyeOff size={15} /> : <Eye size={15} />} onClick={() => setHidden(!hidden)}>{hidden ? tr("Hide hidden") : tr("Hidden files")}</Button>
         <Button icon={<FolderPlus size={15} />} disabled={!data?.writable} onClick={() => setMkdir("")}>{tr("Folder")}</Button>
         <Button icon={<FilePlus size={15} />} disabled={!data?.writable || path === ROOT} onClick={() => setNewFile("")}>{tr("New file")}</Button>
@@ -277,7 +280,7 @@ export default function Files() {
                       {!e.dir && !data?.encrypted && <OpenWith entry={e} office={office.data} onOpen={openTab} />}
                       <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(e.path)} title={tr("Download")} />
                       {!e.dir && !data?.encrypted && <CastButton path={e.path} name={e.name} />}
-                      {!e.dir && path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => setVersions({ path: e.path, name: e.name })} title={tr("Previous versions")} />}
+                      {path !== ROOT && <Button size="sm" variant="ghost" icon={<History size={14} />} onClick={() => { const v = { path: e.path, name: e.name }; if (e.dir) setSnapshots(v); else setVersions(v); }} title={tr("Previous versions")} />}
                       {path !== ROOT && <Button size="sm" variant="ghost" icon={<Link2 size={14} />} onClick={() => setShare({ path: e.path, name: e.name, dir: e.dir })} title={tr("Share a link")} />}
                       {data?.writable && path !== ROOT && <Button size="sm" variant="ghost" icon={<Pencil size={14} />} onClick={() => setRename({ from: e.path, name: e.name })} title={tr("Rename")} />}
                     </td>
@@ -290,13 +293,14 @@ export default function Files() {
       </Card>
 
       {versions && <VersionsModal path={versions.path} name={versions.name} onClose={() => setVersions(null)} />}
+      {snapshots && <SnapshotsBrowser path={snapshots.path} name={snapshots.name} onClose={() => setSnapshots(null)} />}
       {restoreAt && <RestoreWizard initialPath={restoreAt} onClose={() => setRestoreAt(null)} />}
       {menu && createPortal(
         <div className="fixed inset-0 z-[1000]" onClick={() => setMenu(null)} onContextMenu={(ev) => { ev.preventDefault(); setMenu(null); }}>
           <div className="card absolute min-w-52 p-1 text-[13px] shadow-lg" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 160) }} onClick={(ev) => ev.stopPropagation()}>
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { open(menu.e); setMenu(null); }}>{menu.e.dir ? <FolderOpen size={14} /> : <Eye size={14} />}{tr("Open")}</button>
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { download(menu.e.path); setMenu(null); }}><Download size={14} />{tr("Download")}</button>
-            {!menu.e.dir && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setVersions({ path: menu.e.path, name: menu.e.name }); setMenu(null); }}><History size={14} />{tr("Previous versions")}</button>}
+            <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { const v = { path: menu.e.path, name: menu.e.name }; if (menu.e.dir) setSnapshots(v); else setVersions(v); setMenu(null); }}><History size={14} />{tr("Previous versions")}</button>
             {admin && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setRestoreAt(menu.e.path); setMenu(null); }}><ArchiveRestore size={14} />{tr("Previous versions / Restore…")}</button>}
             {!menu.e.dir && fileKind(menu.e.name) === "archive" && data?.writable && !data?.encrypted && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { extract.mutate(menu.e.path); setMenu(null); }}><PackageOpen size={14} />{tr("Extract here")}</button>}
             {data?.writable && !data?.encrypted && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setZip({ name: zipName([menu.e.path]), paths: [menu.e.path] }); setMenu(null); }}><FileArchive size={14} />{tr("Compress to ZIP")}</button>}
