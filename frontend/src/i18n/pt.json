@@ -4668,5 +4668,12 @@
   "Archive name": "Nome do arquivo",
   "The archive is created in the current folder.": "O arquivo é criado na pasta atual.",
   "Extract here": "Extrair aqui",
-  "Permissions updated": "Permissões atualizadas"
+  "Permissions updated": "Permissões atualizadas",
+  "Disk added": "Disco adicionado",
+  "Disk removed (its image is kept)": "Disco removido (sua imagem é mantida)",
+  "Remove the disk (its image is kept)": "Remover o disco (sua imagem é mantida)",
+  "The last disk cannot be removed.": "O último disco não pode ser removido.",
+  "New disk (GB)": "Novo disco (GB)",
+  "VM renamed": "VM renomeada",
+  "Stop the VM to rename it.": "Desligue a VM para renomeá-la."
 }
