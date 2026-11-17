@@ -48,6 +48,14 @@ fun Api.copyFiles(paths: List<String>, to: String, move: Boolean): Job =
 fun Api.trashFiles(paths: List<String>): TrashResult =
     call(request(url("/api/files/trash")).post(body(PathsBody(paths))).build(), TrashResult.serializer())
 
+/**
+ * Puts items of my recycle bin back where they were (folders recreated or
+ * merged, a name taken again gets "(restored)"), the way the web interface does.
+ */
+fun Api.restoreFromBin(paths: List<String>) {
+    call(request(url("/api/files/recycle/restore")).post(body(PathsBody(paths))).build(), JsonObject.serializer())
+}
+
 fun Api.renameFile(from: String, to: String) {
     call(request(url("/api/files/rename")).post(body(RenameBody(from, to))).build(), JsonObject.serializer())
 }

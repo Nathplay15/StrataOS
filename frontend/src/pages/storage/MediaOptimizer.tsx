@@ -5,7 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { useJobs } from "../../lib/jobs";
 import { bytes, dateTime } from "../../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Notice, PageHeader, Progress, Select, Spinner, Stat } from "../../components/ui";
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Notice, PageHeader, Progress, Select, Spinner, Stat } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import { kindLabel, type ScanTarget } from "./SpaceAnalyzer";
 
@@ -21,8 +21,9 @@ export default function MediaOptimizer() {
   const [root, setRoot] = useState("");
   const [minSize, setMinSize] = useState(100 << 20);
   const [shown, setShown] = useState(PAGE);
+  const [discard, setDiscard] = useState(false);
   const job = useJobs().jobs.find((j) => j.id === data.data?.job && j.status === "running");
-  const start = useAction(() => api.post("/api/storagetools/recode", { path: root, minSize }), { onDone: () => setShown(PAGE) });
+  const start = useAction(() => api.post("/api/storagetools/recode", { path: root, minSize, discard }), { onDone: () => setShown(PAGE) });
   const rep = data.data?.report;
   const counts = (s: string) => (rep?.files ?? []).filter((f) => f.status === s).length;
 
@@ -49,7 +50,8 @@ export default function MediaOptimizer() {
                 </Select>
               </Field>
             </div>
-            <p className="text-muted text-[12px]">{tr("Videos are re-encoded one by one (H.265, CRF 28). A video is replaced only when the result is at least 20% smaller; snapshots and recycle bins are skipped. Long and CPU-heavy: run it when the NAS is idle.")}</p>
+            <p className="text-muted text-[12px]">{tr("Videos are re-encoded one by one (H.265, CRF 28). A video is replaced only when the result is at least 20% smaller, lasts as long and plays without error; the new file keeps the owner, permissions and dates, and the original goes to the recycle bin of its shared folder. Hard-linked videos, snapshots and recycle bins are skipped. Long and CPU-heavy: run it when the NAS is idle.")}</p>
+            <Checkbox checked={discard} onChange={setDiscard} label={tr("Replace the originals of shared folders without a recycle bin (they are lost)")} />
             {job && <div><div className="mb-2 text-[13px]">{tr("Compressing videos…")}</div><Progress value={job.progress} tone="accent" indeterminate={job.progress < 0} /></div>}
           </div>
         </Card>

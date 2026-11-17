@@ -87,12 +87,13 @@ StrataOS refuses, and says why, when the replacement would put data at risk: no 
 
 - **Space analyzer** (Storage → Space analyzer): shows what takes up space in a volume or a shared folder, by folder and by file type, with the largest files and the large files not modified for a year. The analysis runs in the background; the result is kept until the next scan.
 - **Duplicates** (Storage → Duplicates): finds identical files (same content, not just the same name). Check the copies to remove, or use "Select all but the oldest". At least one copy of each group is always kept, and files go to the recycle bin of their shared folder when it has one.
+- **Video compression** (Storage → Video compression): re-encodes the large videos of a folder to H.265. A video is replaced only when the result is at least 20% smaller, lasts as long and plays without error; the new file keeps the owner, permissions (ACLs included) and dates, and the original goes to the recycle bin of its shared folder, so you can get it back. In a shared folder without a recycle bin nothing is replaced, unless you tick "Replace the originals of shared folders without a recycle bin". Videos with several names (hard links) are left alone.
 
 ## 5. Users and shared folders
 
 1. **Users**: create one account per person and put them in **groups** (for example "family" or "accounting"). Turn on two-factor authentication for administrators.
 2. **Shared folders**: create one shared folder per purpose (Documents, Photos, Media…) on the volume of your choice, then set permissions per user or per group: read and write, read only, or no access. By default, the account that creates the folder can read and write and all other users can read.
-3. Useful options: **network recycle bin** (deleted files are kept in `.recycle`), a **quota** for the share (it can switch to read-only once full if you want), and **encryption** (see section 12).
+3. Useful options: **network recycle bin** (deleted files are kept in `.recycle`, each user in their own folder; Files → **Recycle bin** lists each deleted file with its original folder and puts it back there, recreating the folders that are gone and never overwriting a file: a name taken again becomes "name (restored).ext"), a **quota** for the share (it can switch to read-only once full if you want), and **encryption** (see section 12).
 
 ## 6. Access your files
 

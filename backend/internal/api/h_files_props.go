@@ -119,13 +119,24 @@ func (s *Server) filePropsRoutes() {
 		case p.Dir:
 			p.Files, p.Dirs, p.TotalSize, p.Truncated = walkProps(rt, t.rel)
 		case r.URL.Query().Get("hash") == "1" && !p.Link:
+			if !info.Mode().IsRegular() {
+				p.HashError = "not a regular file"
+				break
+			}
 			if info.Size() > maxHashSize {
 				p.HashError = "file too large"
 				break
 			}
-			f, err := rt.Open(t.rel)
+			// O_NONBLOCK: a FIFO swapped in since the Lstat cannot block the
+			// request (it is refused below).
+			f, err := rt.OpenFile(t.rel, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 			if err != nil {
 				p.HashError = err.Error()
+				break
+			}
+			if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+				f.Close()
+				p.HashError = "not a regular file"
 				break
 			}
 			h := sha256.New()
@@ -155,6 +166,11 @@ func (s *Server) filePropsRoutes() {
 		}
 		if !t.acc.write || t.acc.ancestor || t.protected() {
 			return nil, errForbidden
+		}
+		// A share frozen by the ransomware protection (or over its quota,
+		// read-only) keeps its permissions too.
+		if why := s.readOnlyReason(t); why != "" {
+			return nil, &Error{Status: http.StatusForbidden, Msg: why}
 		}
 		rt, err := t.open()
 		if err != nil {
@@ -213,6 +229,19 @@ func (s *Server) filePropsRoutes() {
 			}
 			srcs = append(srcs, t)
 		}
+		// The archive counts against the quotas, like an extraction: it stops
+		// when it would go over (or fill the volume).
+		room := s.quotaRoom(userOf(r), isAdmin(r), parent.abs)
+		var sfs syscall.Statfs_t
+		if syscall.Statfs(parent.abs, &sfs) == nil {
+			free := max(int64(sfs.Bavail)*int64(sfs.Bsize)-512<<20, 0)
+			if room < 0 || free < room {
+				room = free
+			}
+		}
+		if room == 0 {
+			return nil, &Error{Status: http.StatusForbidden, Msg: "not enough room left (quota or free space)"}
+		}
 		s.audit(r, "files", fmt.Sprintf("Compressing %d item(s) into %s", len(srcs), req.Name))
 		return s.jobs.Start("files", "Compressing into "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			rt, err := parent.open()
@@ -229,7 +258,10 @@ func (s *Server) filePropsRoutes() {
 				return err
 			}
 			defer out.Close()
-			zw := zip.NewWriter(out)
+			zw := zip.NewWriter(io.Writer(out))
+			if room >= 0 {
+				zw = zip.NewWriter(&roomWriter{w: out, room: room})
+			}
 			for i, t := range srcs {
 				if err := zipTree(ctx, rt, t, zw); err != nil {
 					zw.Close()
@@ -295,4 +327,22 @@ func zipTree(ctx context.Context, rt *os.Root, t target, zw *zip.Writer) error {
 		_, err = io.Copy(w, f)
 		return err
 	})
+}
+
+// errNoRoom: an archive being written would go over the quota or the free space.
+var errNoRoom = fmt.Errorf("the archive would go over your quota or the free space")
+
+// roomWriter fails once more than room bytes are written.
+type roomWriter struct {
+	w    io.Writer
+	room int64
+}
+
+func (r *roomWriter) Write(b []byte) (int, error) {
+	if int64(len(b)) > r.room {
+		return 0, errNoRoom
+	}
+	n, err := r.w.Write(b)
+	r.room -= int64(n)
+	return n, err
 }

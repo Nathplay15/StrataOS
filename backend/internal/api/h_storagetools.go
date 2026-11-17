@@ -193,8 +193,7 @@ func (s *Server) trashFile(user, p string) (recycled bool, err error) {
 		if err := rt.Rename(rel, dst); err != nil {
 			return false, err
 		}
-		now := time.Now()
-		_ = rt.Chtimes(dst, now, now) // the bin is purged by age of deletion
+		stampDeleted(rt, dst) // the bin is purged by age of deletion
 		return true, nil
 	}
 	rt, err := os.OpenRoot(storage.MountRoot)
@@ -442,6 +441,8 @@ func (s *Server) storageToolsRoutes() {
 		var req struct {
 			Path    string `json:"path"`
 			MinSize int64  `json:"minSize"`
+			// Discard: replace the originals of folders without a recycle bin.
+			Discard bool `json:"discard"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -480,7 +481,18 @@ func (s *Server) storageToolsRoutes() {
 				return writeJSONFile(s.recodeFile(), &storagetools.RecodeReport{Started: time.Now(), Files: []storagetools.RecodeFile{}})
 			}
 			j.Logf("%d video(s) to compress in %s", len(files), root)
-			rep := storagetools.RecodeVideos(ctx, files, func(stage string, done, total int64) {
+			// The originals go to the recycle bin of their shared folder; in a
+			// folder without one they are only replaced when asked (Discard).
+			me := userOf(r)
+			opts := storagetools.RecodeOptions{
+				Discard: req.Discard,
+				HasBin:  func(p string) bool { return s.recycleShare(p) != "" },
+				Keep: func(p string) error {
+					_, err := s.trashFile(me, p)
+					return err
+				},
+			}
+			rep := storagetools.RecodeVideos(ctx, files, opts, func(stage string, done, total int64) {
 				if stage == "recode" && total > 0 {
 					j.SetProgress(min(99, float64(done)*100/float64(total)))
 				}

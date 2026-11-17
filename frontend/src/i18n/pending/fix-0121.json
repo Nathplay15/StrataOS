@@ -30,5 +30,19 @@
   ["la liste de contrôle n'est pas signée par Apple (méthode {0})", "the chunklist is not signed by Apple (method {0})"],
   ["{0} dépend d'un autre fichier ({1}) : refusé", "{0} depends on another file ({1}): refused"],
   ["{0} garde ses données dans un autre fichier ({1}) : refusé", "{0} keeps its data in another file ({1}): refused"],
-  ["Disque de démarrage OpenCore : {0}", "OpenCore boot disk: {0}"]
+  ["Disque de démarrage OpenCore : {0}", "OpenCore boot disk: {0}"],
+  ["ce n'est pas un fichier ordinaire", "not a regular file"],
+  ["plus assez de place (quota ou espace libre)", "not enough room left (quota or free space)"],
+  ["l'archive dépasserait votre quota ou l'espace libre", "the archive would go over your quota or the free space"],
+  ["impossible de recréer le dossier {0} : {1}", "cannot recreate the folder {0}: {1}"],
+  ["aucun nom libre pour restaurer {0}", "no free name to restore {0}"],
+  ["n'est pas dans la corbeille", "not in the recycle bin"],
+  ["lien physique : ses autres noms garderaient l'ancienne vidéo", "hard-linked: its other names would keep the old video"],
+  ["pas de corbeille pour garder l'original", "no recycle bin to keep the original"],
+  ["la vidéo a changé pendant le réencodage", "the video changed during the re-encode"],
+  ["impossible de copier le propriétaire et les droits : {0}", "cannot copy the owner and permissions: {0}"],
+  ["l'original n'a pas pu être mis à la corbeille : {0}", "the original could not be put in the recycle bin: {0}"],
+  ["le résultat n'a pas de vidéo H.265 ({0})", "the result has no H.265 video ({0})"],
+  ["le résultat dure {0} s au lieu de {1} s", "the result lasts {0} s instead of {1} s"],
+  ["le résultat ne se décode pas sans erreur : {0}", "the result does not decode cleanly: {0}"]
 ]

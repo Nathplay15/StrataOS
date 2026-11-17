@@ -24,6 +24,10 @@ func TestPurgeRecycle(t *testing.T) {
 	}
 	oldFile := mk("alice/docs/old.txt", old)
 	newFile := mk("alice/new.txt", time.Now())
+	// A file of a folder deleted recently: old modification time, deletion
+	// time in its access time.
+	inFolder := mk("alice/folder/old-content.txt", old)
+	_ = os.Chtimes(inFolder, time.Now(), old)
 	// A symlink planted by a user must never be followed into the outside folder.
 	link := filepath.Join(share, ".recycle", "alice", "evil")
 	_ = os.Symlink(outside, link)
@@ -34,6 +38,9 @@ func TestPurgeRecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(newFile); err != nil {
 		t.Errorf("recent file was purged")
+	}
+	if _, err := os.Stat(inFolder); err != nil {
+		t.Errorf("a file deleted recently with its folder was purged")
 	}
 	if _, err := os.Stat(victim); err != nil {
 		t.Errorf("purge followed a symlink outside the share")

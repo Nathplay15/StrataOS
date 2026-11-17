@@ -482,6 +482,19 @@ func dirExists(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
+// deletedAt is when a file entered a bin: the later of its access time
+// (set by Samba's recycle:touch and by StrataOS, also for the files of a
+// deleted folder) and its modification time.
+func deletedAt(info fs.FileInfo) time.Time {
+	t := info.ModTime()
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		if a := time.Unix(st.Atim.Sec, st.Atim.Nsec); a.After(t) {
+			t = a
+		}
+	}
+	return t
+}
+
 // PurgeRecycle deletes files older than days from a share's .recycle folder.
 // The walk never follows symlinks (users can create them), and a .recycle that
 // is itself a symlink is ignored.
@@ -503,7 +516,7 @@ func PurgeRecycle(sharePath string, days int) (files int, freed int64) {
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || info.ModTime().After(limit) {
+		if err != nil || deletedAt(info).After(limit) {
 			return nil
 		}
 		if os.Remove(p) == nil {

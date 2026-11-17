@@ -131,13 +131,28 @@ func (s *Server) locateFor(me string, admin bool, p string) (target, error) {
 		if real, err := filepath.EvalSymlinks(best.Path); err != nil || real != best.Path {
 			return target{}, &Error{Status: http.StatusForbidden, Msg: "share folder is unavailable"}
 		}
-		return e2eTarget(target{root: best.Path, rel: relTo(best.Path, clean), abs: clean, acc: access{read: true, write: bestPerm == "rw"}}), nil
+		rel := relTo(best.Path, clean)
+		if otherBin(rel, me) {
+			return target{}, &Error{Status: http.StatusForbidden, Msg: "access denied"}
+		}
+		return e2eTarget(target{root: best.Path, rel: rel, abs: clean, acc: access{read: true, write: bestPerm == "rw"}}), nil
 	}
 	if clean == storage.MountRoot || ancestor {
 		// Folders above a share: listing only, filtered to the way down to shares.
 		return target{root: storage.MountRoot, rel: relTo(storage.MountRoot, clean), abs: clean, acc: access{read: true, ancestor: true}}, nil
 	}
 	return target{}, &Error{Status: http.StatusForbidden, Msg: "access denied"}
+}
+
+// otherBin reports whether rel (relative to a share) lies in the recycle bin
+// of another account: .recycle/<user>/… is only for <user> (and admins).
+func otherBin(rel, me string) bool {
+	bin, ok := strings.CutPrefix(rel, ".recycle/")
+	if !ok {
+		return false
+	}
+	owner, _, _ := strings.Cut(bin, "/")
+	return owner != me
 }
 
 // e2eTarget makes the inside of an end-to-end encrypted folder read-only.
@@ -231,6 +246,10 @@ func (s *Server) fileRoutes() {
 		showHidden := r.URL.Query().Get("hidden") == "1"
 		for _, e := range entries {
 			if !showHidden && strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			// The bins of the other accounts are not listed (nor reachable, see otherBin).
+			if !isAdmin(r) && t.rel == ".recycle" && t.root != storage.MountRoot && e.Name() != userOf(r) {
 				continue
 			}
 			c := t.child(e.Name())

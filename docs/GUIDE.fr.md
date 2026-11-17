@@ -87,12 +87,13 @@ StrataOS refuse, en expliquant pourquoi, quand le remplacement mettrait les donn
 
 - **Analyseur d'espace** (Stockage → Analyseur d'espace) : montre ce qui occupe de la place dans un volume ou un dossier partagé, par dossier et par type de fichier, avec les plus gros fichiers et les gros fichiers non modifiés depuis un an. L'analyse tourne en arrière-plan ; son résultat est conservé jusqu'à la suivante.
 - **Doublons** (Stockage → Doublons) : trouve les fichiers identiques (même contenu, pas seulement même nom). Cochez les copies à supprimer, ou utilisez « Tout sélectionner sauf les plus anciens ». Au moins une copie de chaque groupe est toujours conservée, et les fichiers partent dans la corbeille de leur dossier partagé quand il en a une.
+- **Compression des vidéos** (Stockage → Compression des vidéos) : réencode en H.265 les grosses vidéos d'un dossier. Une vidéo n'est remplacée que si le résultat est au moins 20 % plus petit, dure aussi longtemps et se lit sans erreur ; le nouveau fichier garde le propriétaire, les droits (ACL comprises) et les dates, et l'original part dans la corbeille de son dossier partagé, pour pouvoir le récupérer. Dans un dossier partagé sans corbeille, rien n'est remplacé, sauf si vous cochez « Remplacer les originaux des dossiers partagés sans corbeille ». Les vidéos qui ont plusieurs noms (liens physiques) ne sont pas touchées.
 
 ## 5. Utilisateurs et dossiers partagés
 
 1. **Utilisateurs** : créez un compte par personne, regroupez-les en **groupes** (ex. « famille », « compta »). Activez la double authentification pour les administrateurs.
 2. **Dossiers partagés** : créez un partage par usage (Documents, Photos, Médias…), sur le volume de votre choix, puis donnez les droits : lecture et écriture, lecture seule ou aucun accès, par utilisateur ou par groupe. Par défaut, le compte qui crée le partage peut lire et écrire, et tous les autres utilisateurs peuvent lire.
-3. Options utiles : **corbeille réseau** (les fichiers supprimés sont gardés dans `.recycle`), **quota** du partage (passage en lecture seule une fois plein si vous le souhaitez), **chiffrement** (voir 12).
+3. Options utiles : **corbeille réseau** (les fichiers supprimés sont gardés dans `.recycle`, chaque utilisateur dans son propre dossier ; Fichiers → **Corbeille** liste chaque fichier supprimé avec son dossier d'origine et le remet à sa place, en recréant les dossiers disparus et sans jamais écraser un fichier : un nom repris devient « nom (restored).ext »), **quota** du partage (passage en lecture seule une fois plein si vous le souhaitez), **chiffrement** (voir 12).
 
 ## 6. Accéder aux fichiers
 

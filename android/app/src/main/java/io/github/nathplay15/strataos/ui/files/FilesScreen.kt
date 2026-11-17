@@ -86,6 +86,7 @@ import io.github.nathplay15.strataos.net.imageUrl
 import io.github.nathplay15.strataos.net.listFiles
 import io.github.nathplay15.strataos.net.photoThumbUrl
 import io.github.nathplay15.strataos.net.renameFile
+import io.github.nathplay15.strataos.net.restoreFromBin
 import io.github.nathplay15.strataos.net.searchFiles
 import io.github.nathplay15.strataos.net.shares
 import io.github.nathplay15.strataos.net.trashFiles
@@ -485,8 +486,8 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                                         DropdownMenu(menuFor == e, { menuFor = null }) {
                                             val close = { menuFor = null }
                                             if (inRecycle) {
-                                                recycleOrigin(e.path)?.let { to ->
-                                                    DropdownMenuItem({ Text(stringResource(R.string.a_restore)) }, { close(); act.run(load.reload) { api().renameFile(e.path, to) } })
+                                                if (recycleOrigin(e.path) != null) {
+                                                    DropdownMenuItem({ Text(stringResource(R.string.a_restore)) }, { close(); act.run(load.reload) { api().restoreFromBin(listOf(e.path)) } })
                                                 }
                                                 DropdownMenuItem({ Text(stringResource(R.string.a_delete_forever)) }, { close(); deleting = listOf(e) })
                                                 return@DropdownMenu

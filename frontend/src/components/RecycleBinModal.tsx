@@ -7,7 +7,8 @@ import { bytes, dateTime } from "../lib/format";
 import { Button, Checkbox, Empty, ErrorBox, Modal, Spinner, useUI } from "./ui";
 import { tr } from "../lib/i18n";
 
-type RecycleItem = { path: string; origin: string; name: string; dir: boolean; size: number; deleted: string; files: number };
+/** A deleted file (or empty folder), at any depth of the bin: it comes back at its original place. */
+type RecycleItem = { path: string; origin: string; name: string; dir: boolean; size: number; deleted: string };
 
 /** The recycle bin of a share: what SMB and the web deleted, restorable. */
 export function RecycleBinModal({ share, onClose }: { share: string; onClose: () => void }) {
@@ -62,8 +63,8 @@ export function RecycleBinModal({ share, onClose }: { share: string; onClose: ()
                       <span>{i.name}</span>
                     </span>
                   </td>
-                  <td className="text-muted text-[12.5px]">{i.origin}</td>
-                  <td className="text-muted">{i.dir ? tr("{0} file(s)", String(i.files)) : bytes(i.size)}</td>
+                  <td className="text-muted text-[12.5px]">{i.origin.slice(0, i.origin.length - i.name.length - 1) || "/"}</td>
+                  <td className="text-muted">{i.dir ? tr("Empty folder") : bytes(i.size)}</td>
                   <td className="text-muted text-[12.5px]">{dateTime(i.deleted)}</td>
                   <td className="whitespace-nowrap text-right">
                     <Button size="sm" variant="ghost" icon={<ArchiveRestore size={14} />} title={tr("Restore")} loading={restore.isPending && restore.variables?.includes(i.path)} onClick={() => restore.mutate([i.path])} />

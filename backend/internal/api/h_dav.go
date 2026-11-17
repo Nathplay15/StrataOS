@@ -324,8 +324,7 @@ func (f *davFS) RemoveAll(ctx context.Context, name string) error {
 				dst += "." + strconv.FormatInt(time.Now().Unix(), 10)
 			}
 			if err := rt.Rename(p.rel, dst); err == nil {
-				now := time.Now()
-				_ = rt.Chtimes(dst, now, now)
+				stampDeleted(rt, dst)
 				return nil
 			}
 		}
