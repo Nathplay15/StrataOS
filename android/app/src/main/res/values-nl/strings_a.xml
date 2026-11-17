@@ -328,6 +328,8 @@
     <string name="vm_usb_take">Terugnemen</string>
     <string name="vm_usb_given">Apparaat aan de VM gegeven</string>
     <string name="vm_usb_taken">Apparaat teruggenomen</string>
+    <string name="nas_docker_containers">Docker-containers</string>
+=======
     <string name="a_assistant">Assistent</string>
     <string name="a_assistant_disabled">De assistent is niet geconfigureerd op de NAS (Instellingen → Assistent).</string>
     <string name="a_assistant_hint">Vraag je NAS…</string>

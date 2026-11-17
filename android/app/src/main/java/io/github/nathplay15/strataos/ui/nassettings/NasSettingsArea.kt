@@ -138,6 +138,7 @@ private fun UpdatesScreen(onBack: () -> Unit) {
             var strata by remember(a) { mutableStateOf(a.strata.ifEmpty { "off" }) }
             var security by remember(a) { mutableStateOf(a.security.ifEmpty { "off" }) }
             var system by remember(a) { mutableStateOf(a.system.ifEmpty { "off" }) }
+            var containers by remember(a) { mutableStateOf(a.containers.ifEmpty { "off" }) }
             var days by remember(a) { mutableStateOf(a.days.toSet()) }
             var hour by remember(a) { mutableStateOf(a.hour.toString()) }
             var reboot by remember(a) { mutableStateOf(a.reboot) }
@@ -162,6 +163,7 @@ private fun UpdatesScreen(onBack: () -> Unit) {
                     Choice("StrataOS", modes(true), strata, { strata = it })
                     Choice(stringResource(R.string.nas_security_updates), modes(false), security, { security = it })
                     Choice(stringResource(R.string.nas_other_updates), modes(true), system, { system = it })
+                    Choice(stringResource(R.string.nas_docker_containers), modes(false), containers, { containers = it })
                     Text(stringResource(R.string.nas_window), style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         val names = java.text.DateFormatSymbols.getInstance().shortWeekdays // 1 = Sunday
@@ -173,7 +175,7 @@ private fun UpdatesScreen(onBack: () -> Unit) {
                     if (a.nextWindow.isNotEmpty()) KeyValue(stringResource(R.string.nas_next_window), formatDate(a.nextWindow))
                     a.last?.let { KeyValue(stringResource(R.string.nas_last_run), "${formatDate(it.started)} · ${it.status}" + if (it.message.isNotEmpty()) " · ${it.message}" else "") }
                     Button(enabled = !actions.busy && (hour.toIntOrNull() ?: -1) in 0..23, onClick = {
-                        actions.run(done = res.getString(R.string.b_saved), after = data.reload) { it.saveAutoUpdates(AutoUpdatesReq(strata, security, system, days.sorted(), hour.toInt(), reboot)) }
+                        actions.run(done = res.getString(R.string.b_saved), after = data.reload) { it.saveAutoUpdates(AutoUpdatesReq(strata, security, system, containers, days.sorted(), hour.toInt(), reboot)) }
                     }) { Text(stringResource(R.string.b_save)) }
                 }
             }

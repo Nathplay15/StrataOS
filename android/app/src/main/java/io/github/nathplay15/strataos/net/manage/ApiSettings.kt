@@ -18,11 +18,15 @@ import kotlinx.serialization.json.buildJsonObject
 
 @Serializable data class AutoUpdateRun(val status: String = "", val started: String = "", val message: String = "", val dryRun: Boolean = false)
 @Serializable data class AutoUpdates(
-    val strata: String = "off", val security: String = "off", val system: String = "off", val days: List<Int> = emptyList(),
+    val strata: String = "off", val security: String = "off", val system: String = "off", val containers: String = "off",
+    val days: List<Int> = emptyList(),
     val hour: Int = 3, val reboot: Boolean = false, val channel: String = "stable", val installed: String = "", val beta: Boolean = false,
     val nextWindow: String = "", val last: AutoUpdateRun? = null, val repository: Boolean = false,
 )
-@Serializable data class AutoUpdatesReq(val strata: String, val security: String, val system: String, val days: List<Int>, val hour: Int, val reboot: Boolean)
+@Serializable data class AutoUpdatesReq(
+    val strata: String, val security: String, val system: String, val containers: String = "off",
+    val days: List<Int>, val hour: Int, val reboot: Boolean,
+)
 @Serializable private data class ChannelReq(val channel: String)
 
 fun Api.strataUpdate(): StrataUpdate = call(get("/api/system/updates/strata"), StrataUpdate.serializer())

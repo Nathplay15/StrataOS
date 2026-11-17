@@ -102,6 +102,8 @@ func TestValidAutoUpdates(t *testing.T) {
 		{store.AutoUpdates{Strata: "notify", Security: "install", System: "install", Days: []int{0, 6}, Hour: 23, Reboot: true}, true},
 		{store.AutoUpdates{Security: "notify"}, false},
 		{store.AutoUpdates{Strata: "always"}, false},
+		{store.AutoUpdates{Containers: "install", Hour: 3}, true},
+		{store.AutoUpdates{Containers: "notify"}, false},
 		{store.AutoUpdates{System: "install", Hour: 24}, false},
 		{store.AutoUpdates{System: "install", Days: []int{7}}, false},
 	} {

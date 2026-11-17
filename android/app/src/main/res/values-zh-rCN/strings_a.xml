@@ -328,6 +328,8 @@
     <string name="vm_usb_take">收回</string>
     <string name="vm_usb_given">设备已分配给虚拟机</string>
     <string name="vm_usb_taken">设备已收回</string>
+    <string name="nas_docker_containers">Docker 容器</string>
+=======
     <string name="a_assistant">助手</string>
     <string name="a_assistant_disabled">助手未在 NAS 上配置（设置 → 助手）。</string>
     <string name="a_assistant_hint">问问你的 NAS…</string>

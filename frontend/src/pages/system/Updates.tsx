@@ -127,7 +127,7 @@ type AutoRun = {
   security?: number; others?: number; strataTo?: string; available?: number; offered?: string; restart?: "" | "required" | "done";
 };
 type AutoData = {
-  strata: Mode; security: "" | "install"; system: Mode; days: number[]; hour: number; reboot: boolean;
+  strata: Mode; security: "" | "install"; system: Mode; containers: "" | "install"; days: number[]; hour: number; reboot: boolean;
   channel: "stable" | "beta"; repository: boolean; installed: string; beta: boolean;
   nextWindow?: string; last?: AutoRun; latestStable?: string; downgrade?: string;
 };
@@ -183,7 +183,7 @@ function AutoUpdatesCard() {
   const { data } = useAutoUpdates();
   const [c, setC] = useState<AutoData | null>(null);
   useEffect(() => { if (data && !c) setC(data); }, [data, c]);
-  const save = useAction(() => api.put("/api/system/updates/auto", { strata: c!.strata, security: c!.security, system: c!.system, days: c!.days, hour: c!.hour, reboot: c!.reboot }), { success: tr("Automatic update settings saved"), onDone: () => setC(null) });
+  const save = useAction(() => api.put("/api/system/updates/auto", { strata: c!.strata, security: c!.security, system: c!.system, containers: c!.containers, days: c!.days, hour: c!.hour, reboot: c!.reboot }), { success: tr("Automatic update settings saved"), onDone: () => setC(null) });
   if (!data || !c) return null;
   const set = (p: Partial<AutoData>) => setC({ ...c, ...p });
   const days = Array.from({ length: 7 }, (_, i) => (i + 1) % 7); // Monday first
@@ -194,8 +194,8 @@ function AutoUpdatesCard() {
     const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d];
     if (next.length > 0) set({ days: next.length === 7 ? [] : next });
   };
-  const installs = c.strata === "install" || c.security === "install" || c.system === "install";
-  const enabled = c.strata !== "" || c.security !== "" || c.system !== "";
+  const installs = c.strata === "install" || c.security === "install" || c.system === "install" || c.containers === "install";
+  const enabled = c.strata !== "" || c.security !== "" || c.system !== "" || c.containers !== "";
   const modes = (withNotify: boolean) => <>
     <option value="">{tr("Off")}</option>
     {withNotify && <option value="notify">{tr("Notify only")}</option>}
@@ -213,10 +213,11 @@ function AutoUpdatesCard() {
   return (
     <Card title={<span className="flex items-center gap-2"><CalendarClock size={16} className="text-accent" />{tr("Automatic updates")}</span>} actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label={tr("StrataOS")}><Select value={c.strata} onChange={(e) => set({ strata: e.target.value as Mode })}>{modes(true)}</Select></Field>
           <Field label={tr("Debian security updates")}><Select value={c.security} onChange={(e) => set({ security: e.target.value as "" | "install" })}>{modes(false)}</Select></Field>
           <Field label={tr("Other system updates")}><Select value={c.system} onChange={(e) => set({ system: e.target.value as Mode })}>{modes(true)}</Select></Field>
+          <Field label={tr("Docker containers")}><Select value={c.containers} onChange={(e) => set({ containers: e.target.value as "" | "install" })}>{modes(false)}</Select></Field>
         </div>
         {enabled && <>
           <div>
