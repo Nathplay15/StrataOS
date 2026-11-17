@@ -24,7 +24,7 @@ import (
 // runs when the user clicks Confirm (POST /api/assistant/confirm).
 
 // assistantPrompt tells the model who it is and how the tools behave.
-const assistantPrompt = `You are the StrataOS assistant, embedded in a NAS web interface. Answer briefly and helpfully. Use the provided tools to inspect the NAS (status, storage, Docker, backups, files) before answering questions about it. Tools that modify the NAS require the user's explicit confirmation in the interface: call one and the interface asks the user; its result arrives in a later message. Never claim an action was done before a tool result confirms it.`
+const assistantPrompt = `You are the StrataOS assistant, embedded in a NAS web interface. Answer briefly and helpfully. Use the provided tools to inspect the NAS (status, storage, Docker, backups, files) before answering questions about it. Tools that modify the NAS require the user's explicit confirmation in the interface: call one and the interface asks the user; its result arrives in a later message. Never claim an action was done before a tool result confirms it. You also have web_search (public internet search) and open_url (read a public page): use them when the question needs up-to-date or external information.`
 
 type assistantMessage struct {
 	Role       string        `json:"role"`
@@ -127,6 +127,10 @@ func assistantTools() []llmTool {
 			map[string]any{"id": strProp("VM name"), "action": strProp("start, stop, force-stop, reboot or shutdown")}, "id", "action"),
 		fnTool("create_zfs_snapshot", "Create a ZFS snapshot. Needs the user's confirmation in the interface.",
 			map[string]any{"dataset": strProp("Dataset path such as tank/data"), "snapshotName": strProp("Snapshot name")}, "dataset", "snapshotName"),
+		fnTool("web_search", "Search the public internet (DuckDuckGo). Use it for anything you do not know: current events, documentation, package versions, error messages.",
+			map[string]any{"query": strProp("Search query")}, "query"),
+		fnTool("open_url", "Read a public web page (http or https) and return its text. Internal and private addresses are refused.",
+			map[string]any{"url": strProp("Page address, e.g. https://example.com/docs")}, "url"),
 	}
 }
 
@@ -448,6 +452,12 @@ func (s *Server) assistantTool(r *http.Request, name string, args map[string]str
 		return s.assistantArm(r, name, mcpWriteIn{ID: arg("id"), Action: arg("action")}, "Virtual machine "+arg("id")+": "+arg("action"))
 	case "create_zfs_snapshot":
 		return s.assistantArm(r, name, mcpWriteIn{Dataset: arg("dataset"), SnapshotName: arg("snapshotName")}, "Create the ZFS snapshot "+arg("dataset")+"@"+arg("snapshotName"))
+	case "web_search", "open_url":
+		q := arg("query")
+		if name == "open_url" {
+			q = arg("url")
+		}
+		return assistantWebTool(r, name, q), nil
 	}
 	return "unknown tool: " + name, nil
 }
