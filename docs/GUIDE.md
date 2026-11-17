@@ -259,11 +259,12 @@ To **uninstall** an app, use the bin button on its card ("Uninstall"). Its conta
 
 ## 15. Virtual machines
 
-**Virtual machines** (KVM) are a one-click install. "Create a VM" offers three ways:
+**Virtual machines** (KVM) are a one-click install. "Create a VM" offers four ways:
 
 - **Cloud image**: Debian or Ubuntu, ready over SSH in a minute (user, SSH key and packages are set at first boot).
-- **Install from an ISO**: any system, installed from the console in the browser (Windows 11 gets a virtual TPM and Secure Boot).
+- **Install from an ISO**: any system, installed from the console in the browser (Windows 11 gets a virtual TPM and Secure Boot). Windows Server 2025/2022 evaluation ISOs can be downloaded from Microsoft in one click.
 - **Import**: an OVA/OVF, VMDK, VHD(X), qcow2 or raw disk from another hypervisor.
+- **macOS (experimental)**: installed from Apple's recovery servers through OpenCore (x86-64 NAS with KVM). The installer downloads several GB from Apple; finish the installation in the console — Disk Utility (erase the largest disk as APFS), then Reinstall macOS — and use macOS in accordance with Apple's licence.
 
 Each VM can take **Snapshots** (with its memory if it is running) and be **Cloned**. Prepare a VM once, then "Convert to template" to create identical VMs from it (Templates tab). The **USB devices** tab gives a USB device (Zigbee dongle, UPS, licence key…) to a VM; it comes back after being unplugged. **Start order** chooses which VMs start with the NAS, in which order and with which delay. **Backups** lists the VMs saved by your backup tasks and restores one as a new VM.
 

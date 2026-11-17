@@ -247,6 +247,30 @@ func (s *Server) vmMoreRoutes() {
 		return vms.CloudImages(), nil
 	})
 
+	// ---- macOS (OpenCore, experimental) ----
+	s.admin("GET /api/vms/macos", func(r *http.Request) (any, error) {
+		return vms.MacOSVersions(), nil
+	})
+	s.admin("POST /api/vms/macos", func(r *http.Request) (any, error) {
+		var req vms.MacOSReq
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if err := vms.ValidName(req.Name); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		s.audit(r, "vms", "Creating macOS virtual machine "+req.Name)
+		return s.jobs.Start("vm", "Creating macOS VM "+req.Name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			if err := vms.CreateMacOS(ctx, req, s.vmProgress(j)); err != nil {
+				return err
+			}
+			if req.Autostart {
+				return s.setVMAutostart(req.Name, true, 0, 0)
+			}
+			return nil
+		}), nil
+	})
+
 	// ---- Official installer ISOs (Windows Server evaluation) ----
 	s.admin("GET /api/vms/installers", func(r *http.Request) (any, error) {
 		return vms.Installers(), nil

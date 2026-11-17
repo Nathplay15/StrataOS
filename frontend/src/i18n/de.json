@@ -4645,5 +4645,10 @@
   "No duplicates": "Keine Duplikate",
   "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Ähnliche Fotos (Serien, verkleinerte Kopien…) werden während der Indexierung erkannt; indexiere neu, um aktuelle Fotos zu analysieren.",
   "Official installers": "Offizielle Installationsabbilder",
-  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Evaluations-ISOs von Windows Server, aus dem ISOs-Ordner des Volumes von Microsoft heruntergeladen. Für Windows 10/11 kopieren Sie Ihr eigenes ISO in einen gemeinsamen Ordner."
+  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Evaluations-ISOs von Windows Server, aus dem ISOs-Ordner des Volumes von Microsoft heruntergeladen. Für Windows 10/11 kopieren Sie Ihr eigenes ISO in einen gemeinsamen Ordner.",
+  "macOS (experimental)": "macOS (experimentell)",
+  "Installed from Apple's recovery servers via OpenCore; finish the installation in the console": "Aus Apples Wiederherstellungsservern über OpenCore installiert; die Installation in der Konsole abschließen",
+  "macOS version": "macOS-Version",
+  "macOS (OpenCore)": "macOS (OpenCore)",
+  "Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.": "Experimentell. macOS wird aus Apples Wiederherstellungsabbild über OpenCore installiert (nur KVM auf einem x86-64-NAS). Das Installationsprogramm lädt mehrere GB von Apple; schließen Sie die Installation in der Konsole ab: Festplattendienstprogramm (größte Platte als APFS löschen), dann macOS neu installieren. Nutzen Sie macOS gemäß Apples Lizenz."
 }

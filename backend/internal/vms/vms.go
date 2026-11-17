@@ -408,6 +408,7 @@ type installSpec struct {
 	disks   []string // virt-install --disk values
 	cdrom   string   // installation ISO
 	import_ bool     // boot from the existing disks
+	video   string   // display adapter model (default: virtio)
 	extra   []string // more virt-install arguments
 }
 
@@ -446,8 +447,12 @@ func Create(ctx context.Context, r CreateReq, logf func(string, ...any)) error {
 
 // install runs virt-install. The VM starts right away unless spec says otherwise.
 func install(ctx context.Context, r CreateReq, spec installSpec, logf func(string, ...any)) error {
+	video := spec.video
+	if video == "" {
+		video = "virtio"
+	}
 	args := []string{"--connect", "qemu:///system", "--name", r.Name, "--memory", strconv.Itoa(r.MemoryMB), "--vcpus", strconv.Itoa(r.VCPUs),
-		"--graphics", "vnc,listen=127.0.0.1", "--video", "virtio", "--noautoconsole", "--wait", "0", "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0"}
+		"--graphics", "vnc,listen=127.0.0.1", "--video", video, "--noautoconsole", "--wait", "0", "--channel", "unix,target.type=virtio,target.name=org.qemu.guest_agent.0"}
 	variant := "generic"
 	switch r.OS {
 	case "linux":
