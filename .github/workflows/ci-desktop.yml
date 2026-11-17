@@ -1,0 +1,121 @@
+# Checks the desktop app (desktop/: the Go sync engine, the Tauri shell and
+# its window, and the packages of each system) on every change and pull
+# request. It has its own version (desktop/VERSION) and its own releases
+# (release-desktop.yml, tags desktop-v*); the weekly run covers it too.
+name: CI Desktop
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/ci-desktop.yml"
+      - ".github/scripts/**"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/ci-desktop.yml"
+      - ".github/scripts/**"
+  schedule:
+    - cron: "15 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: "Sync engine (Go): format, vet, unit tests, every system"
+        run: |
+          cd desktop
+          out=$(gofmt -l .)
+          test -z "$out" || { echo "not formatted: $out"; exit 1; }
+          go vet ./...
+          go test ./...
+          GOOS=windows go vet ./...
+          GOOS=darwin CGO_ENABLED=0 go vet ./...
+      - name: Window (TypeScript) and its translations
+        run: |
+          cd desktop/app
+          npm ci --no-audit --no-fund
+          npx tsc -b
+          node scripts/i18n-check.mjs
+      - name: "Shell (Rust): format, lints, unit tests, Linux packages"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+          rustup component add rustfmt clippy
+          (cd desktop/app && npx vite build)
+          # The shell bundles the sync engine: build it before compiling the shell.
+          desktop/app/scripts/sidecar.sh
+          (cd desktop/app/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+          desktop/packaging/build.sh app
+          desktop/packaging/build.sh cli
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-linux
+          path: dist/strataos-sync-*
+          retention-days: 7
+
+  desktop-macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Unit tests and universal app
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          (cd desktop && ../.github/scripts/annotate.sh go test ./...)
+          .github/scripts/annotate.sh desktop/packaging/build.sh app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos
+          path: dist/strataos-sync-*.dmg
+          retention-days: 7
+
+  desktop-windows:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Unit tests, installers
+        run: |
+          (cd desktop && ../.github/scripts/annotate.sh go test ./...)
+          (cd desktop/app && npm ci --no-audit --no-fund && npx vite build)
+          desktop/app/scripts/sidecar.sh
+          (cd desktop/app/src-tauri && cargo test)
+          .github/scripts/annotate.sh desktop/packaging/build.sh app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: dist/strataos-sync-*
+          retention-days: 7

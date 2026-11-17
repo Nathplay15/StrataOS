@@ -1,22 +1,18 @@
-# Publishes a GitHub release when a version tag (v1.2.3, matching VERSION) is
-# pushed: Debian packages for amd64 and arm64, installer ISOs for both, the
-# Raspberry Pi image, the Android app (strataos-<version>.apk, signed with the
-# release key from the ANDROID_* secrets; left out with a warning when they are
-# missing), and their SHA-256 checksums signed with the archive key
-# (SHA256SUMS.asc), and the desktop app (strataos-sync-<version>-*: Windows
-# setup .exe and .msi, macOS .dmg, Linux .deb and .AppImage for amd64 and
-# arm64, the headless engine as .tar.gz and .zip, and latest.json for the
-# app's own updater, built by the desktop-* jobs below and downloaded by the
-# release job; the updater signatures need the TAURI_SIGNING_PRIVATE_KEY and
-# TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets, see docs/DEVELOPMENT.md). Release notes: packaging/release-notes/<version>.md,
-# followed by packaging/release-notes/footer.md (checking the download).
-# Pre-releases: VERSION 0.8.0~beta.1 (or ~alpha.N, ~rc.N), tag v0.8.0-beta.1,
-# notes packaging/release-notes/0.8.0-beta.1.md; published as a GitHub
-# pre-release, and only to the "testing" suite (beta channel) of the APT
-# repository. Needs the repository secret APT_SIGNING_KEY (as pages.yml).
-# The packages point to the APT repository on GitHub Pages, from which
-# installed systems update: pages.yml is started at the end, on main (the
-# github-pages environment only accepts deployments from the default branch).
+# Publishes the NAS (OS) GitHub release when a version tag (v1.2.3, matching
+# VERSION) is pushed: Debian packages for amd64 and arm64, installer ISOs for
+# both, and the Raspberry Pi image, with their SHA-256 checksums signed with
+# the archive key (SHA256SUMS.asc). The Android app (release-android.yml, tags
+# android-v*) and the desktop app (release-desktop.yml, tags desktop-v*) have
+# their own versions and releases. Release notes:
+# packaging/release-notes/<version>.md, followed by packaging/release-notes/footer.md
+# (checking the download). Pre-releases: VERSION 0.8.0~beta.1 (or ~alpha.N,
+# ~rc.N), tag v0.8.0-beta.1, notes packaging/release-notes/0.8.0-beta.1.md;
+# published as a GitHub pre-release, and only to the "testing" suite (beta
+# channel) of the APT repository. Needs the repository secret APT_SIGNING_KEY
+# (as pages.yml). The packages point to the APT repository on GitHub Pages,
+# from which installed systems update: pages.yml is started at the end, on
+# main (the github-pages environment only accepts deployments from the
+# default branch).
 name: Release
 
 on:
@@ -31,88 +27,9 @@ env:
   REPO_URL: https://nathplay15.github.io/StrataOS/apt
 
 jobs:
-  # ---- Desktop app: one job per system, files handed over as artifacts. ----
-  desktop-linux:
-    strategy:
-      matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
-          command -v rustc >/dev/null || { curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH=$HOME/.cargo/bin:$PATH; }
-          (cd desktop && go test ./...)
-          desktop/packaging/build.sh app
-          if [ "$(uname -m)" = x86_64 ]; then desktop/packaging/build.sh cli; fi
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-linux-${{ matrix.runner }}
-          path: dist/strataos-sync-*
-
-  desktop-macos:
-    runs-on: macos-15
-    timeout-minutes: 45
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-          desktop/packaging/build.sh app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-macos
-          path: dist/strataos-sync-*
-
-  desktop-windows:
-    runs-on: windows-2025
-    timeout-minutes: 45
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - run: desktop/packaging/build.sh app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-windows
-          path: dist/strataos-sync-*
-
   release:
-    needs: [desktop-linux, desktop-macos, desktop-windows]
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
 
@@ -192,57 +109,16 @@ jobs:
           sudo ./packaging/rpi/build-rpi-image.sh "dist/strataos_${V}_arm64.deb"
           sudo chown -R "$(id -u):$(id -g)" dist
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: gradle
-          cache-dependency-path: android/gradle/libs.versions.toml
-
-      # The runner's Android SDK, completed with the platform the app compiles against.
-      - name: Android app
-        env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-          STRATA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          STRATA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          STRATA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE" ] || [ -z "$STRATA_KEYSTORE_PASSWORD" ] || [ -z "$STRATA_KEY_ALIAS" ] || [ -z "$STRATA_KEY_PASSWORD" ]; then
-            echo "::warning title=Android app not published::the ANDROID_KEYSTORE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD secrets are not set (docs/DEVELOPMENT.md)"
-            exit 0
-          fi
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
-          export STRATA_KEYSTORE="$RUNNER_TEMP/strataos-release.jks"
-          echo "$ANDROID_KEYSTORE" | base64 -d > "$STRATA_KEYSTORE"
-          (cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease)
-          rm -f "$STRATA_KEYSTORE"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify android/app/build/outputs/apk/release/app-release.apk
-          cp android/app/build/outputs/apk/release/app-release.apk "dist/strataos-${V}.apk"
-
-      # The desktop app built by the desktop-* jobs (already named after the tag form).
-      - uses: actions/download-artifact@v7
-        with:
-          pattern: desktop-*
-          merge-multiple: true
-          path: dist
-
       - name: Checksums
         run: |
           cd dist
           # Release files are named after the tag form (no "~" in asset names).
           if [ "$V" != "$FV" ]; then
-            for f in strataos_${V}_amd64.deb strataos_${V}_arm64.deb strataos-${V}-amd64.iso strataos-${V}-arm64.iso strataos-${V}-raspberrypi.img.xz strataos-${V}.apk; do
+            for f in strataos_${V}_amd64.deb strataos_${V}_arm64.deb strataos-${V}-amd64.iso strataos-${V}-arm64.iso strataos-${V}-raspberrypi.img.xz; do
               [ -f "$f" ] && mv "$f" "${f//"$V"/"$FV"}"
             done
           fi
-          APK=$(ls "strataos-${FV}.apk" 2>/dev/null || true)
-          # The app's updater: latest.json lists the signed packages (the .sig files
-          # stay out of the release, their contents are in latest.json).
-          (cd .. && desktop/packaging/build.sh latest-json)
-          rm -f strataos-sync-"${FV}"-*.sig
-          DESKTOP=$(ls strataos-sync-"${FV}"-* latest.json 2>/dev/null || true)
-          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" $APK $DESKTOP > SHA256SUMS
+          sha256sum "strataos_${FV}_amd64.deb" "strataos_${FV}_arm64.deb" "strataos-${FV}-amd64.iso" "strataos-${FV}-arm64.iso" "strataos-${FV}-raspberrypi.img.xz" > SHA256SUMS
           cat SHA256SUMS
 
       # Detached armored signature with the archive key, the one the
@@ -263,7 +139,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS $FV" --notes-file release-notes.md \
             "dist/strataos_${FV}_amd64.deb" "dist/strataos_${FV}_arm64.deb" \
             "dist/strataos-${FV}-amd64.iso" "dist/strataos-${FV}-arm64.iso" "dist/strataos-${FV}-raspberrypi.img.xz" \
-            $(ls "dist/strataos-${FV}.apk" 2>/dev/null) $(ls dist/strataos-sync-"${FV}"-* dist/latest.json 2>/dev/null) dist/SHA256SUMS dist/SHA256SUMS.asc
+            dist/SHA256SUMS dist/SHA256SUMS.asc
 
       - name: Update the website and APT repository
         env:

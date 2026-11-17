@@ -7,8 +7,8 @@ import java.io.File
  * Debug builds only (the release source set has no override): the API base
  * can be replaced to test updates against a local copy of the release files,
  * written with `adb shell run-as io.github.nathplay15.strataos sh -c
- * 'echo http://10.0.2.2:8765 > files/update-api'` (serving releases/latest,
- * releases/index.html and the files the JSON links to).
+ * 'echo http://10.0.2.2:8765 > files/update-api'` (serving releases?per_page=30,
+ * a release list, and the files the JSON links to).
  */
 object ReleaseSource {
     fun api(ctx: Context): String =

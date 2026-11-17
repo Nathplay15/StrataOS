@@ -15,7 +15,7 @@ set -euo pipefail
 umask 022
 cd "$(dirname "$0")/.."
 ROOT=$(cd .. && pwd)
-V=$(cat "$ROOT/VERSION")
+V=$(cat "$ROOT/desktop/VERSION")
 FV=${V//\~/-}
 MSIV=${V%%~*} # MSI versions are numbers only: 0.8.0~beta.1 is 0.8.0
 DIST="$ROOT/dist"
@@ -89,7 +89,7 @@ cli() {
 # "windows-x86_64" the setup, "windows-x86_64-msi", "darwin-*" the universal
 # .app.tar.gz). The updater looks for <os>-<arch>-<installer> first.
 latest_json() {
-  local url="https://github.com/Nathplay15/StrataOS/releases/download/v$FV" entries=()
+  local url="https://github.com/Nathplay15/StrataOS/releases/download/desktop-v$FV" entries=()
   add() { # add KEY FILE
     if [ -f "$DIST/$2.sig" ]; then
       entries+=("$(printf '"%s":{"signature":"%s","url":"%s/%s"}' "$1" "$(tr -d '\n' < "$DIST/$2.sig")" "$url" "$2")")
@@ -111,7 +111,7 @@ latest_json() {
     return 0
   fi
   local IFS=,
-  printf '{"version":"%s","notes":"https://github.com/Nathplay15/StrataOS/releases/tag/v%s","pub_date":"%s","platforms":{%s}}\n' \
+  printf '{"version":"%s","notes":"https://github.com/Nathplay15/StrataOS/releases/tag/desktop-v%s","pub_date":"%s","platforms":{%s}}\n' \
     "$FV" "$FV" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${entries[*]}" > "$DIST/latest.json"
   cat "$DIST/latest.json"
 }

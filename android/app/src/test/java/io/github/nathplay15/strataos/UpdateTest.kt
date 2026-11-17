@@ -49,29 +49,31 @@ class UpdateTest {
 
     @Test fun picksTheRelease() {
         val all = listOf(
-            rel("v0.10.1"), rel("v0.11.0-beta.1", prerelease = true), rel("v0.12.0", draft = true),
-            rel("nightly"), rel("v0.10.2-rc.1"), // a pre-release tag not flagged as such
+            rel("android-v0.10.1"), rel("android-v0.11.0-beta.1", prerelease = true), rel("android-v0.12.0", draft = true),
+            rel("nightly"), rel("android-v0.10.2-rc.1"), // a pre-release tag not flagged as such
+            rel("v0.13.0"), rel("desktop-v9.9.9"), // the NAS and desktop releases are not app updates
         )
-        assertEquals("v0.10.1", Releases.pick(all, beta = false)?.tag)
-        assertEquals("v0.11.0-beta.1", Releases.pick(all, beta = true)?.tag)
-        assertNull(Releases.pick(listOf(rel("v0.12.0", draft = true)), beta = true))
+        assertEquals("android-v0.10.1", Releases.pick(all, beta = false)?.tag)
+        assertEquals("android-v0.11.0-beta.1", Releases.pick(all, beta = true)?.tag)
+        assertNull(Releases.pick(listOf(rel("android-v0.12.0", draft = true)), beta = true))
         assertNull(Releases.pick(emptyList(), beta = false))
+        assertNull(Releases.pick(listOf(rel("v0.13.0"), rel("desktop-v9.9.9")), beta = true))
     }
 
     @Test fun picksTheAssets() {
-        val r = rel("v0.11.0-beta.1", true, false, "strataos_0.11.0-beta.1_amd64.deb", "strataos-0.11.0-beta.1.apk", "strataos-sync-0.11.0-beta.1-macos.dmg", "SHA256SUMS", "SHA256SUMS.asc")
+        val r = rel("android-v0.11.0-beta.1", true, false, "strataos-android-0.11.0-beta.1.apk", "SHA256SUMS", "SHA256SUMS.asc")
         val f = Releases.files(r)!!
-        assertEquals("strataos-0.11.0-beta.1.apk", f.apk.name)
+        assertEquals("strataos-android-0.11.0-beta.1.apk", f.apk.name)
         assertEquals("SHA256SUMS", f.sums.name)
         // An APK of another version or without checksums is not used.
-        assertNull(Releases.files(rel("v0.10.2", false, false, "strataos-0.10.1.apk", "SHA256SUMS")))
-        assertNull(Releases.files(rel("v0.10.2", false, false, "strataos-0.10.2.apk")))
+        assertNull(Releases.files(rel("android-v0.10.2", false, false, "strataos-android-0.10.1.apk", "SHA256SUMS")))
+        assertNull(Releases.files(rel("android-v0.10.2", false, false, "strataos-android-0.10.2.apk")))
     }
 
     @Test fun parsesGitHubJson() {
-        val json = """{"url":"x","tag_name":"v0.10.2","name":"StrataOS 0.10.2","draft":false,"prerelease":false,
-            "html_url":"https://github.com/Nathplay15/StrataOS/releases/tag/v0.10.2","body":"## Fixed\r\n- **A** fix",
-            "assets":[{"name":"strataos-0.10.2.apk","size":123,"browser_download_url":"https://github.com/a.apk","uploader":{}},
+        val json = """{"url":"x","tag_name":"android-v0.10.2","name":"StrataOS Android 0.10.2","draft":false,"prerelease":false,
+            "html_url":"https://github.com/Nathplay15/StrataOS/releases/tag/android-v0.10.2","body":"## Fixed\r\n- **A** fix",
+            "assets":[{"name":"strataos-android-0.10.2.apk","size":123,"browser_download_url":"https://github.com/a.apk","uploader":{}},
             {"name":"SHA256SUMS","size":9,"browser_download_url":"https://github.com/SHA256SUMS"}]}"""
         val r = Json { ignoreUnknownKeys = true }.decodeFromString(Release.serializer(), json)
         assertEquals(v("0.10.2"), r.version)

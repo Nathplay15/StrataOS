@@ -1,0 +1,102 @@
+# Publishes the Android app when a version tag (android-v1.2.3, matching
+# android/VERSION) is pushed: the signed APK (strataos-android-<version>.apk,
+# release key from the ANDROID_* secrets) and its SHA-256 checksums signed
+# with the archive key (SHA256SUMS.asc, secret APT_SIGNING_KEY). Release
+# notes: packaging/release-notes/android-<version>.md when it exists (followed
+# by packaging/release-notes/footer.md), otherwise a short generated note.
+# The app reads its updates from the android-v* releases (Releases.kt).
+# Pre-releases: android/VERSION 0.8.0~beta.1, tag android-v0.8.0-beta.1,
+# published as a GitHub pre-release.
+name: Release Android
+
+on:
+  push:
+    tags: ["android-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: android/gradle/libs.versions.toml
+
+      - name: Check the version
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          # FV: the version in tags and file names ("~" of android/VERSION
+          # becomes "-"), PRE: a GitHub pre-release.
+          FV=${GITHUB_REF_NAME#android-v}
+          case $FV in
+            *-alpha.* | *-beta.* | *-rc.*) PRE=true ;;
+            *) PRE=false ;;
+          esac
+          echo "FV=$FV" >> "$GITHUB_ENV"
+          echo "PRE=$PRE" >> "$GITHUB_ENV"
+          test "$GITHUB_REF_NAME" = "android-v$(cat android/VERSION)" || { echo "tag $GITHUB_REF_NAME does not match android/VERSION $(cat android/VERSION)"; exit 1; }
+          test -n "$APT_SIGNING_KEY" || { echo "the APT_SIGNING_KEY secret is missing (see docs/DEVELOPMENT.md)"; exit 1; }
+
+      # The runner's Android SDK, completed with the platform the app compiles against.
+      - name: Build and sign the APK
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          STRATA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          STRATA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          STRATA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE" ] || [ -z "$STRATA_KEYSTORE_PASSWORD" ] || [ -z "$STRATA_KEY_ALIAS" ] || [ -z "$STRATA_KEY_PASSWORD" ]; then
+            echo "::error title=Android app not published::the ANDROID_KEYSTORE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD secrets are not set (docs/DEVELOPMENT.md)"
+            exit 1
+          fi
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
+          export STRATA_KEYSTORE="$RUNNER_TEMP/strataos-release.jks"
+          echo "$ANDROID_KEYSTORE" | base64 -d > "$STRATA_KEYSTORE"
+          (cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease)
+          rm -f "$STRATA_KEYSTORE"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify android/app/build/outputs/apk/release/app-release.apk
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/strataos-android-${FV}.apk"
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum "strataos-android-${FV}.apk" > SHA256SUMS
+          cat SHA256SUMS
+
+      # Detached armored signature with the archive key, the one the
+      # packages trust (verification: README.md, "Checking your download").
+      - name: Sign the checksums
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: ./packaging/make-repo.sh sign dist/SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=()
+          [ "$PRE" = true ] && pre=(--prerelease)
+          if [ -f "packaging/release-notes/android-$FV.md" ]; then
+            # Every release ends with how to check its files.
+            cat "packaging/release-notes/android-$FV.md" packaging/release-notes/footer.md > release-notes.md
+          else
+            {
+              echo "## StrataOS Android $FV"
+              echo
+              echo "Update from the app (Settings → Updates), or install this APK."
+            } > release-notes.md
+            cat packaging/release-notes/footer.md >> release-notes.md
+          fi
+          gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS Android $FV" --notes-file release-notes.md \
+            "dist/strataos-android-${FV}.apk" dist/SHA256SUMS dist/SHA256SUMS.asc

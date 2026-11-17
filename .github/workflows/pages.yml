@@ -74,6 +74,21 @@ jobs:
           cp dist/apt/strataos-archive.gpg site/strataos-archive.gpg
           touch site/.nojekyll
 
+      - name: Desktop updater manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The desktop app reads its updates from here (tauri.conf.json), so the
+          # newest final desktop release must always be the one served.
+          t=$(gh release list --limit 100 --exclude-drafts --json tagName,isPrerelease -q '.[] | select(.isPrerelease | not) | .tagName' | grep '^desktop-v' | head -1)
+          if [ -n "$t" ]; then
+            mkdir -p site/desktop
+            gh release download "$t" --pattern 'latest.json' --dir site/desktop --clobber
+            ls -l site/desktop
+          else
+            echo 'no desktop release yet: no latest.json to publish'
+          fi
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site

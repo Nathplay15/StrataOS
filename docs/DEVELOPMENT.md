@@ -242,7 +242,7 @@ The 2-NAS high availability for files (`internal/ha`, keepalived + replication) 
 
 ## Android app
 
-`android/` is a Gradle project (Kotlin, Jetpack Compose with Material 3, minSdk 26, compile/target SDK 37, no Google Play services). Application ID `io.github.nathplay15.strataos`: it can never change once published (Android treats another ID as another app, and the release key signs that ID), so it is a name the project controls (its GitHub Pages domain) rather than a domain it does not own. The version follows `VERSION` (`versionCode` = major × 1 000 000 + minor × 1 000 + patch).
+`android/` is a Gradle project (Kotlin, Jetpack Compose with Material 3, minSdk 26, compile/target SDK 37, no Google Play services). Application ID `io.github.nathplay15.strataos`: it can never change once published (Android treats another ID as another app, and the release key signs that ID), so it is a name the project controls (its GitHub Pages domain) rather than a domain it does not own. The version is its own (`android/VERSION`, independent of the NAS one; `versionCode` = major × 1 000 000 + minor × 1 000 + patch).
 
 | Folder | What |
 |---|---|
@@ -278,9 +278,9 @@ Since 0.8.1:
 
 Their end-to-end test is `vm/e2e.d/96b-mobile-v2.sh`.
 
-**App updates** (0.10.1): the app reads `https://api.github.com/repos/Nathplay15/StrataOS/releases/latest` (or `releases?per_page=20` with "Include beta versions"; drafts are never used, and a tag with `-beta.N` counts as a pre-release even if the release is not flagged), takes `strataos-<file version>.apk` and `SHA256SUMS` of that release, downloads the APK into the cache, compares its SHA-256 with `SHA256SUMS` and, with `getPackageArchiveInfo(GET_SIGNING_CERTIFICATES)`, its package name, versionCode (not lower) and signing certificates (equal to the installed app's, or holding it in their rotation history), then installs it with a PackageInstaller session (`setRequireUserAction(USER_ACTION_NOT_REQUIRED)` on Android 12+, with `UPDATE_PACKAGES_WITHOUT_USER_ACTION`; a self-update then needs no prompt; `STATUS_PENDING_USER_ACTION` launches the system confirmation when the app is visible, otherwise a notification leads back to the Install button). `SHA256SUMS.asc` is not checked by the app: the signing key of the APK is what Android trusts. Pre-releases share the versionCode of their final version (0.11.0~beta.1 and 0.11.0 are both 11000), which Android accepts as an update.
+**App updates** (0.10.1): the app reads `https://api.github.com/repos/Nathplay15/StrataOS/releases?per_page=30` and keeps the `android-v*` releases only (the NAS and desktop ones are ignored; drafts are never used, and a tag with `-beta.N` counts as a pre-release even if the release is not flagged), takes `strataos-android-<file version>.apk` and `SHA256SUMS` of that release, downloads the APK into the cache, compares its SHA-256 with `SHA256SUMS` and, with `getPackageArchiveInfo(GET_SIGNING_CERTIFICATES)`, its package name, versionCode (not lower) and signing certificates (equal to the installed app's, or holding it in their rotation history), then installs it with a PackageInstaller session (`setRequireUserAction(USER_ACTION_NOT_REQUIRED)` on Android 12+, with `UPDATE_PACKAGES_WITHOUT_USER_ACTION`; a self-update then needs no prompt; `STATUS_PENDING_USER_ACTION` launches the system confirmation when the app is visible, otherwise a notification leads back to the Install button). `SHA256SUMS.asc` is not checked by the app: the signing key of the APK is what Android trusts. Pre-releases share the versionCode of their final version (0.11.0~beta.1 and 0.11.0 are both 11000), which Android accepts as an update.
 
-To test without publishing a release, debug builds only (`src/debug/…/update/ReleaseSource.kt`; the release source set has no override) read another API base from `files/update-api`: `adb shell run-as io.github.nathplay15.strataos sh -c 'echo http://10.0.2.2:8765 > files/update-api'`, then serve `releases/latest` (a release JSON), `releases/index.html` (a list) and the files they link to from the host (`python3 -m http.server 8765`). Build the "newer" APK with the same debug key: `./gradlew assembleDebug -PstrataVersion=0.10.2`.
+To test without publishing a release, debug builds only (`src/debug/…/update/ReleaseSource.kt`; the release source set has no override) read another API base from `files/update-api`: `adb shell run-as io.github.nathplay15.strataos sh -c 'echo http://10.0.2.2:8765 > files/update-api'`, then serve `releases?per_page=30` (a release list) and the files it links to from the host (`python3 -m http.server 8765`). Build the "newer" APK with the same debug key: `./gradlew assembleDebug -PstrataVersion=0.10.2`.
 
 ### Toolchain (no root needed)
 
@@ -329,11 +329,11 @@ printf %s "$K_keyAlias" | gh secret set ANDROID_KEY_ALIAS
 printf %s "$K_keyPassword" | gh secret set ANDROID_KEY_PASSWORD
 ```
 
-Without these secrets the release still publishes everything else, and the workflow shows a warning instead of `strataos-<version>.apk`.
+Without these secrets the Android release fails with an explicit error: the APK is its own release (`android-v*` tags, `release-android.yml`), there is nothing else to publish in it.
 
 ## Desktop app
 
-`desktop/` is the desktop app for Windows, macOS and Linux: a **Tauri 2** shell (Rust, `app/src-tauri`) showing a **React + TypeScript** window (Vite, `app/src`), and the **sync engine** in Go (module `strataos-sync`, the rest of `desktop/`), run by the shell as its sidecar. The engine keeps its tested code (pure Go, no cgo, state in bbolt) and still runs alone in headless mode (`strataos-sync --help`). The version follows `VERSION`.
+`desktop/` is the desktop app for Windows, macOS and Linux: a **Tauri 2** shell (Rust, `app/src-tauri`) showing a **React + TypeScript** window (Vite, `app/src`), and the **sync engine** in Go (module `strataos-sync`, the rest of `desktop/`), run by the shell as its sidecar. The engine keeps its tested code (pure Go, no cgo, state in bbolt) and still runs alone in headless mode (`strataos-sync --help`). The version is its own (`desktop/VERSION`, independent of the NAS one).
 
 ```
  window (React, tauri://localhost) ──fetch, Bearer <launch token>──▶ agent (Go, 127.0.0.1:<port>) ──HTTPS, pinned, device token──▶ NAS
@@ -454,7 +454,15 @@ Tests: `go test ./internal/market` (strict refusals, grants, interpolation, sign
 1. Set the version in `VERSION` and write `packaging/release-notes/<version>.md`.
 2. Commit, then push a `v<version>` tag.
 
-`.github/workflows/release.yml` then builds both packages (pointing to the update repository), both ISOs, the Raspberry Pi image and the signed Android app, publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them), and starts `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`) and the public key (`/strataos-archive.gpg`). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`.
+The three components release independently, each from its own version file and tag namespace:
+
+| Component | Version file | Tag | Workflow |
+|---|---|---|---|
+| NAS (OS) | `VERSION` | `v<version>` | `release.yml`: both packages (pointing to the update repository), both ISOs, the Raspberry Pi image |
+| Android app | `android/VERSION` | `android-v<version>` | `release-android.yml`: the signed APK `strataos-android-<version>.apk` |
+| Desktop app | `desktop/VERSION` | `desktop-v<version>` | `release-desktop.yml`: the packages of each system and `latest.json` for the app's updater |
+
+Every workflow publishes the GitHub release with its checksums (`SHA256SUMS`, signed with the archive key in `SHA256SUMS.asc`; `packaging/release-notes/footer.md`, appended to the notes, explains how to check them). The OS and desktop releases start `.github/workflows/pages.yml` on `main`. That workflow rebuilds the signed APT repository from every OS release's packages and publishes it on GitHub Pages, together with the download page (`packaging/pages/index.html`), the public key (`/strataos-archive.gpg`) and the desktop updater manifest (`/desktop/latest.json`, taken from the newest final desktop release). Installed systems update from `https://nathplay15.github.io/StrataOS/apt`; the desktop app reads its updates from `https://nathplay15.github.io/StrataOS/desktop/latest.json`.
 
 ### Pre-releases (beta channel)
 

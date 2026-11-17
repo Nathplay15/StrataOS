@@ -1,12 +1,35 @@
-# Checks every push and pull request: Go format, vet and unit tests, the
-# TypeScript build, translations, and both Debian packages. The full test on
-# a virtual machine (about an hour) runs every week and on demand.
+# Checks the NAS (OS) on every change and pull request: Go format, vet and
+# unit tests, the TypeScript build, translations, and both Debian packages.
+# The full test on a virtual machine (about an hour) runs every week and on
+# demand. The Android app (ci-android.yml) and the desktop app
+# (ci-desktop.yml) have their own workflows, run only when their files
+# change; the weekly runs cover everything.
 name: CI
 
 on:
   push:
     branches: ["**"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "packaging/**"
+      - "vm/**"
+      - "docs/**"
+      - "VERSION"
+      - "Makefile"
+      - ".github/workflows/ci.yml"
+      - ".github/scripts/**"
   pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "packaging/**"
+      - "vm/**"
+      - "docs/**"
+      - "VERSION"
+      - "Makefile"
+      - ".github/workflows/ci.yml"
+      - ".github/scripts/**"
   schedule:
     - cron: "0 3 * * 1"
   workflow_dispatch:
@@ -69,7 +92,7 @@ jobs:
           node scripts/docs-site.mjs ../build/site
 
       - name: Shell scripts
-        run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh desktop/packaging/*.sh desktop/app/scripts/*.sh; do bash -n "$f" || exit 1; done
+        run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh; do bash -n "$f" || exit 1; done
 
       - name: Debian packages (amd64, arm64)
         run: |
@@ -102,122 +125,6 @@ jobs:
           path: dist
       - name: Install in debian:${{ matrix.suite }}
         run: packaging/test-install.sh ${{ matrix.suite }}
-
-  # The Android app: unit tests (uploads, dedupe, certificate pinning, token
-  # storage) and an unsigned release build (R8).
-  android:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: gradle
-          cache-dependency-path: android/gradle/libs.versions.toml
-      - name: Unit tests and build
-        run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
-          cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease
-
-  # ---- Desktop app (desktop/): the Go sync engine, the Tauri shell and its
-  # window, and the packages of each system (Rust and Node on the runners). ----
-  desktop:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - name: "Sync engine (Go): format, vet, unit tests, every system"
-        run: |
-          cd desktop
-          out=$(gofmt -l .)
-          test -z "$out" || { echo "not formatted: $out"; exit 1; }
-          go vet ./...
-          go test ./...
-          GOOS=windows go vet ./...
-          GOOS=darwin CGO_ENABLED=0 go vet ./...
-      - name: Window (TypeScript) and its translations
-        run: |
-          cd desktop/app
-          npm ci --no-audit --no-fund
-          npx tsc -b
-          node scripts/i18n-check.mjs
-      - name: "Shell (Rust): format, lints, unit tests, Linux packages"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
-          rustup component add rustfmt clippy
-          (cd desktop/app && npx vite build)
-          # The shell bundles the sync engine: build it before compiling the shell.
-          desktop/app/scripts/sidecar.sh
-          (cd desktop/app/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
-          desktop/packaging/build.sh app
-          desktop/packaging/build.sh cli
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-linux
-          path: dist/strataos-sync-*
-          retention-days: 7
-
-  desktop-macos:
-    runs-on: macos-15
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - name: Unit tests and universal app
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-          (cd desktop && ../.github/scripts/annotate.sh go test ./...)
-          .github/scripts/annotate.sh desktop/packaging/build.sh app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-macos
-          path: dist/strataos-sync-*.dmg
-          retention-days: 7
-
-  desktop-windows:
-    runs-on: windows-2025
-    timeout-minutes: 45
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - name: Unit tests, installers
-        run: |
-          (cd desktop && ../.github/scripts/annotate.sh go test ./...)
-          (cd desktop/app && npm ci --no-audit --no-fund && npx vite build)
-          desktop/app/scripts/sidecar.sh
-          (cd desktop/app/src-tauri && cargo test)
-          .github/scripts/annotate.sh desktop/packaging/build.sh app
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-windows
-          path: dist/strataos-sync-*
-          retention-days: 7
 
   e2e:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
