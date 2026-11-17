@@ -36,6 +36,12 @@ type CertStore struct {
 	tokens map[string]string // HTTP-01 token → key authorization
 	// Directory is the ACME directory URL.
 	Directory string
+	// HTTPClient talks to the ACME server (nil: the default client; tests
+	// use it to trust a local test CA).
+	HTTPClient *http.Client
+	// Propagation is how long a DNS-01 record is given to reach the
+	// authoritative servers (0: 20 seconds).
+	Propagation time.Duration
 }
 
 // CertInfo describes the certificate served for a host name.
@@ -134,13 +140,20 @@ type DNSSolver interface {
 
 // Obtain asks Let's Encrypt for a certificate: DNS-01 when dns is set,
 // HTTP-01 on port 80 otherwise. Extra names (e.g. "*.example.com") are added
-// to the certificate as SANs; they need the DNS-01 challenge.
+// to the certificate; every name is part of the order and authorized on its
+// own (a wildcard can only be authorized with DNS-01).
 func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolver, logf func(string, ...any), extra ...string) error {
+	names := append([]string{host}, extra...)
+	for _, n := range extra {
+		if strings.HasPrefix(n, "*.") && dns == nil {
+			return fmt.Errorf("a wildcard certificate (%s) needs the DNS-01 challenge", n)
+		}
+	}
 	key, err := c.accountKey()
 	if err != nil {
 		return err
 	}
-	cl := &acme.Client{Key: key, DirectoryURL: c.Directory, UserAgent: "StrataOS"}
+	cl := &acme.Client{Key: key, DirectoryURL: c.Directory, UserAgent: "StrataOS", HTTPClient: c.HTTPClient}
 	acct := &acme.Account{}
 	if email != "" {
 		acct.Contact = []string{"mailto:" + email}
@@ -148,13 +161,13 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 	if _, err := cl.Register(ctx, acct, acme.AcceptTOS); err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
 		return fmt.Errorf("Let's Encrypt account: %w", err)
 	}
-	order, err := cl.AuthorizeOrder(ctx, acme.DomainIDs(host))
+	order, err := cl.AuthorizeOrder(ctx, acme.DomainIDs(names...))
 	if err != nil {
 		return err
 	}
-	want := "http-01"
-	if dns != nil {
-		want = "dns-01"
+	wait := c.Propagation
+	if wait == 0 {
+		wait = 20 * time.Second
 	}
 	for _, u := range order.AuthzURLs {
 		z, err := cl.GetAuthorization(ctx, u)
@@ -164,6 +177,10 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 		if z.Status == acme.StatusValid {
 			continue
 		}
+		want := "http-01"
+		if dns != nil || z.Wildcard {
+			want = "dns-01"
+		}
 		var ch *acme.Challenge
 		for _, x := range z.Challenges {
 			if x.Type == want {
@@ -171,15 +188,17 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 			}
 		}
 		if ch == nil {
-			return fmt.Errorf("Let's Encrypt offers no %s challenge", want)
+			return fmt.Errorf("Let's Encrypt offers no %s challenge for %s", want, z.Identifier.Value)
 		}
-		if dns != nil {
+		if want == "dns-01" {
 			val, err := cl.DNS01ChallengeRecord(ch.Token)
 			if err != nil {
 				return err
 			}
-			// The identifier of a wildcard authorization is "*.name"; the TXT
-			// record goes to _acme-challenge of the name itself.
+			// The identifier of a wildcard authorization is "name" (with
+			// Wildcard set) or "*.name"; the TXT record goes to
+			// _acme-challenge of the name itself, next to the record of the
+			// name's own authorization when both are asked.
 			name := strings.TrimPrefix(z.Identifier.Value, "*.")
 			logf("Publishing the DNS record _acme-challenge.%s…", name)
 			cleanup, err := dns.Present(ctx, "_acme-challenge."+name, val)
@@ -188,7 +207,7 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 			}
 			defer cleanup()
 			select { // propagation to the authoritative servers
-			case <-time.After(20 * time.Second):
+			case <-time.After(wait):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -217,7 +236,7 @@ func (c *CertStore) Obtain(ctx context.Context, host, email string, dns DNSSolve
 	if err != nil {
 		return err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: host}, DNSNames: append([]string{host}, extra...)}, ck)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: host}, DNSNames: names}, ck)
 	if err != nil {
 		return err
 	}

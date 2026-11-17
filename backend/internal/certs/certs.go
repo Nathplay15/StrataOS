@@ -218,13 +218,22 @@ func (m *Manager) SetACMEDNS(domain, certPEM, keyPEM string) error {
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		return err
 	}
+	domain = strings.ToLower(domain)
 	if err := os.WriteFile(filepath.Join(d, domain+".crt"), []byte(certPEM), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(d, domain+".key"), []byte(keyPEM), 0o600); err != nil {
 		return err
 	}
-	m.dnsCert, m.dnsDomain = &c, strings.ToLower(domain)
+	// The certificate of a previous domain must not come back after a restart.
+	if entries, err := os.ReadDir(d); err == nil {
+		for _, e := range entries {
+			if n := e.Name(); n != domain+".crt" && n != domain+".key" {
+				_ = os.Remove(filepath.Join(d, n))
+			}
+		}
+	}
+	m.dnsCert, m.dnsDomain = &c, domain
 	return nil
 }
 
@@ -240,21 +249,37 @@ func (m *Manager) clearDNSLocked() {
 	_ = os.RemoveAll(filepath.Join(m.dir, "acme-dns"))
 }
 
-// LoadDNS re-enables the DNS-01 certificate after a restart, from the files
-// written by SetACMEDNS.
-func (m *Manager) LoadDNS() error {
-	entries, err := filepath.Glob(filepath.Join(m.dir, "acme-dns", "*.crt"))
-	if err != nil || len(entries) == 0 {
-		return err
+// LoadDNS re-enables the DNS-01 certificate of the configured domain after
+// a restart, from the files written by SetACMEDNS. Nothing is loaded when the
+// domain has none yet (the renewal loop asks for it).
+func (m *Manager) LoadDNS(domain string) error {
+	domain = strings.ToLower(domain)
+	if !domainRe.MatchString(domain) {
+		return fmt.Errorf("invalid domain name")
 	}
-	c, err := tls.LoadX509KeyPair(entries[0], strings.TrimSuffix(entries[0], ".crt")+".key")
+	p := filepath.Join(m.dir, "acme-dns", domain)
+	c, err := tls.LoadX509KeyPair(p+".crt", p+".key")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	m.mu.Lock()
-	m.dnsCert, m.dnsDomain = &c, strings.ToLower(strings.TrimSuffix(filepath.Base(entries[0]), ".crt"))
+	m.dnsCert, m.dnsDomain = &c, domain
 	m.mu.Unlock()
 	return nil
+}
+
+// DNSCertFits tells whether the DNS-01 certificate is the one of domain,
+// covers it and has more than renewBefore left.
+func (m *Manager) DNSCertFits(domain string, renewBefore time.Duration) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.dnsCert == nil || m.dnsCert.Leaf == nil || !strings.EqualFold(m.dnsDomain, domain) {
+		return false
+	}
+	return m.dnsCert.Leaf.VerifyHostname(domain) == nil && time.Until(m.dnsCert.Leaf.NotAfter) > renewBefore
 }
 
 // DNSCert returns the domain and the expiry of the DNS-01 certificate;

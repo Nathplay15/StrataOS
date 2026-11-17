@@ -298,6 +298,32 @@ func (s *Server) wildcardBase() string {
 	return ""
 }
 
+// wildcardServes tells whether a valid wildcard certificate of base, with at
+// least two weeks left, covers host: host then needs no certificate of its
+// own. Without one (never obtained, expired, renewal failing), every app
+// domain keeps getting its own certificate so that nothing expires.
+func wildcardServes(base, host string) bool {
+	if base == "" || !proxy.WildcardMatch(base, host) {
+		return false
+	}
+	c, err := appProxy.Certs.GetWildcard(base)
+	return err == nil && c.Leaf != nil && time.Until(c.Leaf.NotAfter) > 14*24*time.Hour
+}
+
+// obtainFor gets a certificate serving host: the wildcard of the interface
+// domain when it covers host, otherwise (or when the wildcard fails) a
+// certificate of host alone.
+func (s *Server) obtainFor(ctx context.Context, host string, logf func(string, ...any)) error {
+	if base := s.wildcardBase(); base != "" && proxy.WildcardMatch(base, host) {
+		err := s.obtainCert(ctx, base, logf, "*."+base)
+		if err == nil {
+			return nil
+		}
+		logf("The wildcard certificate of %s could not be obtained (%v): asking for a certificate of %s alone.", base, err, host)
+	}
+	return s.obtainCert(ctx, host, logf)
+}
+
 // obtainCert asks Let's Encrypt for the certificate of one domain and records the result.
 func (s *Server) obtainCert(ctx context.Context, host string, logf func(string, ...any), extra ...string) error {
 	if _, busy := obtaining.LoadOrStore(host, struct{}{}); busy {
@@ -364,7 +390,7 @@ func (s *Server) proxyLoop() {
 				_ = s.obtainCert(context.Background(), base, func(string, ...any) {}, "*."+base)
 			}
 			for _, d := range p.Domains {
-				if proxy.LocalName(d.Host) || (base != "" && proxy.WildcardMatch(base, d.Host)) || !appProxy.Certs.NeedsCertificate(d.Host) {
+				if proxy.LocalName(d.Host) || wildcardServes(base, d.Host) || !appProxy.Certs.NeedsCertificate(d.Host) {
 					continue
 				}
 				// After a failure, wait before trying again (Let's Encrypt limits failed attempts).
@@ -662,12 +688,12 @@ func (s *Server) remoteRoutes() {
 		}
 		s.audit(r, "remote", "App domain "+host+" saved")
 		appProxy.SetRoutes(s.proxyTable())
-		if base := s.wildcardBase(); base != "" && proxy.WildcardMatch(base, host) {
+		if wildcardServes(s.wildcardBase(), host) {
 			return d, nil
 		}
 		if appProxy.Running() && !proxy.LocalName(host) && appProxy.Certs.NeedsCertificate(host) {
 			return s.jobs.Start("acme", "Let's Encrypt certificate for "+host, userOf(r), func(ctx context.Context, j *jobs.Job) error {
-				return s.obtainCert(ctx, host, j.Logf)
+				return s.obtainFor(ctx, host, j.Logf)
 			}), nil
 		}
 		return d, nil
@@ -717,13 +743,8 @@ func (s *Server) remoteRoutes() {
 		if !appProxy.Running() {
 			return nil, badRequest("enable the app domains first")
 		}
-		if base := s.wildcardBase(); base != "" && proxy.WildcardMatch(base, host) {
-			return s.jobs.Start("acme", "Let's Encrypt certificate for wildcard for "+base, userOf(r), func(ctx context.Context, j *jobs.Job) error {
-				return s.obtainCert(ctx, base, j.Logf, "*."+base)
-			}), nil
-		}
 		return s.jobs.Start("acme", "Let's Encrypt certificate for "+host, userOf(r), func(ctx context.Context, j *jobs.Job) error {
-			return s.obtainCert(ctx, host, j.Logf)
+			return s.obtainFor(ctx, host, j.Logf)
 		}), nil
 	})
 }

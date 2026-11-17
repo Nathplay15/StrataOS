@@ -229,6 +229,12 @@ Unit tests: `go test ./internal/network ./internal/api` (bridge plan, prefs and 
 
 Tests: `go test ./internal/netguard ./internal/api -run 'Assistant|MCP|Token|IsAdmin|Internal|Confirmations'`.
 
+## Certificates (0.12.1)
+
+- `proxy.CertStore.Obtain` orders every name of the certificate (`acme.DomainIDs(host, extra...)`) and authorizes each one; a wildcard authorization always uses DNS-01 (refused without a DNS solver). `HTTPClient` and `Propagation` exist for tests. `TestObtainOrdersEveryName` checks the order against a fake ACME server; `TestObtainWildcardPebble` runs the whole exchange against Pebble when `STRATA_PEBBLE` (folder with `pebble` and `pebble-challtestsrv`) and `STRATA_PEBBLE_SRC` (pebble's module folder, for its test certificates) are set — see the comment in `proxy/acme_test.go`.
+- App domains (`api/h_remote.go`): `wildcardServes(base, host)` is true only while a wildcard covering host is valid for 14 more days; otherwise app domains get (and renew) their own certificate. `obtainFor` tries the wildcard and falls back to the single name.
+- Interface DNS-01 certificate (`certs.Manager`): `SetACMEDNS` keeps only the current domain's files, `LoadDNS(domain)` loads the configured domain, and `certLoop` renews whenever `DNSCertFits(domain, 30 days)` is false (other domain, name not covered, or expiring). `GET /api/system/certificates` reads `acmeMode` (and, in DNS mode, the domain) from the state; `PUT …/acme` in DNS mode without a token keeps the saved one. `ACMEToken` is masked in `GET /api/settings` and kept when sent back masked.
+
 ## Cluster of NAS and Ceph
 
 A **cluster** (`internal/cluster`, `api/h_cluster.go`, state `State.Cluster`) is a group of NAS that trust each other; the VM clustering will build on it. A NAS joins with a one-time code it shows (`POST /api/cluster/prepare`), typed on a member (`POST /api/cluster/members`); like the high availability pairing, each side pins the other's HTTPS certificate fingerprint, and members then call each other on `/api/cluster/peer/*` with the shared token in `X-Strata-Cluster`. Each member has an address in the cluster's public network (and private network, when there is one) and roles (`mon`, `mgr`, `mds`, `osd`).

@@ -10,6 +10,8 @@ import (
 	"encoding/pem"
 	"math/big"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -75,7 +77,7 @@ func TestACMEDNSLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := m2.LoadDNS(); err != nil {
+	if err := m2.LoadDNS("nas.example.com"); err != nil {
 		t.Fatal(err)
 	}
 	if d, _, ok := m2.DNSCert(); !ok || d != "nas.example.com" {
@@ -105,5 +107,55 @@ func TestACMEDNSValidation(t *testing.T) {
 	}
 	if _, _, ok := m.DNSCert(); ok {
 		t.Fatal("a rejected request left a certificate")
+	}
+}
+
+// Switching the DNS-01 domain drops the old certificate: it is not loaded
+// back after a restart, and it does not count as the current one, so the
+// renewal loop asks for the new domain (review 0.12.0).
+func TestACMEDNSDomainSwitch(t *testing.T) {
+	dir := t.TempDir()
+	m, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Old domain "a." sorts before the new one: Glob[0] used to pick it.
+	oldCert, oldKey := testPair(t, "a.example.com")
+	if err := m.SetACMEDNS("a.example.com", oldCert, oldKey); err != nil {
+		t.Fatal(err)
+	}
+	if !m.DNSCertFits("a.example.com", 30*24*time.Hour) {
+		t.Fatal("current certificate must fit")
+	}
+	// The administrator switches to b.example.com: until it is obtained, the
+	// loaded certificate does not fit.
+	if m.DNSCertFits("b.example.com", 30*24*time.Hour) {
+		t.Fatal("the old domain's certificate fits the new domain")
+	}
+	newCert, newKey := testPair(t, "b.example.com")
+	if err := m.SetACMEDNS("b.example.com", newCert, newKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "acme-dns", "a.example.com.crt")); !os.IsNotExist(err) {
+		t.Fatalf("old files kept: %v", err)
+	}
+	m2, _ := New(dir)
+	if err := m2.LoadDNS("b.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if d, _, ok := m2.DNSCert(); !ok || d != "b.example.com" {
+		t.Fatalf("loaded %q", d)
+	}
+	// A configured domain without a certificate loads nothing (no error).
+	m3, _ := New(dir)
+	if err := m3.LoadDNS("c.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := m3.DNSCert(); ok {
+		t.Fatal("another domain's certificate loaded")
+	}
+	// A certificate expiring soon does not fit either.
+	if m2.DNSCertFits("b.example.com", 400*24*time.Hour) {
+		t.Fatal("expiry ignored")
 	}
 }

@@ -25,7 +25,7 @@ func (s *Server) certRoutes() {
 	})
 	if domain != "" {
 		if mode == "dns" {
-			if err := s.certs.LoadDNS(); err != nil {
+			if err := s.certs.LoadDNS(domain); err != nil {
 				s.store.Log("error", "system", "", "Let's Encrypt (DNS-01): "+err.Error())
 			}
 		} else if err := s.certs.SetACME(domain, email); err != nil {
@@ -35,9 +35,14 @@ func (s *Server) certRoutes() {
 
 	s.admin("GET /api/system/certificates", func(r *http.Request) (any, error) {
 		list, d, e := s.certs.Status()
-		var tok, zone string
+		var tok, zone, mode string
 		var dd store.DDNS
-		s.store.Read(func(st *store.State) { tok, zone, dd = st.Settings.ACMEToken, st.Settings.ACMEZoneID, st.DDNS })
+		s.store.Read(func(st *store.State) {
+			tok, zone, dd, mode = st.Settings.ACMEToken, st.Settings.ACMEZoneID, st.DDNS, st.Settings.ACMEMode
+			if mode == "dns" {
+				d, e = st.Settings.ACMEDomain, st.Settings.ACMEEmail
+			}
+		})
 		return map[string]any{"certificates": list, "acmeDomain": d, "acmeEmail": e, "acmeMode": mode, "dnsReady": (tok != "" && zone != "") || (dd.Provider == "cloudflare" && dd.Token != "" && dd.ZoneID != "")}, nil
 	})
 
@@ -94,6 +99,14 @@ func (s *Server) certRoutes() {
 			return nil, nil
 		}
 		if req.Mode == "dns" {
+			if req.Token == "" && req.ZoneID == "" {
+				// Saved again without typing them: keep the dedicated token.
+				s.store.Read(func(st *store.State) {
+					if st.Settings.ACMEMode == "dns" {
+						req.Token, req.ZoneID = st.Settings.ACMEToken, st.Settings.ACMEZoneID
+					}
+				})
+			}
 			token, zoneID := req.Token, req.ZoneID
 			if token == "" || zoneID == "" {
 				var dd store.DDNS
@@ -179,6 +192,14 @@ func (s *Server) obtainDNSCert(ctx context.Context, domain, email, token, zoneID
 	if err := cs.Obtain(ctx, domain, email, cf, logf); err != nil {
 		return err
 	}
+	// Only the current domain is kept (and the ACME account key).
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if n := e.Name(); n != "account.key" && n != domain+".crt" && n != domain+".key" {
+				_ = os.Remove(filepath.Join(dir, n))
+			}
+		}
+	}
 	certPEM, err := os.ReadFile(filepath.Join(dir, domain+".crt"))
 	if err != nil {
 		return err
@@ -203,7 +224,9 @@ func (s *Server) certLoop() {
 			tok, zone = st.Settings.ACMEToken, st.Settings.ACMEZoneID
 		})
 		if s.certs != nil && mode == "dns" && domain != "" && time.Since(lastFail) > 6*time.Hour {
-			if _, exp, ok := s.certs.DNSCert(); !ok || time.Until(exp) < 30*24*time.Hour {
+			// Renewed before expiry, and as soon as the configured domain is
+			// no longer the one of the certificate.
+			if !s.certs.DNSCertFits(domain, 30*24*time.Hour) {
 				token, zoneID := tok, zone
 				if token == "" || zoneID == "" {
 					var dd store.DDNS
