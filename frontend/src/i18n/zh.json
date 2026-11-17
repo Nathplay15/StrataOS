@@ -92,6 +92,8 @@
   "A free SSD speeds up the volume (frequently read data is kept on it). StrataOS creates the required LVM layer itself.": "空闲的 SSD 可加速该卷（经常读取的数据会保存在其中）。StrataOS 会自行创建所需的 LVM 层。",
   "A free SSD speeds up the volume: frequently read data is kept on it. It can be added and removed without stopping the volume. For a volume on a RAID array, first create an LVM group on the array.": "空闲的 SSD 可加速卷：经常读取的数据会保存在其中。可在不停止卷的情况下添加和移除。对于 RAID 阵列上的卷，请先在阵列上创建 LVM 组。",
   "A full copy: the disks are copied (snapshots are not), the copy gets new MAC addresses and a new identity. VMs made from a cloud image get a new host name and SSH host keys at first boot.": "完整复制：复制磁盘（不含快照），副本将获得新的 MAC 地址和新的标识。由云镜像创建的虚拟机会在首次启动时获得新的主机名和 SSH 主机密钥。",
+  "Linked clone (thin copy)": "链接克隆（精简副本）",
+  "A linked clone shares the disks of the source through overlays: it is created in seconds and takes almost no space, but the source VM must be kept (it cannot be deleted while the clone exists).": "链接克隆通过 overlay 共享源虚拟机的磁盘：几秒钟即可创建且几乎不占空间，但必须保留源虚拟机（克隆存在期间无法删除它）。",
   "A full test of a large disk takes a day or more. The disk stays reserved until the end; the result is notified.": "对大容量磁盘进行完整测试需要一天或更久。磁盘会一直被占用到测试结束，结果将通过通知告知。",
   "A graphical login is installed on this machine: it may use the first console too.": "此机器上安装了图形登录界面：它也可能占用第一个控制台。",
   "A light Linux system, ready in seconds": "轻量 Linux 系统，几秒即可就绪",

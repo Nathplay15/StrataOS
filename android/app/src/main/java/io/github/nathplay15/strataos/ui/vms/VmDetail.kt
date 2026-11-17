@@ -35,9 +35,12 @@ import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.manage.Vm
 import io.github.nathplay15.strataos.net.manage.VmList
 import io.github.nathplay15.strataos.net.manage.VmSnapshot
+import io.github.nathplay15.strataos.net.manage.attachUsb
 import io.github.nathplay15.strataos.net.manage.createSnapshot
 import io.github.nathplay15.strataos.net.manage.deleteSnapshot
 import io.github.nathplay15.strataos.net.manage.deleteVm
+import io.github.nathplay15.strataos.net.manage.detachUsb
+import io.github.nathplay15.strataos.net.manage.hostUsb
 import io.github.nathplay15.strataos.net.manage.revertSnapshot
 import io.github.nathplay15.strataos.net.manage.vmAction
 import io.github.nathplay15.strataos.net.manage.vmAutostart
@@ -99,6 +102,7 @@ fun VmDetail(v: Vm, list: VmList, cpu: Int?, onBack: () -> Unit, open: (String) 
                 }
                 Resources(v, reload)
                 Media(v, reload)
+                Usb(v, reload)
                 SectionCard(stringResource(R.string.vm_start_with_nas)) {
                     SwitchLine(stringResource(R.string.vm_autostart), v.autostart, enabled = !v.template && !actions.busy) { on -> actions.run(after = reload) { it.vmAutostart(v.name, on) } }
                 }
@@ -149,6 +153,42 @@ private fun Media(v: Vm, reload: () -> Unit) {
         Choice(stringResource(R.string.vm_iso), opts + listOfNotNull((v.iso to v.iso.substringAfterLast('/')).takeIf { v.iso.isNotEmpty() && opts.none { o -> o.first == v.iso } }), iso, { iso = it })
         Button(enabled = iso != v.iso && !actions.busy, onClick = { actions.run(after = reload) { it.vmMedia(v.name, iso) } }) {
             Text(stringResource(if (iso.isEmpty()) R.string.vm_eject else R.string.vm_insert))
+        }
+    }
+}
+
+/** USB passthrough: the devices of the NAS, given to this VM or taken back. */
+@Composable
+private fun Usb(v: Vm, reload: () -> Unit) {
+    val actions = rememberActions()
+    val res = LocalResources.current
+    val host = rememberData(v.name, every = 5000) { it.hostUsb() }
+    SectionCard(stringResource(R.string.vm_usb)) {
+        Text(stringResource(R.string.vm_usb_hint), style = MaterialTheme.typography.bodySmall)
+        val devices = host.value.orEmpty().filter { !it.internal }
+        if (host.value != null && devices.isEmpty()) Text(stringResource(R.string.vm_usb_empty), style = MaterialTheme.typography.bodySmall)
+        devices.forEach { d ->
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(d.name.ifEmpty { d.vendor + ":" + d.product }, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            listOf(d.vendor + ":" + d.product, d.speed, if (d.usedBy.isNotEmpty() && d.usedBy != v.name) res.getString(R.string.vm_usb_used_by, d.usedBy) else "").filter { it.isNotEmpty() }.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (d.usedBy == v.name) {
+                        TextButton(enabled = !actions.busy, onClick = { actions.run(done = res.getString(R.string.vm_usb_taken), after = reload) { it.detachUsb(v.name, d.vendor, d.product) } }) {
+                            Text(stringResource(R.string.vm_usb_take))
+                        }
+                    } else if (d.usedBy.isEmpty()) {
+                        TextButton(enabled = !actions.busy, onClick = { actions.run(done = res.getString(R.string.vm_usb_given), after = reload) { it.attachUsb(v.name, d) } }) {
+                            Text(stringResource(R.string.vm_usb_give))
+                        }
+                    }
+                }
+                HorizontalDivider()
+            }
         }
     }
 }

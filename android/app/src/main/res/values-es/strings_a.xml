@@ -320,6 +320,14 @@
     <string name="state_stopped">Detenido</string>
     <string name="a_search_content">Buscar en el contenido de los archivos</string>
     <string name="a_search_content_hint">Buscar en el contenido de todos tus archivos</string>
+    <string name="vm_usb">Dispositivos USB</string>
+    <string name="vm_usb_hint">Dale a esta VM un dispositivo USB del NAS: se recuerda y vuelve tras desconectarlo; se conecta en caliente mientras la VM está en marcha.</string>
+    <string name="vm_usb_empty">No hay dispositivos USB en el NAS</string>
+    <string name="vm_usb_used_by">Dado a {0}</string>
+    <string name="vm_usb_give">Dar</string>
+    <string name="vm_usb_take">Recuperar</string>
+    <string name="vm_usb_given">Dispositivo dado a la VM</string>
+    <string name="vm_usb_taken">Dispositivo recuperado</string>
     <string name="a_assistant">Asistente</string>
     <string name="a_assistant_disabled">El asistente no está configurado en el NAS (Ajustes → Asistente).</string>
     <string name="a_assistant_hint">Pregunta a tu NAS…</string>

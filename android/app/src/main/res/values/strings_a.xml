@@ -321,6 +321,14 @@
     <string name="state_stopped">Stopped</string>
     <string name="a_search_content">Search in file contents</string>
     <string name="a_search_content_hint">Search the contents of all your files</string>
+    <string name="vm_usb">USB devices</string>
+    <string name="vm_usb_hint">Give a USB device of the NAS to this VM: it is remembered and comes back after being unplugged; it is plugged in live when the VM runs.</string>
+    <string name="vm_usb_empty">No USB device on the NAS</string>
+    <string name="vm_usb_used_by">Given to {0}</string>
+    <string name="vm_usb_give">Give</string>
+    <string name="vm_usb_take">Take back</string>
+    <string name="vm_usb_given">Device given to the VM</string>
+    <string name="vm_usb_taken">Device taken back</string>
     <string name="a_assistant">Assistant</string>
     <string name="a_assistant_disabled">The assistant is not configured on the NAS (Settings → Assistant).</string>
     <string name="a_assistant_hint">Ask your NAS…</string>

@@ -320,6 +320,14 @@
     <string name="state_stopped">已停止</string>
     <string name="a_search_content">搜索文件内容</string>
     <string name="a_search_content_hint">搜索所有文件的内容</string>
+    <string name="vm_usb">USB 设备</string>
+    <string name="vm_usb_hint">把 NAS 的 USB 设备分配给这台虚拟机：设备会被记住，拔出后会自动恢复；虚拟机运行时支持热插拔。</string>
+    <string name="vm_usb_empty">NAS 上没有 USB 设备</string>
+    <string name="vm_usb_used_by">已分配给 {0}</string>
+    <string name="vm_usb_give">分配</string>
+    <string name="vm_usb_take">收回</string>
+    <string name="vm_usb_given">设备已分配给虚拟机</string>
+    <string name="vm_usb_taken">设备已收回</string>
     <string name="a_assistant">助手</string>
     <string name="a_assistant_disabled">助手未在 NAS 上配置（设置 → 助手）。</string>
     <string name="a_assistant_hint">问问你的 NAS…</string>

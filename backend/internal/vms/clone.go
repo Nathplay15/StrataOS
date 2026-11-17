@@ -136,6 +136,7 @@ type CloneReq struct {
 	Name    string `json:"name"`
 	Storage string `json:"storage"` // folder that will hold the copy ("" = next to the source)
 	Start   bool   `json:"start"`
+	Linked  bool   `json:"linked"` // thin copy: the disks read the source's through a qcow2 overlay
 }
 
 // Clone copies a stopped VM: disks converted into the new folder, new identity.
@@ -193,9 +194,16 @@ func Clone(ctx context.Context, src string, r CloneReq, p Progress) error {
 	}
 	for i, d := range disks {
 		dst := filepath.Join(dir, fmt.Sprintf("disk%d.qcow2", i))
-		p.log("Copying %s", d.Source)
-		if err := convertImage(ctx, d.Source, "", dst, false, p.scaled(float64(i)*95/float64(len(disks)), float64(i+1)*95/float64(len(disks)))); err != nil {
-			return err
+		if r.Linked {
+			p.log("Linking %s", d.Source)
+			if err := linkImage(d.Source, dst); err != nil {
+				return err
+			}
+		} else {
+			p.log("Copying %s", d.Source)
+			if err := convertImage(ctx, d.Source, "", dst, false, p.scaled(float64(i)*95/float64(len(disks)), float64(i+1)*95/float64(len(disks)))); err != nil {
+				return err
+			}
 		}
 		o.Disks[d.Source] = dst
 	}
