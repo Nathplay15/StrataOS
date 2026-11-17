@@ -4643,5 +4643,7 @@
   "{0} similar photos": "{0} ähnliche Fotos",
   "Select the older copies": "Ältere Kopien auswählen",
   "No duplicates": "Keine Duplikate",
-  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Ähnliche Fotos (Serien, verkleinerte Kopien…) werden während der Indexierung erkannt; indexiere neu, um aktuelle Fotos zu analysieren."
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Ähnliche Fotos (Serien, verkleinerte Kopien…) werden während der Indexierung erkannt; indexiere neu, um aktuelle Fotos zu analysieren.",
+  "Official installers": "Offizielle Installationsabbilder",
+  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Evaluations-ISOs von Windows Server, aus dem ISOs-Ordner des Volumes von Microsoft heruntergeladen. Für Windows 10/11 kopieren Sie Ihr eigenes ISO in einen gemeinsamen Ordner."
 }

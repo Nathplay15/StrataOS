@@ -38,6 +38,8 @@ func cloudImages() []CloudImage {
 			File: "debian-13-genericcloud-" + arch + ".qcow2", Sums: "SHA512SUMS", Algo: "sha512"},
 		{ID: "ubuntu2404", Name: "Ubuntu 24.04 LTS", Base: "https://cloud-images.ubuntu.com/releases/noble/release/",
 			File: "ubuntu-24.04-server-cloudimg-" + arch + ".img", Sums: "SHA256SUMS", Algo: "sha256"},
+		{ID: "ubuntu2604", Name: "Ubuntu 26.04 LTS", Base: "https://cloud-images.ubuntu.com/releases/resolute/release/",
+			File: "ubuntu-26.04-server-cloudimg-" + arch + ".img", Sums: "SHA256SUMS", Algo: "sha256"},
 	}
 }
 

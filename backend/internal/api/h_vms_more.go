@@ -246,6 +246,35 @@ func (s *Server) vmMoreRoutes() {
 	s.admin("GET /api/vms/cloud-images", func(r *http.Request) (any, error) {
 		return vms.CloudImages(), nil
 	})
+
+	// ---- Official installer ISOs (Windows Server evaluation) ----
+	s.admin("GET /api/vms/installers", func(r *http.Request) (any, error) {
+		return vms.Installers(), nil
+	})
+	s.admin("POST /api/vms/installers/download", func(r *http.Request) (any, error) {
+		var req struct {
+			ID      string `json:"id"`
+			Storage string `json:"storage"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		list := vms.Installers()
+		var name string
+		for _, i := range list {
+			if i.ID == req.ID {
+				name = i.Name
+			}
+		}
+		if name == "" {
+			return nil, badRequest("unknown installer")
+		}
+		s.audit(r, "vms", "Downloading installer "+req.ID)
+		return s.jobs.Start("vm", "Downloading "+name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			_, err := vms.EnsureInstaller(ctx, req.ID, req.Storage, s.vmProgress(j))
+			return err
+		}), nil
+	})
 	s.admin("GET /api/vms/ssh-keys", func(r *http.Request) (any, error) {
 		return adminKeys(userOf(r)), nil
 	})
