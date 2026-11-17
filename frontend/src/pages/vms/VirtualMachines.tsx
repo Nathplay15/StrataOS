@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, ShieldCheck, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
+import { Apple, Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, HardDrive, LayoutTemplate, Monitor, ShieldCheck, MonitorPlay, Pause, Play, Plug, Plus, Power, RotateCcw, ScrollText, Settings2, Square, Trash2, Usb } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, cx } from "../../lib/format";
@@ -8,7 +8,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Inpu
 import { tr } from "../../lib/i18n";
 import { QuickBridge } from "../../components/QuickBridge";
 import { useIntent } from "../../lib/intent";
-import type { CloudImage, ImportInfo, Installer, VM, VMData } from "./types";
+import type { CloudImage, ImportInfo, Installer, MacOSVersion, VM, VMData } from "./types";
 import type { LXCData } from "./containers/types";
 import { ContainerCard } from "./containers/ContainerCard";
 import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
@@ -202,7 +202,7 @@ function TemplateCard({ vm, onCreate }: { vm: VM; onCreate: () => void }) {
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent"><LayoutTemplate size={22} /></div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold">{vm.name}</div>
-          <div className="text-muted text-[12px]">{tr("{0} vCPU · {1} MiB · disk {2}", vm.vcpus, vm.memoryMb, disk?.size ? bytes(disk.size) : "—")} · {vm.firmware.toUpperCase()}{vm.cloud && ` · ${tr("cloud image")}`}</div>
+          <div className="text-muted text-[12px]">{tr("{0} vCPU · {1} MiB · disk {2}", vm.vcpus, vm.memoryMb, disk?.size ? bytes(disk.size) : "—")} · {vm.firmware.toUpperCase()}{vm.cloud && ` · ${vm.cloud.startsWith("macos") ? tr("macOS (OpenCore)") : tr("cloud image")}`}</div>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
@@ -277,12 +277,13 @@ function VMCard({ vm, mem, onConsole, onEdit, onSnapshots, onClone, onLog, onFir
   );
 }
 
-type Source = "cloud" | "iso" | "import";
+type Source = "cloud" | "iso" | "import" | "macos";
 
 const sources: { id: Source; icon: React.ReactNode; label: string; sub: string }[] = [
   { id: "cloud", icon: <Cloud size={18} />, label: tr("Cloud image"), sub: tr("Debian or Ubuntu, configured by cloud-init: ready over SSH in a minute") },
   { id: "iso", icon: <Disc3 size={18} />, label: tr("Install from an ISO"), sub: tr("Any operating system, installed from the console") },
   { id: "import", icon: <FileInput size={18} />, label: tr("Import"), sub: tr("OVA / OVF, VMDK, VHD(X), qcow2 or raw disk from another hypervisor") },
+  { id: "macos", icon: <Apple size={18} />, label: tr("macOS (experimental)"), sub: tr("Installed from Apple's recovery servers via OpenCore; finish the installation in the console") },
 ];
 
 function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void }) {
@@ -299,6 +300,8 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const images = useQuery({ queryKey: ["vm-cloud-images"], queryFn: () => api.get<CloudImage[]>("/api/vms/cloud-images"), enabled: source === "cloud" });
   const keys = useQuery({ queryKey: ["vm-ssh-keys"], queryFn: () => api.get<string[]>("/api/vms/ssh-keys"), enabled: source === "cloud" });
   const files = useQuery({ queryKey: ["vm-importable"], queryFn: () => api.get<string[]>("/api/vms/importable"), enabled: source === "import" });
+  const macos = useQuery({ queryKey: ["vm-macos"], queryFn: () => api.get<MacOSVersion[]>("/api/vms/macos"), enabled: source === "macos" });
+  const [mac, setMac] = useState({ version: "tahoe" });
   const inspect = useAction((p: string) => api.post<ImportInfo>("/api/vms/import/inspect", { source: p }), {
     onDone: (r) => {
       setInfo(r);
@@ -308,6 +311,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const list = (s: string) => s.split(/[\s,]+/).filter(Boolean);
   const create = useAction(() => {
     if (source === "iso") return api.post("/api/vms", f);
+    if (source === "macos") return api.post("/api/vms/macos", { ...f, os: "other", version: mac.version });
     if (source === "import") return api.post("/api/vms/import", { ...f, source: imp.source, diskGb: 0 });
     return api.post("/api/vms/cloud", {
       ...f, os: "linux", image: ci.image,
@@ -317,6 +321,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const pick = (s: Source) => {
     setSource(s);
     if (s === "cloud") set({ os: "linux", diskGb: Math.max(f.diskGb, 8), memoryMb: f.memoryMb });
+    if (s === "macos") set({ os: "other", firmware: "uefi", diskGb: Math.max(f.diskGb, 64), memoryMb: Math.max(f.memoryMb, 8192), vcpus: Math.max(f.vcpus, 4) });
   };
   const download = useAction(() => api.post("/api/vms/installers/download", { id: dl, storage: f.storage }), {
     onDone: () => {
@@ -353,7 +358,13 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
       )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={tr("Name")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="debian-server" autoFocus /></Field>
-        {source !== "cloud" ? (
+        {source === "macos" ? (
+          <Field label={tr("macOS version")}>
+            <Select value={mac.version} onChange={(e) => setMac({ version: e.target.value })}>
+              {(macos.data ?? [{ id: "tahoe", name: "macOS Tahoe (26)" }]).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </Select>
+          </Field>
+        ) : source !== "cloud" ? (
           <Field label={tr("Guest OS")}>
             <Select value={f.os} onChange={(e) => set({ os: e.target.value, ...(e.target.value === "windows" ? { memoryMb: Math.max(f.memoryMb, 4096), diskGb: Math.max(f.diskGb, 64), firmware: "uefi" } : {}) })}>
               <option value="linux">{tr("Linux")}</option>
@@ -397,12 +408,14 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
             {bridges.map((b) => <option key={b} value={b}>{bridgeLabel(b)}</option>)}
           </Select>
         </Field>
-        <Field label={tr("Firmware")}>
-          <Select value={f.firmware} onChange={(e) => set({ firmware: e.target.value })}>
-            <option value="uefi">UEFI</option>
-            <option value="bios">{tr("BIOS (legacy)")}</option>
-          </Select>
-        </Field>
+        {source !== "macos" && (
+          <Field label={tr("Firmware")}>
+            <Select value={f.firmware} onChange={(e) => set({ firmware: e.target.value })}>
+              <option value="uefi">UEFI</option>
+              <option value="bios">{tr("BIOS (legacy)")}</option>
+            </Select>
+          </Field>
+        )}
       </div>
       {source === "cloud" && (
         <div className="mt-4 space-y-4 rounded-xl border border-line p-4">
@@ -423,6 +436,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
       {/* Rendered even once a bridge shows up: it holds the trial confirmation. */}
       <QuickBridge what="vm" className="mt-4" onCreated={(b) => set({ network: b })} />
       {source !== "cloud" && f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
+      {source === "macos" && <div className="mt-4"><Notice>{tr("Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.")}</Notice></div>}
       <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Start the VM with the NAS")} /></div>
     </Modal>
   );

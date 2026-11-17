@@ -4645,5 +4645,10 @@
   "No duplicates": "没有重复项",
   "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "相似照片（连拍、调整过大小的副本…）会在索引期间被检测到；请重新索引以分析近期照片。",
   "Official installers": "官方安装镜像",
-  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Windows Server 评估版 ISO，从 Microsoft 直接下载到卷的 ISOs 文件夹。Windows 10/11 请将您自己的 ISO 复制到共享文件夹。"
+  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Windows Server 评估版 ISO，从 Microsoft 直接下载到卷的 ISOs 文件夹。Windows 10/11 请将您自己的 ISO 复制到共享文件夹。",
+  "macOS (experimental)": "macOS（实验性）",
+  "Installed from Apple's recovery servers via OpenCore; finish the installation in the console": "通过 OpenCore 从 Apple 恢复服务器安装；在控制台中完成安装",
+  "macOS version": "macOS 版本",
+  "macOS (OpenCore)": "macOS（OpenCore）",
+  "Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.": "实验性功能。macOS 通过 OpenCore 从 Apple 的恢复镜像安装（仅限 x86-64 NAS 上的 KVM）。安装器会从 Apple 下载数 GB 数据；请在控制台中完成安装：磁盘工具（将最大的磁盘抹掉为 APFS），然后重新安装 macOS。请遵守 Apple 的许可协议使用 macOS。"
 }

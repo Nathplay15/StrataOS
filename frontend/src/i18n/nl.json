@@ -4645,5 +4645,10 @@
   "No duplicates": "Geen duplicaten",
   "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "Vergelijkbare foto's (reeksen, geschaalde kopieën…) worden tijdens de indexering gedetecteerd; indexeer opnieuw om recente foto's te analyseren.",
   "Official installers": "Officiële installatiebestanden",
-  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Evaluatie-ISO's van Windows Server, vanuit Microsoft gedownload naar de map ISOs van het volume. Voor Windows 10/11 kopieert u uw eigen ISO naar een gedeelde map."
+  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Evaluatie-ISO's van Windows Server, vanuit Microsoft gedownload naar de map ISOs van het volume. Voor Windows 10/11 kopieert u uw eigen ISO naar een gedeelde map.",
+  "macOS (experimental)": "macOS (experimenteel)",
+  "Installed from Apple's recovery servers via OpenCore; finish the installation in the console": "Geïnstalleerd vanuit Apples herstelservers via OpenCore; voltooi de installatie in de console",
+  "macOS version": "macOS-versie",
+  "macOS (OpenCore)": "macOS (OpenCore)",
+  "Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.": "Experimenteel. macOS wordt geïnstalleerd vanuit Apples herstelimage via OpenCore (alleen KVM op een x86-64-NAS). Het installatieprogramma downloadt enkele GB van Apple; voltooi de installatie in de console: Schijfhulpprogramma (wis de grootste schijf als APFS), daarna macOS opnieuw installeren. Gebruik macOS in overeenstemming met Apples licentie."
 }

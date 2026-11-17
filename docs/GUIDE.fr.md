@@ -259,11 +259,12 @@ Les **composants facultatifs** (ZFS, Docker, machines virtuelles, antivirus, VPN
 
 ## 15. Machines virtuelles
 
-Les **machines virtuelles** (KVM) s'installent en un clic. « Créer une VM » propose trois façons :
+Les **machines virtuelles** (KVM) s'installent en un clic. « Créer une VM » propose quatre façons :
 
 - **Image cloud** : Debian ou Ubuntu, prête en SSH en une minute (utilisateur, clé SSH et paquets sont réglés au premier démarrage).
-- **Installer depuis une ISO** : n'importe quel système, installé depuis la console dans le navigateur (Windows 11 reçoit une puce TPM virtuelle et le démarrage sécurisé).
+- **Installer depuis une ISO** : n'importe quel système, installé depuis la console dans le navigateur (Windows 11 reçoit une puce TPM virtuelle et le démarrage sécurisé). Les ISO d'évaluation de Windows Server 2025/2022 se téléchargent depuis Microsoft en un clic.
 - **Importer** : un disque OVA/OVF, VMDK, VHD(X), qcow2 ou brut venant d'un autre hyperviseur.
+- **macOS (expérimental)** : installé depuis les serveurs de récupération d'Apple via OpenCore (NAS x86-64 avec KVM). L'installateur télécharge plusieurs Go depuis Apple ; terminez l'installation dans la console — Utilitaire de disque (effacer le plus grand disque en APFS), puis Réinstaller macOS — et utilisez macOS conformément à la licence d'Apple.
 
 Chaque VM peut prendre des **Snapshots** (avec sa mémoire si elle tourne) et être **clonée**. Préparez une VM une fois, puis « Convertir en modèle » pour créer des VM identiques à partir d'elle (onglet Modèles). L'onglet **Périphériques USB** donne un périphérique USB (clé Zigbee, onduleur, clé de licence…) à une VM ; il revient après avoir été débranché. **Ordre de démarrage** choisit les VM qui démarrent avec le NAS, dans quel ordre et avec quel délai. **Sauvegardes** liste les VM sauvegardées par vos tâches de sauvegarde et en restaure une comme nouvelle VM.
 
