@@ -8,7 +8,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Inpu
 import { tr } from "../../lib/i18n";
 import { QuickBridge } from "../../components/QuickBridge";
 import { useIntent } from "../../lib/intent";
-import type { CloudImage, ImportInfo, VM, VMData } from "./types";
+import type { CloudImage, ImportInfo, Installer, VM, VMData } from "./types";
 import type { LXCData } from "./containers/types";
 import { ContainerCard } from "./containers/ContainerCard";
 import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
@@ -294,6 +294,8 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const [info, setInfo] = useState<ImportInfo | null>(null);
   const set = (k: Partial<typeof f>) => setF({ ...f, ...k });
   const isos = useQuery({ queryKey: ["vm-isos"], queryFn: () => api.get<string[]>("/api/vms/isos"), enabled: source === "iso" });
+  const installers = useQuery({ queryKey: ["vm-installers"], queryFn: () => api.get<Installer[]>("/api/vms/installers"), enabled: source === "iso" });
+  const [dl, setDl] = useState("");
   const images = useQuery({ queryKey: ["vm-cloud-images"], queryFn: () => api.get<CloudImage[]>("/api/vms/cloud-images"), enabled: source === "cloud" });
   const keys = useQuery({ queryKey: ["vm-ssh-keys"], queryFn: () => api.get<string[]>("/api/vms/ssh-keys"), enabled: source === "cloud" });
   const files = useQuery({ queryKey: ["vm-importable"], queryFn: () => api.get<string[]>("/api/vms/importable"), enabled: source === "import" });
@@ -316,6 +318,13 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
     setSource(s);
     if (s === "cloud") set({ os: "linux", diskGb: Math.max(f.diskGb, 8), memoryMb: f.memoryMb });
   };
+  const download = useAction(() => api.post("/api/vms/installers/download", { id: dl, storage: f.storage }), {
+    onDone: () => {
+      const ins = installers.data?.find((i) => i.id === dl);
+      if (ins) set({ iso: `${f.storage}/ISOs/${ins.file}` });
+      setDl("");
+    },
+  });
   const canCreate = !!f.name && !!f.storage && (source !== "import" || !!imp.source) && (source !== "cloud" || (!!ci.user && (!!ci.password || !!ci.sshKeys)));
 
   return (
@@ -364,12 +373,23 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
         {source !== "import" && <Field label={tr("Disk size (GiB)")} hint={tr("Thin-provisioned (qcow2)")}><Input type="number" min={1} value={f.diskGb} onChange={(e) => set({ diskGb: +e.target.value })} /></Field>}
         <Field label={tr("Disk locations")} hint={tr("Shared folder that will hold the VM")}><StorageSelect ceph={source === "iso"} value={f.storage} onChange={(v) => set({ storage: v })} /></Field>
         {source === "iso" && (
-          <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
-            <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
-              <option value="">{tr("None")}</option>
-              {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
-            </Select>
-          </Field>
+          <>
+            <Field label={tr("Installation image (ISO)")} hint={tr(".iso files found in volumes")} className="sm:col-span-2">
+              <Select value={f.iso} onChange={(e) => set({ iso: e.target.value })}>
+                <option value="">{tr("None")}</option>
+                {isos.data?.map((p) => <option key={p} value={p}>{p}</option>)}
+              </Select>
+            </Field>
+            <Field label={tr("Official installers")} hint={tr("Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.")} className="sm:col-span-2">
+              <div className="flex gap-2">
+                <Select value={dl} onChange={(e) => setDl(e.target.value)} className="flex-1">
+                  <option value="">{tr("Choose…")}</option>
+                  {installers.data?.map((i) => <option key={i.id} value={i.id}>{i.name}{i.cached ? ` · ${tr("Already downloaded")}` : ` · ~${i.sizeGb} GB`}</option>)}
+                </Select>
+                <Button onClick={() => download.mutate()} disabled={!dl} loading={download.isPending}>{tr("Download")}</Button>
+              </div>
+            </Field>
+          </>
         )}
         <Field label={tr("Network")}>
           <Select value={f.network} onChange={(e) => set({ network: e.target.value })}>

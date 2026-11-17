@@ -4643,5 +4643,7 @@
   "{0} similar photos": "{0} 张相似照片",
   "Select the older copies": "选择较旧的副本",
   "No duplicates": "没有重复项",
-  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "相似照片（连拍、调整过大小的副本…）会在索引期间被检测到；请重新索引以分析近期照片。"
+  "Similar photos (bursts, resized copies…) are detected during indexing; reindex to analyze recent photos.": "相似照片（连拍、调整过大小的副本…）会在索引期间被检测到；请重新索引以分析近期照片。",
+  "Official installers": "官方安装镜像",
+  "Windows Server evaluation ISOs, downloaded from Microsoft into the volume's ISOs folder. For Windows 10/11, copy your own ISO into a shared folder.": "Windows Server 评估版 ISO，从 Microsoft 直接下载到卷的 ISOs 文件夹。Windows 10/11 请将您自己的 ISO 复制到共享文件夹。"
 }
