@@ -1,12 +1,13 @@
 import { createPortal } from "react-dom";
 import { useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArchiveRestore, ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Link2, Lock, Pencil, Trash2, Upload } from "lucide-react";
+import { ArchiveRestore, ChevronRight, Download, Eye, EyeOff, File, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FilePlus, FileVideo, Folder, FolderOpen, FolderPlus, FolderUp, HardDrive, History, Info, Link2, Lock, PackageOpen, Pencil, Trash2, Upload } from "lucide-react";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { FileEntry, Me, Share, UserQuota } from "../lib/types";
 import { bytes, cx, dateTime, pct } from "../lib/format";
 import { ShareLinkModal } from "../components/ShareLinkModal";
+import { PropertiesModal } from "../components/PropertiesModal";
 import { RecycleBinModal } from "../components/RecycleBinModal";
 import { VersionsModal } from "../components/VersionsModal";
 import { RestoreWizard } from "../components/RestoreWizard";
@@ -45,6 +46,8 @@ export default function Files() {
   const [mkdir, setMkdir] = useState<string | null>(null);
   const [rename, setRename] = useState<{ from: string; name: string } | null>(null);
   const [share, setShare] = useState<{ path: string; name: string; dir: boolean } | null>(null);
+  const [props, setProps] = useState<FileEntry | null>(null);
+  const [zip, setZip] = useState<{ name: string; paths: string[] } | null>(null);
   const [versions, setVersions] = useState<{ path: string; name: string } | null>(null);
   const [restoreAt, setRestoreAt] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; e: FileEntry } | null>(null);
@@ -118,6 +121,9 @@ export default function Files() {
   const del = useAction((paths: string[]) => api.post("/api/files/delete", { paths }), { success: tr("Deleted"), onDone: () => setSel([]) });
   const mk = useAction((p: string) => api.post("/api/files/mkdir", { path: p }), { success: tr("Folder created"), onDone: () => setMkdir(null) });
   const mv = useAction((p: { from: string; to: string }) => api.post("/api/files/rename", p), { success: tr("Renamed"), onDone: () => setRename(null) });
+  const compress = useAction((p: { paths: string[]; name: string }) => api.post("/api/files/compress", p), { onDone: () => setZip(null) });
+  const extract = useAction((p: string) => api.post("/api/files/archive/extract", { path: p }));
+  const zipName = (paths: string[]) => `${(entries.find((e) => e.path === paths[0])?.name ?? "Archive").replace(/\.[^.]+$/, "")}.zip`;
 
   /** Uploads files; each item may carry a relative path (folder uploads). */
   const doUpload = (files: FileList | File[] | { file: File; rel: string }[]) => {
@@ -234,6 +240,8 @@ export default function Files() {
           <span>{sel.length} {" "}{tr("item(s) selected")}</span>
           <div className="flex-1" />
           {sel.length === 1 && <Button size="sm" variant="ghost" icon={<Download size={14} />} onClick={() => download(sel[0])}>{tr("Download")}</Button>}
+          {sel.length === 1 && <Button size="sm" variant="ghost" icon={<Info size={14} />} onClick={() => setProps(entries.find((e) => e.path === sel[0]) ?? null)}>{tr("Properties")}</Button>}
+          {data?.writable && !data?.encrypted && <Button size="sm" variant="ghost" icon={<FileArchive size={14} />} onClick={() => setZip({ name: zipName(sel), paths: sel })}>{tr("Compress to ZIP")}</Button>}
           {data?.writable && <Button size="sm" variant="danger" icon={<Trash2 size={14} />} onClick={async () => { if (await confirm({ title: tr("Delete permanently?"), text: tr("{0} item(s) will be deleted. This action is irreversible (the recycle bin only applies to SMB).", sel.length), danger: true })) del.mutate(sel); }}>{tr("Delete")}</Button>}
         </div>
       )}
@@ -290,10 +298,20 @@ export default function Files() {
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { download(menu.e.path); setMenu(null); }}><Download size={14} />{tr("Download")}</button>
             {!menu.e.dir && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setVersions({ path: menu.e.path, name: menu.e.name }); setMenu(null); }}><History size={14} />{tr("Previous versions")}</button>}
             {admin && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setRestoreAt(menu.e.path); setMenu(null); }}><ArchiveRestore size={14} />{tr("Previous versions / Restore…")}</button>}
+            {!menu.e.dir && fileKind(menu.e.name) === "archive" && data?.writable && !data?.encrypted && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { extract.mutate(menu.e.path); setMenu(null); }}><PackageOpen size={14} />{tr("Extract here")}</button>}
+            {data?.writable && !data?.encrypted && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setZip({ name: zipName([menu.e.path]), paths: [menu.e.path] }); setMenu(null); }}><FileArchive size={14} />{tr("Compress to ZIP")}</button>}
+            <button className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-panel-2" onClick={() => { setProps(menu.e); setMenu(null); }}><Info size={14} />{tr("Properties")}</button>
           </div>
         </div>, document.body,
       )}
       {share && <ShareLinkModal path={share.path} name={share.name} dir={share.dir} onClose={() => setShare(null)} />}
+      {props && <PropertiesModal path={props.path} writable={!!data?.writable && !data?.encrypted} onClose={() => setProps(null)} />}
+      <Modal open={!!zip} onClose={() => setZip(null)} title={tr("Compress to ZIP")} footer={<>
+        <Button onClick={() => setZip(null)}>{tr("Cancel")}</Button>
+        <Button variant="primary" disabled={!zip?.name} loading={compress.isPending} onClick={() => zip && compress.mutate({ paths: zip.paths, name: zip.name })}>{tr("Compress")}</Button>
+      </>}>
+        {zip && <Field label={tr("Archive name")} hint={tr("The archive is created in the current folder.")}><Input autoFocus className="mono" value={zip.name} onChange={(e) => setZip({ ...zip, name: e.target.value.replace(/\//g, "") })} onKeyDown={(e) => e.key === "Enter" && zip.name && compress.mutate({ paths: zip.paths, name: zip.name })} /></Field>}
+      </Modal>
       <Modal open={mkdir !== null} onClose={() => setMkdir(null)} title={tr("New folder")} footer={<>
         <Button onClick={() => setMkdir(null)}>{tr("Cancel")}</Button>
         <Button variant="primary" disabled={!mkdir} loading={mk.isPending} onClick={() => mk.mutate(`${path}/${mkdir}`)}>{tr("Create")}</Button>

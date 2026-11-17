@@ -352,6 +352,7 @@ func (s *Server) routes() {
 	s.assistantRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
+	s.filePropsRoutes()
 	s.dockerUpdateRoutes()
 	s.clusterRoutes()
 	s.cephRoutes()
