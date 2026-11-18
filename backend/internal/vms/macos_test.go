@@ -124,3 +124,27 @@ func TestStandaloneInfo(t *testing.T) {
 		t.Error("external data file accepted")
 	}
 }
+
+func TestInvariantTSC(t *testing.T) {
+	dir := t.TempDir()
+	write := func(flags string) string {
+		p := filepath.Join(dir, "cpuinfo")
+		if err := os.WriteFile(p, []byte("processor\t: 0\nmodel name\t: X\nflags\t\t: "+flags+"\n\nprocessor\t: 1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	for flags, want := range map[string]bool{
+		"fpu tsc constant_tsc rep_good nonstop_tsc cpuid": true,
+		"fpu tsc rdtscp tsc_known_freq":                   false, // a VM started with -cpu host
+		"fpu constant_tsc":                                false,
+		"nonstop_tsc_s3 constant_tsc":                     false,
+	} {
+		if got := invariantTSC(write(flags)); got != want {
+			t.Errorf("%q: got %v, want %v", flags, got, want)
+		}
+	}
+	if !invariantTSC(filepath.Join(dir, "missing")) {
+		t.Error("an unreadable cpuinfo must not warn")
+	}
+}

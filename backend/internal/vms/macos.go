@@ -363,10 +363,19 @@ func EnsureBaseSystem(ctx context.Context, v MacOSVersion, cacheDir string, p Pr
 		return "", err
 	}
 	p.log("qemu-img convert BaseSystem.dmg -> raw")
+	// Converted under a temporary name: a raw image has its full size from
+	// the start, so an interrupted conversion (crash, power cut) left under
+	// the final name would pass the size check above and be used half empty.
+	part := img + ".part"
 	_ = os.Remove(img)
-	args := []string{"convert", "-p", "-f", "dmg", "-O", "raw", "--", dmg, img}
+	_ = os.Remove(part)
+	args := []string{"convert", "-p", "-f", "dmg", "-O", "raw", "--", dmg, part}
 	if _, err := sys.RunOpts(ctx, sys.Opts{Timeout: 2 * time.Hour, Output: &pctWriter{p: p.scaled(40, 95)}}, "qemu-img", args...); err != nil {
-		_ = os.Remove(img)
+		_ = os.Remove(part)
+		return "", err
+	}
+	if err := os.Rename(part, img); err != nil {
+		_ = os.Remove(part)
 		return "", err
 	}
 	_ = os.Remove(dmg)
@@ -389,6 +398,26 @@ const (
 	ignoreMSRsParam = "/sys/module/kvm/parameters/ignore_msrs"
 	ignoreMSRsConf  = "/etc/modprobe.d/strataos-macos.conf"
 )
+
+const cpuinfoPath = "/proc/cpuinfo"
+
+// invariantTSC reports whether the CPU's TSC runs at a constant rate in every
+// power state (the invtsc CPUID bit, shown as constant_tsc + nonstop_tsc).
+func invariantTSC(path string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return true // unknown: no warning
+	}
+	sc := bufio.NewScanner(bytes.NewReader(b))
+	sc.Buffer(make([]byte, 64<<10), 1<<20)
+	for sc.Scan() {
+		if k, v, ok := strings.Cut(sc.Text(), ":"); ok && strings.TrimSpace(k) == "flags" {
+			f := " " + v + " "
+			return strings.Contains(f, " constant_tsc ") && strings.Contains(f, " nonstop_tsc ")
+		}
+	}
+	return true
+}
 
 // ignoringMSRs reports whether KVM ignores unknown MSRs now.
 func ignoringMSRs() bool {
@@ -447,6 +476,13 @@ func CreateMacOS(ctx context.Context, r MacOSReq, p Progress) error {
 	default:
 		p.log("Warning: KVM does not ignore unknown MSRs: macOS may stop at boot (option of the macOS VM creation)")
 	}
+	// macOS's booter divides by the TSC frequency, which QEMU only gives
+	// (vmware-cpuid-freq) with an invariant TSC: without it, boot.efi stops
+	// on a divide error right after the OpenCore picker. Typical of a NAS
+	// that is itself a VM ("-cpu host" leaves invtsc out).
+	if !invariantTSC(cpuinfoPath) {
+		p.log("Warning: this CPU does not report an invariant TSC (constant_tsc, nonstop_tsc), as when StrataOS itself runs in a VM: macOS stops at boot. Give StrataOS's VM the invtsc CPU flag (QEMU: -cpu host,+invtsc)")
+	}
 	cache := filepath.Join(VolumeRoot(dir), cacheDirName)
 	oc, err := EnsureOpenCore(ctx, cache, p.scaled(0, 5))
 	if err != nil {
@@ -477,12 +513,18 @@ func CreateMacOS(ctx context.Context, r MacOSReq, p Progress) error {
 			"path=" + disk + ",format=qcow2,bus=sata,cache=none,discard=unmap,boot.order=3",
 		},
 		// The serial console logs the boot; OpenCore prints its progress there.
+		// The QEMU arguments are given as --qemu-commandline=<value>: in two
+		// words, virt-install takes a value starting with "-" for an option.
 		extra: []string{
 			"--serial", "pty,log.file=" + consoleLogPath(r.Name),
-			"--qemu-commandline", "-cpu " + v.cpu,
-			"--qemu-commandline", "-device isa-applesmc,osk=" + applesmcOSK,
-			"--qemu-commandline", "-smbios type=2",
-			"--qemu-commandline", "-device usb-kbd",
+			"--qemu-commandline=-cpu " + v.cpu,
+			"--qemu-commandline=-device isa-applesmc,osk=" + applesmcOSK,
+			"--qemu-commandline=-smbios type=2",
+			// A USB keyboard and tablet as in OSX-KVM, on an xHCI controller
+			// of their own (virt-install adds no USB bus for "generic").
+			"--controller", "usb,model=qemu-xhci",
+			"--input", "keyboard,bus=usb",
+			"--input", "tablet,bus=usb",
 		},
 	}
 	if err := install(ctx, r.CreateReq, spec, p.Log); err != nil {
