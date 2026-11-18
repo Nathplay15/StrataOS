@@ -1,10 +1,12 @@
 #!/bin/bash
 # End-to-end test of StrataOS against a FRESH test VM (runs the setup wizard).
 # Exits non-zero if any check fails. Credentials below are test-only.
-#   STRATA_URL (default http://localhost:7070)
+#   STRATA_URL (default http://localhost:$VM_WEB_PORT, 7070), VM_HTTPS_PORT (7443):
+#   the ports of the VM forwarded on this machine (vm/vm.sh)
 set -uo pipefail
 cd "$(dirname "$0")/.."
-B=${STRATA_URL:-http://localhost:7070}
+B=${STRATA_URL:-http://localhost:${VM_WEB_PORT:-7070}}
+HTTPS_PORT=${VM_HTTPS_PORT:-7443}
 ADMIN_USER=admin ADMIN_PASS=Strata-Test-2026
 USER_NAME=alice USER_PASS=Alice-Pass-1
 J=$(mktemp) J2=$(mktemp) TMP=$(mktemp -d)
@@ -194,7 +196,7 @@ section "HTTPS certificate"
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=nas.strata.test" -keyout "$TMP/c.key" -out "$TMP/c.pem" 2>/dev/null
 python3 -c "import json,sys; print(json.dumps({'cert':open(sys.argv[1]).read(),'key':open(sys.argv[2]).read()}))" "$TMP/c.pem" "$TMP/c.key" > "$TMP/cert.json"
 check "certificate imported" "$(c PUT /api/system/certificates/custom -d @"$TMP/cert.json")" '"ok":true'
-check "served on HTTPS" "$(echo | openssl s_client -connect localhost:7443 2>/dev/null | openssl x509 -noout -subject)" "nas.strata.test"
+check "served on HTTPS" "$(echo | openssl s_client -connect localhost:$HTTPS_PORT 2>/dev/null | openssl x509 -noout -subject)" "nas.strata.test"
 c DELETE /api/system/certificates/custom >/dev/null
 
 section "UPS (simulation)"
@@ -218,13 +220,14 @@ check "VM storage confined" "$(job "$(c POST /api/vms -d '{"name":"evil","os":"o
 check "VM created" "$(job "$(c POST /api/vms -d '{"name":"e2e-vm","os":"other","vcpus":1,"memoryMb":512,"diskGb":2,"storage":"/srv/strata/main/Photos","network":"nat","firmware":"uefi"}')")" "success"
 check "VM running" "$(c GET /api/vms | py 'print([v["state"] for v in d["vms"] if v["name"]=="e2e-vm"])')" "running"
 check "VM disk in the share" "$(vm "sudo ls /srv/strata/main/Photos/e2e-vm")" "disk0.qcow2"
-check "VNC console over websocket" "$(python3 - "$J" <<'PY'
+check "VNC console over websocket" "$(python3 - "$J" "$B" <<'PY'
 import socket, sys, base64, os
 jar = [l.split("\t") for l in open(sys.argv[1]) if "\t" in l and not l.startswith("# ")]
 cookie = "; ".join(f"{f[5]}={f[6].strip()}" for f in jar)
-s = socket.create_connection(("localhost", 7070), timeout=10)
+port = int(sys.argv[2].rsplit(":", 1)[1])
+s = socket.create_connection(("localhost", port), timeout=10)
 key = base64.b64encode(os.urandom(16)).decode()
-s.sendall(f"GET /api/vms/e2e-vm/vnc HTTP/1.1\r\nHost: localhost:7070\r\nOrigin: http://localhost:7070\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\nCookie: {cookie}\r\n\r\n".encode())
+s.sendall(f"GET /api/vms/e2e-vm/vnc HTTP/1.1\r\nHost: localhost:{port}\r\nOrigin: http://localhost:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\nCookie: {cookie}\r\n\r\n".encode())
 data = b""
 while b"RFB" not in data and len(data) < 4096:
     chunk = s.recv(4096)
