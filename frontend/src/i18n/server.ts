@@ -2690,4 +2690,20 @@ export const serverTexts: [string, string][] = [
   ["le résultat n'a pas de vidéo H.265 ({0})", "the result has no H.265 video ({0})"],
   ["le résultat dure {0} s au lieu de {1} s", "the result lasts {0} s instead of {1} s"],
   ["le résultat ne se décode pas sans erreur : {0}", "the result does not decode cleanly: {0}"],
+  // 0.12.1 PRs
+  // Routines (#52)
+  ["L'utilisation du processeur est de {0} % (seuil {1} %)", "CPU usage is {0}% (threshold {1}%)"],
+  ["L'utilisation de la mémoire est de {0} % (seuil {1} %)", "Memory usage is {0}% (threshold {1}%)"],
+  ["Le volume {0} est plein à {1} % (seuil {2} %)", "Volume {0} is {1}% full (threshold {2}%)"],
+  ["Le disque {0} échoue à son contrôle de santé SMART", "Disk {0} fails its SMART health check"],
+  ["Le disque {0} faiblit", "Disk {0} is getting weak"],
+  ["Une tâche de sauvegarde a échoué", "Backup task failed"],
+  ["Routine {0} : {1}", "Routine {0}: {1}"],
+  ["la routine a besoin d'un nom", "the routine needs a name"],
+  ["déclencheur inconnu", "unknown trigger"],
+  ["le seuil doit être compris entre 1 et 99 %", "the threshold must be between 1 and 99 %"],
+  ["tâche de sauvegarde inconnue", "unknown backup task"],
+  ["la routine a besoin d'au moins une action", "the routine needs at least one action"],
+  ["l'URL du webhook doit être en http(s)", "the webhook URL must be http(s)"],
+  ["routine inconnue", "unknown routine"],
 ];

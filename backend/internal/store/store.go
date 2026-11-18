@@ -246,6 +246,36 @@ type ScheduleRun struct {
 
 const MaxScheduleHistory = 30
 
+// Routine is an automation rule: when its trigger condition is met, its
+// actions run. The routines are evaluated every minute by the API server
+// (h_routines.go); Cooldown limits how often a rule may run.
+type Routine struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// Trigger is the "if": cpu | mem | volume-full | disk-failed | disk-weak |
+	// backup-failed. Value is the threshold in percent for cpu, mem and
+	// volume-full; Target the volume name watched (volume-full, "" = any) or
+	// the backup task (backup-failed, "" = any).
+	Trigger string `json:"trigger"`
+	Value   int    `json:"value,omitempty"`
+	Target  string `json:"target,omitempty"`
+	// Actions are the "then", run in order: notify (notification) or webhook.
+	Actions []RoutineAction `json:"actions"`
+	// Cooldown: at most one run per N minutes (0 = 60). LastFired is the
+	// instant of the last run.
+	Cooldown  int       `json:"cooldown,omitempty"`
+	LastFired time.Time `json:"lastFired,omitempty"`
+}
+
+// RoutineAction is one "then" of a routine. Message is the notification text
+// ({detail} = trigger detail, {name} = routine), URL the webhook endpoint.
+type RoutineAction struct {
+	Kind    string `json:"kind"` // notify | webhook
+	Message string `json:"message,omitempty"`
+	URL     string `json:"url,omitempty"`
+}
+
 // BackupTask copies data elsewhere: rsync mirror, restic versioned backup, ZFS
 // replication or two-way sync. With a SourceType, the task pulls from another
 // NAS (Host, User, Port, RemotePassword describe it) into a local destination.
@@ -711,6 +741,9 @@ type State struct {
 	// AssistantChats: saved conversations of the web assistant, per user
 	// (store/assistant.go).
 	AssistantChats []*AssistantChat `json:"assistantChats,omitempty"`
+
+	// Routines: automation rules "if → then" (h_routines.go).
+	Routines []*Routine `json:"routines,omitempty"`
 }
 
 const maxEvents = 2000

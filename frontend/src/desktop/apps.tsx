@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, Clapperboard, Cctv, Smartphone,
+  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, Clapperboard, Cctv, Smartphone,
 } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -34,6 +34,7 @@ const Logs = lazy(() => import("../pages/system/Logs"));
 const TerminalPage = lazy(() => import("../pages/system/TerminalPage"));
 const SettingsPage = lazy(() => import("../pages/system/Settings"));
 const Schedules = lazy(() => import("../pages/system/Schedules"));
+const Routines = lazy(() => import("../pages/system/Routines"));
 const Backups = lazy(() => import("../pages/system/Backups"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
@@ -107,6 +108,7 @@ export const APPS: AppDef[] = [
       { id: "users", label: tr("Users and groups"), icon: <Users size={16} />, component: UsersPage as PageComponent, path: "/users" },
       { id: "directory", label: tr("Domain / LDAP"), icon: <BookUser size={16} />, component: page(DirectoryPage), path: "/system/directory" },
       { id: "schedules", label: tr("Scheduled tasks"), icon: <CalendarClock size={16} />, component: page(Schedules), path: "/system/schedules" },
+      { id: "routines", label: tr("Routines"), icon: <Workflow size={16} />, component: page(Routines), path: "/system/routines" },
       { id: "antivirus", label: tr("Antivirus"), icon: <ShieldCheck size={16} />, component: page(AntivirusPage), path: "/system/antivirus" },
       { id: "guard", label: tr("Address blocking"), icon: <ShieldBan size={16} />, component: page(GuardPage), path: "/system/guard" },
       { id: "security", label: tr("Security advisor"), icon: <ShieldCheck size={16} />, component: page(SecurityAdvisorPage), path: "/system/security" },
