@@ -25,6 +25,8 @@ type fleetHealth struct {
 	Temps      fleetTemps       `json:"temps"`
 	Alerts     fleetAlerts      `json:"alerts"`
 	Access     *fleetAccess     `json:"access,omitempty"`
+	// WoL: MAC addresses of its cards with Wake-on-LAN on (0.12).
+	WoL []string `json:"wol,omitempty"`
 	// Partial: an older StrataOS without this endpoint (built from its summary).
 	Partial bool      `json:"partial,omitempty"`
 	At      time.Time `json:"at"`

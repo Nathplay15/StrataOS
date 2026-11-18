@@ -445,3 +445,6 @@ func ServePath(w http.ResponseWriter, r *http.Request, path string) error {
 	defer f.Close()
 	return ServeFile(w, r, f, path)
 }
+
+// Active is the number of videos being converted or remuxed now.
+func (p *Player) Active() int { return len(p.transcodes) + len(p.remuxes) }

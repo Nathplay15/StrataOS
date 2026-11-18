@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"strataos/internal/energy"
-	"strataos/internal/jobs"
+	"strataos/internal/mediaplay"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
@@ -37,10 +37,19 @@ func diskPaths(l []storage.BlockDevice) []string {
 	return p
 }
 
-// applyEnergy applies the saved settings (at startup and after a change).
-func (s *Server) applyEnergy() []string {
+// energyConfig reads the settings, the 0.11 schedule turned into rules.
+func (s *Server) energyConfig() store.Energy {
 	var c store.Energy
 	s.store.Read(func(st *store.State) { c = st.Energy })
+	if len(c.Rules) == 0 && c.Schedule.Enabled {
+		c.Rules = energy.MigrateSchedule(c.Schedule)
+	}
+	return c
+}
+
+// applyEnergy applies the saved settings (at startup and after a change).
+func (s *Server) applyEnergy() []string {
+	c := s.energyConfig()
 	var problems []string
 	if disks := rotatingDisks(); len(disks) > 0 && sys.Has("hdparm") {
 		if err := energy.SetSpindown(diskPaths(disks), c.SpindownMin); err != nil {
@@ -52,6 +61,7 @@ func (s *Server) applyEnergy() []string {
 			problems = append(problems, err.Error())
 		}
 	}
+	persist := map[string]string{}
 	for _, n := range energy.NICs() {
 		on := slices.Contains(c.WoL, n.Name)
 		if n.Supported && on != n.Enabled {
@@ -59,57 +69,167 @@ func (s *Server) applyEnergy() []string {
 				problems = append(problems, n.Name+": "+err.Error())
 			}
 		}
+		if on && n.Supported {
+			persist[n.Name] = energy.PermanentMAC(n.Name)
+		}
 	}
+	// The .link files keep it on from boot, before the daemon starts (and
+	// for drivers that turn it off when the card goes down).
+	if err := energy.PersistWoL(persist); err != nil {
+		problems = append(problems, "Wake-on-LAN: "+err.Error())
+	}
+	s.armWake(c)
 	return problems
 }
 
-// energyLoop applies the settings at startup, then runs the shutdown schedule.
+var wakeArmed time.Time
+
+// armWake keeps the clock's wake alarm on the next scheduled power-on, so
+// that the NAS also comes back after a shutdown by hand.
+func (s *Server) armWake(c store.Energy) {
+	if !energy.RTCWakeSupported() {
+		return
+	}
+	next := energy.NextWake(c.Rules, time.Now().Add(time.Minute))
+	if next.Equal(wakeArmed) {
+		return
+	}
+	if next.IsZero() && wakeArmed.IsZero() {
+		return
+	}
+	if err := energy.SetRTCAlarm(next); err != nil {
+		s.store.Log("error", "energy", "", "Could not program the power-on of the NAS: "+err.Error())
+		s.notify("error", "Scheduled power-on", "Could not program the power-on of the NAS: "+err.Error())
+		return
+	}
+	wakeArmed = next
+}
+
+// usersActive names what shows someone is using the NAS ("" when nobody):
+// files open over SMB, a shell session, a video being played. Nothing here
+// wakes a sleeping disk.
+func usersActive() string {
+	if n := len(smbOpenFiles()); n > 0 {
+		return fmt.Sprintf("%d files open over SMB", n)
+	}
+	if out, err := sys.Run("who"); err == nil {
+		if n := len(strings.Fields(strings.TrimSpace(out))); n > 0 {
+			return "a shell session is open"
+		}
+	}
+	if mediaplay.Default.Active() > 0 {
+		return "a video is being played"
+	}
+	return ""
+}
+
+// smbOpenFiles lists the files open over SMB (smbstatus reads Samba's
+// lock database: no disk of the volumes is touched).
+func smbOpenFiles() []string {
+	if !sys.Has("smbstatus") {
+		return nil
+	}
+	out, err := sys.Run("smbstatus", "-L", "-n")
+	if err != nil {
+		return nil
+	}
+	var files []string
+	data := false
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "-----") {
+			data = true
+			continue
+		}
+		if data && strings.TrimSpace(l) != "" {
+			files = append(files, l)
+		}
+	}
+	return files
+}
+
+func powerActionName(a string) string {
+	if a == energy.ActRestart {
+		return "restart"
+	}
+	return "shutdown"
+}
+
+// energyLoop applies the settings at startup, then runs the power rules.
 func (s *Server) energyLoop() {
 	time.Sleep(20 * time.Second)
 	if p := s.applyEnergy(); len(p) > 0 {
 		slog.Warn("energy settings", "problems", strings.Join(p, "; "))
 	}
-	var warned, postponed time.Time
+	last := time.Now()
+	var warned time.Time  // occurrence already announced
+	var pending time.Time // occurrence postponed (its first planned time)
+	var pendingRule energy.PowerRule
+	var retryAt time.Time
 	for {
 		time.Sleep(30 * time.Second)
-		var c store.Energy
-		s.store.Read(func(st *store.State) { c = st.Energy })
+		c := s.energyConfig()
+		s.armWake(c)
 		now := time.Now()
-		next := c.Schedule.NextShutdown(now.Add(-time.Minute))
-		if !postponed.IsZero() {
-			next = postponed
+		due, rule := energy.NextAction(c.Rules, last)
+		if !pending.IsZero() {
+			due, rule = pending, pendingRule
 		}
-		if next.IsZero() {
+		if due.IsZero() {
+			last = now
 			continue
 		}
-		if d := next.Sub(now); d > 0 && d <= 10*time.Minute && !warned.Equal(next) {
-			warned = next
-			s.store.Log("info", "energy", "", fmt.Sprintf("Scheduled shutdown at %s", next.Format("15:04")))
+		name := powerActionName(rule.Action)
+		if w := c.Guard.Warn(); w > 0 && pending.IsZero() && due.Sub(now) > 0 && due.Sub(now) <= w && !warned.Equal(due) {
+			warned = due
+			msg := fmt.Sprintf("Scheduled %s of the NAS at %s", name, due.Format("15:04"))
+			s.store.Log("info", "energy", "", msg)
+			s.notify("info", "Scheduled "+name, msg)
 		}
-		if now.Before(next) {
-			continue
-		}
-		// Never cut a running backup, update or installation: wait for it.
-		busy := ""
-		for _, j := range s.jobs.List() {
-			if j.Status == jobs.Running {
-				busy = j.Title
+		if now.Before(due) || (!retryAt.IsZero() && now.Before(retryAt)) {
+			if pending.IsZero() {
+				last = now
 			}
-		}
-		if busy != "" {
-			postponed = now.Add(10 * time.Minute)
-			s.store.Log("warning", "energy", "", fmt.Sprintf("Scheduled shutdown postponed by 10 minutes: task running (%s)", busy))
 			continue
 		}
-		postponed = time.Time{}
-		wake := c.Schedule.WakeAfter(next)
-		msg := "Scheduled shutdown of the NAS"
-		if !wake.IsZero() {
-			msg = fmt.Sprintf("Scheduled shutdown of the NAS, restart planned on %s", wake.Format("2006-01-02 15:04"))
+		user := ""
+		if c.Guard.Users {
+			user = usersActive()
 		}
-		s.store.Log("info", "energy", "", msg)
-		if err := energy.PowerOff(wake); err != nil {
-			s.store.Log("error", "energy", "", "Scheduled shutdown failed: "+err.Error())
+		verdict, why := energy.Decide(c.Guard, due, now, s.maintenanceBusy(), user)
+		switch verdict {
+		case energy.Postpone:
+			if pending.IsZero() {
+				msg := fmt.Sprintf("Scheduled %s postponed: %s", name, why)
+				s.store.Log("warning", "energy", "", msg)
+				s.notify("warning", "Scheduled "+name+" postponed", msg)
+			}
+			pending, pendingRule, retryAt = due, rule, now.Add(c.Guard.RetryDelay())
+			continue
+		case energy.Skip:
+			msg := fmt.Sprintf("Scheduled %s skipped: %s", name, why)
+			s.store.Log("warning", "energy", "", msg)
+			s.notify("warning", "Scheduled "+name+" skipped", msg)
+			pending, retryAt, last = time.Time{}, time.Time{}, now
+			continue
+		}
+		pending, retryAt, last = time.Time{}, time.Time{}, now
+		var err error
+		if rule.Action == energy.ActRestart {
+			s.store.Log("info", "energy", "", "Scheduled restart of the NAS")
+			err = energy.Restart()
+		} else {
+			wake := energy.WakeAfterShutdown(c.Rules, now)
+			msg := "Scheduled shutdown of the NAS"
+			if !wake.IsZero() && energy.RTCWakeSupported() {
+				msg = fmt.Sprintf("Scheduled shutdown of the NAS, power-on planned on %s", wake.Format("2006-01-02 15:04"))
+			}
+			s.store.Log("info", "energy", "", msg)
+			err = energy.PowerOff(wake)
+		}
+		if err != nil {
+			msg := fmt.Sprintf("Scheduled %s failed: %s", name, err.Error())
+			s.store.Log("error", "energy", "", msg)
+			s.notify("error", "Scheduled "+name+" failed", msg)
 		}
 		time.Sleep(2 * time.Minute)
 	}
@@ -117,8 +237,10 @@ func (s *Server) energyLoop() {
 
 func (s *Server) energyRoutes() {
 	s.admin("GET /api/energy", func(r *http.Request) (any, error) {
-		var c store.Energy
-		s.store.Read(func(st *store.State) { c = st.Energy })
+		c := s.energyConfig()
+		if c.Rules == nil {
+			c.Rules = []energy.PowerRule{}
+		}
 		if c.Devices == nil {
 			c.Devices = []store.WakeDevice{}
 		}
@@ -145,12 +267,28 @@ func (s *Server) energyRoutes() {
 			"governor": gov, "governors": govs, "rtcWake": energy.RTCWakeSupported(),
 			"nics": nics,
 		}
-		if n := c.Schedule.NextShutdown(time.Now()); !n.IsZero() {
-			out["nextShutdown"] = n
-			if w := c.Schedule.WakeAfter(n); !w.IsZero() {
-				out["nextWake"] = w
+		now := time.Now()
+		if n, r := energy.NextAction(c.Rules, now); !n.IsZero() {
+			out["nextAction"] = map[string]any{"time": n, "action": r.Action, "rule": r.ID}
+			if r.Action == energy.ActShutdown {
+				out["nextShutdown"] = n
+				if w := energy.WakeAfterShutdown(c.Rules, n); !w.IsZero() {
+					out["nextWake"] = w
+				}
 			}
 		}
+		if w := energy.NextWake(c.Rules, now); !w.IsZero() {
+			out["nextPowerOn"] = w
+		}
+		if a := energy.RTCAlarm(); !a.IsZero() {
+			out["rtcAlarm"] = a
+		}
+		persisted := energy.PersistedWoL()
+		if persisted == nil {
+			persisted = []string{}
+		}
+		out["wolPersisted"] = persisted
+		out["timezone"] = now.Location().String()
 		// Power drawn, when an UPS reports it.
 		if uc := s.upsConfig(); uc.Mode != "off" && ups.Installed() {
 			if v, err := ups.Status(uc); err == nil {
@@ -193,6 +331,24 @@ func (s *Server) energyRoutes() {
 		}
 		slices.Sort(req.Schedule.Days)
 		req.Schedule.Days = slices.Compact(req.Schedule.Days)
+		// A file of 0.11 (configuration import) only has the schedule.
+		if len(req.Rules) == 0 && req.Schedule.Enabled {
+			req.Rules = energy.MigrateSchedule(req.Schedule)
+		}
+		req.Schedule = energy.Schedule{}
+		if err := energy.ValidateRules(req.Rules); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		if err := req.Guard.Validate(); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		for i := range req.Rules {
+			slices.Sort(req.Rules[i].Days)
+			req.Rules[i].Days = slices.Compact(req.Rules[i].Days)
+		}
+		if !energy.RTCWakeSupported() && slices.ContainsFunc(req.Rules, func(r energy.PowerRule) bool { return r.Enabled && r.Action == energy.ActWake }) {
+			return nil, badRequest("this machine's clock cannot power it on: schedule the power-on in its firmware (BIOS/UEFI) or wake it over the network")
+		}
 		nics := energy.NICs()
 		for _, n := range req.WoL {
 			if !slices.ContainsFunc(nics, func(x energy.NIC) bool { return x.Name == n && x.Supported }) {
@@ -216,7 +372,7 @@ func (s *Server) energyRoutes() {
 		if err := s.store.Update(func(st *store.State) error { st.Energy = req; return nil }); err != nil {
 			return nil, err
 		}
-		s.audit(r, "energy", fmt.Sprintf("Energy settings: spin-down %d min, CPU %q, schedule %v", req.SpindownMin, req.Governor, req.Schedule.Enabled))
+		s.audit(r, "energy", fmt.Sprintf("Energy settings: spin-down %d min, CPU %q, %d power rules", req.SpindownMin, req.Governor, len(req.Rules)))
 		if p := s.applyEnergy(); len(p) > 0 {
 			return map[string]string{"warning": strings.Join(p, "; ")}, nil
 		}

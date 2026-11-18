@@ -744,9 +744,8 @@ type State struct {
 	S3   S3Service       `json:"s3,omitzero"`
 	// SSO: the NAS as the sign-in of its apps (store/sso.go).
 	SSO SSO `json:"sso,omitzero"`
-	// Transcoding and HomeAssistant: store/mediapower.go.
-	Transcoding   Transcoding   `json:"transcoding,omitzero"`
-	HomeAssistant HomeAssistant `json:"homeAssistant,omitzero"`
+	// Transcoding: store/mediapower.go.
+	Transcoding Transcoding `json:"transcoding,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`
