@@ -133,5 +133,7 @@
     <string name="widget_not_paired">Pas encore associé à un NAS</string>
     <string name="widget_unreachable">NAS injoignable</string>
     <string name="widget_updated">Actualisé %1$s</string>
-    <string name="widget_desc">Usage et santé du stockage du NAS</string>
+    <string name="widget_desc">CPU, RAM, usage et santé du stockage du NAS</string>
+    <string name="widget_load">CPU %1$s · RAM %2$s</string>
+    <string name="action_mark_read">Marquer comme lu</string>
 </resources>

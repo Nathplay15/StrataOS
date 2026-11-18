@@ -47,8 +47,9 @@ object Notifier {
     fun canPost(ctx: Context) = ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED ||
         android.os.Build.VERSION.SDK_INT < 33
 
-    /** A notification of the NAS (failing disk, failed backup…); its kind picks the screen it opens. */
-    fun nasEvent(ctx: Context, id: Long, level: String, subject: String, message: String, host: String, kind: String = "") {
+    /** A notification of the NAS (failing disk, failed backup…); its kind picks the screen it opens,
+     * and the notification offers to mark it as read without opening the app. */
+    fun nasEvent(ctx: Context, id: Long, level: String, subject: String, message: String, host: String, kind: String = "", action: String = "", link: String = "") {
         if (!canPost(ctx)) return
         val (tab, section) = routeOf(kind)
         val n = NotificationCompat.Builder(ctx, if (level == "info") INFO else ALERTS)
@@ -58,6 +59,7 @@ object Notifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(if (level == "error") NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openApp(ctx, tab, section))
+            .addAction(0, ctx.getString(R.string.action_mark_read), EventActionReceiver.markRead(ctx, id))
             .setAutoCancel(true)
             .build()
         @Suppress("MissingPermission")
