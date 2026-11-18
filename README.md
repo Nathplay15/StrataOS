@@ -131,7 +131,7 @@ sudo apt install ./strataos_<version>_amd64.deb
 
 Then open `http://<address-of-the-NAS>:7070` (HTTPS on port 7443). The setup wizard creates the administrator account and helps you prepare your disks, a first shared folder and the alerts.
 
-The **[documentation](https://nathplay15.github.io/StrataOS/docs/)** (in English and French) walks you through everything, step by step: the user guide, a FAQ, tested hardware and the release notes. The user guide is also built into the interface (**Help** menu), and its source is here: [docs/GUIDE.md](docs/GUIDE.md) ([French](docs/GUIDE.fr.md)), with the [FAQ](docs/FAQ.md) next to it.
+The **[documentation](https://nathplay15.github.io/StrataOS/docs/)** (in English and French) walks you through everything, step by step: the user guide, a FAQ, tested hardware and the release notes. The user guide is also built into the interface (**Help** menu), and its source is here: [docs/GUIDE.md](docs/GUIDE.md) ([French](docs/GUIDE.fr.md)), with the [FAQ](docs/FAQ.md) next to it. What comes next is in the [roadmap](ROADMAP.md).
 
 ## Updates
 
