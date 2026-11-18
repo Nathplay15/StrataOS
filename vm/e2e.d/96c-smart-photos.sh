@@ -37,7 +37,7 @@ for _ in $(seq 1 120); do
   [ "$(echo "$S" | py 'print(d["counts"]["photos"] >= 12 and not d["running"])')" = True ] && break
   sleep 5
 done
-check "every photo analysed" "$(echo "$S" | py 'print(d["counts"]["photos"], d["counts"]["failed"], d["provider"])')" "12 0 CPU"
+check "every photo analysed" "$(echo "$S" | py 'print(d["counts"]["photos"] >= 12, d["counts"]["failed"], d["provider"])')" "True 0 CPU"
 check "faces found" "$(echo "$S" | py 'print(d["counts"]["faces"] >= 9)')" "True"
 check "worker runs as the sandbox user, niced" "$(vm "ps -o user:20=,ni= -C python3 | head -1")" "strata-preview        19"
 

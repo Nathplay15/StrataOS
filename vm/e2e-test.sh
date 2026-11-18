@@ -3,9 +3,17 @@
 # Exits non-zero if any check fails. Credentials below are test-only.
 #   STRATA_URL (default http://localhost:$VM_WEB_PORT, 7070), VM_HTTPS_PORT (7443):
 #   the ports of the VM forwarded on this machine (vm/vm.sh)
+#   E2E_SMOKE=1: the smoke subset of pull requests (about 15 minutes): setup,
+#   storage, users and shares, file manager security, injection and limits,
+#   the e2e.d sections of E2E_SECTIONS (default: SMOKE_SECTIONS below) and a
+#   reboot; nothing that downloads containers, builds ZFS or needs nested KVM.
+#   E2E_SECTIONS="62-job 91b": only the e2e.d files whose names start so.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 B=${STRATA_URL:-http://localhost:${VM_WEB_PORT:-7070}}
+SMOKE=${E2E_SMOKE:-}
+SMOKE_SECTIONS="62-job-cancel 63-folder-picker 73-system-disk 89-passkeys 91-health 91b-routines 91c-storage-trends 91d-power-gpu 97b-desktop-prefs 98-access"
+SECTIONS=${E2E_SECTIONS:-$([ -n "$SMOKE" ] && echo "$SMOKE_SECTIONS")}
 HTTPS_PORT=${VM_HTTPS_PORT:-7443}
 ADMIN_USER=admin ADMIN_PASS=Strata-Test-2026
 USER_NAME=alice USER_PASS=Alice-Pass-1
@@ -112,6 +120,7 @@ python3 -c 'print("{\"username\":\"" + "a"*2000000 + "\"}")' > "$TMP/big.json"
 check "oversized login body refused" "$(curl -s -X POST -H 'X-Strata: 1' --data-binary @"$TMP/big.json" $B/api/login)" "too large"
 check "cross-origin websocket refused" "$(curl -s -o /dev/null -w '%{http_code}' -b "$J" -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Origin: http://evil.test' "$B/api/system/terminal")" "403"
 
+if [ -z "$SMOKE" ]; then
 section "Docker & apps"
 check "docker engine" "$(c GET /api/docker/info | py 'print(d["available"])')" "True"
 check "install Uptime Kuma" "$(job "$(c POST /api/apps/uptimekuma/install -d '{"name":"uptime","values":{"DATA_DIR":"/srv/strata/main/apps/uptime-kuma"}}')")" "success"
@@ -556,8 +565,9 @@ check "restore from the vault" "$(job "$(c POST /api/backups/$VB/restore -d "{\"
 check "restored file" "$(vm "sudo cat /srv/strata/fast/restore-vault/srv/strata/main/Photos/2026/second.txt")" "encore"
 check "vault data encrypted" "$(vm "sudo grep -rl encore /srv/strata/fast/coffre | wc -l")" "0"
 VURL=$(py 'print(d["vaultUrl"])' < "$TMP/vault.json"); VTOK=$(py 'print(d["vaultToken"])' < "$TMP/vault.json")
-SN=$(curl -sk -H "Authorization: Bearer $VTOK" -H 'Accept: application/vnd.x.restic.rest.v2' "${VURL}snapshots/" | py 'print(d[0]["name"])')
-check "append-only: deletion refused" "$(curl -sk -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer $VTOK" "${VURL}snapshots/$SN")" "403"
+# The vault's address is the VM's own (127.0.0.1:7443 inside it): asked from the VM.
+SN=$(vm "curl -sk -H 'Authorization: Bearer $VTOK' -H 'Accept: application/vnd.x.restic.rest.v2' '${VURL}snapshots/'" | py 'print(d[0]["name"])')
+check "append-only: deletion refused" "$(vm "curl -sk -o /dev/null -w '%{http_code}' -X DELETE -H 'Authorization: Bearer $VTOK' '${VURL}snapshots/$SN'")" "403"
 check "vault refuses unknown clients" "$(curl -sk -o /dev/null -w '%{http_code}' "${VURL}config")" "401"
 check "client listed on the vault" "$(c GET /api/vaults | py 'print([(c["name"], c["size"] > 0) for v in d for c in v["clients"]])')" "True)"
 
@@ -667,13 +677,34 @@ for id in $(c GET /api/schedules | py 'print(" ".join(s["id"] for s in d if s["t
   check "task: $name" "$(job "$(c POST /api/schedules/$id/run)")" "success"
 done
 
+fi # not SMOKE
+
 # Feature tests in their own files (same helpers and state: volumes main,
 # fast and tank, user alice, share Photos…), in name order.
 for f in vm/e2e.d/*.sh; do
   [ -f "$f" ] || continue
+  if [ -n "$SECTIONS" ]; then
+    want=""
+    for p in $SECTIONS; do case "$(basename "$f")" in "$p"*) want=1 ;; esac; done
+    [ -n "$want" ] || continue
+  fi
   # shellcheck source=/dev/null
   . "$f"
 done
+
+if [ -n "$SMOKE" ]; then
+  section "Reboot (smoke)"
+  vm "sudo systemctl reboot"; sleep 8
+  for _ in $(seq 1 60); do vm true && break; sleep 3; done
+  wait_api
+  check "session survives reboot" "$(c GET /api/me)" "\"username\":\"$ADMIN_USER\""
+  check "RAID assembled" "$(raid_health)" "healthy"
+  check "volumes remounted" "$(c GET /api/storage/volumes | py 'print(sorted(v["name"] for v in d if v["mounted"]))')" "['fast', 'main']"
+  check "services active" "$(vm "systemctl is-active strata smbd nfs-server | sort -u")" "active"
+  printf '\n%s passed, %s failed (smoke)\n' "$PASSES" "$FAILS"
+  [ "$FAILS" -eq 0 ]
+  exit
+fi
 
 section "Restore points (system without snapshots)"
 check "package restore points on an ext4 system" "$(c GET /api/system/restore-points | py 'print(d["supported"], d["mode"])')" "True packages"
