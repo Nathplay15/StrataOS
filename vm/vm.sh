@@ -10,6 +10,8 @@
 #   vm.sh reset-disks       recreate the 6 data disks (blank)
 #   vm.sh replace-disk N    swap data disk N for a new blank one (VM stopped)
 #   VM_DETACH="2 5" vm.sh start   boot with data disks 2 and 5 unplugged ("sys": the system disk)
+#   VM_BOOT_FROM=2 vm.sh start    the firmware starts data disk 2 first (SeaBIOS only
+#                                 tries the first hard disk of its boot order)
 #   vm.sh destroy           delete the VM entirely
 #
 # Settings (environment): VM_MEM (MiB, 4096), VM_CPUS (4), VM_DISKS (6), VM_DISK_SIZE (10G),
@@ -147,7 +149,7 @@ qemu_start() {
   fi
   local args=(
     -name "$VM_HOSTNAME" "${machine[@]}" -smp "$VM_CPUS" -m "$VM_MEM"
-    $(case " ${VM_DETACH:-} " in *" sys "*) ;; *) echo "-drive file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap -device virtio-blk-pci,drive=sys,bootindex=0" ;; esac)
+    $(case " ${VM_DETACH:-} " in *" sys "*) ;; *) echo "-drive file=$SYSDISK,if=none,id=sys,format=qcow2,discard=unmap -device virtio-blk-pci,drive=sys,bootindex=$([ -n "${VM_BOOT_FROM:-}" ] && echo 1 || echo 0)" ;; esac)
     -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$VM_SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$VM_WEB_PORT-:7070,hostfwd=tcp:127.0.0.1:$VM_HTTPS_PORT-:7443,hostfwd=tcp:127.0.0.1:$VM_SMB_PORT-:445$extra_fwd"
     -device virtio-net-pci,netdev=n0
     $(for k in $(seq 2 "${VM_NICS:-1}"); do echo "-netdev user,id=n$k -device virtio-net-pci,netdev=n$k"; done)
@@ -168,7 +170,7 @@ qemu_start() {
     if [ "$VM_ARCH" = arm64 ]; then
       args+=(-device "virtio-blk-pci,drive=data$i,serial=STRATA-VD-$i")
     elif [ "$i" -le 6 ]; then
-      args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200")
+      args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200$([ "${VM_BOOT_FROM:-}" = "$i" ] && echo ,bootindex=0)")
     elif [ "$i" -eq 9 ]; then
       # Disk 9: an SSD (non-rotational), for the SSD cache tests.
       [ -n "${scsi:-}" ] || { args+=(-device virtio-scsi-pci,id=scsi0); scsi=1; }

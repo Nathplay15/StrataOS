@@ -161,6 +161,7 @@ part_datadisks() {
   check "switch prepared" "$(job "$R")" "success"
   joblog "$R" | grep -E 'grub-install' | head -4
   restarted
+  for _ in $(seq 1 30); do [ "$(op 'o["phase"]')" = booted ] && break; sleep 2; done
   check "started from the data disks" "$(op 'o["phase"]')" "booted"
   check "/ on the md array" "$(vm "findmnt -n -o SOURCE /")" "/dev/md"
   check "files copied" "$(vm "sudo cat /root/marker")" "on-data-disks"
@@ -176,10 +177,12 @@ part_datadisks() {
   check "layout usable with the data array" "$(c GET /api/system/disk | py 'print(d["layout"].get("problems"), d["move"].get("refusal",""))')" "None"
   check "finish, old disk erased" "$(job "$(c POST "/api/system/disk/$ID/complete" -d '{"erase":true,"confirm":"vda"}')")" "success"
   check "old disk free" "$(c GET /api/storage/disks | py 'print([x["usage"] for x in d if x["path"]=="/dev/vda"])')" "['free']"
-  VM_DETACH=1 restart_vm
+  # SeaBIOS starts only the first hard disk of its boot order: the erased
+  # system disk is unplugged, or the firmware is told to start a data disk.
+  VM_DETACH="sys 1" restart_vm
   check "starts with data disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
   check "data volume there, degraded" "$(vm "cat /srv/strata/dd/f")" "data-kept"
-  restart_vm
+  VM_BOOT_FROM=2 restart_vm
   # The disk is back: its partitions join the arrays again (bitmaps: quick).
   for a in strata-root:3 dd:4; do
     vm "sudo mdadm /dev/md/${a%:*} --re-add /dev/disk/by-id/ata-*_STRATA-HDD-1-part${a#*:} >/dev/null 2>&1 || true"

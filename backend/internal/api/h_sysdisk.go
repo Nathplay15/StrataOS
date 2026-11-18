@@ -516,6 +516,9 @@ func (s *Server) sysDiskRoutes() {
 				o.Message = "The system runs from the new disk; the old disk was erased."
 				if o.Kind == "datadisks" {
 					o.Message = "The system runs from the data disks; the old disk was erased."
+					if o.Boot == "bios" {
+						o.Message = "The system runs from the data disks; the old disk was erased. In the firmware settings, put one of the data disks first in the boot order (many BIOS only try their first disk)."
+					}
 				}
 			} else {
 				o.Message = fmt.Sprintf("The system runs from the new disk. Power off the NAS and remove the old disk %s (S/N %s).", firstNonEmpty(o.OldModel, "disk"), firstNonEmpty(o.OldSerial, "unknown"))
