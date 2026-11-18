@@ -5,9 +5,10 @@
 # the Updates page), as in vm/distupgrade-test.sh:
 #   1. a check fails (a half-installed package): no proposal, the blocking
 #      check is listed with its fix; an administrator forces the upgrade
-#      (typed codename, logged and told); right after the restart a data
-#      volume is unmounted by hand, so the checks after the restart fail:
-#      the NAS goes back to its restore point by itself, on Debian 13;
+#      (typed codename, logged and told); the checks after the restart are
+#      made to fail (a root-only test file read once, as for the automatic
+#      updates): the NAS goes back to its restore point by itself, on
+#      Debian 13;
 #   2. the package fixed, the check passes: the proposal appears and the
 #      administrators are told; No hides it, Show brings it back; Yes, in
 #      the maintenance window (opened by a test hook): Debian 14 runs.
@@ -59,6 +60,8 @@ ISO_TEST_SSH_KEY="$KEYDIR/id.pub" ISO_TEST_BOOTARGS=partman-auto/disk=/dev/sda A
 ./vm/iso-test.sh "$ISO" 1 uefi >/dev/null || { echo "installation failed"; tail -5 "$ISO_STATE/console.log"; exit 1; }
 c POST /api/setup -d '{"username":"admin","password":"Strata-Test-2026","fullName":"Test","hostname":"dist-iso"}' >/dev/null
 login
+# Notifications in English (the checks read their titles).
+c GET /api/settings | py 'd["notifyLang"]="en"; print(json.dumps(d))' > "$J.set" && c PUT /api/settings -d @"$J.set" >/dev/null
 check "Btrfs system on Debian 13" "$(vm 'findmnt -n -o FSTYPE /; grep VERSION_CODENAME /etc/os-release')" "trixie"
 D=$(c GET /api/storage/disks | py 'print([x["path"] for x in d if x["usage"]=="free"][0])')
 R=$(c POST /api/storage/volumes -d "{\"name\":\"vol\",\"fsType\":\"ext4\",\"devices\":[\"$D\"]}")
@@ -81,21 +84,19 @@ check "its fix is said" "$(echo "$S" | py 'print([c.get("fix","") for c in d["ch
 check "target found in the archive, generic" "$(echo "$S" | py 'print(d["target"], d["targetVersion"], d["available"], d.get("testing"))')" "forky 14 True True"
 check "refused without force" "$(c POST /api/system/dist-upgrade/start -d '{"when":"now"}')" "the checks failed"
 check "force needs the codename typed" "$(c POST /api/system/dist-upgrade/start -d '{"when":"now","force":true,"confirm":"yes"}')" "type forky"
+vm 'touch /var/lib/strata/dist-postcheck-test'
 S=$(c POST /api/system/dist-upgrade/start -d '{"when":"now","force":true,"confirm":"forky"}')
 ID=$(echo "$S" | py 'print(d["id"])')
 check "forced upgrade told to the administrators" "$(c GET /api/notifications | grep -o 'System upgrade forced' | head -1)" "System upgrade forced"
 for _ in $(seq 1 900); do up || break; [ "$(phase)" = reboot ] && break; sleep 4; done
-check "packages installed, restarting by itself" "$(c GET "/api/jobs/$ID" | py 'print(d["status"]); print(d.get("log","")[-400:])')" "restarts into it now"
+check "packages installed, restarting by itself" "$(c GET "/api/jobs/$ID" | py 'print(d["status"], "restarts into it now" in d.get("log",""))')" "success True"
 for _ in $(seq 1 600); do up || break; sleep 2; done
 for _ in $(seq 1 300); do vm true && break; sleep 3; done
-# Before the checks run (a minute after the start): a volume goes missing.
-for _ in $(seq 1 60); do vm 'findmnt -n /srv/strata/vol' >/dev/null && break; sleep 2; done
 check "running Debian 14 after the restart" "$(vm 'grep VERSION_CODENAME /etc/os-release')" "forky"
-vm 'umount -l /srv/strata/vol'
 for _ in $(seq 1 120); do up && [ "$(phase)" = rolling-back ] && break; ! up && break; sleep 3; done
 restarted
 for _ in $(seq 1 60); do [ "$(phase)" = rolled-back ] && break; sleep 5; done
-check "rolled back by itself" "$(c GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get("forced"), r.get("rolledBack",""))')" "rolled-back True checks after the restart: Volumes not mounted: vol"
+check "rolled back by itself" "$(c GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get("forced"), r.get("rolledBack",""))')" "rolled-back True checks after the restart: Test failure of the checks after the restart"
 check "Debian 13 again" "$(vm 'grep VERSION_CODENAME /etc/os-release; grep -h -m1 -E "^Suites|^deb " /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null')" "trixie"
 check "volume mounted, data there" "$(vm 'cat /srv/strata/vol/note.txt')" "kept"
 check "settings kept" "$(c GET /api/me)" '"username":"admin"'
