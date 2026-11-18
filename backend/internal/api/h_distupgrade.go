@@ -230,7 +230,7 @@ func (s *Server) distFacts(ctx context.Context, from, to string, deep bool) (sys
 	}
 	f.RestoreMode, _ = system.Mode()
 	for _, j := range s.jobs.List() {
-		if j.Status == jobs.Running && j.Type != "dist-upgrade" {
+		if j.Status == jobs.Running && j.Type != "dist-upgrade" && j.Type != "dist-check" {
 			f.Jobs = append(f.Jobs, j.Title)
 		}
 	}
