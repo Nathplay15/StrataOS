@@ -265,7 +265,7 @@ type Routine struct {
 	// Cooldown: at most one run per N minutes (0 = 60). LastFired is the
 	// instant of the last run.
 	Cooldown  int       `json:"cooldown,omitempty"`
-	LastFired time.Time `json:"lastFired,omitempty"`
+	LastFired time.Time `json:"lastFired,omitzero"`
 }
 
 // RoutineAction is one "then" of a routine. Message is the notification text
