@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -197,5 +198,59 @@ func TestRoutineCRUD(t *testing.T) {
 		if len(list) != 0 {
 			t.Fatalf("list after delete: %s", w.Body.String())
 		}
+	}
+}
+
+// Evaluating and firing the routines while an administrator rewrites them
+// must not race (go test -race): both work on copies taken under the lock.
+func TestRoutineEvalWhilePut(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	s := routinesServer(t)
+	admin := routineAdmin(t, s)
+	rt := store.Routine{Name: "Disk", Enabled: true, Trigger: "disk-failed", Actions: []store.RoutineAction{{Kind: "webhook", URL: srv.URL}}}
+	_, out := admin.do("POST", "/api/routines", rt)
+	id, _ := out["id"].(string)
+	if id == "" {
+		t.Fatalf("create: %v", out)
+	}
+	st := routineState{diskFailed: map[string]bool{"/dev/sda": true}}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for i := range 20 {
+			s.evalRoutinesState(st, time.Now().Add(time.Duration(i)*2*time.Hour))
+		}
+	})
+	for i := range 20 {
+		rt.Name = "Disk " + string(rune('a'+i))
+		admin.do("PUT", "/api/routines/"+id, rt)
+	}
+	wg.Wait()
+	s.bg.Wait()
+}
+
+func TestRoutineWebhookRedirects(t *testing.T) {
+	var hits atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1) }))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/same" {
+			http.Redirect(w, r, "/done", http.StatusTemporaryRedirect)
+			return
+		}
+		if r.URL.Path == "/done" {
+			hits.Add(10)
+			return
+		}
+		http.Redirect(w, r, other.URL, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	if _, err := routineWebhookClient().Post(srv.URL+"/away", "application/json", nil); err == nil || hits.Load() != 0 {
+		t.Fatalf("redirect to another host followed: %v, hits %d", err, hits.Load())
+	}
+	if resp, err := routineWebhookClient().Post(srv.URL+"/same", "application/json", nil); err != nil || hits.Load() != 10 {
+		t.Fatalf("redirect on the same host: %v, hits %d", err, hits.Load())
+	} else {
+		resp.Body.Close()
 	}
 }

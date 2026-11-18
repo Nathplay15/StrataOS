@@ -3,9 +3,11 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -128,11 +130,45 @@ func routineText(msg string, rt *store.Routine, detail string) string {
 	return strings.NewReplacer("{name}", rt.Name, "{detail}", detail).Replace(msg)
 }
 
+// routineCopies returns deep copies of the routines, taken under the store
+// lock: the evaluation loop, the webhook goroutines and the JSON answers use
+// them while a PUT may rewrite the stored ones.
+func (s *Server) routineCopies(id string) []store.Routine {
+	var out []store.Routine
+	s.store.Read(func(st *store.State) {
+		for _, rt := range st.Routines {
+			if id == "" || rt.ID == id {
+				c := *rt
+				c.Actions = slices.Clone(rt.Actions)
+				out = append(out, c)
+			}
+		}
+	})
+	return out
+}
+
+// routineWebhookClient posts with a timeout and follows a redirect only to
+// the same host. Like the webhook of the notifications, the address may be
+// on the local network (only administrators set it).
+func routineWebhookClient() *http.Client {
+	cl := tlstrust.HTTPClient(store.TLSTrust{}, 10*time.Second)
+	cl.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return errors.New("too many redirects")
+		}
+		if req.URL.Host != via[0].URL.Host {
+			return fmt.Errorf("redirect to another host (%s) refused", req.URL.Host)
+		}
+		return nil
+	}
+	return cl
+}
+
 // routineWebhook posts one JSON event of the routine to the action's URL.
 func (s *Server) routineWebhook(rt *store.Routine, a store.RoutineAction, detail string) {
 	host, _ := hostname()
 	body, _ := json.Marshal(map[string]string{"title": rt.Name, "message": detail, "text": rt.Name + ": " + detail, "content": rt.Name + ": " + detail, "routine": rt.Name, "trigger": detail, "host": host})
-	resp, err := tlstrust.HTTPClient(store.TLSTrust{}, 10*time.Second).Post(a.URL, "application/json", bytes.NewReader(body))
+	resp, err := routineWebhookClient().Post(a.URL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		slog.Warn("routine webhook failed", "routine", rt.Name, "err", err)
 		return
@@ -144,7 +180,7 @@ func (s *Server) routineWebhook(rt *store.Routine, a store.RoutineAction, detail
 }
 
 // fireRoutine runs the actions of a routine (eval loop or manual test) and
-// records the run.
+// records the run. rt is a copy (routineCopies): the webhook goroutines keep it.
 func (s *Server) fireRoutine(rt *store.Routine, detail string) {
 	for _, a := range rt.Actions {
 		switch a.Kind {
@@ -160,9 +196,8 @@ func (s *Server) fireRoutine(rt *store.Routine, detail string) {
 // evalRoutinesState runs the enabled routines whose trigger is met and whose
 // cooldown has elapsed, and stamps the ones that ran.
 func (s *Server) evalRoutinesState(st routineState, now time.Time) {
-	var list []*store.Routine
-	s.store.Read(func(ss *store.State) { list = ss.Routines })
-	for _, rt := range list {
+	for _, c := range s.routineCopies("") {
+		rt := &c
 		if !rt.Enabled {
 			continue
 		}
@@ -227,7 +262,7 @@ func (s *Server) validRoutine(rt *store.Routine) error {
 		switch a.Kind {
 		case "notify":
 		case "webhook":
-			if !strings.HasPrefix(a.URL, "http://") && !strings.HasPrefix(a.URL, "https://") {
+			if u, err := url.Parse(a.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(a.URL) > 2048 {
 				return badRequest("the webhook URL must be http(s)")
 			}
 		default:
@@ -239,12 +274,10 @@ func (s *Server) validRoutine(rt *store.Routine) error {
 
 func (s *Server) routineRoutes() {
 	s.admin("GET /api/routines", func(r *http.Request) (any, error) {
-		out := []*store.Routine{}
-		s.store.Read(func(st *store.State) {
-			for _, rt := range st.Routines {
-				out = append(out, rt)
-			}
-		})
+		out := s.routineCopies("")
+		if out == nil {
+			out = []store.Routine{}
+		}
 		return out, nil
 	})
 
@@ -259,7 +292,8 @@ func (s *Server) routineRoutes() {
 		rt.ID = token()[:24]
 		rt.LastFired = time.Time{}
 		err := s.store.Update(func(st *store.State) error {
-			st.Routines = append(st.Routines, &rt)
+			c := rt // the stored one may be rewritten by a PUT while rt is answered
+			st.Routines = append(st.Routines, &c)
 			return nil
 		})
 		return rt, err
@@ -277,11 +311,13 @@ func (s *Server) routineRoutes() {
 		err := s.store.Update(func(st *store.State) error {
 			for _, rt := range st.Routines {
 				if rt.ID == r.PathValue("id") {
-					if out = rt; in.Enabled {
+					if in.Enabled {
 						in.LastFired = rt.LastFired
 					}
 					*rt = in
 					rt.ID = r.PathValue("id")
+					c := *rt // answered after the lock is released
+					out = &c
 				}
 			}
 			if out == nil {
@@ -308,17 +344,11 @@ func (s *Server) routineRoutes() {
 
 	// Test: run the actions now, whatever the trigger and the cooldown say.
 	s.admin("POST /api/routines/{id}/fire", func(r *http.Request) (any, error) {
-		var rt *store.Routine
-		s.store.Read(func(st *store.State) {
-			for _, x := range st.Routines {
-				if x.ID == r.PathValue("id") {
-					rt = x
-				}
-			}
-		})
-		if rt == nil {
+		list := s.routineCopies(r.PathValue("id"))
+		if len(list) == 0 {
 			return nil, notFound("unknown routine")
 		}
+		rt := &list[0]
 		_, detail := routineTriggered(rt, s.routineState())
 		s.fireRoutine(rt, detail)
 		return nil, nil
