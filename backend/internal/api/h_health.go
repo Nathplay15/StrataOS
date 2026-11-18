@@ -21,9 +21,9 @@ import (
 	"strataos/internal/protect"
 	"strataos/internal/scheduler"
 	"strataos/internal/storage"
-	"strataos/internal/sysdisk"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/sysdisk"
 	"strataos/internal/system"
 	"strataos/internal/vms"
 )
