@@ -280,3 +280,28 @@ func TestPushPayloadCarriesKind(t *testing.T) {
 		}
 	}
 }
+
+// The "Mark as read" action of a notification works from the phone of any
+// account, on that account's own marker only.
+func TestMarkReadFromDevice(t *testing.T) {
+	s, tok := mobileTestServer(t)
+	feed = &mobileFeed{}
+	defer func() { feed = &mobileFeed{} }()
+	for range 3 {
+		s.mobileFeedAdd("warning", "Subject", "msg", notifKind{})
+	}
+	s.notifCenterRoutes()
+	req := httptest.NewRequest("POST", "/api/notifications/read", strings.NewReader(`{"upTo":2}`))
+	req.RemoteAddr = "192.0.2.10:5555"
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("mark read from a user's phone: %d %s", w.Code, w.Body)
+	}
+	s.store.Read(func(st *store.State) {
+		if st.User("alice").NotifRead != 2 || st.User("root1").NotifRead != 0 {
+			t.Errorf("markers: alice %d, root1 %d", st.User("alice").NotifRead, st.User("root1").NotifRead)
+		}
+	})
+}

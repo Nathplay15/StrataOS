@@ -128,7 +128,10 @@ func (s *Server) notifCenterRoutes() {
 		return map[string]any{"items": items, "unread": unread, "read": read}, nil
 	})
 	// Marks the notifications up to an id as read (0 or absent: all of them).
-	s.admin("POST /api/notifications/read", func(r *http.Request) (any, error) {
+	// Every account keeps its own markers, so these two are user routes: the
+	// "Mark as read" action of the app works from any paired phone, even one
+	// whose account is no longer an administrator.
+	s.user("POST /api/notifications/read", func(r *http.Request) (any, error) {
 		var req struct {
 			UpTo int64 `json:"upTo"`
 		}
@@ -147,7 +150,7 @@ func (s *Server) notifCenterRoutes() {
 		})
 	})
 	// Clears the list (the notifications stay in the feed of the app).
-	s.admin("POST /api/notifications/clear", func(r *http.Request) (any, error) {
+	s.user("POST /api/notifications/clear", func(r *http.Request) (any, error) {
 		_, next := s.mobileFeedAll()
 		return nil, s.store.Update(func(st *store.State) error {
 			if u := st.User(userOf(r)); u != nil {
