@@ -2712,4 +2712,7 @@ export const serverTexts: [string, string][] = [
   ["Restauration depuis un snapshot dans {0}", "Restoring from a snapshot into {0}"],
   ["{0} restauré depuis le snapshot {1} dans {2}", "Restored {0} from snapshot {1} into {2}"],
   ["Ignorés (liens ou fichiers spéciaux) : {0}", "Skipped (links or special files): {0}"],
+  // Storage trends (#55)
+  ["choisissez un volume ou un dossier partagé", "choose a volume or a share"],
+  ["historique introuvable", "history not found"],
 ];

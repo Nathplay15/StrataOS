@@ -324,6 +324,7 @@ func (s *Server) routes() {
 	s.updateRoutes()
 	s.reportRoutes()
 	s.healthRoutes()
+	s.trendsRoutes()
 	s.linkRoutes()
 	s.albumRoutes()
 	s.energyRoutes()

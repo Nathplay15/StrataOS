@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, Clapperboard, Cctv, Smartphone,
+  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone,
 } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -14,6 +14,7 @@ const Lvm = lazy(() => import("../pages/storage/Lvm"));
 const Iscsi = lazy(() => import("../pages/storage/Iscsi"));
 const SpaceAnalyzer = lazy(() => import("../pages/storage/SpaceAnalyzer"));
 const Duplicates = lazy(() => import("../pages/storage/Duplicates"));
+const Trends = lazy(() => import("../pages/storage/Trends"));
 const Ceph = lazy(() => import("../pages/storage/Ceph"));
 const Shares = lazy(() => import("../pages/Shares"));
 const UsersPage = lazy(() => import("../pages/Users"));
@@ -98,6 +99,7 @@ export const APPS: AppDef[] = [
       { id: "disks", label: tr("Disks"), icon: <HardDrive size={16} />, component: page(Disks), path: "/storage/disks" },
       { id: "analyzer", label: tr("Space analyzer"), icon: <PieChart size={16} />, component: page(SpaceAnalyzer), path: "/storage/analyzer" },
       { id: "duplicates", label: tr("Duplicates"), icon: <Copy size={16} />, component: page(Duplicates), path: "/storage/duplicates" },
+      { id: "trends", label: tr("Trends"), icon: <TrendingUp size={16} />, component: page(Trends), path: "/storage/trends" },
     ],
   },
   {
