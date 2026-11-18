@@ -55,7 +55,7 @@ finish() { printf '\n%s passed, %s failed (%d min)\n' "$PASSES" "$FAILS" $(( ($(
 
 section "Debian 13 installed from the ISO"
 ISO=dist/strataos-${VERSION}-amd64.iso
-ISO_TEST_SSH_KEY="$KEYDIR/id.pub" ARCH=amd64 ./packaging/iso/build-iso.sh >/dev/null || { echo "ISO build failed"; exit 1; }
+ISO_TEST_SSH_KEY="$KEYDIR/id.pub" ISO_TEST_BOOTARGS=partman-auto/disk=/dev/sda ARCH=amd64 ./packaging/iso/build-iso.sh >/dev/null || { echo "ISO build failed"; exit 1; }
 ./vm/iso-test.sh "$ISO" 1 uefi >/dev/null || { echo "installation failed"; tail -5 "$ISO_STATE/console.log"; exit 1; }
 c POST /api/setup -d '{"username":"admin","password":"Strata-Test-2026","fullName":"Test","hostname":"dist-iso"}' >/dev/null
 login

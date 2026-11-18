@@ -57,7 +57,7 @@ fresh_vm() {
 }
 restart_vm() { # VM_DETACH as given
   ./vm/vm.sh stop >/dev/null
-  ./vm/vm.sh start >/dev/null || return 1
+  ./vm/vm.sh start >/dev/null || { echo "--- console:"; tail -60 "$VM_STATE/console.log" | tr -d '\r' | cut -c1-200; return 1; }
   wait_api
 }
 
