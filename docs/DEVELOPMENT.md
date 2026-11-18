@@ -274,7 +274,7 @@ The 2-NAS high availability for files (`internal/ha`, keepalived + replication) 
 | `notify/` | UnifiedPush receiver, the 15-minute fallback check, notifications |
 | `update/` | Updates of the app itself: GitHub release lookup and version rules (`Releases.kt`, same as `backend/internal/release`), download, SHA256SUMS and signing certificate checks, PackageInstaller session (`Updater.kt`), the daily WorkManager check, install result and `MY_PACKAGE_REPLACED` receivers (`UpdateWork.kt`); screen in `ui/UpdateScreen.kt` |
 | `data/` | Server configuration, token vault, favorites and offline files (`Favorites.kt`, `OfflineSync.kt`) |
-| `ui/` | Navigation shell (`MainActivity.kt`: Files, Photos, Manage; rail on tablets), shared widgets (`Common.kt`, `Widgets.kt`, `NasImage.kt` thumbnails), the Manage tab (`ManageScreen.kt`, areas listed in `SectionsA.kt`/`SectionsB.kt`) |
+| `ui/` | Navigation shell (`MainActivity.kt`: Home, Files, Photos, Me; Manage and the assistant open from the Home grid; rail on tablets), theme (`Theme.kt`: brand colours, shapes, type, no dynamic colour) and design pieces (`Brand.kt`: tiles, NAS drawing, file type icons), Home (`HomeScreen.kt`), Me (`MeScreen.kt`), first-run carousel (`Intro.kt`), shared widgets (`Common.kt`, `Widgets.kt`, `NasImage.kt` thumbnails), Manage (`ManageScreen.kt`, areas listed in `SectionsA.kt`/`SectionsB.kt`) |
 | `ui/files/` | File browser v2: sort, search, selection, copy/move, recycle bin, share links, favorites |
 | `ui/photos/` | Photos timeline, albums, full-screen pager (also used by Files) |
 | `ui/player/` | Media3 player: NAS streaming (probe, remux/transcode from `start=`), tracks, quality, resume, background audio (`PlaybackService`), picture-in-picture |

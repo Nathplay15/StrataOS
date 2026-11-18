@@ -126,22 +126,27 @@ fun SettingsScreen(onSignedOut: () -> Unit, onBack: (() -> Unit)? = null, onOpen
             TextButton(onClick = {
                 confirmSignOut = false
                 scope.launch {
-                    withContext(Dispatchers.IO) { runCatching { Graph.api()?.signOut() } }
-                    Push.unregister(ctx)
-                    BackupSettings(ctx).enabled = false
-                    BackupScheduler.cancelAll(ctx)
-                    withContext(Dispatchers.IO) { io.github.nathplay15.strataos.sync.SyncScheduler.forgetAll(ctx) }
-                    EventsWorker.cancel(ctx)
-                    Graph.backupDb.reset()
-                    io.github.nathplay15.strataos.ui.player.Playback.release()
-                    io.github.nathplay15.strataos.data.OfflineSyncWorker.cancel(ctx)
-                    io.github.nathplay15.strataos.data.favorites.clearAll()
-                    p.signOut()
-                    Graph.reset()
+                    signOut(ctx)
                     onSignedOut()
                 }
             }) { Text(stringResource(R.string.sign_out)) }
         },
         dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** Signs this phone out of the NAS: revokes its key and stops everything that talks to the NAS. */
+suspend fun signOut(ctx: android.content.Context) {
+    withContext(Dispatchers.IO) { runCatching { Graph.api()?.signOut() } }
+    Push.unregister(ctx)
+    BackupSettings(ctx).enabled = false
+    BackupScheduler.cancelAll(ctx)
+    withContext(Dispatchers.IO) { io.github.nathplay15.strataos.sync.SyncScheduler.forgetAll(ctx) }
+    EventsWorker.cancel(ctx)
+    Graph.backupDb.reset()
+    io.github.nathplay15.strataos.ui.player.Playback.release()
+    io.github.nathplay15.strataos.data.OfflineSyncWorker.cancel(ctx)
+    io.github.nathplay15.strataos.data.favorites.clearAll()
+    Graph.prefs.signOut()
+    Graph.reset()
 }

@@ -1,6 +1,11 @@
 package io.github.nathplay15.strataos.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +53,8 @@ import io.github.nathplay15.strataos.R
 /** The areas a user sees: administrators all of them, the others those not reserved to administrators. */
 fun visibleSections(all: List<ManageSection>, admin: Boolean): List<ManageSection> = all.filter { admin || !it.adminOnly }.distinctBy { it.id }
 
-private const val STATUS = "status"
+/** The id of the status page among the areas (it is not one of them). */
+const val STATUS = "status"
 
 /** Opens a folder of the NAS in the Files tab (from a management area: snapshots, shares…). */
 val LocalOpenInFiles = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
@@ -62,10 +68,12 @@ val LocalOpenOverlay = androidx.compose.runtime.staticCompositionLocalOf<(String
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? = null) {
+fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? = null, closeTo: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
     val admin = Graph.prefs.server?.isAdmin == true
     val sections = visibleSections(manageSectionsA + manageSectionsB, admin)
-    var open by rememberSaveable { mutableStateOf(sections.firstOrNull { it.id == initialSection }?.id) }
+    var open by rememberSaveable { mutableStateOf(if (initialSection == STATUS) STATUS else sections.firstOrNull { it.id == initialSection }?.id) }
+    // An area opened from elsewhere (the Home grid) goes back there when closed.
+    val close: () -> Unit = { if (closeTo != null && open == initialSection) closeTo() else open = null }
     val wide = LocalConfiguration.current.screenWidthDp >= WIDE_DP
     val current = sections.firstOrNull { it.id == open }
 
@@ -87,52 +95,66 @@ fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? 
     }
 
     if (open == STATUS) {
-        BackTo { open = null }
-        Column(Modifier.fillMaxSize()) { StatusScreen() }
+        BackTo(onBack = close)
+        Column(Modifier.fillMaxSize()) { StatusScreen(onBack = close) }
         return
     }
     if (current != null) {
-        BackTo { open = null }
-        current.content { open = null }
+        BackTo(onBack = close)
+        current.content(close)
         return
     }
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.a_manage)) }, actions = { accountAction() })
+        TopAppBar(
+            title = { Text(stringResource(R.string.a_manage)) }, actions = { accountAction() },
+            navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+        )
         val status = rememberLoad(Unit) { val a = api(); a.systemInfo() to a.overview() }
         val ctx = androidx.compose.ui.platform.LocalContext.current
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = status.refreshing, onRefresh = status.reload) {
             LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Card(Modifier.fillMaxWidth().clickable { open = STATUS }) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // The NAS on the brand gradient: white text, light bar.
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.ui.graphics.Color.White) {
+                    Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(strata.header).clickable { open = STATUS }) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             val st = status.state
-                            if (st is Loaded.Failed) Text(errorText(ctx, st.error), color = MaterialTheme.colorScheme.error)
+                            if (st is Loaded.Failed) Text(errorText(ctx, st.error))
                             val (info, ov) = status.value ?: (null to null)
                             if (info == null || ov == null) {
                                 if (st is Loaded.Loading) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
-                                Text(stringResource(R.string.a_open_status), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                Text(stringResource(R.string.a_open_status), style = MaterialTheme.typography.labelLarge)
                                 return@Column
                             }
-                            Text(info.hostname, style = MaterialTheme.typography.titleLarge)
+                            Text(info.hostname, style = MaterialTheme.typography.headlineSmall)
                             Text(stringResource(R.string.a_version, info.version), style = MaterialTheme.typography.bodySmall)
                             NasNewerBanner(info.version)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (ov.alerts.isEmpty()) Icon(Icons.Default.CheckCircle, null, tint = Tone.OK.color())
-                                else Icon(Icons.Default.Warning, null, tint = Tone.WARN.color())
+                                Icon(if (ov.alerts.isEmpty()) Icons.Default.CheckCircle else Icons.Default.Warning, null)
                                 Text(if (ov.alerts.isEmpty()) stringResource(R.string.status_all_good) else stringResource(R.string.a_alerts_n, ov.alerts.size), Modifier.padding(start = 8.dp))
                             }
                             val total = ov.volumes.sumOf { it.total }
-                            if (total > 0) UsageBar(ov.volumes.sumOf { it.used }, total)
-                            Text(stringResource(R.string.a_open_status), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            if (total > 0) {
+                                val used = ov.volumes.sumOf { it.used }
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = { (used.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).height(6.dp),
+                                    color = androidx.compose.ui.graphics.Color.White, trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.3f),
+                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
+                                )
+                                Text(stringResource(R.string.a_usage, formatBytes(used), formatBytes(total), (used * 100 / total).toInt()), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(stringResource(R.string.a_open_status), style = MaterialTheme.typography.labelLarge)
                         }
+                        if (status.value != null) NasIllustration(Modifier.align(Alignment.TopEnd).padding(16.dp).size(76.dp, 62.dp), healthy = status.value?.second?.alerts.isNullOrEmpty())
+                    }
                     }
                 }
                 items(sections, key = { it.id }) { s ->
-                    Card(Modifier.fillMaxWidth().clickable { open = s.id }) {
+                    Card(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { open = s.id }) {
                         Column(Modifier.padding(16.dp)) {
-                            Icon(s.icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                            Text(stringResource(s.label), Modifier.padding(top = 10.dp), style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            TileIcon(s.icon, tileOf(s.id), size = 44.dp, iconSize = 24.dp)
+                            Text(stringResource(s.label), Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -149,4 +171,19 @@ private fun SectionRow(label: String, icon: androidx.compose.ui.graphics.vector.
         colors = if (selected) ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else ListItemDefaults.colors(),
         modifier = Modifier.clickable(onClick = onClick),
     )
+}
+
+/** The tile colours of a management area. */
+fun tileOf(id: String): TilePaint = when (id) {
+    "storage" -> Tiles.storage
+    "apps" -> Tiles.apps
+    "links" -> Tiles.links
+    "surveillance" -> Tiles.camera
+    "vms" -> Tiles.vms
+    "vpn" -> Tiles.vpn
+    "users" -> Tiles.users
+    "fleet" -> Tiles.fleet
+    "nas-settings" -> Tiles.settings
+    "web" -> Tiles.web
+    else -> Tiles.more
 }

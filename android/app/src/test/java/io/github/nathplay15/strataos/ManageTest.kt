@@ -21,6 +21,8 @@ import io.github.nathplay15.strataos.net.subtitleUrl
 import io.github.nathplay15.strataos.ui.ManageSection
 import io.github.nathplay15.strataos.ui.apps.filterApps
 import io.github.nathplay15.strataos.ui.destinationOf
+import io.github.nathplay15.strataos.ui.initials
+import io.github.nathplay15.strataos.ui.navTabOf
 import io.github.nathplay15.strataos.ui.photos.groupByMonth
 import io.github.nathplay15.strataos.ui.player.keepResume
 import io.github.nathplay15.strataos.ui.player.resumePosition
@@ -57,9 +59,26 @@ class ManageTest {
         assertEquals("home" to null, destinationOf("status"))
         assertEquals("manage" to null, destinationOf("manage"))
         assertEquals("assistant" to null, destinationOf("assistant"))
-        assertEquals("files" to "backup", destinationOf("backup"))
-        assertEquals("files" to "settings", destinationOf("settings"))
+        assertEquals("me" to "backup", destinationOf("backup"))
+        assertEquals("me" to "settings", destinationOf("settings"))
         assertEquals("home" to null, destinationOf("whatever"))
+        assertEquals("me" to "update", destinationOf("update"))
+        assertEquals("me" to null, destinationOf("me"))
+    }
+
+    @Test fun navigationBarTabs() {
+        // Manage and the assistant open from the Home grid: Home stays selected.
+        assertEquals("home", navTabOf("manage"))
+        assertEquals("home", navTabOf("assistant"))
+        assertEquals("files", navTabOf("files"))
+        assertEquals("me", navTabOf("me"))
+    }
+
+    @Test fun avatarInitials() {
+        assertEquals("AD", initials("Alice Dupont"))
+        assertEquals("A", initials("alice"))
+        assertEquals("JP", initials("jean-pierre"))
+        assertEquals("?", initials(""))
     }
 
     @Test fun updateStates() {

@@ -18,21 +18,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,16 +45,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.remember
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -193,36 +185,28 @@ fun destinationOf(tab: String): Pair<String, String?> = when (tab) {
     "home", "status" -> "home" to null
     "assistant" -> "assistant" to null
     "manage" -> "manage" to null
-    "backup" -> "files" to "backup"
-    "sync" -> "files" to "sync"
-    "settings" -> "files" to "settings"
-    "update" -> "files" to "update"
+    "files" -> "files" to null
+    "me" -> "me" to null
+    "backup" -> "me" to "backup"
+    "sync" -> "me" to "sync"
+    "settings" -> "me" to "settings"
+    "update" -> "me" to "update"
     else -> "home" to null
 }
 
-/** The account button of the top bars: who is signed in, photo backup, app settings. */
-@Composable
-private fun AccountButton(openOverlay: (String) -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    val cfg = Graph.prefs.server
-    Box {
-        IconButton(onClick = { menu = true }) { Icon(Icons.Default.AccountCircle, stringResource(R.string.a_account)) }
-        DropdownMenu(menu, { menu = false }) {
-            Text(
-                stringResource(R.string.a_account_line, cfg?.fullName?.ifEmpty { null } ?: cfg?.username ?: "", cfg?.hostname ?: ""),
-                style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            HorizontalDivider()
-            DropdownMenuItem({ Text(stringResource(R.string.tab_backup)) }, { menu = false; openOverlay("backup") }, leadingIcon = { Icon(Icons.Default.Backup, null) })
-            DropdownMenuItem({ Text(stringResource(R.string.sync_title)) }, { menu = false; openOverlay("sync") }, leadingIcon = { Icon(Icons.Default.Sync, null) })
-            DropdownMenuItem({ Text(stringResource(R.string.a_app_settings)) }, { menu = false; openOverlay("settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) })
-        }
-    }
+/** The tab of the navigation bar a tab belongs to: Manage and Assistant open from Home. */
+fun navTabOf(tab: String): String = when (tab) {
+    "manage", "assistant" -> "home"
+    else -> tab
 }
 
 @Composable
 private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOverlay: (String?) -> Unit, onSignedOut: () -> Unit, section: String?) {
     var filesPath by rememberSaveable { mutableStateOf("") }
+    var filesSearch by remember { mutableStateOf(false) }
+    // A section opened from the Home grid (Storage, Status…): Manage opens on it.
+    var openSection by remember { mutableStateOf(section) }
+    LaunchedEffect(section) { if (section != null) openSection = section }
     if (overlay != null) {
         BackHandler { setOverlay(null) }
         // The overlays draw their own top bar (status bar inset); keep their content above the navigation bar.
@@ -240,20 +224,29 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         Triple("home", R.string.tab_home, Icons.Default.Home),
         Triple("files", R.string.tab_files, Icons.Default.Folder),
         Triple("photos", R.string.a_photos, Icons.Default.PhotoLibrary),
-        Triple("assistant", R.string.a_assistant, Icons.Default.AutoAwesome),
-        Triple("manage", R.string.a_manage, Icons.Default.Dashboard),
+        Triple("me", R.string.tab_me, Icons.Default.Person),
     )
-    val account: @Composable () -> Unit = { AccountButton { setOverlay(it) } }
+    val nav = navTabOf(tab)
+    // Back from another tab goes Home first (the screens' own back handlers, registered later, come first).
+    BackHandler(enabled = tab != "home") { openSection = null; setTab("home") }
+    val none: @Composable () -> Unit = {}
+    val go = HomeNav(
+        tab = { openSection = null; setTab(it) },
+        overlay = { setOverlay(it) },
+        section = { id -> openSection = id; setTab("manage") },
+        search = { filesSearch = true; setTab("files") },
+    )
     val content: @Composable () -> Unit = {
         androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }, LocalOpenOverlay provides setOverlay) {
             // Smooth fade between tabs instead of an abrupt swap.
             Crossfade(targetState = tab, animationSpec = tween(220), label = "tab") { t ->
                 when (t) {
-                    "photos" -> PhotosScreen(account)
-                    "assistant" -> io.github.nathplay15.strataos.ui.assistant.AssistantScreen(account)
-                    "manage" -> ManageScreen(account, initialSection = section)
-                    "home" -> HomeScreen(account, onOpenFiles = { setTab("files") }, onOpenPhotos = { setTab("photos") }, onOpenManage = { setTab("manage") })
-                    else -> FilesScreen(filesPath, { filesPath = it }, account)
+                    "photos" -> PhotosScreen(none)
+                    "assistant" -> io.github.nathplay15.strataos.ui.assistant.AssistantScreen(none)
+                    "manage" -> ManageScreen(none, initialSection = openSection, closeTo = if (openSection != null) ({ go.tab("home") }) else null, onBack = { go.tab("home") })
+                    "me" -> MeScreen(go, onSignedOut)
+                    "home" -> HomeScreen(go)
+                    else -> FilesScreen(filesPath, { filesPath = it }, none, startSearch = filesSearch, onSearchStarted = { filesSearch = false })
                 }
             }
         }
@@ -263,7 +256,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
             NavigationRail(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                 tabs.forEach { (id, label, icon) ->
-                    NavigationRailItem(selected = tab == id, onClick = { setTab(id) }, icon = { Icon(icon, null) }, label = { Text(stringResource(label)) })
+                    NavigationRailItem(selected = nav == id, onClick = { go.tab(id) }, icon = { Icon(icon, null) }, label = { Text(stringResource(label)) })
                 }
             }
             Surface(Modifier.weight(1f).fillMaxHeight()) { content() }
@@ -272,12 +265,24 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     }
     // The tabs draw their own top bar (status bar inset); the navigation bar takes the bottom one.
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), bottomBar = {
-        NavigationBar {
-            tabs.forEach { (id, label, icon) ->
-                NavigationBarItem(selected = tab == id, onClick = { setTab(id) }, icon = { Icon(icon, null) }, label = { Text(stringResource(label)) })
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
+                tabs.forEach { (id, label, icon) ->
+                    NavigationBarItem(
+                        selected = nav == id, onClick = { go.tab(id) }, icon = { Icon(icon, null) }, label = { Text(stringResource(label)) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        ),
+                    )
+                }
             }
         }
     }) { pad ->
         Surface(Modifier.padding(pad)) { content() }
     }
 }
+
+/** Where the Home and Me screens can lead: a tab, a full screen page, a management area, the file search. */
+class HomeNav(val tab: (String) -> Unit, val overlay: (String) -> Unit, val section: (String) -> Unit, val search: () -> Unit)
