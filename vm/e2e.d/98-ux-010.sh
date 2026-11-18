@@ -35,7 +35,12 @@ check "mark all read" "$(c GET /api/notifications | py 'print(d["unread"], len(d
 c POST /api/notifications/clear >/dev/null
 check "clear all" "$(c GET /api/notifications | py 'print(len(d["items"]), d["unread"])')" "0 0"
 check "users do not see the NAS notifications" "$(u GET /api/notifications | py 'print(len(d["items"]))')" "0"
-check "users cannot clear them" "$(u POST /api/notifications/clear)" "admin"
+# Read and clear only move the caller's own markers (the phone's "Mark as read").
+c POST /api/settings/test-notification -d '{}' >/dev/null
+u POST /api/notifications/read -d '{}' >/dev/null
+u POST /api/notifications/clear >/dev/null
+check "a user's read/clear leaves the admin's notifications" "$(c GET /api/notifications | py 'print(len(d["items"]) > 0, d["unread"] > 0)')" "True True"
+c POST /api/notifications/clear >/dev/null
 c PUT /api/settings -d "$SET" >/dev/null
 
 # Advisor: backup tasks that exist but are all disabled.
