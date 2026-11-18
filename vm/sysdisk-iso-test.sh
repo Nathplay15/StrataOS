@@ -7,6 +7,10 @@
 #   vm/sysdisk-iso-test.sh move-mirror [uefi|bios]
 #       regular installation, move the system to data disk 2, start without
 #       the old disk, then mirror it onto data disk 1, start from disk 1 alone
+#   vm/sysdisk-iso-test.sh datadisks-install [uefi|bios]
+#       "System on the data disks" entry on two 40 GB disks: system mirror,
+#       a data partition on each, a data RAID 1 on them, start with each disk
+#       unplugged
 #   vm/sysdisk-iso-test.sh restore [uefi|bios] <data-disk.qcow2>
 #       "Restore a StrataOS system backup" entry with that disk attached
 #
@@ -147,6 +151,28 @@ move_mirror() {
   check "mirror: starts from data disk 2 alone" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
 }
 
+datadisks_install() {
+  local mode=$1
+  printf '\n\033[1;36m== ISO: system on the data disks (%s)\033[0m\n' "$mode"
+  ISO_SYS_DISKS=2 ISO_DISK_SIZE=40G install "$(iso datadisks strata_datadisks_disks=sda,sdb)" 0 "$mode"
+  check "installed on the mirror" "$(vm "findmnt -n -o SOURCE,FSTYPE /")" "/dev/md"
+  check "data partition on both disks" "$(vm "lsblk -n -o PARTLABEL | grep -c 'StrataOS data'")" "2"
+  check "layout: on the data disks" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["placement"], len(l["disks"]), len(l.get("dataParts") or []), l.get("problems"))')" "datadisks 2 2 None"
+  check "data partitions offered as free" "$(c GET /api/storage/disks | py 'print(sorted(x["usage"] for x in d if x.get("dataOf")))')" "['free', 'free']"
+  P=$(c GET /api/storage/disks | py 'print(",".join(chr(34)+x["path"]+chr(34) for x in d if x.get("dataOf")))')
+  check "data RAID 1 on the data partitions" "$(job "$(c POST /api/storage/raid -d '{"name":"dd","level":"1","devices":['"$P"']}')")" "success"
+  check "volume on it" "$(job "$(c POST /api/storage/volumes -d '{"name":"dd","fsType":"btrfs","devices":["/dev/md/dd"]}')")" "success"
+  vm "echo iso-data > /srv/strata/dd/f; sync"
+  [ "$mode" = uefi ] && check "both disks have an ESP with GRUB" "$(vm "for d in $SYSDISKS; do mount \$d-part1 /mnt && ls /mnt/EFI/debian/ | grep -c '^grub.*\.efi$'; umount /mnt; done | tr '\n' ' '")" "1 1"
+  [ "$mode" = bios ] && check "GRUB on both disks" "$(vm "for d in $SYSDISKS; do dd if=\$d bs=512 count=1 2>/dev/null | grep -a -c GRUB; done | tr '\n' ' '")" "1 1"
+  ISO_DETACH=sys boot
+  check "starts with disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
+  check "disk 1 unplugged: data there" "$(vm "cat /srv/strata/dd/f")" "iso-data"
+  ISO_DETACH=sys2 boot
+  check "starts with disk 2 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
+  check "disk 2 unplugged: data there" "$(vm "cat /srv/strata/dd/f")" "iso-data"
+}
+
 restore() {
   local mode=$1 disk=$2
   printf '\n\033[1;36m== ISO: restore a system backup (%s)\033[0m\n' "$mode"
@@ -168,6 +194,7 @@ restore() {
 case "${1:-}" in
   mirror-install) mirror_install "${2:-uefi}" ;;
   move-mirror) move_mirror "${2:-uefi}" ;;
+  datadisks-install) datadisks_install "${2:-uefi}" ;;
   restore) restore "${2:-uefi}" "${3:?data disk}" ;;
   *) sed -n '2,15p' "$0"; exit 1 ;;
 esac

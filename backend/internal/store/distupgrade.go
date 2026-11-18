@@ -12,7 +12,8 @@ type DistUpgrade struct {
 
 // DistUpgradeRun is the last (or current) upgrade. Phase: sources,
 // download, upgrade, finish, reboot (waiting for the restart), post-checks,
-// done, failed.
+// done, failed, rolling-back (going back to the restore point, restart
+// pending), rolled-back.
 type DistUpgradeRun struct {
 	From         string          `json:"from"`
 	To           string          `json:"to"`
@@ -25,6 +26,14 @@ type DistUpgradeRun struct {
 	Kernel       string          `json:"kernel,omitempty"`     // kernel installed for the new release
 	BootID       string          `json:"bootId,omitempty"`     // boot of the upgrade (post-checks after the next one)
 	PostChecks   []UpgradeResult `json:"postChecks,omitempty"`
+	// Auto: the one-button upgrade restarts by itself once the packages
+	// are installed, and goes back to the restore point when the upgrade
+	// or the checks after the restart fail (Rollback: possible on this
+	// system, restore points by snapshot).
+	Auto     bool `json:"auto,omitempty"`
+	Rollback bool `json:"rollback,omitempty"`
+	// RolledBack: why the system went back to the restore point.
+	RolledBack string `json:"rolledBack,omitempty"`
 }
 
 // UpgradeResult is one post-check.

@@ -430,6 +430,9 @@ func (s *Server) distRun(ctx context.Context, j *jobs.Job) error {
 		j.SetProgress(30)
 		// From here the system changes: the sources stay on the new release.
 		if err := distApt(ctx, j, 30, 85, n, append(append([]string{"apt-get", "-y", "-q"}, aptKeepConf...), "full-upgrade")...); err != nil {
+			if s.distRollback(j.Logf, "upgrade: "+err.Error()) {
+				return fmt.Errorf("upgrade: %v; the NAS goes back to the restore point and restarts", err)
+			}
 			return fail(fmt.Errorf("upgrade: %v (the system is between two releases: run the upgrade again)", err))
 		}
 		phase("finish")
@@ -437,11 +440,17 @@ func (s *Server) distRun(ctx context.Context, j *jobs.Job) error {
 	case "upgrade", "finish":
 		if run.Phase == "upgrade" { // resumed: finish what apt left
 			if err := distApt(ctx, j, 30, 85, 0, append(append([]string{"apt-get", "-y", "-q"}, aptKeepConf...), "full-upgrade")...); err != nil {
+				if s.distRollback(j.Logf, "upgrade: "+err.Error()) {
+					return fmt.Errorf("upgrade: %v; the NAS goes back to the restore point and restarts", err)
+				}
 				return fail(fmt.Errorf("upgrade: %v", err))
 			}
 		}
 		j.SetProgress(86)
 		if err := distApt(ctx, j, 86, 92, 0, append(append([]string{"apt-get", "-y", "-q", "--reinstall"}, aptKeepConf...), "install", "strataos")...); err != nil {
+			if s.distRollback(j.Logf, "StrataOS reinstall: "+err.Error()) {
+				return fmt.Errorf("StrataOS reinstall: %v; the NAS goes back to the restore point and restarts", err)
+			}
 			return fail(fmt.Errorf("StrataOS reinstall: %v", err))
 		}
 		k := distKernel()
@@ -452,17 +461,70 @@ func (s *Server) distRun(ctx context.Context, j *jobs.Job) error {
 				_, _ = sys.RunOpts(ctx, sys.Opts{Output: j, Timeout: time.Hour}, "dkms", "autoinstall", "-k", k)
 			}
 			if !zfsBuilt(k) {
+				if s.distRollback(j.Logf, "the ZFS module was not built for the new kernel "+k) {
+					return fmt.Errorf("the ZFS module was not built for the new kernel %s; the NAS goes back to the restore point and restarts", k)
+				}
 				return fail(fmt.Errorf("the ZFS module was not built for the new kernel %s: do not restart (the pools would not be imported); see dkms status", k))
 			}
 			j.Logf("ZFS is built for %s", k)
 		}
 		s.distSet(func(r *store.DistUpgradeRun) { r.Phase, r.BootID = "reboot", bootID() })
 		j.SetProgress(100)
+		if run.Auto {
+			j.Logf("Debian %s is installed: the NAS restarts into it now, then checks itself", system.ReleaseNumber(run.To))
+			s.notify("info", "Debian upgrade: restarting", fmt.Sprintf("Debian %s is installed: the NAS restarts into it and checks itself", system.ReleaseNumber(run.To)))
+			go func() {
+				time.Sleep(10 * time.Second)
+				_, _ = sys.Run("systemctl", "reboot")
+			}()
+			return nil
+		}
 		s.notify("info", "Debian upgrade ready", fmt.Sprintf("Debian %s is installed: restart the NAS to finish", system.ReleaseNumber(run.To)))
 		j.Logf("Upgraded to Debian %s: restart the NAS to finish", system.ReleaseNumber(run.To))
 		return nil
 	}
 	return nil
+}
+
+// distRollback goes back to the restore point made before the upgrade: the
+// system subvolume (or LV) is put back, its boot loader installed again, and
+// the NAS restarts into the previous release. False when it cannot.
+func (s *Server) distRollback(logf func(string, ...any), why string) bool {
+	var run store.DistUpgradeRun
+	s.store.Read(func(st *store.State) {
+		if st.DistUpgrade.Run != nil {
+			run = *st.DistUpgrade.Run
+		}
+	})
+	if !run.Rollback || run.RestorePoint == "" {
+		return false
+	}
+	logf("Going back to the restore point %s: %s", run.RestorePoint, why)
+	s.distSet(func(r *store.DistUpgradeRun) {
+		r.Phase, r.RolledBack, r.Error, r.BootID = "rolling-back", why, why, bootID()
+	})
+	if err := system.RollbackTo(run.RestorePoint); err != nil {
+		logf("The rollback failed: %v", err)
+		s.distSet(func(r *store.DistUpgradeRun) {
+			r.Phase, r.Finished = "failed", time.Now()
+			r.Error = why + "; going back to the restore point failed too: " + err.Error()
+		})
+		return false
+	}
+	if err := system.ReinstallBootLoader(logf); err != nil {
+		// The restored system has its own kernel and modules: GRUB as it
+		// is now usually starts it; say so in the log and go on.
+		logf("Boot loader of the restored system: %v", err)
+	}
+	s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The upgrade to Debian %s did not succeed (%s): the NAS restarts into Debian %s", system.ReleaseNumber(run.To), why, system.ReleaseNumber(run.From)))
+	s.store.Log("warning", "updates", "", fmt.Sprintf("Debian upgrade: back to the restore point %s (%s)", run.RestorePoint, why))
+	if !system.RebootsItself() {
+		go func() {
+			time.Sleep(5 * time.Second)
+			_, _ = sys.Run("systemctl", "reboot")
+		}()
+	}
+	return true
 }
 
 func hexEncodePath(p string) string { return hex.EncodeToString([]byte(p)) }
@@ -557,8 +619,21 @@ func (s *Server) distResume() {
 		s.distSet(func(r *store.DistUpgradeRun) { r.Phase = "post-checks" })
 		res := s.distPostChecks(*run)
 		failed := slices.ContainsFunc(res, func(c store.UpgradeResult) bool { return c.Level == "block" })
+		s.distSet(func(r *store.DistUpgradeRun) { r.PostChecks = res })
+		if failed && run.Auto {
+			var why []string
+			for _, c := range res {
+				if c.Level == "block" {
+					why = append(why, c.Text)
+				}
+			}
+			logf := func(f string, a ...any) { s.store.Log("info", "updates", "", fmt.Sprintf(f, a...)) }
+			if s.distRollback(logf, "checks after the restart: "+strings.Join(why, "; ")) {
+				return
+			}
+		}
 		s.distSet(func(r *store.DistUpgradeRun) {
-			r.PostChecks, r.Phase, r.Finished = res, "done", time.Now()
+			r.Phase, r.Finished = "done", time.Now()
 			if failed {
 				r.Error = "some checks failed after the restart"
 			}
@@ -568,6 +643,19 @@ func (s *Server) distResume() {
 		} else {
 			s.notify("info", "Debian upgrade finished", fmt.Sprintf("The NAS runs Debian %s", system.ReleaseNumber(run.To)))
 		}
+	case "rolling-back":
+		if bootID() == run.BootID {
+			return // the restart has not happened yet
+		}
+		if system.Codename() == run.To {
+			s.distSet(func(r *store.DistUpgradeRun) {
+				r.Phase, r.Finished = "failed", time.Now()
+				r.Error = run.RolledBack + "; the system still runs Debian " + system.ReleaseNumber(run.To) + " after going back to the restore point: see Restore points"
+			})
+			return
+		}
+		s.distSet(func(r *store.DistUpgradeRun) { r.Phase, r.Finished = "rolled-back", time.Now() })
+		s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The NAS runs Debian %s again, as before the upgrade (%s)", system.ReleaseNumber(run.From), run.RolledBack))
 	}
 }
 
@@ -613,6 +701,9 @@ func (s *Server) distUpgradeRoutes() {
 	s.admin("POST /api/system/dist-upgrade/start", func(r *http.Request) (any, error) {
 		var req struct {
 			Confirm string `json:"confirm"`
+			// Auto: restart by itself and go back to the restore point on
+			// failure (the one-button upgrade of the Updates page).
+			Auto bool `json:"auto"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -624,7 +715,7 @@ func (s *Server) distUpgradeRoutes() {
 		if req.Confirm != v.Target {
 			return nil, badRequest("type " + v.Target + " to confirm")
 		}
-		if v.Run != nil && !slices.Contains([]string{"done", "failed"}, v.Run.Phase) {
+		if v.Run != nil && !slices.Contains([]string{"done", "failed", "rolled-back"}, v.Run.Phase) {
 			return nil, &Error{Status: http.StatusConflict, Msg: "an upgrade is already in progress"}
 		}
 		f, _, _ := s.distFacts(r.Context(), v.Current, v.Target)
@@ -638,7 +729,7 @@ func (s *Server) distUpgradeRoutes() {
 			return nil, badRequest(strings.Join(why, "; "))
 		}
 		_ = s.store.Update(func(st *store.State) error {
-			st.DistUpgrade.Run = &store.DistUpgradeRun{From: v.Current, To: v.Target, Started: time.Now(), Phase: "sources"}
+			st.DistUpgrade.Run = &store.DistUpgradeRun{From: v.Current, To: v.Target, Started: time.Now(), Phase: "sources", Auto: req.Auto, Rollback: system.RollbackMode(f.RestoreMode)}
 			return nil
 		})
 		s.audit(r, "updates", fmt.Sprintf("Debian upgrade %s → %s started", v.CurrentVersion, v.TargetVersion))

@@ -222,10 +222,13 @@ func UpgradeChecks(f UpgradeFacts) []UpgradeCheck {
 	if f.FreeBoot >= 0 && f.FreeBoot < 200<<20 {
 		add("space-boot", "block", "Less than 200 MB free in /boot for the new kernel")
 	}
-	if f.RestoreMode == "" {
-		add("restore-point", "warn", "No restore point can be made on this system: only a backup of the system disk brings it back")
-	} else {
-		add("restore-point", "ok", "A restore point is made first ("+f.RestoreMode+"); it brings the system back only before a restart into the new release")
+	switch f.RestoreMode {
+	case "":
+		add("restore-point", "warn", "No restore point can be made on this system: a failed upgrade must be repaired by hand (a backup of the system disk brings it back)")
+	case "btrfs", "lvm":
+		add("restore-point", "ok", "A restore point is made first ("+f.RestoreMode+"): if the upgrade or the checks after the restart fail, the NAS goes back to it by itself")
+	default:
+		add("restore-point", "warn", "This system keeps only the versions of updated packages, which cannot bring back a whole release: a failed upgrade must be repaired by hand (systems installed from the StrataOS ISO go back automatically)")
 	}
 	if len(f.Jobs) > 0 {
 		add("jobs", "block", "Wait for these operations to finish: "+strings.Join(f.Jobs, ", "))
@@ -269,6 +272,10 @@ func UpgradeChecks(f UpgradeFacts) []UpgradeCheck {
 	}
 	return out
 }
+
+// RollbackMode tells whether a restore point of this kind brings back a
+// whole release (a snapshot of the system).
+func RollbackMode(mode string) bool { return mode == "btrfs" || mode == "lvm" }
 
 // Blocked tells whether a check refuses the upgrade.
 func Blocked(checks []UpgradeCheck) bool {
