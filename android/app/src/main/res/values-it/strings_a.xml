@@ -323,13 +323,12 @@
     <string name="vm_usb">Dispositivi USB</string>
     <string name="vm_usb_hint">Dà a questa VM un dispositivo USB del NAS: viene memorizzato e torna dopo lo scollegamento; viene collegato a caldo mentre la VM è in esecuzione.</string>
     <string name="vm_usb_empty">Nessun dispositivo USB sul NAS</string>
-    <string name="vm_usb_used_by">Dato a {0}</string>
+    <string name="vm_usb_used_by">Dato a %1$s</string>
     <string name="vm_usb_give">Dà</string>
     <string name="vm_usb_take">Riprendi</string>
     <string name="vm_usb_given">Dispositivo dato alla VM</string>
     <string name="vm_usb_taken">Dispositivo ripreso</string>
     <string name="nas_docker_containers">Contenitori Docker</string>
-=======
     <string name="a_assistant">Assistente</string>
     <string name="a_assistant_disabled">L’assistente non è configurato sul NAS (Impostazioni → Assistente).</string>
     <string name="a_assistant_hint">Chiedi al tuo NAS…</string>

@@ -324,13 +324,12 @@
     <string name="vm_usb">Périphériques USB</string>
     <string name="vm_usb_hint">Donnez un périphérique USB du NAS à cette VM : il est mémorisé et revient après débranchement ; il est branché à chaud quand la VM tourne.</string>
     <string name="vm_usb_empty">Aucun périphérique USB sur le NAS</string>
-    <string name="vm_usb_used_by">Donné à {0}</string>
+    <string name="vm_usb_used_by">Donné à %1$s</string>
     <string name="vm_usb_give">Donner</string>
     <string name="vm_usb_take">Reprendre</string>
     <string name="vm_usb_given">Périphérique donné à la VM</string>
     <string name="vm_usb_taken">Périphérique repris</string>
     <string name="nas_docker_containers">Conteneurs Docker</string>
-=======
     <string name="a_assistant">Assistant</string>
     <string name="a_assistant_disabled">L’assistant n’est pas configuré sur le NAS (Paramètres → Assistant).</string>
     <string name="a_assistant_hint">Demandez à votre NAS…</string>
