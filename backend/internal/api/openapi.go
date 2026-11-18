@@ -21,7 +21,7 @@ const scopeNote = "Scoped API tokens (prefix stt_) authenticate with `Authorizat
 	"Scopes: read (GET requests), write (state-changing requests), admin (everything, " +
 	"including administrator routes), mcp (the MCP endpoint /api/mcp). " +
 	"Tokens are managed on /api/me/tokens. Whatever their scopes, they can never reach " +
-	"the session and device endpoints nor anything under /api/me/ except /api/me/quotas, " +
+	"the session and device endpoints, the approval of an app's single sign-on, nor anything under /api/me/ except /api/me/quotas, " +
 	"/api/me/activity, /api/me/desktop and /api/me/lang (no password, recovery codes, " +
 	"two-factor, security keys, OIDC links, S3 keys or tokens). An administrator's token " +
 	"acts as an administrator only with the admin scope."

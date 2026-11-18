@@ -240,6 +240,12 @@ func TestTokenAccountRoutesClosed(t *testing.T) {
 			t.Errorf("%s %s: %d, want %d", c.method, c.path, w.Code, c.code)
 		}
 	}
+	// Approving an app's single sign-on would hand out tokens for that app.
+	for _, p := range []string{"/api/sso/requests/r1", "/api/sso/logouts/l1", "/api/me/sso", "/api/me/sso/grafana"} {
+		if !tokenDenied(p) {
+			t.Errorf("%s reachable with a token", p)
+		}
+	}
 	// The OpenAPI document says so.
 	if !strings.Contains(scopeNote, "/api/me/quotas") || !strings.Contains(scopeNote, "S3 keys") {
 		t.Fatalf("scope note: %s", scopeNote)

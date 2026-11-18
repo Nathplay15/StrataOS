@@ -104,7 +104,7 @@ func approve(t *testing.T, b *jarClient, id string, yes bool) (int, string) {
 	return code, r
 }
 
-func tokenReq(s *Server, form url.Values, id, secret string) (int, map[string]any) {
+func ssoTokenReq(s *Server, form url.Values, id, secret string) (int, map[string]any) {
 	r := httptest.NewRequest("POST", "http://host.docker.internal:7070/api/sso/token", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if id != "" {
@@ -161,10 +161,10 @@ func TestSSOCodeFlow(t *testing.T) {
 		t.Fatalf("request reused: %d", c)
 	}
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {codeOf(t, redirect)}, "redirect_uri": {ssoRP}, "code_verifier": {ssoVerifier}}
-	if c, _ := tokenReq(s, form, "grafana", "wrong"); c != 401 {
+	if c, _ := ssoTokenReq(s, form, "grafana", "wrong"); c != 401 {
 		t.Fatalf("wrong secret: %d", c)
 	}
-	c, tok := tokenReq(s, form, "grafana", "s3cret")
+	c, tok := ssoTokenReq(s, form, "grafana", "s3cret")
 	if c != 200 {
 		t.Fatalf("token: %d %v", c, tok)
 	}
@@ -192,7 +192,7 @@ func TestSSOCodeFlow(t *testing.T) {
 		t.Fatal("userinfo", c)
 	}
 	// A code presented again revokes what it gave.
-	if c, _ := tokenReq(s, form, "grafana", "s3cret"); c != 400 {
+	if c, _ := ssoTokenReq(s, form, "grafana", "s3cret"); c != 400 {
 		t.Fatalf("code reused: %d", c)
 	}
 	if userinfo(s, tok["access_token"].(string)) != 401 {
@@ -201,7 +201,7 @@ func TestSSOCodeFlow(t *testing.T) {
 	id = start(t, b, ssoAuthQuery())
 	_, redirect = approve(t, b, id, true)
 	form.Set("code", codeOf(t, redirect))
-	_, tok = tokenReq(s, form, "grafana", "s3cret")
+	_, tok = ssoTokenReq(s, form, "grafana", "s3cret")
 	// Second time: no consent screen; the user page lists the app.
 	id = start(t, b, ssoAuthQuery())
 	if _, v := b.do("GET", "/api/sso/requests/"+id, nil); v["consent"] == true {
@@ -218,7 +218,7 @@ func TestSSOCodeFlow(t *testing.T) {
 	if userinfo(s, tok["access_token"].(string)) != 401 {
 		t.Fatal("token survived the revocation")
 	}
-	if c, _ := tokenReq(s, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}}, "grafana", "s3cret"); c != 400 {
+	if c, _ := ssoTokenReq(s, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}}, "grafana", "s3cret"); c != 400 {
 		t.Fatal("refresh token survived the revocation")
 	}
 	if _, v := b.do("GET", "/api/sso/requests/"+id, nil); v["consent"] != true {
@@ -311,7 +311,7 @@ func TestSSOLogout(t *testing.T) {
 	b := browser(t, s, "alice")
 	id := start(t, b, ssoAuthQuery())
 	_, redirect := approve(t, b, id, true)
-	_, tok := tokenReq(s, url.Values{"grant_type": {"authorization_code"}, "code": {codeOf(t, redirect)}, "redirect_uri": {ssoRP}, "code_verifier": {ssoVerifier}}, "grafana", "s3cret")
+	_, tok := ssoTokenReq(s, url.Values{"grant_type": {"authorization_code"}, "code": {codeOf(t, redirect)}, "redirect_uri": {ssoRP}, "code_verifier": {ssoVerifier}}, "grafana", "s3cret")
 	idt := tok["id_token"].(string)
 	logout := func(q url.Values) *httptest.ResponseRecorder {
 		sess := b.jar[cookieName]
@@ -416,7 +416,7 @@ func TestSSOForwardAuth(t *testing.T) {
 		t.Fatalf("callback %q", redirect)
 	}
 	// The code cannot be taken to the token endpoint.
-	if c, _ := tokenReq(s, url.Values{"grant_type": {"authorization_code"}, "client_id": {"fwd-d1"}, "code": {cb.Query().Get("code")}, "redirect_uri": {fwdRedirect("kuma.example.com")}}, "", ""); c != 400 {
+	if c, _ := ssoTokenReq(s, url.Values{"grant_type": {"authorization_code"}, "client_id": {"fwd-d1"}, "code": {cb.Query().Get("code")}, "redirect_uri": {fwdRedirect("kuma.example.com")}}, "", ""); c != 400 {
 		t.Fatalf("internal client at the token endpoint: %d", c)
 	}
 	// Without the state cookie (another browser): refused.
