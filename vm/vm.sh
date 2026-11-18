@@ -13,6 +13,7 @@
 #   vm.sh destroy           delete the VM entirely
 #
 # Settings (environment): VM_MEM (MiB, 4096), VM_CPUS (4), VM_DISKS (6), VM_DISK_SIZE (10G),
+# VM_CPU (QEMU -cpu, host; "host,+invtsc" for macOS guests, which need an invariant TSC),
 # VM_WEB_PORT (7070), VM_SSH_PORT (2222), VM_EXTRA_PORTS ("8096 8080 8081 3001 9091"),
 # VM_NICS (1: extra NICs for bonding tests), VM_STATE (state folder, for a second VM),
 # VM_HOSTNAME (strata-vm), VM_HTTPS_PORT (7443), VM_SMB_PORT (4450), SEED_PORT (8719),
@@ -44,6 +45,7 @@ CONSOLE="$STATE/console.log"
 
 VM_MEM=${VM_MEM:-4096}
 VM_CPUS=${VM_CPUS:-4}
+VM_CPU=${VM_CPU:-host}
 VM_DISKS=${VM_DISKS:-6}
 VM_DISK_SIZE=${VM_DISK_SIZE:-10G}
 VM_WEB_PORT=${VM_WEB_PORT:-7070}
@@ -137,7 +139,7 @@ EOF
 qemu_start() {
   local extra_fwd=""
   for p in $VM_EXTRA_PORTS; do extra_fwd+=",hostfwd=tcp:127.0.0.1:$p-:$p"; done
-  local machine=(-machine q35,accel=kvm -cpu host -device ahci,id=ahci0)
+  local machine=(-machine q35,accel=kvm -cpu "$VM_CPU" -device ahci,id=ahci0)
   if [ "$VM_ARCH" = arm64 ]; then
     [ -f "$STATE/efivars.fd" ] || { cp "$(dirname "$(aavmf)")/AAVMF_VARS.fd" "$STATE/efivars.fd"; chmod u+w "$STATE/efivars.fd"; }
     machine=(-machine virt -cpu max

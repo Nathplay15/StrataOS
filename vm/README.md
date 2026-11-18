@@ -24,7 +24,7 @@ No root access is needed on the host: only access to `/dev/kvm` and `qemu-system
 | 4450 | 445 | SMB (`smb://localhost:4450`) |
 | 8096, 8080, 8081, 3001, 9091 | same | App Center apps |
 
-Variables: `VM_MEM` (4096 MiB), `VM_CPUS` (4), `VM_DISKS` (6), `VM_DISK_SIZE` (10G), `VM_WEB_PORT`, `VM_SSH_PORT`, `VM_EXTRA_PORTS`.
+Variables: `VM_MEM` (4096 MiB), `VM_CPUS` (4), `VM_CPU` (QEMU CPU, `host`), `VM_DISKS` (6), `VM_DISK_SIZE` (10G), `VM_WEB_PORT`, `VM_SSH_PORT`, `VM_EXTRA_PORTS`.
 
 ## Simulating failures
 
@@ -46,6 +46,7 @@ Variables: `VM_MEM` (4096 MiB), `VM_CPUS` (4), `VM_DISKS` (6), `VM_DISK_SIZE` (1
 - WebDAV, FTPS and SFTP: share permissions, confinement, recycle bin, disabling;
 - Active Directory (test Samba domain controller, `vm/test-dc.sh`) and LDAP (test OpenLDAP, `vm/test-ldap.sh`), run in containers inside the VM;
 - virtual machines with nested KVM (creation, VNC console over websocket, resources, deletion);
+- macOS virtual machines, only with `E2E_MACOS=1` (downloads OpenCore and Apple's recovery image, about 1 GB): two VMs booted into macOS Recovery at once on the shared image cache, then deleted. macOS needs an invariant TSC and two 4 GB guests: start the test VM with `VM_MEM=9216 VM_CPU=host,+invtsc ./vm/vm.sh start`;
 - booting with a RAID disk unplugged, then replacement and rebuild.
 
 The output is written to `vm/last-test.log`. The test credentials (administrator `admin`) are defined at the top of the script.
