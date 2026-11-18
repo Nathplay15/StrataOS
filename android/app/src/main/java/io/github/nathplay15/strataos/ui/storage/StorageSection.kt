@@ -1,6 +1,10 @@
 package io.github.nathplay15.strataos.ui.storage
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -148,11 +152,18 @@ fun StorageSection(back: () -> Unit) {
 }
 
 @Composable
-internal fun ItemCard(title: String, chip: String, sub: String, menu: (@Composable (close: () -> Unit) -> Unit)? = null, onClick: (() -> Unit)? = null, body: @Composable () -> Unit = {}) {
+internal fun ItemCard(
+    title: String, chip: String, sub: String, menu: (@Composable (close: () -> Unit) -> Unit)? = null, onClick: (() -> Unit)? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null, body: @Composable () -> Unit = {},
+) {
     var open by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }) {
+    Card(Modifier.fillMaxWidth().let { if (onClick != null) it.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick) else it }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) Box(
+                    Modifier.padding(end = 12.dp).size(44.dp).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary) }
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (chip.isNotEmpty()) Chip(chip, toneOf(chip))
                 if (menu != null) Box {
@@ -177,7 +188,7 @@ private fun VolumesTab(vols: List<VolumeView>, reload: () -> Unit) {
     if (vols.isEmpty()) return EmptyState(Icons.Default.Storage, stringResource(R.string.a_no_volumes))
     CardList {
         items(vols, key = { it.id }) { v ->
-            ItemCard(v.name, v.health, listOf(v.fsType + (if (v.profile.isNotEmpty()) " " + v.profile else ""), v.mountPoint).joinToString(" · "),
+            ItemCard(v.name, v.health, listOf(v.fsType + (if (v.profile.isNotEmpty()) " " + v.profile else ""), v.mountPoint).joinToString(" · "), icon = Icons.Default.Storage,
                 menu = { close ->
                     if (v.fsType == "btrfs") DropdownMenuItem({ Text(stringResource(R.string.a_scrub)) }, { close(); act.run(reload) { api().btrfsAction(v.id, "scrub") } })
                     if (v.fsType == "ext4" || v.fsType == "xfs") DropdownMenuItem({ Text(stringResource(R.string.a_enable_quotas)) }, { close(); act.job(reload) { api().enableVolumeQuota(v.id) } })
@@ -209,7 +220,7 @@ private fun DisksTab(disks: List<Disk>) {
     CardList {
         items(disks, key = { it.path }) { d ->
             val health = when (d.healthy) { true -> "healthy"; false -> "failed"; null -> if (d.standby) "standby" else "" }
-            ItemCard(d.title, health, listOf(formatBytes(d.size), d.kind.uppercase(), d.path, d.serial).filter { it.isNotBlank() }.joinToString(" · "), onClick = { smartOf = d }) {
+            ItemCard(d.title, health, listOf(formatBytes(d.size), d.kind.uppercase(), d.path, d.serial).filter { it.isNotBlank() }.joinToString(" · "), icon = Icons.Default.Album, onClick = { smartOf = d }) {
                 Text(buildList {
                     add(when {
                         d.system -> stringResource(R.string.a_disk_system)
@@ -275,7 +286,7 @@ private fun RaidTab(raids: List<RaidArray>, reload: () -> Unit) {
     if (raids.isEmpty()) return EmptyState(Icons.Default.Layers, stringResource(R.string.a_no_raid))
     CardList {
         items(raids, key = { it.name }) { a ->
-            ItemCard(a.label.ifEmpty { a.name }, a.health, listOf("RAID " + a.level.removePrefix("raid"), formatBytes(a.size), a.device).joinToString(" · "),
+            ItemCard(a.label.ifEmpty { a.name }, a.health, listOf("RAID " + a.level.removePrefix("raid"), formatBytes(a.size), a.device).joinToString(" · "), icon = Icons.Default.Layers,
                 menu = { close ->
                     if (a.syncAction == "check") DropdownMenuItem({ Text(stringResource(R.string.a_stop_check)) }, { close(); act.run(reload) { api().raidAction(a.name, "idle") } })
                     else DropdownMenuItem({ Text(stringResource(R.string.a_check_raid)) }, { close(); act.run(reload) { api().raidAction(a.name, "check") } })
@@ -306,7 +317,7 @@ private fun ZfsTab(available: Boolean, pools: List<ZPool>, reload: () -> Unit) {
     if (pools.isEmpty()) return EmptyState(Icons.Default.Dns, stringResource(R.string.a_no_pools))
     CardList {
         items(pools, key = { it.name }) { p ->
-            ItemCard(p.name, p.health.lowercase(), listOf(formatBytes(p.size), stringResource(R.string.a_fragmentation, p.fragmentation)).joinToString(" · "),
+            ItemCard(p.name, p.health.lowercase(), listOf(formatBytes(p.size), stringResource(R.string.a_fragmentation, p.fragmentation)).joinToString(" · "), icon = Icons.Default.Dns,
                 menu = { close ->
                     DropdownMenuItem({ Text(stringResource(R.string.a_scrub)) }, { close(); act.run(reload) { api().poolAction(p.name, "scrub") } })
                     DropdownMenuItem({ Text(stringResource(R.string.a_stop_scrub)) }, { close(); act.run(reload) { api().poolAction(p.name, "scrub-stop") } })

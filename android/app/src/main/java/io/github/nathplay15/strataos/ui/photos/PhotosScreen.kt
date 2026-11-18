@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -190,7 +191,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
     var saving by remember { mutableStateOf<List<Photo>>(emptyList()) }
     val grid = rememberLazyGridState()
     // Pinch to zoom the grid (size of a photo cell, in dp).
-    var cell by rememberSaveable { mutableIntStateOf(100) }
+    var cell by rememberSaveable { mutableIntStateOf(120) }
     val pinch = rememberTransformableState { zoom, _, _ -> cell = (cell * zoom).roundToInt().coerceIn(60, 200) }
 
     suspend fun more() {
@@ -296,21 +297,27 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                 }))
                 total < 0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator() }
                 else -> { val locale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
-                LazyVerticalGrid(GridCells.FixedSize(cell.dp), Modifier.fillMaxSize().transformable(pinch), state = grid, contentPadding = PaddingValues(2.dp)) {
+                // Edge to edge: the cells fill the width (pinch changes how many fit), one pixel apart.
+                LazyVerticalGrid(GridCells.Adaptive(cell.dp), Modifier.fillMaxSize().transformable(pinch), state = grid, contentPadding = PaddingValues(bottom = 16.dp)) {
+                    if (album == null && !searching && total > 0) item(key = "count", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(androidx.compose.ui.res.pluralStringResource(R.plurals.ui_items, total, total), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp))
+                    }
                     var index = 0
                     for ((month, photos) in groupByMonth(list)) {
                         item(key = "m$month", span = { GridItemSpan(maxLineSpan) }) {
                             Text(month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)).replaceFirstChar { it.titlecase() },
-                                style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(12.dp, 16.dp, 12.dp, 6.dp))
+                                style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp, 18.dp, 16.dp, 8.dp))
                         }
                         val base = index
                         itemsIndexed(photos, key = { _, it -> it.path }) { j, p ->
                             val i = base + j
-                            Box(Modifier.padding(2.dp).aspectRatio(1f).combinedClickable(
+                            Box(Modifier.padding(0.5.dp).aspectRatio(1f).combinedClickable(
                                 onClick = { if (selected.isNotEmpty()) selected = if (p.path in selected) selected - p.path else selected + p.path else viewing = i },
                                 onLongClick = { selected = selected + p.path },
                             )) {
-                                NasImage(thumb(p, "s"), p.name, Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)), maxPx = 360)
+                                NasImage(thumb(p, "s"), p.name, Modifier.fillMaxSize(), maxPx = 360)
+                                if (p.path in selected) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)))
                                 if (p.video) Icon(Icons.Default.PlayCircle, stringResource(R.string.a_video), Modifier.align(Alignment.Center).size(32.dp), tint = Color.White)
                                 if (p.path in selected) Icon(Icons.Default.CheckCircle, stringResource(R.string.a_selected_one), Modifier.align(Alignment.TopEnd).padding(4.dp), tint = MaterialTheme.colorScheme.primary)
                             }
@@ -424,7 +431,7 @@ private fun AlbumsList(open: (Album) -> Unit) {
                 items(albums, key = { it.id }) { a ->
                     Column(Modifier.padding(6.dp).clickable { open(a) }) {
                         NasImage(if (a.cover.isNotEmpty()) api().photoThumbUrl(a.cover, "s") else null, a.name,
-                            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)), maxPx = 360, fallback = Icons.Default.PhotoAlbum)
+                            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(18.dp)), maxPx = 360, fallback = Icons.Default.PhotoAlbum)
                         Text(a.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                         androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.a_photo_count, a.count), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

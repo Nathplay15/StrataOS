@@ -67,6 +67,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.focus.focusRequester
+import io.github.nathplay15.strataos.ui.FileTypeIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,7 +135,7 @@ private class BrowserPrefs(ctx: Context) {
         get() = FileOrder(runCatching { SortBy.valueOf(p.getString("sort", "NAME")!!) }.getOrDefault(SortBy.NAME), p.getBoolean("desc", false))
         set(v) = p.edit { putString("sort", v.by.name); putBoolean("desc", v.descending) }
     var grid: Boolean
-        get() = p.getBoolean("grid", false)
+        get() = p.getBoolean("grid", true)
         set(v) = p.edit { putBoolean("grid", v) }
 }
 
@@ -159,7 +163,7 @@ private fun thumbAlternatives(e: FileEntry, big: Boolean): List<okhttp3.HttpUrl>
 
 /** The file browser: folders of the NAS, search, selection, operations, favorites. */
 @Composable
-fun FilesScreen(path: String, setPath: (String) -> Unit, accountAction: @Composable () -> Unit = {}) {
+fun FilesScreen(path: String, setPath: (String) -> Unit, accountAction: @Composable () -> Unit = {}, startSearch: Boolean = false, onSearchStarted: () -> Unit = {}) {
     var place by rememberSaveable { mutableStateOf("") } // "", "favorites", "links"
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -174,13 +178,13 @@ fun FilesScreen(path: String, setPath: (String) -> Unit, accountAction: @Composa
             }
         })
         "links" -> ShareLinksScreen(back = { place = "" })
-        else -> Browser(path, setPath, { place = it }, accountAction) { e, f -> pdf = e to f }
+        else -> Browser(path, setPath, { place = it }, accountAction, startSearch, onSearchStarted) { e, f -> pdf = e to f }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -> Unit, accountAction: @Composable () -> Unit, showPdf: (FileEntry, File) -> Unit) {
+private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -> Unit, accountAction: @Composable () -> Unit, startSearch: Boolean, onSearchStarted: () -> Unit, showPdf: (FileEntry, File) -> Unit) {
     val ctx = LocalContext.current
     val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
@@ -190,8 +194,10 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
     val inRecycle = path.contains("/.recycle")
     val load = rememberLoad(path) { api().listFiles(path, hidden = inRecycle || path.contains("/.snapshots")) }
     val shares = rememberLoad(Unit) { runCatching { api().shares() }.getOrDefault(emptyList()) }
-    var searching by rememberSaveable { mutableStateOf(false) }
+    var searching by rememberSaveable { mutableStateOf(startSearch) }
     var query by rememberSaveable { mutableStateOf("") }
+    // The search field of the Home header opens the browser searching.
+    LaunchedEffect(startSearch) { if (startSearch) { searching = true; onSearchStarted() } }
     val search = rememberLoad(path, query, searching) {
         if (!searching || query.trim().length < 2) null else { delay(400); api().searchFiles(path, query.trim()) }
     }
@@ -366,7 +372,10 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                 )
                 searching -> TopAppBar(
                     title = {
-                        TextField(query, { query = it }, placeholder = { Text(stringResource(if (inContent) R.string.a_search_content_hint else R.string.a_search_here)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                        LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+                        TextField(query, { query = it }, placeholder = { Text(stringResource(if (inContent) R.string.a_search_content_hint else R.string.a_search_here)) }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
                             colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent))
                     },
                     navigationIcon = { IconButton(onClick = { searching = false; query = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
@@ -415,7 +424,7 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
             }
         },
         floatingActionButton = {
-            if (writable && selected.isEmpty() && !searching && !inRecycle) FloatingActionButton(onClick = { pick.launch("*/*") }) { Icon(Icons.Default.Upload, stringResource(R.string.upload)) }
+            if (writable && selected.isEmpty() && !searching && !inRecycle) FloatingActionButton(onClick = { pick.launch("*/*") }, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(Icons.Default.Upload, stringResource(R.string.upload)) }
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
@@ -447,14 +456,22 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                     }
                     shown.isEmpty() && searching && query.trim().length < 2 -> EmptyState(Icons.Default.Search, stringResource(R.string.a_search_hint))
                     shown.isEmpty() -> EmptyState(if (searching) Icons.Default.Search else Icons.Default.FolderOff, stringResource(if (searching) R.string.a_no_results else R.string.empty_folder))
-                    grid -> LazyVerticalGrid(GridCells.Adaptive(112.dp), Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
+                    grid -> LazyVerticalGrid(GridCells.Adaptive(104.dp), Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp, 8.dp, 10.dp, 88.dp)) {
                         items(shown, key = { it.path }) { e ->
-                            Column(Modifier.padding(4.dp).combinedClickable(onClick = { click(e) }, onLongClick = { long(e) }), horizontalAlignment = Alignment.CenterHorizontally) {
+                            val sel = e.path in selected
+                            Column(
+                                Modifier.padding(4.dp).clip(RoundedCornerShape(16.dp))
+                                    .background(if (sel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                    .combinedClickable(onClick = { click(e) }, onLongClick = { long(e) }).padding(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
                                 Box {
-                                    NasImage(thumbOf(e, 256), e.name, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)), maxPx = 256, fallback = iconOf(e), alternatives = thumbAlternatives(e, false))
-                                    if (e.path in selected) Icon(Icons.Default.CheckCircle, stringResource(R.string.a_selected_one), Modifier.align(Alignment.TopEnd).padding(4.dp), tint = MaterialTheme.colorScheme.primary)
+                                    NasImage(thumbOf(e, 256), e.name, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp)), maxPx = 256, alternatives = thumbAlternatives(e, false),
+                                        placeholder = { FileTypeIcon(e, Modifier.fillMaxWidth(0.82f).aspectRatio(1f)) })
+                                    if (sel) Icon(Icons.Default.CheckCircle, stringResource(R.string.a_selected_one), Modifier.align(Alignment.TopEnd).padding(4.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
-                                Text(e.name, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                                Text(e.name, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                                Text(if (e.dir) formatDate(e.modTime).substringBefore(',') else formatBytes(e.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                             }
                         }
                     }
@@ -474,7 +491,8 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                                 },
                                 leadingContent = {
                                     if (selected.isNotEmpty()) Checkbox(e.path in selected, { click(e) })
-                                    else NasImage(thumbOf(e, 128), null, Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)), maxPx = 128, fallback = iconOf(e), alternatives = thumbAlternatives(e, false))
+                                    else NasImage(thumbOf(e, 128), null, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), maxPx = 128, alternatives = thumbAlternatives(e, false),
+                                        placeholder = { FileTypeIcon(e, Modifier.size(44.dp)) })
                                 },
                                 trailingContent = {
                                     Box {
@@ -507,9 +525,10 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                                         }
                                     }
                                 },
+                                colors = ListItemDefaults.colors(containerColor = if (e.path in selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent),
                                 modifier = Modifier.combinedClickable(onClick = { click(e) }, onLongClick = { long(e) }),
                             )
-                            HorizontalDivider()
+                            HorizontalDivider(Modifier.padding(start = 76.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
                         }
                     }
                 }
