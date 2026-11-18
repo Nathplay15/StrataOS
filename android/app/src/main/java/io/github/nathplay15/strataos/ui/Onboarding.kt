@@ -9,7 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -158,12 +159,18 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
     }
 
     // A pairing link opened from outside the app (QR code scanned with the camera app).
-    LaunchedEffect(initialLink) { initialLink?.let { pairWith(it); onLinkUsed() } }
+    var intro by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(initialLink == null) }
+    LaunchedEffect(initialLink) { initialLink?.let { intro = false; pairWith(it); onLinkUsed() } }
 
     val scan = androidx.activity.compose.rememberLauncherForActivityResult(ScanContract()) { res ->
         val l = res.contents?.let { parsePairLink(it) }
         if (res.contents != null && l == null) error = appRes.getString(R.string.err_qr_invalid)
         if (l != null) pairWith(l)
+    }
+
+    if (intro) {
+        IntroCarousel { intro = false }
+        return
     }
 
     val t = target
@@ -172,10 +179,9 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
         return
     }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Icon(Icons.Default.Storage, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-        Text(stringResource(R.string.welcome_title), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(R.string.welcome_text), style = MaterialTheme.typography.bodyMedium)
+    Column(Modifier.fillMaxSize().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())) {
+    OnboardingHeader(stringResource(R.string.welcome_title), stringResource(R.string.welcome_text))
+    Column(Modifier.padding(24.dp, 4.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Button(onClick = { scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(appRes.getString(R.string.scan_prompt)).setBeepEnabled(false).setOrientationLocked(true)) },
             modifier = Modifier.fillMaxWidth(), enabled = !busy) {
             Icon(Icons.Default.QrCodeScanner, null)
@@ -187,7 +193,8 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
             Text(stringResource(R.string.found_on_network), style = MaterialTheme.typography.titleMedium)
             Card {
                 found.forEach { n ->
-                    ListItem(headlineContent = { Text(n.name) }, supportingContent = { Text(n.url) }, leadingContent = { Icon(Icons.Default.Storage, null) },
+                    ListItem(headlineContent = { Text(n.name) }, supportingContent = { Text(n.url) }, leadingContent = { NasIllustration(Modifier.size(40.dp, 34.dp)) },
+                        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                         modifier = Modifier.clickable(enabled = !busy) { address = n.url; check(n.url) })
                 }
             }
@@ -208,6 +215,7 @@ fun Onboarding(initialLink: PairLink?, onLinkUsed: () -> Unit, onDone: () -> Uni
         }, enabled = !busy && address.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.connect))
         }
+    }
     }
 
     cert?.let { (url, info) ->
@@ -248,9 +256,9 @@ private fun SignIn(t: Target, onBack: () -> Unit, onPaired: (PairResponse) -> Un
     var name by remember { mutableStateOf(Graph.deviceModel) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.sign_in), style = MaterialTheme.typography.headlineMedium)
-        Text(t.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxSize().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())) {
+    OnboardingHeader(stringResource(R.string.sign_in), t.url)
+    Column(Modifier.padding(24.dp, 4.dp, 24.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (t.url.startsWith("http://")) Text(stringResource(R.string.warn_http), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(user, { user = it }, label = { Text(stringResource(R.string.username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(pass, { pass = it }, label = { Text(stringResource(R.string.password)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -282,6 +290,7 @@ private fun SignIn(t: Target, onBack: () -> Unit, onPaired: (PairResponse) -> Un
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.back)) }
         Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.sign_in_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     }
 }
 
