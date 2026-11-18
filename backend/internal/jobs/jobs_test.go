@@ -22,8 +22,8 @@ func wait(t *testing.T, m *Manager, id string) Snapshot {
 
 func TestCancelEndsCancelled(t *testing.T) {
 	m := NewManager()
-	var finished Snapshot
-	m.OnFinish = func(s Snapshot) { finished = s }
+	done := make(chan Snapshot, 1)
+	m.OnFinish = func(s Snapshot) { done <- s }
 	snap := m.Start("backup", "Backup: x", "alice", func(ctx context.Context, j *Job) error {
 		<-ctx.Done()
 		return ctx.Err()
@@ -40,6 +40,12 @@ func TestCancelEndsCancelled(t *testing.T) {
 	}
 	if !strings.Contains(s.Log, "Stopped by bob") {
 		t.Fatalf("log %q", s.Log)
+	}
+	var finished Snapshot
+	select {
+	case finished = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnFinish not called")
 	}
 	if finished.Status != Cancelled {
 		t.Fatalf("OnFinish got %v", finished.Status)
