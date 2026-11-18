@@ -147,11 +147,23 @@ func smbOpenFiles() []string {
 	return files
 }
 
-func powerActionName(a string) string {
-	if a == energy.ActRestart {
-		return "restart"
+// powerTexts are the messages of a scheduled shutdown or restart, whole
+// sentences so that they translate (frontend/src/i18n/server.ts).
+type powerTexts struct {
+	title, warn, postponedTitle, postponed, skippedTitle, skipped, failedTitle, failed string
+}
+
+func powerTextsOf(action string) powerTexts {
+	if action == energy.ActRestart {
+		return powerTexts{"Scheduled restart", "Scheduled restart of the NAS at %s",
+			"Scheduled restart postponed", "Scheduled restart postponed: %s",
+			"Scheduled restart skipped", "Scheduled restart skipped: %s",
+			"Scheduled restart failed", "Scheduled restart failed: %s"}
 	}
-	return "shutdown"
+	return powerTexts{"Scheduled shutdown", "Scheduled shutdown of the NAS at %s",
+		"Scheduled shutdown postponed", "Scheduled shutdown postponed: %s",
+		"Scheduled shutdown skipped", "Scheduled shutdown skipped: %s",
+		"Scheduled shutdown failed", "Scheduled shutdown failed: %s"}
 }
 
 // energyLoop applies the settings at startup, then runs the power rules.
@@ -178,12 +190,12 @@ func (s *Server) energyLoop() {
 			last = now
 			continue
 		}
-		name := powerActionName(rule.Action)
+		t := powerTextsOf(rule.Action)
 		if w := c.Guard.Warn(); w > 0 && pending.IsZero() && due.Sub(now) > 0 && due.Sub(now) <= w && !warned.Equal(due) {
 			warned = due
-			msg := fmt.Sprintf("Scheduled %s of the NAS at %s", name, due.Format("15:04"))
+			msg := fmt.Sprintf(t.warn, due.Format("15:04"))
 			s.store.Log("info", "energy", "", msg)
-			s.notify("info", "Scheduled "+name, msg)
+			s.notify("info", t.title, msg)
 		}
 		if now.Before(due) || (!retryAt.IsZero() && now.Before(retryAt)) {
 			if pending.IsZero() {
@@ -199,16 +211,16 @@ func (s *Server) energyLoop() {
 		switch verdict {
 		case energy.Postpone:
 			if pending.IsZero() {
-				msg := fmt.Sprintf("Scheduled %s postponed: %s", name, why)
+				msg := fmt.Sprintf(t.postponed, why)
 				s.store.Log("warning", "energy", "", msg)
-				s.notify("warning", "Scheduled "+name+" postponed", msg)
+				s.notify("warning", t.postponedTitle, msg)
 			}
 			pending, pendingRule, retryAt = due, rule, now.Add(c.Guard.RetryDelay())
 			continue
 		case energy.Skip:
-			msg := fmt.Sprintf("Scheduled %s skipped: %s", name, why)
+			msg := fmt.Sprintf(t.skipped, why)
 			s.store.Log("warning", "energy", "", msg)
-			s.notify("warning", "Scheduled "+name+" skipped", msg)
+			s.notify("warning", t.skippedTitle, msg)
 			pending, retryAt, last = time.Time{}, time.Time{}, now
 			continue
 		}
@@ -227,9 +239,9 @@ func (s *Server) energyLoop() {
 			err = energy.PowerOff(wake)
 		}
 		if err != nil {
-			msg := fmt.Sprintf("Scheduled %s failed: %s", name, err.Error())
+			msg := fmt.Sprintf(t.failed, err.Error())
 			s.store.Log("error", "energy", "", msg)
-			s.notify("error", "Scheduled "+name+" failed", msg)
+			s.notify("error", t.failedTitle, msg)
 		}
 		time.Sleep(2 * time.Minute)
 	}
