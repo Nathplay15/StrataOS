@@ -273,10 +273,17 @@ type Routine struct {
 
 // RoutineAction is one "then" of a routine. Message is the notification text
 // ({detail} = trigger detail, {name} = routine), URL the webhook endpoint.
+// The actions that change the NAS (0.13) name their Target: snapshot (a
+// scheduled snapshot task, run now), backup (a backup task, run now), vm
+// and lxc (a virtual machine or LXC container, Op start or stop), docker (a
+// Docker container, Op start or stop), app-update (an App Center stack,
+// updated). They run as jobs, like the same buttons of the interface.
 type RoutineAction struct {
-	Kind    string `json:"kind"` // notify | webhook
+	Kind    string `json:"kind"` // notify | webhook | snapshot | backup | vm | lxc | docker | app-update
 	Message string `json:"message,omitempty"`
 	URL     string `json:"url,omitempty"`
+	Target  string `json:"target,omitempty"`
+	Op      string `json:"op,omitempty"` // start | stop (vm, lxc, docker)
 }
 
 // BackupTask copies data elsewhere: rsync mirror, restic versioned backup, ZFS

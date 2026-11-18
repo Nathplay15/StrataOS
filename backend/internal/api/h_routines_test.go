@@ -263,3 +263,56 @@ func TestRoutineNeverFired(t *testing.T) {
 		t.Fatalf("zero lastFired sent: %s", b)
 	}
 }
+
+// Actions that change the NAS (0.13): only for administrators, with a target
+// that exists, and only start or stop for VMs and containers.
+func TestRoutineActions(t *testing.T) {
+	s := routinesServer(t)
+	admin := routineAdmin(t, s)
+	_ = s.store.Update(func(st *store.State) error {
+		st.Schedules = append(st.Schedules, &store.Schedule{ID: "snap1", Name: "Daily", Type: "snapshot"}, &store.Schedule{ID: "scrub1", Name: "Scrub", Type: "scrub"})
+		st.Backups = append(st.Backups, &store.BackupTask{ID: "bk1", Name: "Offsite"})
+		return nil
+	})
+	mk := func(a store.RoutineAction) store.Routine {
+		return store.Routine{Name: "act", Enabled: true, Trigger: "cpu", Value: 90, Actions: []store.RoutineAction{a}}
+	}
+	for _, c := range []struct {
+		a    store.RoutineAction
+		want int
+	}{
+		{store.RoutineAction{Kind: "snapshot", Target: "snap1"}, http.StatusOK},
+		{store.RoutineAction{Kind: "snapshot", Target: "scrub1"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "snapshot"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "backup", Target: "bk1"}, http.StatusOK},
+		{store.RoutineAction{Kind: "backup", Target: "nope"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "backup", Target: "bk1", Op: "stop"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "vm", Target: "web", Op: "destroy"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "vm", Target: "../x", Op: "start"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "docker", Target: "web;rm", Op: "stop"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "docker", Target: "web", Op: "kill"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "app-update", Target: "../etc"}, http.StatusBadRequest},
+		{store.RoutineAction{Kind: "shell", Target: "x"}, http.StatusBadRequest},
+	} {
+		if code, out := admin.do("POST", "/api/routines", mk(c.a)); code != c.want {
+			t.Errorf("%+v: %d %v, want %d", c.a, code, out, c.want)
+		}
+	}
+	// A user cannot reach the routines at all.
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "bob", Role: "user"})
+		return nil
+	})
+	bob := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("bob", "user", "192.0.2.10", time.Hour)}}
+	if code, _ := bob.do("POST", "/api/routines", mk(store.RoutineAction{Kind: "backup", Target: "bk1"})); code != http.StatusForbidden {
+		t.Errorf("user created a routine: %d", code)
+	}
+	// A target removed since: the action fails at run time, the job is not started.
+	rt := mk(store.RoutineAction{Kind: "backup", Target: "gone"})
+	if err := s.routineAct(&rt, rt.Actions[0]); err == nil {
+		t.Error("removed backup task run")
+	}
+	if got := routineJobTitle(store.RoutineAction{Kind: "vm", Target: "web", Op: "stop"}); got != "Shut down VM web" {
+		t.Errorf("title %q", got)
+	}
+}

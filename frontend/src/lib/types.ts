@@ -506,9 +506,13 @@ export interface ScheduleTarget {
 }
 
 export interface RoutineAction {
-  kind: "notify" | "webhook";
+  kind: "notify" | "webhook" | "snapshot" | "backup" | "vm" | "lxc" | "docker" | "app-update";
   message?: string;
   url?: string;
+  /** What a NAS action works on: snapshot or backup task ID, VM, container or app name. */
+  target?: string;
+  /** vm, lxc, docker: start or stop. */
+  op?: "start" | "stop";
 }
 
 export interface Routine {

@@ -1,0 +1,23 @@
+[
+  ["Démarrer la VM {0}", "Start VM {0}"],
+  ["Arrêter la VM {0}", "Shut down VM {0}"],
+  ["Démarrer le conteneur {0}", "Start container {0}"],
+  ["Arrêter le conteneur {0}", "Stop container {0}"],
+  ["Tâche d'instantanés {0}", "Snapshot task {0}"],
+  ["Tâche de sauvegarde {0}", "Backup task {0}"],
+  ["Mise à jour de {0}", "Update {0}"],
+  ["Routine {0} : {1}", "Routine {0}: {1}"],
+  ["Routine {0} : {1} a échoué : {2}", "Routine {0}: {1} failed: {2}"],
+  ["une autre mise à jour des applications est en cours", "another update of the apps is running"],
+  ["l'action doit démarrer ou arrêter", "the action must start or stop"],
+  ["action inconnue", "unknown action"],
+  ["choisissez sur quoi porte l'action", "choose what the action works on"],
+  ["tâche d'instantanés inconnue", "unknown snapshot task"],
+  ["tâche de sauvegarde inconnue", "unknown backup task"],
+  ["machine virtuelle inconnue", "unknown virtual machine"],
+  ["un modèle ne peut pas être démarré", "a template cannot be started"],
+  ["conteneur inconnu", "unknown container"],
+  ["conteneur invalide", "invalid container"],
+  ["nom de stack invalide", "invalid stack name"],
+  ["application inconnue", "unknown app"]
+]
