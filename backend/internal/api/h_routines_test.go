@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -252,5 +253,13 @@ func TestRoutineWebhookRedirects(t *testing.T) {
 		t.Fatalf("redirect on the same host: %v, hits %d", err, hits.Load())
 	} else {
 		resp.Body.Close()
+	}
+}
+
+// A routine that never ran has no lastFired: the page shows "Never".
+func TestRoutineNeverFired(t *testing.T) {
+	b, _ := json.Marshal(store.Routine{Name: "x"})
+	if strings.Contains(string(b), "lastFired") {
+		t.Fatalf("zero lastFired sent: %s", b)
 	}
 }
