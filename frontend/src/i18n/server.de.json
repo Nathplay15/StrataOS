@@ -3446,6 +3446,7 @@
  "Échec de la sauvegarde de la configuration": "Konfigurationssicherung fehlgeschlagen",
  "Échec de la sauvegarde de la configuration : {0}": "Konfigurationssicherung fehlgeschlagen: {0}",
  "Échec de la sauvegarde du système : {0}": "Systemsicherung fehlgeschlagen: {0}",
+ "Échec de test des vérifications après le redémarrage": "Testfehler der Prüfungen nach dem Neustart",
  "Échec des mises à jour automatiques : {0}": "Automatische Updates fehlgeschlagen: {0}",
  "Échec du contrôle du dépôt de sauvegarde": "Prüfung des Backup-Repositorys fehlgeschlagen",
  "Échec du passage au noyau Raspberry Pi : {0}": "Wechsel zum Raspberry-Pi-Kernel fehlgeschlagen: {0}",

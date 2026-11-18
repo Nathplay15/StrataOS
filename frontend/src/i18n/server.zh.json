@@ -3446,6 +3446,7 @@
  "Échec de la sauvegarde de la configuration": "配置备份失败",
  "Échec de la sauvegarde de la configuration : {0}": "配置备份失败：{0}",
  "Échec de la sauvegarde du système : {0}": "系统备份失败：{0}",
+ "Échec de test des vérifications après le redémarrage": "重启后检查的测试失败",
  "Échec des mises à jour automatiques : {0}": "自动更新失败：{0}",
  "Échec du contrôle du dépôt de sauvegarde": "备份仓库检查失败",
  "Échec du passage au noyau Raspberry Pi : {0}": "切换到 Raspberry Pi 内核失败：{0}",

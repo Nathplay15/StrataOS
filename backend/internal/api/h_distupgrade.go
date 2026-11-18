@@ -851,10 +851,19 @@ func hexDecodePath(n string) (string, error) {
 	return p, nil
 }
 
+// distPostCheckTestHook: when this file exists (root only, in the settings
+// folder: it survives the restart and is not part of a restore point), the
+// checks after the restart fail once. Used by the end-to-end test of the
+// automatic rollback.
+var distPostCheckTestHook = "/var/lib/strata/dist-postcheck-test"
+
 // distPostChecks runs after the restart into the new release.
 func (s *Server) distPostChecks(run store.DistUpgradeRun) []store.UpgradeResult {
 	var out []store.UpgradeResult
 	add := func(id, level, text string) { out = append(out, store.UpgradeResult{ID: id, Level: level, Text: text}) }
+	if err := os.Remove(distPostCheckTestHook); err == nil {
+		add("test", "block", "Test failure of the checks after the restart")
+	}
 	if c := system.Codename(); c == run.To {
 		add("release", "ok", "Debian "+currentMajor()+" ("+c+") is running")
 	} else {

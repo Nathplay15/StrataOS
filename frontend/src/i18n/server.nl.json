@@ -3446,6 +3446,7 @@
  "Échec de la sauvegarde de la configuration": "Configuratieback-up mislukt",
  "Échec de la sauvegarde de la configuration : {0}": "Configuratieback-up mislukt: {0}",
  "Échec de la sauvegarde du système : {0}": "Systeemback-up mislukt: {0}",
+ "Échec de test des vérifications après le redémarrage": "Testfout van de controles na de herstart",
  "Échec des mises à jour automatiques : {0}": "Automatische updates mislukt: {0}",
  "Échec du contrôle du dépôt de sauvegarde": "Controle van de back-uprepository mislukt",
  "Échec du passage au noyau Raspberry Pi : {0}": "Overstap naar de Raspberry Pi-kernel mislukt: {0}",

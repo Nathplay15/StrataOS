@@ -3446,6 +3446,7 @@
  "Échec de la sauvegarde de la configuration": "Backup della configurazione non riuscito",
  "Échec de la sauvegarde de la configuration : {0}": "Backup della configurazione non riuscito: {0}",
  "Échec de la sauvegarde du système : {0}": "Backup del sistema non riuscito: {0}",
+ "Échec de test des vérifications après le redémarrage": "Errore di prova dei controlli dopo il riavvio",
  "Échec des mises à jour automatiques : {0}": "Aggiornamenti automatici non riusciti: {0}",
  "Échec du contrôle du dépôt de sauvegarde": "Controllo del repository di backup non riuscito",
  "Échec du passage au noyau Raspberry Pi : {0}": "Passaggio al kernel Raspberry Pi non riuscito: {0}",

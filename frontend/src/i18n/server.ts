@@ -3540,4 +3540,6 @@ export const serverTexts: [string, string][] = [
   ["{0} : {1} instantané(s), {2} sauvegardé(s), {3} stockés (x{4})", "{0}: {1} snapshot(s), {2} backed up, {3} stored (x{4})"],
   // sysdisk-bios (0.13)
   ["Le système tourne depuis les disques de données ; l'ancien disque a été effacé. Dans les réglages du firmware, mettez un des disques de données en premier dans l'ordre de démarrage (beaucoup de BIOS n'essaient que leur premier disque).", "The system runs from the data disks; the old disk was erased. In the firmware settings, put one of the data disks first in the boot order (many BIOS only try their first disk)."],
+  // dist-test (0.13)
+  ["Échec de test des vérifications après le redémarrage", "Test failure of the checks after the restart"],
 ];
