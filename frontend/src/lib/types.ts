@@ -63,6 +63,8 @@ export interface BlockDevice {
   /** What uses the disk right now (not a leftover signature): mounted | swap | raid | lvm | zfs | holder. */
   activeUse?: string;
   activeBy?: string;
+  /** A data partition of a disk that also holds the system: that disk. */
+  dataOf?: string;
 }
 
 export interface Disk extends BlockDevice {

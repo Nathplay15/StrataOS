@@ -3,13 +3,14 @@ package store
 import "time"
 
 // SysDiskOp is a change of the system disk (internal/sysdisk, api/h_sysdisk.go):
-// mirroring it onto a second disk (kind "mirror") or moving the system to
-// another disk ("move"). It goes through a restart, so everything needed to
+// mirroring it onto a second disk (kind "mirror"), moving the system to
+// another disk ("move", also off a mirror) or onto several data disks, each
+// keeping a data partition ("datadisks"). It goes through a restart, so everything needed to
 // carry on is saved here; disks are found again by serial number.
 type SysDiskOp struct {
 	ID    string `json:"id"`
 	JobID string `json:"jobId,omitempty"`
-	Kind  string `json:"kind"` // mirror | move
+	Kind  string `json:"kind"` // mirror | move | datadisks
 	// Phase: prepare | copy | ready (copied, waiting for the restart) |
 	// switching | rebooting | booted (runs from the new disk) | fell-back
 	// (started from the old disk again) | completing (mirror: adding the old
@@ -35,6 +36,15 @@ type SysDiskOp struct {
 	New       string `json:"new"`
 	NewSerial string `json:"newSerial,omitempty"`
 	NewModel  string `json:"newModel,omitempty"`
+	// Extra: the other disks of a datadisks operation (New is the first).
+	Extra        []string `json:"extra,omitempty"`
+	ExtraSerials []string `json:"extraSerials,omitempty"`
+	// OldDisks: every disk of the system before the operation (a mirror
+	// has several; Old is the first), and OldArrays the UUIDs of its md
+	// arrays, stopped when the old disks are erased.
+	OldDisks   []string `json:"oldDisks,omitempty"`
+	OldSerials []string `json:"oldSerials,omitempty"`
+	OldArrays  []string `json:"oldArrays,omitempty"`
 
 	OldRootUUID string `json:"oldRootUuid,omitempty"`
 	// OldESP: PARTUUID of the old disk's EFI system partition.
@@ -65,8 +75,8 @@ type SysDiskOp struct {
 // SysDiskPart is a partition of the new system disk layout.
 type SysDiskPart struct {
 	Num  int    `json:"num"`
-	Role string `json:"role"` // esp | biosgrub | swap | root
-	MiB  int64  `json:"mib"`
+	Role string `json:"role"` // esp | biosgrub | swap | root | data
+	MiB  int64  `json:"mib"`  // 0: the rest of the disk
 	Code string `json:"code"`
 	Name string `json:"name"`
 }

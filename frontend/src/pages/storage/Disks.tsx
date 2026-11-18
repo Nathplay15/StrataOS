@@ -161,6 +161,7 @@ export default function Disks() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-1.5">
                     <Badge>{kind}</Badge>
+                    {d.dataOf && <Badge tone="accent">{tr("Data partition of {0}", d.dataOf)}</Badge>}
                     {d.transport && d.transport.toLowerCase() !== (d.kind ?? "").toLowerCase() && <Badge>{d.transport.toUpperCase()}</Badge>}
                     <Badge tone={ut}>{ul}{d.usedBy ? ` · ${d.usedBy}` : ""}</Badge>
                     {d.healthy === true && !warnings.length && <Badge tone="ok" dot>{tr("SMART OK")}</Badge>}
@@ -203,9 +204,9 @@ export default function Disks() {
                   )}
                 </div>
                 <div className="flex justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
-                  <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>
-                  {replaceable(d, mirrored) && <Button size="sm" variant="ghost" icon={<Replace size={14} />} onClick={() => setReplace({ disk: d.path })}>{tr("Replace")}</Button>}
-                  {!d.system && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} disabled={!!noBurnIn} title={noBurnIn || undefined} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
+                  {!d.dataOf && <Button size="sm" variant="ghost" icon={<Activity size={14} />} onClick={() => setSmart(d)}>SMART</Button>}
+                  {!d.dataOf && replaceable(d, mirrored) && <Button size="sm" variant="ghost" icon={<Replace size={14} />} onClick={() => setReplace({ disk: d.path })}>{tr("Replace")}</Button>}
+                  {!d.system && !d.dataOf && <Button size="sm" variant="ghost" icon={<FlaskConical size={14} />} disabled={!!noBurnIn} title={noBurnIn || undefined} onClick={() => setBurn(d)}>{tr("Burn-in test")}</Button>}
                   {!d.system && d.usage !== "free" && d.usage !== "ceph" && (
                     <Button size="sm" variant="ghost" className="text-danger" icon={<Eraser size={14} />} disabled={!!inUse} title={inUse || undefined} onClick={() => doWipe(d)}>{tr("Wipe")}</Button>
                   )}

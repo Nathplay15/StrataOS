@@ -136,15 +136,32 @@ func (r *Run) swapDev() string {
 	return PartPath(r.Op.New, r.part("swap").Num)
 }
 
+// Targets lists the new disks with their serial numbers (New first, then
+// the other data disks).
+func (r *Run) Targets() (disks, serials []string) {
+	disks = append([]string{r.Op.New}, r.Op.Extra...)
+	serials = append([]string{r.Op.NewSerial}, r.Op.ExtraSerials...)
+	for len(serials) < len(disks) {
+		serials = append(serials, "")
+	}
+	return disks, serials
+}
+
+// arrayKind: the new system is on an md array (mirror, data disks).
+func (r *Run) arrayKind() bool { return r.Op.Kind == "mirror" || r.Op.Kind == "datadisks" }
+
 // checkNew refuses a new disk that became part of the system or that is
 // not the disk chosen (serial number).
 func (r *Run) checkNew(l Layout) error {
-	if r.Op.New == "" || l.IsSystemDisk(r.Op.New) {
-		return fmt.Errorf("%s is a disk of the running system: stopping", r.Op.New)
-	}
-	if r.Op.NewSerial != "" {
-		if p := DiskBySerial(r.Op.NewSerial, ""); p != r.Op.New {
-			return fmt.Errorf("the new disk (serial %s) is no longer %s: stopping", r.Op.NewSerial, r.Op.New)
+	disks, serials := r.Targets()
+	for i, d := range disks {
+		if d == "" || l.IsSystemDisk(d) {
+			return fmt.Errorf("%s is a disk of the running system: stopping", d)
+		}
+		if serials[i] != "" {
+			if p := DiskBySerial(serials[i], ""); p != d {
+				return fmt.Errorf("the new disk (serial %s) is no longer %s: stopping", serials[i], d)
+			}
 		}
 	}
 	return nil
@@ -164,7 +181,11 @@ func (r *Run) partition(disk string) error {
 	}
 	args := []string{"-o"}
 	for _, p := range r.Op.Parts {
-		args = append(args, fmt.Sprintf("-n%d:0:+%dM", p.Num, p.MiB), fmt.Sprintf("-t%d:%s", p.Num, p.Code), fmt.Sprintf("-c%d:%s", p.Num, p.Name))
+		end := fmt.Sprintf("+%dM", p.MiB)
+		if p.MiB == 0 {
+			end = "0" // the rest of the disk
+		}
+		args = append(args, fmt.Sprintf("-n%d:0:%s", p.Num, end), fmt.Sprintf("-t%d:%s", p.Num, p.Code), fmt.Sprintf("-c%d:%s", p.Num, p.Name))
 	}
 	args = append(args, disk)
 	if _, err := r.run("sgdisk", args...); err != nil {
@@ -202,31 +223,45 @@ func (r *Run) Prepare(l Layout) error {
 	}
 	storage.Lock.Lock()
 	defer storage.Lock.Unlock()
-	storage.ClearBusy(r.Op.New)
-	defer func() { _ = storage.SetBusy(r.Op.New, "system disk change") }()
-	if err := r.partition(r.Op.New); err != nil {
-		return err
+	targets, _ := r.Targets()
+	for _, d := range targets {
+		storage.ClearBusy(d)
+		defer func(d string) { _ = storage.SetBusy(d, "system disk change") }(d)
 	}
-	if r.Op.Kind == "mirror" {
+	for _, d := range targets {
+		if err := r.partition(d); err != nil {
+			return err
+		}
+	}
+	if r.arrayKind() {
 		if mdExists(RootArrayName) || mdExists(SwapArrayName) {
 			return fmt.Errorf("an array named %s or %s already exists", RootArrayName, SwapArrayName)
 		}
-		create := func(name, part string) (string, error) {
+		// A mirror starts degraded (the old disk joins it later); the data
+		// disks hold every copy at once.
+		create := func(name string, num int) (string, error) {
 			dev := "/dev/md/" + name
-			_, err := r.cmd(time.Minute, "mdadm", "--create", dev, "--level=1", "--raid-devices=2", "--metadata=1.2", "--bitmap=internal",
-				"--homehost=any", "--name="+name, "--run", part, "missing")
-			if err != nil {
+			var members []string
+			for _, d := range targets {
+				members = append(members, PartPath(d, num))
+			}
+			if r.Op.Kind == "mirror" {
+				members = append(members, "missing")
+			}
+			args := []string{"--create", dev, "--level=1", fmt.Sprintf("--raid-devices=%d", len(members)), "--metadata=1.2", "--bitmap=internal",
+				"--homehost=any", "--name=" + name, "--run"}
+			if _, err := r.cmd(time.Minute, "mdadm", append(args, members...)...); err != nil {
 				return "", err
 			}
 			_, _ = r.run("udevadm", "settle")
 			return dev, nil
 		}
 		var err error
-		if r.Op.RootArray, err = create(RootArrayName, PartPath(r.Op.New, r.part("root").Num)); err != nil {
+		if r.Op.RootArray, err = create(RootArrayName, r.part("root").Num); err != nil {
 			return err
 		}
 		if sp := r.part("swap"); sp != nil {
-			if r.Op.SwapArray, err = create(SwapArrayName, PartPath(r.Op.New, sp.Num)); err != nil {
+			if r.Op.SwapArray, err = create(SwapArrayName, sp.Num); err != nil {
 				return err
 			}
 		}
@@ -237,6 +272,13 @@ func (r *Run) Prepare(l Layout) error {
 			return err
 		}
 		r.Op.ESPUUID = blkUUID(PartPath(r.Op.New, ep.Num))
+		// The other data disks: the same FAT volume ID (esp-sync fills them
+		// once the system runs from the array).
+		for _, d := range targets[1:] {
+			if _, err := r.run("mkfs.vfat", append(espMkfsArgs(r.Op.ESPUUID), PartPath(d, ep.Num))...); err != nil {
+				return err
+			}
+		}
 	}
 	root := r.rootDev()
 	var err error
@@ -637,11 +679,10 @@ func (r *Run) Switch(l Layout, bootID string) error {
 			_, _ = r.run("mkswap", dst)
 		}
 	}
-	// mdadm.conf of a mirror: the arrays as they run now (data arrays included).
-	if r.Op.Kind == "mirror" {
-		if err := writeMdadmConf(filepath.Join(newRoot, "etc/mdadm/mdadm.conf"), r.Logf); err != nil {
-			return err
-		}
+	// mdadm.conf: the arrays as they run now (data arrays included), but
+	// not those of the old system (a move off a mirror).
+	if err := writeMdadmConf(filepath.Join(newRoot, "etc/mdadm/mdadm.conf"), r.Logf, r.Op.OldArrays...); err != nil {
+		return err
 	}
 	// The test start restarts by itself after 30 s when it cannot find its
 	// system, instead of waiting at a rescue shell: the next start then uses
@@ -652,8 +693,11 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	}
 	// Cloud images name the root by partition UUID (GRUB_DISABLE_LINUX_UUID):
 	// an md array has none.
-	if r.Op.Kind == "mirror" {
+	if r.arrayKind() {
 		_ = os.WriteFile(filepath.Join(newRoot, "etc/default/grub.d/zz-strataos-mirror.cfg"), []byte("# StrataOS: the system is on an md array, which has no partition UUID\nGRUB_DISABLE_LINUX_UUID=false\nGRUB_DISABLE_LINUX_PARTUUID=true\nGRUB_FORCE_PARTUUID=\n"), 0o644)
+	} else {
+		// Off a mirror: the copy is on a partition again.
+		_ = os.Remove(filepath.Join(newRoot, "etc/default/grub.d/zz-strataos-mirror.cfg"))
 	}
 	// MODULES=dep (cloud images) would pick the drivers of the disk the
 	// chroot runs from, not those of the new disk: take them all.
@@ -669,10 +713,15 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	}
 	target := grubTarget(r.Op.Boot, l.Arch)
 	if r.Op.Boot == "bios" {
-		if _, err := r.chroot(5*time.Minute, "grub-install", "--target="+target, r.Op.New); err != nil {
-			return err
+		disks, _ := r.Targets()
+		var ids []string
+		for _, d := range disks {
+			if _, err := r.chroot(5*time.Minute, "grub-install", "--target="+target, d); err != nil {
+				return err
+			}
+			ids = append(ids, byIDPath(d))
 		}
-		_, _ = r.cmd(time.Minute, "chroot", newRoot, "sh", "-c", "echo 'grub-pc grub-pc/install_devices multiselect "+byIDPath(r.Op.New)+"' | debconf-set-selections")
+		_, _ = r.cmd(time.Minute, "chroot", newRoot, "sh", "-c", "echo 'grub-pc grub-pc/install_devices multiselect "+strings.Join(ids, ", ")+"' | debconf-set-selections")
 	} else {
 		if _, err := r.chroot(5*time.Minute, "grub-install", "--target="+target, "--efi-directory=/boot/efi", "--bootloader-id=debian", "--no-nvram", "--force-extra-removable"); err != nil {
 			return err
@@ -702,8 +751,20 @@ func (r *Run) Switch(l Layout, bootID string) error {
 	return r.oneShot(l)
 }
 
-// writeMdadmConf writes an mdadm.conf listing the running arrays.
-func writeMdadmConf(path string, logf func(string, ...any)) error {
+// ArrayUUID is the md UUID of an array as mdadm.conf writes it.
+func ArrayUUID(dev string) string {
+	out, _ := sys.Run("mdadm", "--detail", "--export", dev)
+	for _, l := range strings.Split(out, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(l), "MD_UUID="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// writeMdadmConf writes an mdadm.conf listing the running arrays (but those
+// whose md UUID is excluded).
+func writeMdadmConf(path string, logf func(string, ...any), exclude ...string) error {
 	scan, err := sys.Run("mdadm", "--detail", "--scan")
 	if err != nil {
 		return err
@@ -725,9 +786,11 @@ func writeMdadmConf(path string, logf func(string, ...any)) error {
 				f = append(f, w)
 			}
 		}
-		if len(f) > 0 {
-			arrays = append(arrays, strings.Join(f, " "))
+		line := strings.Join(f, " ")
+		if len(f) == 0 || slices.ContainsFunc(exclude, func(u string) bool { return u != "" && strings.Contains(line, "UUID="+u) }) {
+			continue
 		}
+		arrays = append(arrays, line)
 	}
 	content := "HOMEHOST <ignore>\n" + strings.Trim(strings.Join(keep, "\n"), "\n") + "\n\n# Arrays managed by StrataOS\n" + strings.Join(arrays, "\n") + "\n"
 	logf("mdadm.conf of the copy:\n%s", content)
@@ -908,11 +971,15 @@ func (r *Run) Cleanup(l Layout) {
 		}
 		_, _ = r.run("mdadm", "--stop", a)
 	}
-	if r.Op.New != "" && !l.IsSystemDisk(r.Op.New) && DiskBySerial(r.Op.NewSerial, r.Op.New) == r.Op.New {
+	disks, serials := r.Targets()
+	for i, d := range disks {
+		if d == "" || l.IsSystemDisk(d) || DiskBySerial(serials[i], d) != d {
+			continue
+		}
 		storage.Lock.Lock()
-		storage.ClearBusy(r.Op.New)
-		if err := storage.Wipe(r.Op.New); err != nil {
-			r.Logf("Could not erase %s: %v", r.Op.New, err)
+		storage.ClearBusy(d)
+		if err := storage.Wipe(d); err != nil {
+			r.Logf("Could not erase %s: %v", d, err)
 		}
 		storage.Lock.Unlock()
 	}
@@ -1053,22 +1120,100 @@ func (r *Run) MirrorSynced() (float64, bool, bool, error) {
 	return total / float64(n), done, idle, nil
 }
 
-// EraseOld erases the old system disk after a move.
-func (r *Run) EraseOld(l Layout) error {
-	old := DiskBySerial(r.Op.OldSerial, r.Op.Old)
-	if old == "" {
-		return errors.New("the old system disk is no longer detected")
+// OldDisks lists the disks of the old system with their serial numbers.
+func (r *Run) OldDisks() (disks, serials []string) {
+	if len(r.Op.OldDisks) == 0 {
+		return []string{r.Op.Old}, []string{r.Op.OldSerial}
 	}
-	if l.IsSystemDisk(old) {
-		return fmt.Errorf("%s holds the running system: stopping", old)
+	serials = append([]string(nil), r.Op.OldSerials...)
+	for len(serials) < len(r.Op.OldDisks) {
+		serials = append(serials, "")
+	}
+	return r.Op.OldDisks, serials
+}
+
+// EraseOld erases the old system disk(s) after a move. The old system
+// arrays (a move off a mirror) are stopped first; a disk that keeps a data
+// partition (the system was on the data disks) only loses its system
+// partitions, its data partition and what it holds stay.
+func (r *Run) EraseOld(l Layout) error {
+	disks, serials := r.OldDisks()
+	var found []string
+	for i, d := range disks {
+		cur := DiskBySerial(serials[i], d)
+		if cur == "" {
+			r.Logf("%s (S/N %s) is no longer detected: skipped", d, serials[i])
+			continue
+		}
+		if l.IsSystemDisk(cur) {
+			return fmt.Errorf("%s holds the running system: stopping", cur)
+		}
+		found = append(found, cur)
+	}
+	if len(found) == 0 {
+		return errors.New("the old system disk is no longer detected")
 	}
 	storage.Lock.Lock()
 	defer storage.Lock.Unlock()
-	r.Logf("Erasing %s", old)
-	if err := storage.Wipe(old); err != nil {
-		return err
+	if len(r.Op.OldArrays) > 0 {
+		raids, _ := storage.ListRaid()
+		for _, a := range raids {
+			u := ArrayUUID(a.Device)
+			if u == "" || !slices.Contains(r.Op.OldArrays, u) {
+				continue
+			}
+			if sameDevice(a.Device, mountSource("/")) {
+				return fmt.Errorf("%s holds the running system: stopping", a.Device)
+			}
+			r.Logf("Stopping the old system array %s", a.Device)
+			if _, err := r.run("mdadm", "--stop", a.Device); err != nil {
+				return err
+			}
+			for _, m := range a.Members {
+				if m.Device != "" {
+					_, _ = r.run("mdadm", "--zero-superblock", "--force", m.Device)
+				}
+			}
+		}
+	}
+	tree, _ := Tree()
+	for _, d := range found {
+		var node *Node
+		for i := range tree {
+			if tree[i].Path == d {
+				node = &tree[i]
+			}
+		}
+		keepsData := false
+		if node != nil {
+			for _, p := range node.Children {
+				if p.PartLabel == storage.DataPartLabel {
+					keepsData = true
+				}
+			}
+		}
+		if !keepsData {
+			r.Logf("Erasing %s", d)
+			if err := storage.Wipe(d); err != nil {
+				return err
+			}
+			continue
+		}
+		r.Logf("Erasing the system partitions of %s (its data partition stays)", d)
+		for _, p := range node.Children {
+			if p.PartLabel == storage.DataPartLabel {
+				continue
+			}
+			if len(p.Mountpoints) > 0 {
+				return fmt.Errorf("%s is mounted: stopping", p.Path)
+			}
+			if _, err := r.run("wipefs", "-a", p.Path); err != nil {
+				return err
+			}
+		}
 	}
 	r.removeEntriesOf(r.Op.OldESP)
+	_ = storage.SaveMdadmConf()
 	return nil
 }
 
@@ -1096,11 +1241,12 @@ func (r *Run) GoBack(l Layout) error {
 		if d.Path != old {
 			continue
 		}
-		for _, p := range d.Children {
-			if p.UUID == r.Op.OldRootUUID {
-				root = p.Path
+		// The old root: a partition of the old disk, or the array it is in.
+		walkNode(d, nil, func(n Node, _ []Node) {
+			if n.UUID == r.Op.OldRootUUID && n.Path != d.Path {
+				root = n.Path
 			}
-		}
+		})
 	}
 	if root == "" {
 		return errors.New("the old system partition is not found")

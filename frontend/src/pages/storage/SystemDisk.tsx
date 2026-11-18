@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArchiveRestore, Copy, HardDriveDownload, Server, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, Copy, HardDriveDownload, Layers, Server, ShieldCheck } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { useJobs } from "../../lib/jobs";
@@ -9,27 +9,33 @@ import { bytes, cx, dateTime } from "../../lib/format";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, Notice, Progress, Spinner, useUI } from "../../components/ui";
 import { tr, srv } from "../../lib/i18n";
 
-// System disk (Storage → Disks): mirror it, move the system to another
-// disk, export a system backup. The server plans everything again before
-// acting (internal/sysdisk) and asks for the name of the disk to erase.
+// System disk (Storage → Disks): where the system lives — its own disk,
+// mirrored on a second disk, or on the data disks (each keeping a data
+// partition) — moving it between these, and a system backup. The server
+// plans everything again before acting (internal/sysdisk) and asks for the
+// names of the disks it erases.
 
 type DiskRef = { name: string; path: string; serial?: string; model?: string; size: number; esp?: string };
 type SysArray = { name: string; device: string; label?: string; role: string; health: string; devices: number; active: number; sync?: string; percent?: number };
 export type Layout = {
   boot: string; arch: string; rootOn: string; root: { fstype: string; source: string; subvol?: string };
   disks: DiskRef[]; arrays?: SysArray[]; used: number; mirrored: boolean; degraded?: boolean; problems?: string[];
+  placement?: "own" | "mirror" | "datadisks"; dataParts?: string[];
 };
+type Kind = "mirror" | "move" | "datadisks";
 type Candidate = { path: string; name: string; model?: string; serial?: string; size: number; kind?: string; ok: boolean; reason?: string };
 type Plan = {
-  kind: string; boot: string; fsType: string; old?: DiskRef; need: number; used: number; candidates: Candidate[]; target?: Candidate;
+  kind: string; boot: string; fsType: string; old?: DiskRef; oldDisks?: DiskRef[]; need: number; used: number; candidates: Candidate[]; target?: Candidate;
+  targets?: Candidate[]; confirm?: string;
   parts?: { num: number; role: string; mib: number }[]; refusal?: string; warnings?: string[]; steps?: string[];
 };
 type Op = {
   id: string; jobId?: string; kind: string; phase: string; message?: string; error?: string; warnings?: string[]; unreadable?: string[]; unreadableCount?: number;
   boot: string; old: string; oldSerial?: string; oldModel?: string; new: string; newSerial?: string; newModel?: string; started: string; finished?: string;
+  extra?: string[]; oldDisks?: string[];
 };
 type Backup = { id: string; path: string; size: number; created: string; hostname?: string; version?: string };
-type SysDisk = { layout: Layout; mirror: Plan; move: Plan; ops?: Op[]; backups?: Backup[]; smart?: { Failing: boolean; Weak?: string[] } };
+type SysDisk = { layout: Layout; mirror: Plan; move: Plan; datadisks?: Plan; ops?: Op[]; backups?: Backup[]; smart?: { Failing: boolean; Weak?: string[] } };
 
 export const useSysDisk = () => useQuery({ queryKey: ["sysdisk"], queryFn: () => api.get<SysDisk>("/api/system/disk"), refetchInterval: 5000 });
 
@@ -49,16 +55,22 @@ const phaseText: Record<string, string> = {
   cancelled: tr("Cancelled"),
 };
 
-function Wizard({ kind, onClose }: { kind: "mirror" | "move"; onClose: () => void }) {
-  const [target, setTarget] = useState("");
+const kindTitle = (k: Kind) => k === "mirror" ? tr("Mirror the system disk") : k === "datadisks" ? tr("Move the system onto the data disks") : tr("Move the system to another disk");
+
+function Wizard({ kind, onClose }: { kind: Kind; onClose: () => void }) {
+  const [targets, setTargets] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
   const { track } = useJobs();
-  const plan = useQuery({ queryKey: ["sysdisk-plan", kind, target], queryFn: () => api.get<Plan>(`/api/system/disk/plan?kind=${kind}&target=${encodeURIComponent(target)}`) });
-  const start = useAction(() => api.post<{ job: Job }>("/api/system/disk/start", { kind, target, confirm: typed }), { onDone: (r) => { track(r.job); onClose(); } });
+  const multi = kind === "datadisks";
+  const q = targets.map((t) => `&target=${encodeURIComponent(t)}`).join("");
+  const plan = useQuery({ queryKey: ["sysdisk-plan", kind, targets], queryFn: () => api.get<Plan>(`/api/system/disk/plan?kind=${kind}${q}`) });
+  const start = useAction(() => api.post<{ job: Job }>("/api/system/disk/start", multi ? { kind, targets, confirm: typed } : { kind, target: targets[0] ?? "", confirm: typed }), { onDone: (r) => { track(r.job); onClose(); } });
   const p = plan.data;
-  const tname = p?.target?.name ?? "";
+  const tname = p?.confirm ?? p?.target?.name ?? "";
+  const pick = (path: string) => { setTyped(""); setTargets(multi ? (targets.includes(path) ? targets.filter((t) => t !== path) : [...targets, path]) : [path]); };
+  const old = p?.oldDisks?.length ? p.oldDisks.map((d) => d.name).join(", ") : p?.old ? `${p.old.name} · ${bytes(p.old.size)}` : "—";
   return (
-    <Modal open onClose={onClose} wide title={kind === "mirror" ? tr("Mirror the system disk") : tr("Move the system to another disk")} footer={<>
+    <Modal open onClose={onClose} wide title={kindTitle(kind)} footer={<>
       <Button onClick={onClose}>{tr("Cancel")}</Button>
       <Button variant="danger" disabled={!p?.target || !!p.refusal || typed !== tname} loading={start.isPending} onClick={() => start.mutate()}>{tr("Erase {0} and copy the system", tname || "…")}</Button>
     </>}>
@@ -67,22 +79,24 @@ function Wizard({ kind, onClose }: { kind: "mirror" | "move"; onClose: () => voi
           <p className="text-muted">
             {kind === "mirror"
               ? tr("The system is copied onto a second disk as a RAID 1 mirror: the NAS keeps starting when one of the two disks fails. The data volumes are not touched.")
-              : tr("The system is copied onto another disk (to replace a failing disk, or move to an SSD), which then starts the NAS. The data volumes are not touched.")}
+              : kind === "datadisks"
+                ? tr("For a NAS without a separate system disk: each chosen disk gets a copy of the system (RAID 1 over all of them, about 20 GB) and a data partition with the rest of its space, where you create volumes afterwards. The NAS keeps starting while one disk is left.")
+                : tr("The system is copied onto another disk (to replace a failing disk, or move to an SSD), which then starts the NAS. The data volumes are not touched.")}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-panel-2 p-3"><div className="text-muted text-[12px]">{tr("System disk")}</div><div className="font-semibold">{p.old ? `${p.old.name} · ${bytes(p.old.size)}` : "—"}</div></div>
+            <div className="rounded-xl bg-panel-2 p-3"><div className="text-muted text-[12px]">{tr("System disk")}</div><div className="font-semibold">{old}</div></div>
             <div className="rounded-xl bg-panel-2 p-3"><div className="text-muted text-[12px]">{tr("Space used by the system")}</div><div className="font-semibold">{bytes(p.used)}</div></div>
             <div className="rounded-xl bg-panel-2 p-3"><div className="text-muted text-[12px]">{tr("Start mode, file system")}</div><div className="font-semibold">{p.boot.toUpperCase()} · {p.fsType}</div></div>
           </div>
           {p.refusal && !p.target ? <Notice tone="warn">{srv(p.refusal)}</Notice> : (
             <>
               <div>
-                <div className="mb-2 font-medium">{tr("New disk")}</div>
+                <div className="mb-2 font-medium">{multi ? tr("Data disks (two or more)") : tr("New disk")}</div>
                 <div className="space-y-1.5">
                   {p.candidates.length === 0 && <div className="text-muted">{tr("No other disk is connected.")}</div>}
                   {p.candidates.map((c) => (
-                    <label key={c.path} className={cx("flex items-center gap-3 rounded-xl border px-3 py-2", c.ok ? "cursor-pointer border-line hover:border-accent/40" : "border-line opacity-60", target === c.path && "border-accent bg-accent-soft")}>
-                      <input type="radio" disabled={!c.ok} checked={target === c.path} onChange={() => { setTarget(c.path); setTyped(""); }} />
+                    <label key={c.path} className={cx("flex items-center gap-3 rounded-xl border px-3 py-2", c.ok ? "cursor-pointer border-line hover:border-accent/40" : "border-line opacity-60", targets.includes(c.path) && "border-accent bg-accent-soft")}>
+                      <input type={multi ? "checkbox" : "radio"} disabled={!c.ok} checked={targets.includes(c.path)} onChange={() => pick(c.path)} />
                       <span className="mono">{c.name}</span>
                       <span className="flex-1 truncate">{c.model} {c.serial && <span className="text-muted">· {c.serial}</span>}</span>
                       <span>{bytes(c.size)}</span>
@@ -101,9 +115,17 @@ function Wizard({ kind, onClose }: { kind: "mirror" | "move"; onClose: () => voi
                 </div>
               )}
               {p.target && !p.refusal && (
-                <Field label={tr("Type {0} to confirm: everything on this disk is erased", tname)}>
-                  <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={tname} />
-                </Field>
+                <>
+                  {(p.targets?.length ?? 0) > 1 && (
+                    <Notice tone="warn">
+                      <div className="mb-1 font-medium">{tr("These disks are completely erased:")}</div>
+                      <ul className="list-disc pl-4">{p.targets!.map((c) => <li key={c.path}><span className="mono">{c.name}</span> · {c.model} {c.serial && `· ${c.serial}`} · {bytes(c.size)}</li>)}</ul>
+                    </Notice>
+                  )}
+                  <Field label={(p.targets?.length ?? 0) > 1 ? tr("Type {0} to confirm: everything on these disks is erased", tname) : tr("Type {0} to confirm: everything on this disk is erased", tname)}>
+                    <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={tname} />
+                  </Field>
+                </>
               )}
             </>
           )}
@@ -119,7 +141,8 @@ function OpPanel({ op }: { op: Op }) {
   const job = jobs.find((j) => j.id === op.jobId && j.status === "running");
   const act = useAction((a: { path: string; body?: unknown }) => api.post<{ job?: Job }>(`/api/system/disk/${op.id}/${a.path}`, a.body ?? {}), { onDone: (r) => r?.job && track(r.job) });
   const forget = useAction(() => api.del(`/api/system/disk/${op.id}`));
-  const oldName = op.old.replace("/dev/", "");
+  const oldName = op.oldDisks?.length ? op.oldDisks.map((d) => d.replace("/dev/", "")).join(", ") : op.old.replace("/dev/", "");
+  const newNames = [op.new, ...(op.extra ?? [])].map((d) => d.replace("/dev/", "")).join(", ");
   const running = !op.finished;
   const tone = op.phase === "failed" || op.phase === "fell-back" ? "danger" : op.phase === "done" ? "ok" : "accent";
 
@@ -138,14 +161,17 @@ function OpPanel({ op }: { op: Op }) {
     }
   };
   const erase = async () => {
-    if (await confirm({ title: tr("Finish and erase the old disk?"), text: tr("{0} is erased: it can then hold data. The old system on it is lost.", op.old), danger: true, typeToConfirm: oldName, confirm: tr("Erase") })) {
+    const text = (op.oldDisks?.length ?? 0) > 1
+      ? tr("The old system is erased from {0}: whole disks become free for data, and disks that keep a data partition only lose their system partitions.", oldName)
+      : tr("{0} is erased: it can then hold data. The old system on it is lost.", op.old);
+    if (await confirm({ title: tr("Finish and erase the old disk?"), text, danger: true, typeToConfirm: oldName, confirm: tr("Erase") })) {
       act.mutate({ path: "complete", body: { erase: true, confirm: oldName } });
     }
   };
   return (
     <div className="mt-4 rounded-xl border border-line p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-semibold">{op.kind === "mirror" ? tr("Mirroring onto {0}", op.new) : tr("Move to {0}", op.new)}</span>
+        <span className="font-semibold">{op.kind === "mirror" ? tr("Mirroring onto {0}", op.new) : op.kind === "datadisks" ? tr("Move onto the data disks {0}", newNames) : tr("Move to {0}", op.new)}</span>
         <Badge tone={tone} dot>{phaseText[op.phase] ?? op.phase}</Badge>
         <span className="text-muted text-[12px]">{dateTime(op.started)}</span>
       </div>
@@ -162,7 +188,7 @@ function OpPanel({ op }: { op: Op }) {
       <div className="mt-3 flex flex-wrap gap-2">
         {running && (op.phase === "ready" || op.phase === "fell-back") && <Button variant="primary" onClick={restart} loading={act.isPending}>{op.phase === "ready" ? tr("Restart from the new disk") : tr("Try again")}</Button>}
         {running && op.phase === "booted" && <Button variant="primary" onClick={complete} loading={act.isPending}>{op.kind === "mirror" ? tr("Complete the mirror") : tr("Finish (keep the old disk)")}</Button>}
-        {running && op.phase === "booted" && op.kind === "move" && <Button variant="danger" onClick={erase}>{tr("Finish and erase the old disk")}</Button>}
+        {running && op.phase === "booted" && op.kind !== "mirror" && <Button variant="danger" onClick={erase}>{(op.oldDisks?.length ?? 0) > 1 ? tr("Finish and erase the old system disks") : tr("Finish and erase the old disk")}</Button>}
         {running && op.phase === "booted" && <Button onClick={async () => { if (await confirm({ title: tr("Go back to the old disk?"), text: tr("The NAS restarts from the old disk, unchanged since the copy: changes made since then on the new disk are not carried back."), confirm: tr("Restart") })) act.mutate({ path: "back" }); }}>{tr("Go back to the old disk")}</Button>}
         {running && ["ready", "fell-back", "failed"].includes(op.phase) && <Button variant="ghost" onClick={async () => { if (await confirm({ title: tr("Cancel?"), text: tr("The system stays on the old disk; {0} is erased.", op.new), danger: true })) act.mutate({ path: "cancel" }); }}>{tr("Cancel")}</Button>}
         {!running && <Button size="sm" variant="ghost" onClick={() => forget.mutate()}>{tr("Hide")}</Button>}
@@ -199,7 +225,14 @@ function BackupBox({ backups }: { backups: Backup[] }) {
 /** The System disk card of the Disks page (#system-disk). */
 export function SystemDiskCard() {
   const { data, error } = useSysDisk();
-  const [wizard, setWizard] = useState<"mirror" | "move" | null>(null);
+  // The setup wizard asks for one at the end of the setup.
+  const [wizard, setWizard] = useState<Kind | null>(() => {
+    try {
+      const k = sessionStorage.getItem("strata-sysdisk-wizard");
+      sessionStorage.removeItem("strata-sysdisk-wizard");
+      return k === "mirror" || k === "datadisks" ? k : null;
+    } catch { return null; }
+  });
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
   const l = data.layout;
@@ -210,10 +243,12 @@ export function SystemDiskCard() {
     <Card id="system-disk" className="mb-5"
       title={<span className="flex flex-wrap items-center gap-2"><Server size={17} />{tr("System disk")}
         {l.mirrored ? (l.degraded ? <Badge tone="danger" dot>{tr("Mirror degraded")}</Badge> : <Badge tone="ok" dot>{tr("Mirrored")}</Badge>) : <Badge tone="warn">{tr("No redundancy")}</Badge>}
+        <Badge>{l.placement === "datadisks" ? tr("On the data disks") : l.placement === "mirror" ? tr("Own disks (mirror)") : tr("Own disk")}</Badge>
         <Badge>{l.boot.toUpperCase()}</Badge><Badge>{l.root.fstype}</Badge></span>}
-      actions={!l.mirrored && <>
-        <Button size="sm" variant="primary" icon={<ShieldCheck size={14} />} disabled={busy} onClick={() => setWizard("mirror")}>{tr("Mirror the system disk")}</Button>
-        <Button size="sm" icon={<Copy size={14} />} disabled={busy} onClick={() => setWizard("move")}>{tr("Move the system to another disk")}</Button>
+      actions={<>
+        {!l.mirrored && <Button size="sm" variant="primary" icon={<ShieldCheck size={14} />} disabled={busy} onClick={() => setWizard("mirror")}>{tr("Mirror the system disk")}</Button>}
+        {!l.mirrored && <Button size="sm" icon={<Layers size={14} />} disabled={busy} onClick={() => setWizard("datadisks")}>{tr("Move onto the data disks")}</Button>}
+        <Button size="sm" icon={<Copy size={14} />} disabled={busy || (l.mirrored && !!l.degraded)} onClick={() => setWizard("move")}>{l.mirrored ? tr("Move the system to a disk of its own") : tr("Move the system to another disk")}</Button>
       </>}>
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px]">
         {l.disks.map((d) => <span key={d.path}><span className="mono">{d.name}</span> <span className="text-muted">{d.model} · {bytes(d.size)}</span></span>)}
@@ -226,6 +261,7 @@ export function SystemDiskCard() {
           {a.sync && <span className="text-muted">{a.sync} {a.percent?.toFixed(1)} %</span>}
         </div>
       ))}
+      {l.placement === "datadisks" && <p className="mt-2 text-muted text-[12.5px]">{tr("Each of these disks also has a data partition ({0}): create volumes on them in Storage like on free disks. A replaced disk gets the same partitions; add its data partition back to your data array afterwards.", (l.dataParts ?? []).map((d) => d.replace("/dev/", "")).join(", "))}</p>}
       {l.mirrored && l.degraded && <div className="mt-3"><Notice tone="warn">{tr("The system runs from one disk only. Replace the missing or failed disk with Replace on its card below (or from the alert).")}</Notice></div>}
       {data.smart?.Failing && !l.mirrored && <div className="mt-3"><Notice tone="warn">{tr("The system disk fails its SMART health check: move the system to a new disk now.")}</Notice></div>}
       {!l.mirrored && !!l.problems?.length && (

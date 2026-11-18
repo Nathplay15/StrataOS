@@ -55,10 +55,15 @@ sed -e '/^d-i partman-auto\/method /d; /^d-i partman-auto\/choose_recipe /d' \
   -e 's|^### Partitioning: .*|### Partitioning: RAID 1 on the two disks chosen by mirror-disks.sh (EFI or BIOS\n### boot partition, swap and system on each disk).|' \
   -e 's|^d-i partman-efi/non_efi_system boolean true|&\nd-i partman/early_command string sh /cdrom/strata/mirror-disks.sh\nd-i partman-partitioning/default_label string gpt\nd-i partman-md/confirm boolean true\nd-i partman-md/confirm_nooverwrite boolean true\nd-i partman-auto-raid/recipe_confirm boolean true\nd-i mdadm/boot_degraded boolean true|' \
   "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-mirror.cfg"
+# "System on the data disks": the same, on two disks or more, a 20 GB system
+# part on each and the rest left for data (install.sh makes the partition).
+sed -e 's|mirror-disks.sh$|mirror-disks.sh datadisks|' -e 's|in-target bash /root/strataos/install.sh|touch /target/root/strataos/datadisks; &|' \
+  -e 's|^### Partitioning: RAID 1 on the two disks chosen by mirror-disks.sh|### Partitioning: RAID 1 on the data disks chosen by mirror-disks.sh datadisks|' \
+  "$STAGE/strata/preseed-mirror.cfg" > "$STAGE/strata/preseed-datadisks.cfg"
 sed -e 's|in-target bash /root/strataos/install.sh|&; sh /cdrom/strata/restore.sh|' "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-restore.cfg"
-grep -q mirror-disks.sh "$STAGE/strata/preseed-mirror.cfg" && grep -q restore.sh "$STAGE/strata/preseed-restore.cfg"
+grep -q mirror-disks.sh "$STAGE/strata/preseed-mirror.cfg" && grep -q restore.sh "$STAGE/strata/preseed-restore.cfg" && grep -q 'mirror-disks.sh datadisks' "$STAGE/strata/preseed-datadisks.cfg" && grep -q 'touch /target/root/strataos/datadisks' "$STAGE/strata/preseed-datadisks.cfg"
 # Test images only: ISO_TEST_SSH_KEY lets the test scripts in as root with
-# that public key; ISO_TEST_DEFAULT=mirror|restore starts that entry by
+# that public key; ISO_TEST_DEFAULT=mirror|datadisks|restore starts that entry by
 # default; ISO_TEST_BOOTARGS are added to the kernel command line (e.g.
 # strata_mirror_disks=sda,sdb answers the question of the mirror entry).
 if [ -n "${ISO_TEST_SSH_KEY:-}" ]; then
@@ -71,6 +76,7 @@ args="auto=true priority=critical language=$LANGUAGE country=$COUNTRY locale=$LO
 {
   echo "install|Install StrataOS $VERSION|preseed/file=/cdrom/strata/preseed.cfg $args"
   echo "mirror|Install StrataOS $VERSION - system on two disks (mirror)|preseed/file=/cdrom/strata/preseed-mirror.cfg $args"
+  echo "datadisks|Install StrataOS $VERSION - system on the data disks|preseed/file=/cdrom/strata/preseed-datadisks.cfg $args"
   echo "restore|Restore a StrataOS system backup|preseed/file=/cdrom/strata/preseed-restore.cfg $args"
 } > "$STAGE/entries"
 DEFAULT=${ISO_TEST_DEFAULT:-install}

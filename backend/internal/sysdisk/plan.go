@@ -25,6 +25,30 @@ const (
 	reservedMiB = 2
 )
 
+// Sizes of the system on the data disks: the system partition is at least
+// minSysMiB, and each disk keeps at least minDataMiB for data.
+const (
+	minSysMiB    = 20 << 10
+	minDataMiB   = 1 << 10
+	maxDataDisks = 8
+)
+
+// sysPartMiB is the system partition of the data disks layout: room for the
+// system as it is now and half again, 20 GiB at least, whole GiB.
+func sysPartMiB(used int64) int64 {
+	mib := (rootNeed(used) + rootNeed(used)/2) >> 20
+	mib = (mib + 1023) / 1024 * 1024
+	return max(mib, minSysMiB)
+}
+
+// dataDisksLayout: boot, swap and system as on a mirror, then a data
+// partition with the rest of each disk (storage.DataPartLabel).
+func dataDisksLayout(boot string, used, swap int64) []PartSpec {
+	parts := partLayout(boot, 0, swap, true)
+	parts[len(parts)-1].MiB = sysPartMiB(used)
+	return append(parts, PartSpec{Num: 4, Role: "data", MiB: 0, Code: "8300", Name: storage.DataPartLabel})
+}
+
 // Layout of a new system disk of size bytes (for a mirror: the smaller disk).
 func partLayout(boot string, size, swap int64, mirror bool) []PartSpec {
 	var parts []PartSpec
@@ -91,7 +115,7 @@ type PlanFacts struct {
 
 // Plan says whether and how the system can be mirrored or moved.
 type Plan struct {
-	Kind       string      `json:"kind"` // mirror | move
+	Kind       string      `json:"kind"` // mirror | move | datadisks
 	Boot       string      `json:"boot"`
 	FSType     string      `json:"fsType"`
 	Old        *DiskRef    `json:"old,omitempty"`
@@ -99,10 +123,16 @@ type Plan struct {
 	Used       int64       `json:"used"`
 	Candidates []Candidate `json:"candidates"`
 	Target     *Candidate  `json:"target,omitempty"`
-	Parts      []PartSpec  `json:"parts,omitempty"`
-	Refusal    string      `json:"refusal,omitempty"`
-	Warnings   []string    `json:"warnings,omitempty"`
-	Steps      []string    `json:"steps,omitempty"`
+	// Targets: the disks of a datadisks plan (Target is the first).
+	Targets []Candidate `json:"targets,omitempty"`
+	// OldDisks: every disk of the system (several when it is mirrored).
+	OldDisks []DiskRef `json:"oldDisks,omitempty"`
+	// Confirm: what the user types to confirm (the names of the disks erased).
+	Confirm  string     `json:"confirm,omitempty"`
+	Parts    []PartSpec `json:"parts,omitempty"`
+	Refusal  string     `json:"refusal,omitempty"`
+	Warnings []string   `json:"warnings,omitempty"`
+	Steps    []string   `json:"steps,omitempty"`
 }
 
 // Room the copy needs beyond the space used now: 10 % and 1 GiB.
@@ -110,17 +140,31 @@ func rootNeed(used int64) int64 { return used + used/10 + 1<<30 }
 
 // PlanMirror plans the mirroring of a single-disk system onto target ("":
 // only the candidates).
-func PlanMirror(f PlanFacts, target string) Plan { return plan(f, "mirror", target) }
+func PlanMirror(f PlanFacts, target string) Plan { return plan(f, "mirror", one(target)) }
 
-// PlanMove plans the move of the system onto target.
-func PlanMove(f PlanFacts, target string) Plan { return plan(f, "move", target) }
+// PlanMove plans the move of the system onto target (also off a mirror or
+// the data disks: the system then lives on one disk of its own).
+func PlanMove(f PlanFacts, target string) Plan { return plan(f, "move", one(target)) }
 
-func plan(f PlanFacts, kind, target string) Plan {
+// PlanDataDisks plans the move of the system onto several data disks: each
+// gets a copy of the system (RAID 1 over all of them) and a data partition
+// with the rest of its space.
+func PlanDataDisks(f PlanFacts, targets []string) Plan { return plan(f, "datadisks", targets) }
+
+func one(t string) []string {
+	if t == "" {
+		return nil
+	}
+	return []string{t}
+}
+
+func plan(f PlanFacts, kind string, targets []string) Plan {
 	l := f.Layout
 	p := Plan{Kind: kind, Boot: l.Boot, FSType: l.Root.FSType, Used: l.Used, Candidates: []Candidate{}}
 	if len(l.Disks) > 0 {
 		d := l.Disks[0]
 		p.Old = &d
+		p.OldDisks = l.Disks
 	}
 	swap := l.SwapSize
 	bootMiB := int64(biosMiB)
@@ -128,6 +172,9 @@ func plan(f PlanFacts, kind, target string) Plan {
 		bootMiB = espMiB
 	}
 	p.Need = (reservedMiB+bootMiB+min((swap+(1<<20)-1)>>20, maxSwapMiB))<<20 + rootNeed(l.Used)
+	if kind == "datadisks" {
+		p.Need = (reservedMiB + bootMiB + min((swap+(1<<20)-1)>>20, maxSwapMiB) + sysPartMiB(l.Used) + minDataMiB) << 20
+	}
 
 	switch {
 	case len(l.Problems) > 0:
@@ -136,9 +183,11 @@ func plan(f PlanFacts, kind, target string) Plan {
 		p.Refusal = f.Running
 	case kind == "mirror" && l.Mirrored:
 		p.Refusal = "The system is already mirrored. To change one of its disks, use Replace on the Disks page."
-	case kind == "move" && l.Mirrored:
-		p.Refusal = "The system is mirrored on two disks: replace its disks one by one (Disks → Replace) instead of moving it."
-	case len(l.Disks) != 1:
+	case kind == "datadisks" && l.Mirrored:
+		p.Refusal = "The system is already on several disks: move it to one disk first, then onto the data disks."
+	case kind == "move" && l.Degraded:
+		p.Refusal = "The system mirror is degraded: replace its missing disk first (Disks → Replace)."
+	case len(l.Disks) == 0 || (len(l.Disks) != 1 && !l.Mirrored):
 		p.Refusal = "The system disk could not be identified."
 	case l.Arch != "amd64" && l.Arch != "arm64":
 		p.Refusal = fmt.Sprintf("Unsupported architecture %s.", l.Arch)
@@ -210,24 +259,63 @@ func plan(f PlanFacts, kind, target string) Plan {
 		p.Warnings = append(p.Warnings, "The swap file is created again on the new disk.")
 	}
 
-	if target == "" {
+	if kind == "datadisks" {
+		p.Warnings = append(p.Warnings, "The data partitions start empty: create a volume or a RAID array on them in Storage once the system runs from the data disks.")
+	}
+	if len(targets) == 0 {
 		return p
 	}
-	var c *Candidate
-	for i := range p.Candidates {
-		if p.Candidates[i].Path == target {
-			c = &p.Candidates[i]
+	if kind == "datadisks" && (len(targets) < 2 || len(targets) > maxDataDisks) {
+		p.Refusal = fmt.Sprintf("Choose between 2 and %d disks: the system is mirrored on all of them.", maxDataDisks)
+		return p
+	}
+	seen := map[string]bool{}
+	for _, target := range targets {
+		var c *Candidate
+		for i := range p.Candidates {
+			if p.Candidates[i].Path == target {
+				c = &p.Candidates[i]
+			}
 		}
+		switch {
+		case seen[target]:
+			p.Refusal = fmt.Sprintf("%s is chosen twice.", target)
+			return p
+		case c == nil:
+			p.Refusal = "This disk cannot receive the system (system disk, or not found)."
+			return p
+		case !c.OK:
+			p.Refusal = fmt.Sprintf("%s cannot receive the system: %s.", target, c.Reason)
+			return p
+		}
+		seen[target] = true
+		p.Targets = append(p.Targets, *c)
 	}
-	switch {
-	case c == nil:
-		p.Refusal = "This disk cannot receive the system (system disk, or not found)."
-		return p
-	case !c.OK:
-		p.Refusal = fmt.Sprintf("%s cannot receive the system: %s.", target, c.Reason)
-		return p
+	var names []string
+	for _, c := range p.Targets {
+		names = append(names, c.Name)
 	}
+	p.Confirm = strings.Join(names, ", ")
+	c := &p.Targets[0]
 	p.Target = c
+	if kind == "datadisks" {
+		smallest, largest := c.Size, c.Size
+		for _, t := range p.Targets {
+			smallest, largest = min(smallest, t.Size), max(largest, t.Size)
+			if t.Kind == "usb" {
+				p.Warnings = append(p.Warnings, fmt.Sprintf("%s is a USB disk: it can be unplugged by mistake, and some machines do not start from USB.", t.Name))
+			}
+			if len(t.Weak) > 0 {
+				p.Warnings = append(p.Warnings, fmt.Sprintf("%s shows signs of wear (%s).", t.Name, strings.Join(t.Weak, ", ")))
+			}
+		}
+		if largest > smallest+smallest/10 {
+			p.Warnings = append(p.Warnings, "The disks have different sizes: their data partitions too. A RAID array on them has the size of the smallest one.")
+		}
+		p.Parts = dataDisksLayout(l.Boot, l.Used, swap)
+		p.Steps = steps(p, l)
+		return p
+	}
 	size := c.Size
 	if kind == "mirror" {
 		size = min(size, p.Old.Size)
@@ -263,6 +351,27 @@ func sub(format string, args ...any) string {
 func steps(p Plan, l Layout) []string {
 	nd := p.Target.Name
 	od := p.Old.Name
+	if len(p.OldDisks) > 1 {
+		var n []string
+		for _, d := range p.OldDisks {
+			n = append(n, d.Name)
+		}
+		od = strings.Join(n, ", ")
+	}
+	if p.Kind == "datadisks" {
+		boot := sub("GRUB on {0}", p.Confirm)
+		if l.Boot == "uefi" {
+			boot = sub("an EFI system partition on {0} and a UEFI boot entry for each", p.Confirm)
+		}
+		return []string{
+			sub("Erase {0} and partition each one ({1})", p.Confirm, partSummary(p.Parts)),
+			sub("Create a RAID 1 array over the system partitions of the {0} disks, and a {1} file system", len(p.Targets), p.FSType),
+			sub("Copy the running system onto it ({0} is only read)", od),
+			sub("When you click Restart: copy the last changes, point the copy's fstab, initramfs and boot loader to the array, install {0}", boot),
+			sub("Restart once from {0}: if it does not start, the next restart uses {1} unchanged", nd, od),
+			sub("Once the system runs from the data disks: power off, then remove {0} or erase it to use it for data", od),
+		}
+	}
 	boot := sub("GRUB on {0}", nd)
 	if l.Boot == "uefi" {
 		boot = sub("an EFI system partition and a UEFI boot entry for {0}", nd)
@@ -300,6 +409,8 @@ func partSummary(parts []PartSpec) string {
 			s = append(s, "swap "+human(p.MiB<<20))
 		case "root":
 			s = append(s, "system "+human(p.MiB<<20))
+		case "data":
+			s = append(s, "data: the rest")
 		}
 	}
 	return strings.Join(s, ", ")

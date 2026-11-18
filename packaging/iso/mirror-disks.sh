@@ -1,5 +1,11 @@
 #!/bin/sh
-# "System on two disks (mirror)" (partman/early_command of preseed-mirror.cfg):
+# "System on two disks (mirror)" (partman/early_command of preseed-mirror.cfg),
+# and with the argument "datadisks" "System on the data disks"
+# (preseed-datadisks.cfg): two disks or more, each with a 20 GB system part
+# of the mirror, the rest of each disk becoming a data partition after the
+# installation (install.sh, GPT name "StrataOS data").
+#
+# Mirror:
 # asks for the two system disks, then preseeds partman with a RAID 1 recipe
 # that gives both disks the same layout:
 #   1  EFI system partition (UEFI) or BIOS boot partition (BIOS)
@@ -12,6 +18,9 @@ set -u
 log() { logger -t strata-mirror "$*"; }
 
 debconf-loadtemplate strata /cdrom/strata/mirror.templates
+mode=${1:-mirror}
+q=strata/mirror-disks wrong=strata/mirror-wrong arg=strata_mirror_disks
+[ "$mode" = datadisks ] && q=strata/datadisks-disks wrong=strata/datadisks-wrong arg=strata_datadisks_disks
 
 # Disks, without the installation medium (a USB stick shows up as a disk).
 media=$(sed -n 's|^\(/dev/[^ ]*\) /cdrom .*|\1|p' /proc/mounts | head -1)
@@ -31,27 +40,29 @@ log "disks: $devs"
 chosen=""
 # Test images only: the disks can be given on the kernel command line.
 for w in $(cat /proc/cmdline); do
-  case "$w" in strata_mirror_disks=*) chosen=$(echo "${w#*=}" | sed 's|\([a-z0-9]*\)|/dev/\1|g; s|,| |g') ;; esac
+  case "$w" in "$arg"=*) chosen=$(echo "${w#*=}" | sed 's|\([a-z0-9]*\)|/dev/\1|g; s|,| |g') ;; esac
 done
 while [ -z "$chosen" ]; do
-  db_subst strata/mirror-disks DEVS "$devs"
-  db_subst strata/mirror-disks CHOICES "$choices"
-  db_fset strata/mirror-disks seen false
-  db_input critical strata/mirror-disks || true
+  db_subst "$q" DEVS "$devs"
+  db_subst "$q" CHOICES "$choices"
+  db_fset "$q" seen false
+  db_input critical "$q" || true
   db_go || exit 10
-  db_get strata/mirror-disks
+  db_get "$q"
   sel=$(echo "$RET" | sed 's/,/ /g')
-  if [ "$(echo $sel | wc -w)" -eq 2 ]; then
+  n=$(echo $sel | wc -w)
+  if { [ "$mode" = mirror ] && [ "$n" -eq 2 ]; } || { [ "$mode" = datadisks ] && [ "$n" -ge 2 ] && [ "$n" -le 8 ]; }; then
     chosen=$sel
   else
-    db_fset strata/mirror-wrong seen false
-    db_input critical strata/mirror-wrong || true
+    db_fset "$wrong" seen false
+    db_input critical "$wrong" || true
     db_go || true
   fi
 done
 set -- $chosen
 a=$1 b=$2
-log "mirror on $a and $b"
+n=$#
+log "$mode on $chosen"
 p() { case "$1" in *[0-9]) echo "${1}p$2" ;; *) echo "$1$2" ;; esac; }
 
 if [ -d /sys/firmware/efi ]; then
@@ -59,15 +70,23 @@ if [ -d /sys/firmware/efi ]; then
   bootdev=default
 else
   boot='1 1 1 free $iflabel{ gpt } method{ biosgrub } .'
-  bootdev="$a $b"
+  bootdev="$chosen"
 fi
-# Swap: 2 GB; the system takes the rest (the smaller disk sets the size).
-recipe="strata-mirror :: $boot 2048 2048 2048 raid \$lvmignore{ } method{ raid } . 8000 8000 -1 raid \$lvmignore{ } method{ raid } ."
+# Swap: 2 GB; the system takes the rest (the smaller disk sets the size),
+# or 20 GB on the data disks (the rest stays free for the data partition).
+sys="8000 8000 -1"
+[ "$mode" = datadisks ] && sys="20480 20480 20480"
+recipe="strata-mirror :: $boot 2048 2048 2048 raid \$lvmignore{ } method{ raid } . $sys raid \$lvmignore{ } method{ raid } ."
+roots="" swaps=""
+for d in $chosen; do
+  roots="${roots:+$roots#}$(p "$d" 3)"
+  swaps="${swaps:+$swaps#}$(p "$d" 2)"
+done
 
-db_set partman-auto/disk "$a $b"
+db_set partman-auto/disk "$chosen"
 db_set partman-auto/method raid
 db_set partman-auto/expert_recipe "$recipe"
-db_set partman-auto-raid/recipe "1 2 0 btrfs / $(p "$a" 3)#$(p "$b" 3) . 1 2 0 swap - $(p "$a" 2)#$(p "$b" 2) ."
+db_set partman-auto-raid/recipe "1 $n 0 btrfs / $roots . 1 $n 0 swap - $swaps ."
 db_set grub-installer/bootdev "$bootdev"
 for q in partman-auto/disk partman-auto/method partman-auto/expert_recipe partman-auto-raid/recipe grub-installer/bootdev; do
   db_fset "$q" seen true

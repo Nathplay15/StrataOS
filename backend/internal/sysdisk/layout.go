@@ -36,6 +36,7 @@ type Node struct {
 	PartUUID    string   `json:"partuuid,omitempty"`
 	PartType    string   `json:"parttype,omitempty"`
 	PTType      string   `json:"pttype,omitempty"`
+	PartLabel   string   `json:"partlabel,omitempty"`
 	Serial      string   `json:"serial,omitempty"`
 	Model       string   `json:"model,omitempty"`
 	Rotational  bool     `json:"rota,omitempty"`
@@ -122,7 +123,13 @@ type Layout struct {
 	Used      int64      `json:"used"` // bytes to copy
 	// Mirrored: the system is on mdadm RAID 1; Degraded: a member is missing.
 	Mirrored bool `json:"mirrored"`
-	Degraded bool `json:"degraded,omitempty"`
+	// Placement: own (one disk for the system), mirror (RAID 1 on disks of
+	// its own) or datadisks (RAID 1 on disks that also have a data partition,
+	// storage.DataPartLabel).
+	Placement string `json:"placement"`
+	// DataParts: those data partitions.
+	DataParts []string `json:"dataParts,omitempty"`
+	Degraded  bool     `json:"degraded,omitempty"`
 	// Problems: what keeps StrataOS from mirroring or moving this system.
 	Problems []string `json:"problems,omitempty"`
 }
@@ -361,6 +368,9 @@ func ParseLayout(f Facts) Layout {
 		if role == "" && !onSys {
 			continue
 		}
+		if role == "" && allData(f.Disks, members) {
+			continue // an array of the data partitions: data, not the system
+		}
 		if role == "" {
 			role = "other"
 			l.Problems = append(l.Problems, fmt.Sprintf("The RAID array %s uses the system disk but holds no part of the system.", firstNonEmpty(a.Label, a.Name)))
@@ -386,6 +396,10 @@ func ParseLayout(f Facts) Layout {
 			continue
 		}
 		for _, p := range d.Children {
+			if p.PartLabel == storage.DataPartLabel {
+				l.DataParts = append(l.DataParts, p.Path)
+				continue
+			}
 			pt := strings.ToLower(p.PartType)
 			if pt == TypeESP || pt == TypeBIOSGrub || p.FSType == "swap" {
 				continue
@@ -436,7 +450,36 @@ func ParseLayout(f Facts) Layout {
 	if len(l.Disks) > 1 && !l.Mirrored {
 		l.Problems = append(l.Problems, "The system is spread over several disks.")
 	}
+	switch {
+	case l.Mirrored && len(l.DataParts) > 0:
+		l.Placement = "datadisks"
+	case l.Mirrored:
+		l.Placement = "mirror"
+	default:
+		l.Placement = "own"
+	}
 	return l
+}
+
+// allData tells whether every member is a data partition (DataPartLabel).
+func allData(disks []Node, members []string) bool {
+	if len(members) == 0 {
+		return false
+	}
+	for _, m := range members {
+		ok := false
+		for _, d := range disks {
+			for _, p := range d.Children {
+				if p.Path == m && p.PartLabel == storage.DataPartLabel {
+					ok = true
+				}
+			}
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func firstNonEmpty(v ...string) string {
@@ -518,7 +561,7 @@ func ParseSwaps(text string) []string {
 	return out
 }
 
-const lsblkCols = "NAME,PATH,TYPE,SIZE,FSTYPE,UUID,PARTUUID,PARTTYPE,PTTYPE,SERIAL,MODEL,ROTA,TRAN,MOUNTPOINTS"
+const lsblkCols = "NAME,PATH,TYPE,SIZE,FSTYPE,UUID,PARTUUID,PARTTYPE,PTTYPE,PARTLABEL,SERIAL,MODEL,ROTA,TRAN,MOUNTPOINTS"
 
 // ParseLsblk decodes lsblk -J -b output.
 func ParseLsblk(out string) ([]Node, error) {
@@ -558,7 +601,7 @@ func decodeNode(raw json.RawMessage) (Node, error) {
 		return strings.TrimSpace(string(v))
 	}
 	n := Node{Name: str("name"), Path: str("path"), Type: str("type"), FSType: str("fstype"), UUID: str("uuid"),
-		PartUUID: str("partuuid"), PartType: strings.ToLower(str("parttype")), PTType: str("pttype"),
+		PartUUID: str("partuuid"), PartType: strings.ToLower(str("parttype")), PTType: str("pttype"), PartLabel: str("partlabel"),
 		Serial: str("serial"), Model: str("model"), Transport: str("tran")}
 	n.Size, _ = strconv.ParseInt(str("size"), 10, 64)
 	n.Rotational = str("rota") == "true" || str("rota") == "1"

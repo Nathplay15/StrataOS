@@ -9,6 +9,12 @@
 #                               new disk alone
 #   vm/sysdisk-test.sh move     system backup onto a data volume, move the system
 #                               to disk 1, restart, start without the old disk
+#   vm/sysdisk-test.sh datadisks  move the system onto disks 1 and 2 (RAID 1 on
+#                               a system partition of each, a data partition with
+#                               the rest), a data volume on the data partitions,
+#                               erase the old disk, start with disk 1 unplugged,
+#                               then move the system back onto a disk of its own
+#                               and erase its old partitions: the data volume stays
 #
 # Uses its own VM (VM_STATE, default vm/state-sysdisk) and the package in dist/.
 # Credentials are test-only.
@@ -138,12 +144,80 @@ part_move() {
   check "StrataOS settings kept" "$(c GET /api/system/info | py 'print(d["hostname"])')" "sysdisk-vm"
 }
 
+part_datadisks() {
+  printf '\n\033[1;36m== System on the data disks, then back on a disk of its own (BIOS, ext4)\033[0m\n'
+  fresh_vm
+  H1=$(dev STRATA-HDD-1) H2=$(dev STRATA-HDD-2)
+  N1=${H1#/dev/} N2=${H2#/dev/}
+  check "plan: one disk refused" "$(c GET "/api/system/disk/plan?kind=datadisks&target=$H1" | py 'print(d["refusal"])')" "between 2"
+  check "plan: two data disks" "$(c GET "/api/system/disk/plan?kind=datadisks&target=$H1&target=$H2" | py 'print(d.get("refusal",""), d["confirm"], [p["role"] for p in d["parts"]])')" " $N1, $N2 ['biosgrub', 'root', 'data']"
+  check "a partial confirmation is refused" "$(c POST /api/system/disk/start -d '{"kind":"datadisks","targets":["'"$H1"'","'"$H2"'"],"confirm":"'"$N1"'"}')" "type the names"
+  vm "echo on-data-disks | sudo tee /root/marker >/dev/null"
+  R=$(c POST /api/system/disk/start -d '{"kind":"datadisks","targets":["'"$H1"'","'"$H2"'"],"confirm":"'"$N1, $N2"'"}')
+  check "copy onto the data disks" "$(job "$R")" "success"
+  joblog "$R" | grep -E '^\$ (sgdisk|mdadm)' | head -5
+  ID=$(op 'o["id"]')
+  R=$(c POST "/api/system/disk/$ID/switch")
+  check "switch prepared" "$(job "$R")" "success"
+  joblog "$R" | grep -E 'grub-install' | head -4
+  restarted
+  check "started from the data disks" "$(op 'o["phase"]')" "booted"
+  check "/ on the md array" "$(vm "findmnt -n -o SOURCE /")" "/dev/md"
+  check "files copied" "$(vm "sudo cat /root/marker")" "on-data-disks"
+  check "system array on both data disks" "$(vm "cat /proc/mdstat")" "[UU]"
+  check "layout: on the data disks" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["placement"], len(l.get("dataParts") or []), l.get("problems"))')" "datadisks 2 None"
+  check "data partitions offered as free" "$(c GET /api/storage/disks | py 'print(sorted(x["usage"] for x in d if x.get("dataOf")))')" "['free', 'free']"
+  P1=$(c GET /api/storage/disks | py "print([x['path'] for x in d if x.get('dataOf')=='$N1'][0])")
+  P2=$(c GET /api/storage/disks | py "print([x['path'] for x in d if x.get('dataOf')=='$N2'][0])")
+  check "a system partition is refused" "$(c POST /api/storage/disks/wipe -d '{"device":"'"${H1}"'3"}')" "system disk"
+  check "RAID 1 on the data partitions" "$(job "$(c POST /api/storage/raid -d '{"name":"dd","level":"1","devices":["'"$P1"'","'"$P2"'"]}')")" "success"
+  check "volume on it" "$(job "$(c POST /api/storage/volumes -d '{"name":"dd","fsType":"ext4","devices":["/dev/md/dd"]}')")" "success"
+  vm "echo data-kept | sudo tee /srv/strata/dd/f >/dev/null"
+  check "layout usable with the data array" "$(c GET /api/system/disk | py 'print(d["layout"].get("problems"), d["move"].get("refusal",""))')" "None"
+  check "finish, old disk erased" "$(job "$(c POST "/api/system/disk/$ID/complete" -d '{"erase":true,"confirm":"vda"}')")" "success"
+  check "old disk free" "$(c GET /api/storage/disks | py 'print([x["usage"] for x in d if x["path"]=="/dev/vda"])')" "['free']"
+  VM_DETACH=1 restart_vm
+  check "starts with data disk 1 unplugged" "$(vm "findmnt -n -o SOURCE /; cat /proc/mdstat")" "[2/1]"
+  check "data volume there, degraded" "$(vm "cat /srv/strata/dd/f")" "data-kept"
+  restart_vm
+  # The disk is back: its partitions join the arrays again (bitmaps: quick).
+  for a in strata-root:3 dd:4; do
+    vm "sudo mdadm /dev/md/${a%:*} --re-add /dev/disk/by-id/ata-*_STRATA-HDD-1-part${a#*:} >/dev/null 2>&1 || true"
+  done
+  for _ in $(seq 1 120); do vm "grep -q recover /proc/mdstat" || break; sleep 2; done
+  check "arrays complete again" "$(vm "grep -c '\[UU\]' /proc/mdstat")" "2"
+
+  printf '\n\033[1;36m== Back onto a disk of its own\033[0m\n'
+  check "plan: move onto vda" "$(c GET '/api/system/disk/plan?kind=move&target=/dev/vda' | py 'print(d.get("refusal",""), d["confirm"], len(d["oldDisks"]))')" " vda 2"
+  R=$(c POST /api/system/disk/start -d '{"kind":"move","target":"/dev/vda","confirm":"vda"}')
+  check "copy onto vda" "$(job "$R")" "success"
+  ID=$(op 'o["id"]')
+  check "switch prepared" "$(job "$(c POST "/api/system/disk/$ID/switch")")" "success"
+  restarted
+  check "started from vda" "$(op 'o["phase"]')" "booted"
+  check "/ on vda" "$(vm "findmnt -n -o SOURCE /")" "/dev/vda"
+  N1=$(c GET /api/storage/disks | py "print([x['name'] for x in d if x['serial']=='STRATA-HDD-1'][0])")
+  N2=$(c GET /api/storage/disks | py "print([x['name'] for x in d if x['serial']=='STRATA-HDD-2'][0])")
+  check "erasing needs both old disk names" "$(c POST "/api/system/disk/$ID/complete" -d '{"erase":true,"confirm":"'"$N1"'"}')" "type the names"
+  R=$(c POST "/api/system/disk/$ID/complete" -d '{"erase":true,"confirm":"'"$N1, $N2"'"}')
+  check "old system partitions erased" "$(job "$R")" "success"
+  joblog "$R" | grep -E 'Erasing|Stopping|wipefs' | head -6
+  check "old system array gone" "$(vm "ls /dev/md/; cat /proc/mdstat")" "dd"
+  check "no old system array left" "$(vm "ls /dev/md/ | grep -c strata-root || true")" "0"
+  check "data volume kept" "$(vm "cat /srv/strata/dd/f")" "data-kept"
+  check "layout: own disk" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["placement"], l["mirrored"])')" "own False"
+  restart_vm
+  check "after a restart: data volume mounted" "$(vm "cat /srv/strata/dd/f")" "data-kept"
+  check "data array complete" "$(vm "cat /proc/mdstat")" "[UU]"
+}
+
 parts=("$@")
 [ ${#parts[@]} -gt 0 ] || parts=(mirror move)
 for p in "${parts[@]}"; do
   case "$p" in
     mirror) part_mirror ;;
     move) part_move ;;
+    datadisks) part_datadisks ;;
     *) echo "unknown part $p"; exit 1 ;;
   esac
 done

@@ -93,8 +93,11 @@ func (s *Server) sysDiskFail(o *store.SysDiskOp, err error) error {
 }
 
 func kindTitle(kind string) string {
-	if kind == "mirror" {
+	switch kind {
+	case "mirror":
 		return "Mirroring the system disk"
+	case "datadisks":
+		return "Moving the system onto the data disks"
 	}
 	return "Moving the system to another disk"
 }
@@ -262,12 +265,16 @@ func (s *Server) sysDiskResume() {
 			o.Phase = "booted"
 			if o.Kind == "mirror" {
 				o.Message = "The system started from the mirror on the new disk. Check that everything works, then complete the mirror: the old disk is erased and added to it."
+			} else if o.Kind == "datadisks" {
+				o.Message = "The system started from the data disks. Check that everything works, then power off the NAS and remove the old disk, or erase it to use it for data. Volumes can now be created on the data partitions."
 			} else {
 				o.Message = "The system started from the new disk. Power off the NAS and remove the old disk, or erase it to use it for data."
 			}
 			s.saveSysDiskOp(o)
-			if o.New != "" {
-				_ = storage.SetBusy(o.New, "system disk change")
+			for _, t := range append([]string{o.New}, o.Extra...) {
+				if t != "" {
+					_ = storage.SetBusy(t, "system disk change")
+				}
 			}
 			logf("the system started from %s", o.New)
 			s.notify("info", "System disk", o.Message)
@@ -295,6 +302,25 @@ func (s *Server) sysDiskResume() {
 	}
 }
 
+// sysDiskOldNames: the names of the old system disks, as the user types
+// them to confirm their erasure.
+func sysDiskOldNames(o *store.SysDiskOp) string {
+	if len(o.OldDisks) == 0 {
+		return strings.TrimPrefix(sysdisk.DiskBySerial(o.OldSerial, o.Old), "/dev/")
+	}
+	var n []string
+	for i, d := range o.OldDisks {
+		ser := ""
+		if i < len(o.OldSerials) {
+			ser = o.OldSerials[i]
+		}
+		if cur := sysdisk.DiskBySerial(ser, d); cur != "" {
+			n = append(n, strings.TrimPrefix(cur, "/dev/"))
+		}
+	}
+	return strings.Join(n, ", ")
+}
+
 func (s *Server) sysDiskRoutes() {
 	s.admin("GET /api/system/disk", func(r *http.Request) (any, error) {
 		l, _, err := sysdisk.Detect()
@@ -319,7 +345,7 @@ func (s *Server) sysDiskRoutes() {
 			}
 		}
 		return map[string]any{"layout": l, "mirror": sysdisk.PlanMirror(pf, ""), "move": sysdisk.PlanMove(pf, ""),
-			"ops": ops, "backups": backups, "smart": smart}, nil
+			"datadisks": sysdisk.PlanDataDisks(pf, nil), "ops": ops, "backups": backups, "smart": smart}, nil
 	})
 	s.admin("GET /api/system/disk/plan", func(r *http.Request) (any, error) {
 		l, _, err := sysdisk.Detect()
@@ -327,8 +353,11 @@ func (s *Server) sysDiskRoutes() {
 			return nil, err
 		}
 		pf := s.sysDiskFacts(l)
-		if r.URL.Query().Get("kind") == "mirror" {
+		switch r.URL.Query().Get("kind") {
+		case "mirror":
 			return sysdisk.PlanMirror(pf, r.URL.Query().Get("target")), nil
+		case "datadisks":
+			return sysdisk.PlanDataDisks(pf, r.URL.Query()["target"]), nil
 		}
 		return sysdisk.PlanMove(pf, r.URL.Query().Get("target")), nil
 	})
@@ -336,14 +365,17 @@ func (s *Server) sysDiskRoutes() {
 		sysDiskMu.Lock()
 		defer sysDiskMu.Unlock()
 		var req struct {
-			Kind    string `json:"kind"`
-			Target  string `json:"target"`
-			Confirm string `json:"confirm"` // the target disk name, typed by the user
+			Kind    string   `json:"kind"`
+			Target  string   `json:"target"`
+			Targets []string `json:"targets"` // datadisks
+			// Confirm: the names of the disks erased, typed by the user
+			// (several: as the plan's Confirm lists them).
+			Confirm string `json:"confirm"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		if req.Kind != "mirror" && req.Kind != "move" {
+		if req.Kind != "mirror" && req.Kind != "move" && req.Kind != "datadisks" {
 			return nil, badRequest("unknown operation")
 		}
 		l, _, err := sysdisk.Detect()
@@ -352,33 +384,63 @@ func (s *Server) sysDiskRoutes() {
 		}
 		// Plan again with fresh facts: the browser's plan is never trusted.
 		var p sysdisk.Plan
-		if req.Kind == "mirror" {
+		switch req.Kind {
+		case "mirror":
 			p = sysdisk.PlanMirror(s.sysDiskFacts(l), req.Target)
-		} else {
+		case "datadisks":
+			p = sysdisk.PlanDataDisks(s.sysDiskFacts(l), req.Targets)
+		default:
 			p = sysdisk.PlanMove(s.sysDiskFacts(l), req.Target)
 		}
 		if p.Refusal != "" {
 			return nil, badRequest(p.Refusal)
 		}
-		if p.Target == nil || req.Confirm != p.Target.Name {
+		if p.Target == nil || req.Confirm != p.Confirm {
+			if len(p.Targets) > 1 {
+				return nil, badRequest("type the names of the disks to confirm, as listed: they will be erased")
+			}
 			return nil, badRequest("type the name of the new disk to confirm: it will be erased")
 		}
-		if err := storage.SetBusy(p.Target.Path, "system disk change"); err != nil {
-			return nil, badRequest(err.Error())
+		var busy []string
+		for _, t := range p.Targets {
+			if err := storage.SetBusy(t.Path, "system disk change"); err != nil {
+				for _, b := range busy {
+					storage.ClearBusy(b)
+				}
+				return nil, badRequest(err.Error())
+			}
+			busy = append(busy, t.Path)
 		}
 		old := l.Disks[0]
 		o := &store.SysDiskOp{ID: shortID(), Kind: req.Kind, Phase: "prepare", Warnings: p.Warnings, Boot: l.Boot, FSType: l.Root.FSType, Subvol: l.Root.Subvol,
 			Parts: p.Parts, Old: old.Path, OldSerial: old.Serial, OldModel: old.Model, OldSize: old.Size,
 			New: p.Target.Path, NewSerial: p.Target.Serial, NewModel: p.Target.Model, OldRootUUID: sysdisk.RootUUID(),
 			Started: time.Now(), User: userOf(r)}
+		for _, t := range p.Targets[1:] {
+			o.Extra, o.ExtraSerials = append(o.Extra, t.Path), append(o.ExtraSerials, t.Serial)
+		}
+		if len(l.Disks) > 1 {
+			for _, d := range l.Disks {
+				o.OldDisks, o.OldSerials = append(o.OldDisks, d.Path), append(o.OldSerials, d.Serial)
+			}
+			for _, a := range l.Arrays {
+				if a.Role == "root" || a.Role == "swap" || a.Role == "boot" {
+					if u := sysdisk.ArrayUUID(a.Device); u != "" {
+						o.OldArrays = append(o.OldArrays, u)
+					}
+				}
+			}
+		}
 		if old.ESP != "" {
 			o.OldESP = espPartUUID(old.ESP)
 		}
 		if o.OldRootUUID == "" {
-			storage.ClearBusy(p.Target.Path)
+			for _, b := range busy {
+				storage.ClearBusy(b)
+			}
 			return nil, badRequest("the UUID of the system file system could not be read")
 		}
-		s.audit(r, "storage", fmt.Sprintf("%s: %s %s → %s %s (%s)", kindTitle(req.Kind), old.Path, old.Serial, p.Target.Path, p.Target.Serial, p.Target.Model))
+		s.audit(r, "storage", fmt.Sprintf("%s: %s %s → %s", kindTitle(req.Kind), old.Path, old.Serial, p.Confirm))
 		j := s.sysDiskCopyJob(o)
 		return map[string]any{"job": j, "id": o.ID}, nil
 	})
@@ -418,14 +480,21 @@ func (s *Server) sysDiskRoutes() {
 			return nil, badRequest("the system does not run from the new disk")
 		}
 		old := sysdisk.DiskBySerial(o.OldSerial, o.Old)
-		oldName := strings.TrimPrefix(old, "/dev/")
+		oldName := sysDiskOldNames(o)
 		if (o.Kind == "mirror" || req.Erase) && (old == "" || req.Confirm != oldName) {
+			if len(o.OldDisks) > 1 {
+				return nil, badRequest("type the names of the old disks to confirm, as listed: their system is erased")
+			}
 			return nil, badRequest("type the name of the old disk to confirm: it will be erased")
 		}
-		storage.ClearBusy(o.New)
+		run0 := &sysdisk.Run{Op: o}
+		targets, _ := run0.Targets()
+		for _, t := range targets {
+			storage.ClearBusy(t)
+		}
 		// Saved before the job starts: a second request is refused.
 		o.Phase = "completing"
-		if o.Kind == "move" {
+		if o.Kind != "mirror" {
 			o.Phase = "finishing"
 		}
 		s.saveSysDiskOp(o)
@@ -445,8 +514,14 @@ func (s *Server) sysDiskRoutes() {
 					return err
 				}
 				o.Message = "The system runs from the new disk; the old disk was erased."
+				if o.Kind == "datadisks" {
+					o.Message = "The system runs from the data disks; the old disk was erased."
+				}
 			} else {
 				o.Message = fmt.Sprintf("The system runs from the new disk. Power off the NAS and remove the old disk %s (S/N %s).", firstNonEmpty(o.OldModel, "disk"), firstNonEmpty(o.OldSerial, "unknown"))
+				if o.Kind == "datadisks" {
+					o.Message = fmt.Sprintf("The system runs from the data disks. Power off the NAS and remove the old disk %s (S/N %s).", firstNonEmpty(o.OldModel, "disk"), firstNonEmpty(o.OldSerial, "unknown"))
+				}
 			}
 			o.Phase, o.Finished = "done", time.Now()
 			s.saveSysDiskOp(o)
