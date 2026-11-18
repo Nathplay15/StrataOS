@@ -14,10 +14,18 @@ if [ -e /root/strataos/datadisks ]; then
   root=$(findmnt -n -o SOURCE -T / | sed 's/\[.*//')
   for m in $(mdadm --detail "$root" | sed -n 's|.*active sync.* \(/dev/[^ ]*\)$|\1|p'); do
     disk=/dev/$(lsblk -n -d -o PKNAME "$m" | head -1)
-    if ! lsblk -n -r -o PARTLABEL "$disk" | grep -qx 'StrataOS data'; then
-      sgdisk -n 4:0:0 -t 4:8300 -c 4:'StrataOS data' "$disk"
-      partprobe "$disk" || true
+    case "$disk" in *[0-9]) part4=${disk}p4 ;; *) part4=${disk}4 ;; esac
+    if lsblk -n -d -o PARTLABEL "$part4" 2>/dev/null | grep -qx 'StrataOS data'; then
+      continue
     fi
+    if [ -b "$part4" ]; then
+      # The installer left partition 4 unused for the data: name it.
+      sgdisk -t 4:8300 -c 4:'StrataOS data' "$disk"
+      wipefs -a "$part4" || true
+    else
+      sgdisk -n 4:0:0 -t 4:8300 -c 4:'StrataOS data' "$disk"
+    fi
+    partprobe "$disk" || true
   done
   udevadm settle || true
 fi

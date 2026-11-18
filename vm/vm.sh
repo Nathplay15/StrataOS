@@ -170,7 +170,7 @@ qemu_start() {
     if [ "$VM_ARCH" = arm64 ]; then
       args+=(-device "virtio-blk-pci,drive=data$i,serial=STRATA-VD-$i")
     elif [ "$i" -le 6 ]; then
-      args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200$([ "${VM_BOOT_FROM:-}" = "$i" ] && echo ,bootindex=0)")
+      args+=(-device "ide-hd,drive=data$i,bus=ahci0.$((i - 1)),serial=STRATA-HDD-$i,model=StrataVirtual HDD $i,rotation_rate=7200$([ "${VM_BOOT_FROM:-}" = "$i" ] && echo ,bootindex=0 || true)")
     elif [ "$i" -eq 9 ]; then
       # Disk 9: an SSD (non-rotational), for the SSD cache tests.
       [ -n "${scsi:-}" ] || { args+=(-device virtio-scsi-pci,id=scsi0); scsi=1; }
