@@ -24,9 +24,6 @@ func TestFullIn(t *testing.T) {
 	}
 
 	// A shrinking usage is not a projection.
-	for i := range pts {
-		pts[i].Used = int64(14-i%15) * 0
-	}
 	down := []VolumePoint{
 		{T: now.Add(-14 * 24 * time.Hour).Unix(), Used: 700},
 		{T: now.Add(-7 * 24 * time.Hour).Unix(), Used: 600},
@@ -89,5 +86,15 @@ func TestSeries(t *testing.T) {
 	}
 	if got := s.Series("share:"); len(got["share:/media"]) != 1 {
 		t.Error("Series must return a copy")
+	}
+}
+
+func TestForget(t *testing.T) {
+	s := NewStore(t.TempDir())
+	s.RecordVolumes(map[string]VolumePoint{"pool": {Used: 1}, "share:/a": {Used: 2}, "share:/gone": {Used: 3}, "user:bob": {Used: 4}}, time.Now())
+	s.Forget(func(k string) bool { return k == "share:/gone" || k == "user:bob" })
+	s2 := NewStore(s.dir) // reloaded from the file
+	if len(s2.Volume("share:/gone")) != 0 || len(s2.Volume("user:bob")) != 0 || len(s2.Volume("share:/a")) != 1 || len(s2.Volume("pool")) != 1 {
+		t.Fatalf("after Forget: %v", s2.Series(""))
 	}
 }

@@ -22,16 +22,17 @@ const fullIn = (days?: number) => {
 export default function Trends() {
   const [name, setName] = useState("");
   const trends = useQuery({ queryKey: ["st-trends"], queryFn: () => api.get<{ volumes: Trend[]; shares: Trend[]; users: Trend[] }>("/api/storage/trends") });
-  const history = useQuery({
-    queryKey: ["st-trends-history", name],
-    queryFn: () => api.get<{ points: Point[] }>(`/api/storage/trends/history${q({ name })}`),
-    enabled: !!name,
-  });
   const vol = trends.data?.volumes.find((v) => v.name === name) ?? trends.data?.volumes[0];
+  const history = useQuery({
+    queryKey: ["st-trends-history", vol?.name],
+    queryFn: () => api.get<{ points: Point[] }>(`/api/storage/trends/history${q({ name: vol?.name ?? "" })}`),
+    enabled: !!vol,
+    retry: false,
+  });
   const pts = history.data?.points ?? [];
   const row = (t: Trend) => (
     <tr key={t.path ?? t.name}>
-      <td className="mono max-w-[320px] truncate text-[12.5px]" title={t.path ?? t.name}>{t.path ?? t.name}</td>
+      <td className="max-w-[320px] truncate text-[12.5px]" title={t.path ?? t.name}>{t.name}</td>
       <td className="text-right whitespace-nowrap">{bytes(t.used)}{t.total ? <span className="text-muted"> / {bytes(t.total)}</span> : null}</td>
       <td className="text-right whitespace-nowrap">{growth(t.growth7d)}</td>
       <td className="text-right whitespace-nowrap">{growth(t.growth30d)}</td>
@@ -55,7 +56,7 @@ export default function Trends() {
   return (
     <div>
       <PageHeader title={tr("Storage trends")} subtitle={tr("How your volumes, shared folders and accounts grow over time")} icon={<TrendingUp size={20} />} />
-      <ErrorBox error={trends.error || history.error} />
+      <ErrorBox error={trends.error} />
       {trends.isLoading ? <Spinner /> : !trends.data ? null : (
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -80,16 +81,18 @@ export default function Trends() {
               </Select>
             }>
               {pts.length < 2 ? <Empty title={tr("Not enough history yet")} /> : (
-                <AreaChart height={170} max={vol.total} format={bytes} series={[{ label: tr("Used"), color: "var(--accent)", values: pts.map((p) => p.used) }]} />
+                <>
+                  <AreaChart height={170} max={vol.total} format={bytes} series={[{ label: tr("Used"), color: "var(--accent)", values: pts.map((p) => p.used) }]} />
+                  <p className="mt-2 text-right text-[12px] text-muted">{new Date(pts[0].t * 1000).toLocaleDateString(locale)} → {new Date(pts[pts.length - 1].t * 1000).toLocaleDateString(locale)}</p>
+                </>
               )}
-              <p className="mt-2 text-right text-[12px] text-muted">{new Date(pts[0].t * 1000).toLocaleDateString(locale)} → {new Date(pts[pts.length - 1].t * 1000).toLocaleDateString(locale)}</p>
             </Card>
           )}
           <div className="grid gap-4 lg:grid-cols-2">
             {table(trends.data.shares, tr("Shared folders"))}
             {table(trends.data.users, tr("Accounts"))}
           </div>
-          <p className="text-muted text-[12px]">{tr("The usage of the shared folders and of the accounts is walked once a day in the background; the projections assume the last two weeks keep their pace.")}</p>
+          <p className="text-muted text-[12px]">{tr("Shared folders are measured once a day at low priority (recycle bins and snapshots left out, volumes whose disks sleep wait for another day); accounts come from the user quotas, on the volumes where they are on. The projections assume the last two weeks keep their pace.")}</p>
         </div>
       )}
     </div>

@@ -1,95 +1,263 @@
 package api
 
 // Granular storage trends (admin): the space used per share and per account,
-// its growth, and how long each volume still has before it fills up. The
-// usage of the shares and of the accounts is walked once a day and recorded
-// in the same history as the volumes (keys "share:<path>" and "user:<name>"),
+// its growth, and how long each volume still has before it fills up. Once a
+// day the shares are measured with du (one file system, low priority, like
+// the share quotas) and the accounts read from the user quotas; both go in
+// the same history as the volumes (keys "share:<path>" and "user:<name>"),
 // so the trends, the projections and the retention come for free.
 
 import (
 	"cmp"
-	"io/fs"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
-	"sync"
-	"syscall"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"strataos/internal/health"
 	"strataos/internal/storage"
 	"strataos/internal/store"
+	"strataos/internal/sys"
 )
 
-// shareUsageTick throttles the walk of the shares to once a day.
-var shareUsageTick struct {
-	sync.Mutex
-	at time.Time
+// shareUsageRunning keeps a single measurement at a time.
+var shareUsageRunning atomic.Bool
+
+const (
+	shareUsageEvery   = 24 * time.Hour
+	shareUsageTimeout = 6 * time.Hour // the whole measurement
+	shareUsageDuMax   = 2 * time.Hour // one share
+)
+
+func (s *Server) shareUsagePath() string { return filepath.Join(s.dataDir, "storage-trends.json") }
+
+// shareUsageDue tells whether a day passed since the last measurement,
+// remembered on disk so that a restart does not start it over.
+func (s *Server) shareUsageDue(now time.Time) bool {
+	var last struct {
+		At time.Time `json:"at"`
+	}
+	if b, err := os.ReadFile(s.shareUsagePath()); err == nil {
+		_ = json.Unmarshal(b, &last)
+	}
+	return now.Sub(last.At) >= shareUsageEvery || last.At.After(now.Add(time.Hour))
 }
 
-// recordShareUsage walks the shares once a day and records the space used by
-// each share and each account in the volume history. The walk runs in the
-// background: it can be long, the health watcher must not wait for it.
-func (s *Server) recordShareUsage() {
-	shareUsageTick.Lock()
-	due := time.Since(shareUsageTick.at) >= 24*time.Hour
-	if due {
-		shareUsageTick.at = time.Now()
-	}
-	shareUsageTick.Unlock()
-	if !due {
+// recordShareUsage starts the daily measurement in the background (the health
+// watcher must not wait for it). asleep are the disks found in standby by the
+// SMART check just before: the volumes on them are left for another day.
+func (s *Server) recordShareUsage(asleep []string) {
+	if s.hist == nil || !s.shareUsageDue(time.Now()) || !shareUsageRunning.CompareAndSwap(false, true) {
 		return
 	}
-	go func() {
-		var paths []string
-		s.store.Read(func(st *store.State) {
-			for _, sh := range st.Shares {
-				paths = append(paths, sh.Path)
-			}
-		})
-		usage := map[string]health.VolumePoint{}
-		users := map[string]int64{}
-		for _, root := range paths {
-			var used int64
-			filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-				if err != nil || d.Type() != fs.FileMode(0) {
-					return nil // symlinks and unreadable entries count for nothing
-				}
-				if !d.IsDir() {
-					if fi, err := d.Info(); err == nil && fi.Mode().IsRegular() {
-						used += fi.Size()
-						users[ownerNameOf(fi)] += fi.Size()
-					}
-				}
-				return nil
-			})
-			usage["share:"+root] = health.VolumePoint{Used: used}
-		}
-		for name, used := range users {
-			usage["user:"+name] = health.VolumePoint{Used: used}
-		}
-		s.hist.RecordVolumes(usage, time.Now())
-	}()
+	b, _ := json.Marshal(map[string]time.Time{"at": time.Now()})
+	if err := sys.WriteFileAtomic(s.shareUsagePath(), b, 0o600); err != nil {
+		shareUsageRunning.Store(false)
+		return
+	}
+	s.bg.Go(func() {
+		defer shareUsageRunning.Store(false)
+		ctx, cancel := context.WithTimeout(context.Background(), shareUsageTimeout)
+		defer cancel()
+		s.measureShareUsage(ctx, sleepingFileSystems(asleep))
+	})
 }
 
-// ownerNames caches the uid to account name resolution (the walk calls it a lot).
-var ownerNames sync.Map
+// measureShareUsage records the usage of the shares and the accounts, and
+// forgets the histories of the shares and accounts that no longer exist.
+func (s *Server) measureShareUsage(ctx context.Context, asleep map[string]bool) {
+	var paths, users []string
+	s.store.Read(func(st *store.State) {
+		for _, sh := range st.Shares {
+			paths = append(paths, filepath.Clean(sh.Path))
+		}
+		for _, u := range st.Users {
+			users = append(users, u.Username)
+		}
+	})
+	usage := map[string]health.VolumePoint{}
+	for _, p := range paths {
+		if ctx.Err() != nil {
+			break
+		}
+		if len(asleep) > 0 && asleep[fileSystemOf(p)] {
+			continue // measured another day rather than waking the disks
+		}
+		used, err := shareDu(ctx, p, nestedShares(p, paths))
+		if err != nil {
+			slog.Warn("storage trends", "share", p, "err", err)
+			continue
+		}
+		usage["share:"+p] = health.VolumePoint{Used: used}
+	}
+	// Accounts: what the user quotas already count, on every volume where
+	// they are on. A volume asleep would make a sum too small: skipped then.
+	var targets []storage.QuotaTarget
+	partial := false
+	for _, t := range s.quotaTargets() {
+		if !t.Supported || !t.Enabled {
+			continue
+		}
+		if len(asleep) > 0 && asleep[fileSystemOf(t.MountPoint)] {
+			partial = true
+		}
+		targets = append(targets, t)
+	}
+	if len(targets) > 0 && !partial && ctx.Err() == nil {
+		for _, u := range users {
+			var used int64
+			for _, t := range targets {
+				n, _ := storage.GetUserQuota(t, u)
+				used += n
+			}
+			usage["user:"+u] = health.VolumePoint{Used: used} // 0 included
+		}
+	}
+	s.hist.RecordVolumes(usage, time.Now())
+	keep := map[string]bool{}
+	for _, p := range paths {
+		keep["share:"+p] = true
+	}
+	for _, u := range users {
+		keep["user:"+u] = true
+	}
+	s.hist.Forget(func(key string) bool {
+		return (strings.HasPrefix(key, "share:") || strings.HasPrefix(key, "user:")) && !keep[key]
+	})
+}
 
-// ownerNameOf resolves the uid of a file to an account name, "uid:<n>" when unknown.
-func ownerNameOf(fi os.FileInfo) string {
-	uid := uint32(fi.Sys().(*syscall.Stat_t).Uid)
-	if v, ok := ownerNames.Load(uid); ok {
-		return v.(string)
+// nestedShares are the other shares inside p: measured on their own, not
+// counted in p as well.
+func nestedShares(p string, all []string) []string {
+	var out []string
+	for _, q := range all {
+		if strings.HasPrefix(q, p+"/") {
+			out = append(out, q)
+		}
 	}
-	name := "uid:" + strconv.FormatUint(uint64(uid), 10)
-	if u, err := user.LookupId(strconv.FormatUint(uint64(uid), 10)); err == nil && u.Username != "" {
-		name = u.Username
+	return out
+}
+
+// duArgs measures one share: one file system (-x: no mount, no Btrfs
+// sub-volume or snapshot below it), hard links once, without the recycle
+// bins, the snapshots and the nested shares.
+func duArgs(p string, nested []string) []string {
+	args := []string{"-n", "19", "ionice", "-c3", "du", "-sbx", "--exclude=.recycle", "--exclude=.snapshots"}
+	for _, n := range nested {
+		args = append(args, "--exclude="+globEscape(n))
 	}
-	ownerNames.Store(uid, name)
-	return name
+	return append(args, "--", p)
+}
+
+// globEscape quotes the wildcard characters of a path for du --exclude.
+func globEscape(p string) string {
+	var b strings.Builder
+	for _, r := range p {
+		if strings.ContainsRune(`*?[]\`, r) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// shareDu runs du on a share. du also prints its total when some entries
+// could not be read (files deleted during the walk): that total is kept.
+func shareDu(ctx context.Context, p string, nested []string) (int64, error) {
+	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: shareUsageDuMax, AllowCodes: []int{1}}, "nice", duArgs(p, nested)...)
+	if err != nil {
+		return 0, err
+	}
+	f := strings.Fields(out)
+	if len(f) == 0 {
+		return 0, fmt.Errorf("du: no output")
+	}
+	return strconv.ParseInt(f[0], 10, 64)
+}
+
+// lsblkNode is a block device of `lsblk -J`, with what it holds.
+type lsblkNode struct {
+	FSType   string      `json:"fstype"`
+	UUID     string      `json:"uuid"`
+	Label    string      `json:"label"`
+	Children []lsblkNode `json:"children"`
+}
+
+// fsIdentities lists the file systems held by a disk (lsblk -J of that
+// disk): "uuid:<uuid>" for a file system on it, through partitions, RAID,
+// LVM or encryption, and "zfs:<pool>" for a ZFS pool it belongs to.
+func fsIdentities(lsblkJSON []byte) []string {
+	var j struct {
+		Blockdevices []lsblkNode `json:"blockdevices"`
+	}
+	if json.Unmarshal(lsblkJSON, &j) != nil {
+		return nil
+	}
+	var out []string
+	var walk func(n lsblkNode)
+	walk = func(n lsblkNode) {
+		switch {
+		case n.FSType == "zfs_member" && n.Label != "":
+			out = append(out, "zfs:"+n.Label)
+		case n.UUID != "" && n.FSType != "" && !strings.HasSuffix(n.FSType, "_member") && n.FSType != "crypto_LUKS":
+			out = append(out, "uuid:"+n.UUID)
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	for _, n := range j.Blockdevices {
+		walk(n)
+	}
+	return out
+}
+
+// sleepingFileSystems are the file systems that sit on the given disks.
+func sleepingFileSystems(disks []string) map[string]bool {
+	out := map[string]bool{}
+	for _, d := range disks {
+		b, err := sys.Run("lsblk", "-J", "-p", "-o", "NAME,FSTYPE,UUID,LABEL", d)
+		if err != nil {
+			continue
+		}
+		for _, id := range fsIdentities([]byte(b)) {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// fileSystemOf identifies the file system holding p like fsIdentities
+// ("" when unknown); findmnt reads the mount table only, no disk.
+func fileSystemOf(p string) string {
+	out, err := sys.Run("findmnt", "-n", "-o", "FSTYPE,SOURCE,UUID", "-T", p)
+	if err != nil {
+		return ""
+	}
+	return fsIdentityOf(out)
+}
+
+func fsIdentityOf(findmnt string) string {
+	f := strings.Fields(findmnt)
+	if len(f) < 2 {
+		return ""
+	}
+	if f[0] == "zfs" {
+		pool, _, _ := strings.Cut(f[1], "/")
+		return "zfs:" + pool
+	}
+	if len(f) < 3 {
+		return ""
+	}
+	return "uuid:" + f[2]
 }
 
 // trendRow is one line of the granular trends: a volume, a share or an
@@ -126,6 +294,9 @@ func growthOf(pts []health.VolumePoint, period time.Duration, now time.Time) (in
 // trendsRoutes gives the granular trends of the storage (admin).
 func (s *Server) trendsRoutes() {
 	s.admin("GET /api/storage/trends", func(r *http.Request) (any, error) {
+		if s.hist == nil {
+			return nil, notFound("history not found")
+		}
 		now := time.Now()
 		raids, _ := storage.ListRaid()
 		pools, _ := storage.ListZPools(false)
@@ -144,15 +315,23 @@ func (s *Server) trendsRoutes() {
 			}
 			volumes = append(volumes, t)
 		}
-		shares := []trendRow{}
+		var list []store.Share
 		s.store.Read(func(st *store.State) {
 			for _, sh := range st.Shares {
-				shares = append(shares, trendRowOf(sh.Name, s.hist.Volume("share:"+sh.Path), now))
+				list = append(list, *sh)
 			}
 		})
+		shares := []trendRow{}
+		for _, sh := range list {
+			if pts := s.hist.Volume("share:" + filepath.Clean(sh.Path)); len(pts) > 0 {
+				row := trendRowOf(sh.Name, pts, now)
+				row.Path = sh.Path
+				shares = append(shares, row)
+			}
+		}
 		users := []trendRow{}
-		for name, pts := range s.hist.Series("user:") {
-			users = append(users, trendRowOf(name, pts, now))
+		for key, pts := range s.hist.Series("user:") {
+			users = append(users, trendRowOf(strings.TrimPrefix(key, "user:"), pts, now))
 		}
 		sortTrends(shares)
 		sortTrends(users)
@@ -164,6 +343,9 @@ func (s *Server) trendsRoutes() {
 		name := r.URL.Query().Get("name")
 		if name == "" {
 			return nil, badRequest("choose a volume or a share")
+		}
+		if s.hist == nil {
+			return nil, notFound("history not found")
 		}
 		pts := s.hist.Volume(name)
 		if pts == nil {

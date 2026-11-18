@@ -272,10 +272,14 @@ func (s *Server) healthWatcher() {
 		vols := s.volumeSummaries(raids, pools)
 		disks, _ := storage.ListDisks()
 		var weak []alert
+		var asleep []string // disks in standby: the storage trends leave them alone
 		for _, d := range disks {
 			info, err := storage.SmartIfAwake(d.Path)
 			if err != nil {
 				continue
+			}
+			if info.Standby {
+				asleep = append(asleep, d.Path)
 			}
 			if !info.Standby {
 				smartCache.Store(d.Path, smartEntry{info: *info, model: d.Model, serial: d.Serial})
@@ -292,7 +296,7 @@ func (s *Server) healthWatcher() {
 		}
 		s.diskAlerts.Store(&weak)
 		s.recordHealthHistory(vols)
-		s.recordShareUsage()
+		s.recordShareUsage(asleep)
 		var fresh []alert
 		fresh, known = freshAlerts(known, s.alerts(raids, pools, vols))
 		for _, a := range fresh {

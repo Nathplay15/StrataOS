@@ -1,6 +1,9 @@
 package health
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 // FullIn projects when a volume runs out of space: a least-squares line over
 // the points of the last 14 days gives the days left before it is full. ok is
@@ -55,4 +58,22 @@ func (s *Store) Series(prefix string) map[string][]VolumePoint {
 		}
 	}
 	return out
+}
+
+// Forget drops the usage histories whose key drop accepts (shares and
+// accounts that no longer exist).
+func (s *Store) Forget(drop func(key string) bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadVolumes()
+	changed := false
+	for k := range s.volumes {
+		if drop(k) {
+			delete(s.volumes, k)
+			changed = true
+		}
+	}
+	if changed {
+		_ = s.save(filepath.Join(s.dir, "volumes.json"), s.volumes)
+	}
 }
