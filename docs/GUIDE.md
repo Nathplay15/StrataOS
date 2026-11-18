@@ -200,6 +200,8 @@ On Btrfs and ZFS, schedule **snapshots** (Scheduled tasks → Recommended plan, 
 
 To recover a file: in **Files**, right click the file → "Previous versions" (or "Previous versions / Restore…" for an administrator, which also offers backups); on Windows, open the file's or the share's Properties → Previous Versions. A shared folder that is a Btrfs sub-volume with its own snapshot task shows those snapshots in Windows; the others show the snapshots of the whole volume.
 
+**Restoring folders yourself**: every user can also bring back deleted or overwritten files and folders of the shared folders they can write to, without an administrator. In **Files**, right click a folder → "Previous versions" (or the "Previous versions" button above the list for the folder you are in): choose a snapshot by its date, browse it, download a file (a folder comes as a ZIP), or select items and **Restore**. What still exists is never overwritten: the copy is named "name (version of 2026-11-17 08h00)", then "… (2)" if you restore it again; a file can also replace the current one (which stays in the newer snapshots). Folders and large files are restored in the background (follow them in the task list); restored files belong to you and count in your quota: a restore that would go over it, or fill the volume, is refused before anything is written. Symbolic links and special files are skipped, and links found in a snapshot are not followed: you only see your own shared folder.
+
 Limits: LVM thin snapshots cannot be locked, and they are mounted read-only only while being browsed; they do not appear in Windows Previous Versions. StrataOS does not create LVM thin volumes itself.
 
 ## 12. Protect the NAS

@@ -36,7 +36,8 @@ export function SnapshotsBrowser({ path, name, onClose }: { path: string; name: 
   const restore = useAction((v: { names: string[]; replace: boolean }) =>
     api.post<RestoreResult>("/api/files/snapshots/restore", { path: cur, snapshot: active, ...v }), {
     success: (r) => tr("Restored: {0}", r.restored.join(", ")),
-    onDone: (r) => { setResult(r); setSel([]); qc.invalidateQueries({ queryKey: ["files"] }); },
+    // Folders and big files are restored by a job (followed in the task list).
+    onDone: (r) => { setResult(Array.isArray(r?.skipped) ? r : null); setSel([]); qc.invalidateQueries({ queryKey: ["files"] }); },
   });
   const doRestore = async (names: string[], replace: boolean) => {
     setResult(null);
@@ -106,7 +107,7 @@ export function SnapshotsBrowser({ path, name, onClose }: { path: string; name: 
               </table>
             </div>
           )}
-          <p className="mt-3 text-muted text-[12px]">{tr("Folders are always restored as a copy.")}</p>
+          <p className="mt-3 text-muted text-[12px]">{tr("Folders are always restored as a copy.")} {tr("Folders and large files are restored in the background: follow them in the task list.")}</p>
         </>
       )}
     </Modal>
