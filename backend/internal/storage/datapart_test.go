@@ -33,3 +33,18 @@ func TestDataPartitions(t *testing.T) {
 		t.Fatalf("data partition in an array: %+v", got)
 	}
 }
+
+// An array on the data partitions of system disks may be used; the system's
+// own array may not.
+func TestSystemDiskDevices(t *testing.T) {
+	d := BlockDevice{Name: "sda", Path: "/dev/sda", Type: "disk", Children: []BlockDevice{
+		{Name: "sda3", Path: "/dev/sda3", Type: "part", Children: []BlockDevice{{Name: "md126", Path: "/dev/md126", Type: "raid1", Mountpoints: []string{"/"}}}},
+		{Name: "sda4", Path: "/dev/sda4", Type: "part", PartLabel: DataPartLabel, Children: []BlockDevice{{Name: "md127", Path: "/dev/md127", Type: "raid1"}}},
+	}}
+	if systemDevice(d, "/dev/md127") || systemDevice(d, "/dev/sda4") {
+		t.Error("data partition or its array refused")
+	}
+	if !systemDevice(d, "/dev/md126") || !systemDevice(d, "/dev/sda3") || !systemDevice(d, "/dev/sda") {
+		t.Error("system device accepted")
+	}
+}

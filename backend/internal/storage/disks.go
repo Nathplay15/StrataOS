@@ -169,6 +169,27 @@ func ListDisks() ([]BlockDevice, error) {
 	return disks, nil
 }
 
+// systemDevice tells whether dev is a system disk d or something on it,
+// except its data partitions (DataPartLabel) and what they hold, which are
+// for data.
+func systemDevice(d BlockDevice, dev string) bool {
+	if d.Path == dev {
+		return true
+	}
+	bad := false
+	for _, c := range d.Children {
+		if c.Type == "part" && c.PartLabel == DataPartLabel && !hasSystemMount(c) {
+			continue
+		}
+		walk(c, func(b BlockDevice) {
+			if b.Path == dev {
+				bad = true
+			}
+		})
+	}
+	return bad
+}
+
 // DataPartLabel is the GPT name of the data partition StrataOS leaves on
 // each disk when the system lives on the data disks (sysdisk "datadisks",
 // ISO entry "System on the data disks"): the disk holds the system, but
@@ -406,18 +427,7 @@ func ValidateDevice(path string) error {
 		if !d.System {
 			continue
 		}
-		var bad bool
-		walk(d, func(b BlockDevice) {
-			if b.Path == real || b.Path == path {
-				bad = true
-			}
-		})
-		// The data partition of a disk shared with the system is for data.
-		for _, c := range d.Children {
-			if (c.Path == real || c.Path == path) && c.Type == "part" && c.PartLabel == DataPartLabel && !hasSystemMount(c) {
-				bad = false
-			}
-		}
+		bad := systemDevice(d, real) || systemDevice(d, path)
 		if bad {
 			return fmt.Errorf("%s belongs to the system disk", path)
 		}
