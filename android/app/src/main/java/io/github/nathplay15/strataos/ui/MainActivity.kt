@@ -234,7 +234,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
         tab = { openSection = null; setTab(it) },
         overlay = { setOverlay(it) },
         section = { id -> openSection = id; setTab("manage") },
-        search = { filesSearch = true; setTab("files") },
+        search = { filesPath = ""; filesSearch = true; setTab("files") },
     )
     val content: @Composable () -> Unit = {
         androidx.compose.runtime.CompositionLocalProvider(LocalOpenInFiles provides { p -> filesPath = p; setTab("files") }, LocalOpenOverlay provides setOverlay) {
