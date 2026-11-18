@@ -34,6 +34,8 @@ export interface Job {
   started: string;
   finished?: string;
   log?: string;
+  /** The lines of the log written by the server as a key and its arguments, to translate (lib/i18n.ts jobLog). */
+  logKeys?: { line: number; lines?: number; key: string; args?: string[] }[];
   /** Whether an administrator may stop it now; cancelReason says why not. */
   cancellable?: boolean;
   cancelReason?: string;

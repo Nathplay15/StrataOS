@@ -23,7 +23,7 @@ import { StopJobButton } from "./StopJob";
 import { useDismiss } from "../lib/a11y";
 import { cx, ago } from "../lib/format";
 import { Button, Field, Input, Modal, PageBoundary, Progress, useUI } from "./ui";
-import { tr, srv } from "../lib/i18n";
+import { tr, srv, jobLog } from "../lib/i18n";
 import { LangSwitch } from "./LangSwitch";
 import { GlobalSearch } from "./GlobalSearch";
 import { AppearanceModal } from "./Appearance";
@@ -183,7 +183,7 @@ export function JobsMenu() {
             {job.status === "running" && job.cancellable === false && job.cancelReason && <div className="text-muted text-[12.5px]">{srv(job.cancelReason)}</div>}
             {job.status === "cancelled" && <div className="text-warn text-[13px]">{tr("Stopped by {0}", job.cancelledBy ?? "")}</div>}
             {job.error && <div className="text-danger text-[13px]">{srv(job.error)}</div>}
-            <pre className="mono max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{job.log || tr("(no output)")}</pre>
+            <pre className="mono max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#0b0f1c] p-4 text-[#cbd3e6]">{jobLog(job.log, job.logKeys) || tr("(no output)")}</pre>
           </div>
         )}
       </Modal>
