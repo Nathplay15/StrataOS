@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
 
@@ -98,9 +98,26 @@ jobs:
           done
           ls -l site/desktop
 
+      # One artifact name per attempt: a re-run keeps the artifacts of the
+      # earlier attempts, and deploy-pages refuses two of the same name.
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+          name: github-pages-${{ github.run_attempt }}
+
+      # The artifact is sometimes not listed yet right after the upload: one
+      # more try a minute later.
+      - id: deploy1
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 60
 
       - id: deploy
+        if: steps.deploy1.outcome == 'failure'
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}

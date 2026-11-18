@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   release:
@@ -103,3 +104,10 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" "${pre[@]}" --title "StrataOS Android $FV" --notes-file release-notes.md \
             "dist/strataos-android-${FV}.apk" dist/SHA256SUMS dist/SHA256SUMS.asc
+
+      # The website lists the apps' versions too, and a failed deployment
+      # gets another chance.
+      - name: Update the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref "${{ github.event.repository.default_branch }}"
