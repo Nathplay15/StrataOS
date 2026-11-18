@@ -1170,6 +1170,7 @@
  "Le système est sur une grappe {0} : seul le RAID 1 est pris en charge.": "系统位于 {0} 阵列上：仅支持 RAID 1。",
  "Le système est sur {0}, qui n'est pas un disque connu de StrataOS (périphérique réseau ou virtuel).": "系统位于 {0}，这不是 StrataOS 识别的磁盘（网络或虚拟设备）。",
  "Le système indique encore {0}": "系统仍报告为 {0}",
+ "Le système tourne depuis les disques de données ; l'ancien disque a été effacé. Dans les réglages du firmware, mettez un des disques de données en premier dans l'ordre de démarrage (beaucoup de BIOS n'essaient que leur premier disque).": "系统现在从数据磁盘运行；旧磁盘已被擦除。请在固件设置中把其中一块数据磁盘设为启动顺序的第一位（许多 BIOS 只尝试第一块磁盘）。",
  "Le système tourne désormais sur le nouveau disque.": "系统正在从新磁盘运行。",
  "Le système tourne sur le nouveau disque ; l'ancien disque a été effacé.": "系统正在从新磁盘运行；旧磁盘已被擦除。",
  "Le système tourne sur le nouveau disque. Éteignez le NAS et retirez l'ancien disque {0} (n° de série {1}).": "系统正在从新磁盘运行。请关闭 NAS 并移除旧磁盘 {0}（序列号 {1}）。",

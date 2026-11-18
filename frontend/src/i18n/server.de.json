@@ -1170,6 +1170,7 @@
  "Le système est sur une grappe {0} : seul le RAID 1 est pris en charge.": "Das System liegt auf einem {0}-Array: Nur RAID 1 wird unterstützt.",
  "Le système est sur {0}, qui n'est pas un disque connu de StrataOS (périphérique réseau ou virtuel).": "Das System liegt auf {0}, einer Festplatte, die StrataOS nicht kennt (Netzwerk- oder virtuelles Gerät).",
  "Le système indique encore {0}": "Das System meldet noch {0}",
+ "Le système tourne depuis les disques de données ; l'ancien disque a été effacé. Dans les réglages du firmware, mettez un des disques de données en premier dans l'ordre de démarrage (beaucoup de BIOS n'essaient que leur premier disque).": "Das System läuft von den Datenfestplatten; die alte Festplatte wurde gelöscht. Setzen Sie in den Firmware-Einstellungen eine der Datenfestplatten an die erste Stelle der Bootreihenfolge (viele BIOS versuchen nur ihre erste Festplatte).",
  "Le système tourne désormais sur le nouveau disque.": "Das System läuft von der neuen Festplatte.",
  "Le système tourne sur le nouveau disque ; l'ancien disque a été effacé.": "Das System läuft von der neuen Festplatte; die alte Festplatte wurde gelöscht.",
  "Le système tourne sur le nouveau disque. Éteignez le NAS et retirez l'ancien disque {0} (n° de série {1}).": "Das System läuft von der neuen Festplatte. Schalten Sie das NAS aus und entfernen Sie die alte Festplatte {0} (S/N {1}).",

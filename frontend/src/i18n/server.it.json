@@ -1170,6 +1170,7 @@
  "Le système est sur une grappe {0} : seul le RAID 1 est pris en charge.": "Il sistema si trova su un array {0}: è gestito solo RAID 1.",
  "Le système est sur {0}, qui n'est pas un disque connu de StrataOS (périphérique réseau ou virtuel).": "Il sistema si trova su {0}, che non è un disco noto a StrataOS (dispositivo di rete o virtuale).",
  "Le système indique encore {0}": "Il sistema indica ancora {0}",
+ "Le système tourne depuis les disques de données ; l'ancien disque a été effacé. Dans les réglages du firmware, mettez un des disques de données en premier dans l'ordre de démarrage (beaucoup de BIOS n'essaient que leur premier disque).": "Il sistema funziona dai dischi dati; il vecchio disco è stato cancellato. Nelle impostazioni del firmware, metti uno dei dischi dati per primo nell'ordine di avvio (molti BIOS provano solo il loro primo disco).",
  "Le système tourne désormais sur le nouveau disque.": "Il sistema funziona dal nuovo disco.",
  "Le système tourne sur le nouveau disque ; l'ancien disque a été effacé.": "Il sistema funziona dal nuovo disco; il vecchio disco è stato cancellato.",
  "Le système tourne sur le nouveau disque. Éteignez le NAS et retirez l'ancien disque {0} (n° de série {1}).": "Il sistema funziona dal nuovo disco. Spegni il NAS e rimuovi il vecchio disco {0} (N/S {1}).",

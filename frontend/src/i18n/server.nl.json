@@ -1170,6 +1170,7 @@
  "Le système est sur une grappe {0} : seul le RAID 1 est pris en charge.": "Het systeem staat op een {0}-array: alleen RAID 1 wordt ondersteund.",
  "Le système est sur {0}, qui n'est pas un disque connu de StrataOS (périphérique réseau ou virtuel).": "Het systeem staat op {0}, geen schijf die StrataOS kent (netwerk- of virtueel apparaat).",
  "Le système indique encore {0}": "Het systeem meldt nog {0}",
+ "Le système tourne depuis les disques de données ; l'ancien disque a été effacé. Dans les réglages du firmware, mettez un des disques de données en premier dans l'ordre de démarrage (beaucoup de BIOS n'essaient que leur premier disque).": "Het systeem draait vanaf de gegevensschijven; de oude schijf is gewist. Zet in de firmware-instellingen een van de gegevensschijven als eerste in de opstartvolgorde (veel BIOS'en proberen alleen hun eerste schijf).",
  "Le système tourne désormais sur le nouveau disque.": "Het systeem draait vanaf de nieuwe schijf.",
  "Le système tourne sur le nouveau disque ; l'ancien disque a été effacé.": "Het systeem draait vanaf de nieuwe schijf; de oude schijf is gewist.",
  "Le système tourne sur le nouveau disque. Éteignez le NAS et retirez l'ancien disque {0} (n° de série {1}).": "Het systeem draait vanaf de nieuwe schijf. Schakel de NAS uit en verwijder de oude schijf {0} (S/N {1}).",
