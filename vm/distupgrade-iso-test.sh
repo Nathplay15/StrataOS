@@ -1,12 +1,16 @@
 #!/bin/bash
-# The Debian release upgrade in one button, on a system installed from the
-# StrataOS ISO (Btrfs system: restore points by snapshot), UEFI:
-#   1. the upgrade to Debian 14 (forky, still testing: the override is turned
-#      on) with "restart and check by itself"; right after the restart a data
-#      volume is unmounted by hand, so the checks after the restart fail: the
-#      NAS goes back to its restore point by itself and runs Debian 13 again,
-#      with its volume and settings;
-#   2. the same upgrade again, left alone: Debian 14 runs, checks pass.
+# The system upgrade to the next Debian release, on a system installed from
+# the StrataOS ISO (Btrfs system: restore points by snapshot), UEFI. Debian
+# testing (forky) stands in for the next stable release (the override of
+# the Updates page), as in vm/distupgrade-test.sh:
+#   1. a check fails (a half-installed package): no proposal, the blocking
+#      check is listed with its fix; an administrator forces the upgrade
+#      (typed codename, logged and told); right after the restart a data
+#      volume is unmounted by hand, so the checks after the restart fail:
+#      the NAS goes back to its restore point by itself, on Debian 13;
+#   2. the package fixed, the check passes: the proposal appears and the
+#      administrators are told; No hides it, Show brings it back; Yes, in
+#      the maintenance window (opened by a test hook): Debian 14 runs.
 # About 90 minutes (two downloads of ~1 GB of packages). Usage:
 #   make deb && flock -o /home/nathan/Documents/StrataOS-wt/.vm.lock timeout 150m ./vm/distupgrade-iso-test.sh
 # Uses the ISO test VM (ISO_STATE, ISO_WEB_PORT 7071, ISO_SSH_PORT 2223) and
@@ -63,14 +67,23 @@ vm 'echo kept > /srv/strata/vol/note.txt'
 check "restore points by snapshot" "$(c GET /api/system/restore-points | py 'print(d.get("mode"))')" "btrfs"
 check "testing allowed by the administrator" "$(c PUT /api/system/dist-upgrade -d '{"allowTesting":true}' | py 'print(d["available"])')" "True"
 pending_updates
-C=$(c POST /api/system/dist-upgrade/check)
-echo "$C" | py 'print("\n".join("    %s: %s" % (c["level"], c["text"]) for c in d["checks"]))'
-check "pre-checks pass" "$(echo "$C" | py 'print(d["blocked"])')" "False"
-check "automatic rollback offered" "$(echo "$C" | py 'print([c["level"] for c in d["checks"] if c["id"]=="restore-point"])')" "['ok']"
+# A kernel installed by the updates must run before the checks pass.
+if [ "$(vm 'ls /boot/vmlinuz-* | sed "s|.*vmlinuz-||" | sort -V | tail -1')" != "$(vm 'uname -r')" ]; then vm 'systemctl reboot'; restarted; fi
+dcheck() { job "$(c POST /api/system/dist-upgrade/check)" 400 >/dev/null; c GET /api/system/dist-upgrade; }
 
-section "One button, the checks after the restart fail: back to Debian 13"
-S=$(c POST /api/system/dist-upgrade/start -d '{"confirm":"forky","auto":true}')
+section "A check fails: no proposal, forced, rolled back after the restart"
+vm 'cd /tmp && apt-get download -q hello >/dev/null 2>&1 && dpkg --unpack hello_*.deb >/dev/null 2>&1; dpkg --audit | head -3'
+S=$(dcheck)
+echo "$S" | py 'print("\n".join("    %s: %s" % (c["level"], c["text"]) for c in d["check"]["checks"]))'
+check "the check of the half-installed package blocks" "$(echo "$S" | py 'print(d["check"]["blocked"], [c["id"] for c in d["check"]["checks"] if c["level"]=="block"])')" "True ['dpkg']"
+check "no proposal while a check fails" "$(echo "$S" | py 'print(d["proposal"])')" "False"
+check "its fix is said" "$(echo "$S" | py 'print([c.get("fix","") for c in d["check"]["checks"] if c["id"]=="dpkg"])')" "Install the system updates"
+check "target found in the archive, generic" "$(echo "$S" | py 'print(d["target"], d["targetVersion"], d["available"], d.get("testing"))')" "forky 14 True True"
+check "refused without force" "$(c POST /api/system/dist-upgrade/start -d '{"when":"now"}')" "the checks failed"
+check "force needs the codename typed" "$(c POST /api/system/dist-upgrade/start -d '{"when":"now","force":true,"confirm":"yes"}')" "type forky"
+S=$(c POST /api/system/dist-upgrade/start -d '{"when":"now","force":true,"confirm":"forky"}')
 ID=$(echo "$S" | py 'print(d["id"])')
+check "forced upgrade told to the administrators" "$(c GET /api/notifications | grep -o 'System upgrade forced' | head -1)" "System upgrade forced"
 for _ in $(seq 1 900); do up || break; [ "$(phase)" = reboot ] && break; sleep 4; done
 check "packages installed, restarting by itself" "$(c GET "/api/jobs/$ID" | py 'print(d["status"]); print(d.get("log","")[-400:])')" "restarts into it now"
 for _ in $(seq 1 600); do up || break; sleep 2; done
@@ -79,20 +92,25 @@ for _ in $(seq 1 300); do vm true && break; sleep 3; done
 for _ in $(seq 1 60); do vm 'findmnt -n /srv/strata/vol' >/dev/null && break; sleep 2; done
 check "running Debian 14 after the restart" "$(vm 'grep VERSION_CODENAME /etc/os-release')" "forky"
 vm 'umount -l /srv/strata/vol'
-# The checks fail, the NAS goes back to the restore point and restarts.
 for _ in $(seq 1 120); do up && [ "$(phase)" = rolling-back ] && break; ! up && break; sleep 3; done
 restarted
 for _ in $(seq 1 60); do [ "$(phase)" = rolled-back ] && break; sleep 5; done
-check "rolled back by itself" "$(c GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get("rolledBack",""))')" "rolled-back checks after the restart: Volumes not mounted: vol"
+check "rolled back by itself" "$(c GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r.get("forced"), r.get("rolledBack",""))')" "rolled-back True checks after the restart: Volumes not mounted: vol"
 check "Debian 13 again" "$(vm 'grep VERSION_CODENAME /etc/os-release; grep -h -m1 -E "^Suites|^deb " /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null')" "trixie"
 check "volume mounted, data there" "$(vm 'cat /srv/strata/vol/note.txt')" "kept"
 check "settings kept" "$(c GET /api/me)" '"username":"admin"'
-check "the upgrade is offered again" "$(c GET /api/system/dist-upgrade | py 'print(d["current"], d["target"], d["available"])')" "trixie forky True"
 
-section "One button, left alone: Debian 14"
-C=$(c POST /api/system/dist-upgrade/check)
-check "pre-checks pass again" "$(echo "$C" | py 'print(d["blocked"])')" "False"
-c POST /api/system/dist-upgrade/start -d '{"confirm":"forky","auto":true}' >/dev/null
+section "The checks pass: proposal, No, Yes in the maintenance window"
+vm 'dpkg --configure -a >/dev/null 2>&1; apt-get -y -q purge hello >/dev/null 2>&1'
+S=$(dcheck)
+check "checks pass, proposal shown" "$(echo "$S" | py 'print(d["check"]["blocked"], d["proposal"])')" "False True"
+check "administrators told of the proposal" "$(c GET /api/notifications | grep -o 'System upgrade available' | head -1)" "System upgrade available"
+check "No hides it" "$(c POST /api/system/dist-upgrade/dismiss | py 'print(d["proposal"], d.get("dismissed"))')" "False True"
+check "Show brings it back" "$(c POST /api/system/dist-upgrade/show | py 'print(d["proposal"])')" "True"
+check "Yes, in the maintenance window" "$(c POST /api/system/dist-upgrade/start -d '{"when":"window"}' | py 'print(d["scheduled"]["target"], d["proposal"])')" "forky False"
+vm 'touch /run/strata/dist-window-test'
+for _ in $(seq 1 60); do [ -n "$(phase)" ] && [ "$(phase)" != rolled-back ] && break; sleep 5; done
+check "started by the maintenance window" "$(c GET /api/system/dist-upgrade | py 'print(d["run"]["phase"] != "rolled-back", d.get("scheduled"))')" "True None"
 for _ in $(seq 1 900); do up || break; [ "$(phase)" = reboot ] && break; sleep 4; done
 restarted
 for _ in $(seq 1 60); do [ "$(phase)" = done ] && break; sleep 5; done

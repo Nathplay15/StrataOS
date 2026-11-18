@@ -2,12 +2,39 @@ package store
 
 import "time"
 
-// DistUpgrade is the Debian release upgrade from the interface.
+// DistUpgrade is the system upgrade to the next major Debian release
+// (api/h_distupgrade.go).
 type DistUpgrade struct {
 	// AllowTesting offers the upgrade to the next release while it is
 	// still Debian testing (not recommended; for tests).
 	AllowTesting bool            `json:"allowTesting,omitempty"`
 	Run          *DistUpgradeRun `json:"run,omitempty"`
+	// Check: the last compatibility check (daily, or on demand).
+	Check *DistCheck `json:"check,omitempty"`
+	// The proposal: "No" hides it until the next check (DismissedAt);
+	// the administrators are told once per release (NotifiedFor).
+	DismissedFor string    `json:"dismissedFor,omitempty"`
+	DismissedAt  time.Time `json:"dismissedAt,omitzero"`
+	NotifiedFor  string    `json:"notifiedFor,omitempty"`
+	// Scheduled: the upgrade waits for the next maintenance window.
+	Scheduled *DistSchedule `json:"scheduled,omitempty"`
+}
+
+// DistCheck is a compatibility check of the next release.
+type DistCheck struct {
+	At      time.Time       `json:"at"`
+	Target  string          `json:"target"` // codename
+	Number  string          `json:"number"`
+	Checks  []UpgradeResult `json:"checks"`
+	Blocked bool            `json:"blocked"`
+}
+
+// DistSchedule is an upgrade asked for the next maintenance window.
+type DistSchedule struct {
+	Target string    `json:"target"`
+	Force  bool      `json:"force,omitempty"`
+	By     string    `json:"by"`
+	At     time.Time `json:"at"`
 }
 
 // DistUpgradeRun is the last (or current) upgrade. Phase: sources,
@@ -34,11 +61,17 @@ type DistUpgradeRun struct {
 	Rollback bool `json:"rollback,omitempty"`
 	// RolledBack: why the system went back to the restore point.
 	RolledBack string `json:"rolledBack,omitempty"`
+	// The major numbers (read from the archive when it started), and
+	// whether an administrator forced it past failed checks.
+	FromNumber string `json:"fromNumber,omitempty"`
+	ToNumber   string `json:"toNumber,omitempty"`
+	Forced     bool   `json:"forced,omitempty"`
 }
 
-// UpgradeResult is one post-check.
+// UpgradeResult is one check (compatibility or after the restart).
 type UpgradeResult struct {
 	ID    string `json:"id"`
 	Level string `json:"level"` // ok | warn | block
 	Text  string `json:"text"`
+	Fix   string `json:"fix,omitempty"`
 }

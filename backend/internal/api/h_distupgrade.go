@@ -1,10 +1,15 @@
 package api
 
-// Debian release upgrade (13 → 14) from the interface, prepared before
-// Debian 14 is released: offered only when the "stable" suite of the
-// Debian archive is the next release, or, with the administrator's
-// override, while it is still "testing" (not recommended). Steps:
-// pre-checks (system/distupgrade.go), a restore point, the APT sources
+// System upgrade to the next major Debian release. The NAS reads the
+// archive's Release files (stable, oldstable) itself: the release after
+// the running one is proposed once it has had its first point release
+// (N.1), whatever its number, without a new StrataOS; the administrator's
+// override offers Debian testing (for tests). Compatibility checks run once
+// a day (and on demand); when they pass the proposal appears in Updates
+// and the administrators are told; when they fail, Updates lists what
+// blocks, and an administrator may force the upgrade after a typed
+// confirmation. Started now or in the maintenance window. Steps:
+// a restore point, the APT sources
 // moved to the new release (vendor repositories only when they publish
 // it), the packages downloaded then upgraded with the managed configuration
 // files kept (--force-confold), StrataOS reinstalled, the ZFS module checked
@@ -28,6 +33,8 @@ import (
 	"syscall"
 	"time"
 
+	"strataos/internal/components"
+	"strataos/internal/docker"
 	"strataos/internal/jobs"
 	"strataos/internal/storage"
 	"strataos/internal/store"
@@ -39,8 +46,8 @@ const distDir = "/var/lib/strata/dist-upgrade"
 
 var distCache struct {
 	sync.Mutex
-	at              time.Time
-	stable, testing string
+	at     time.Time
+	suites []system.ArchiveRelease
 }
 
 // distSourceFiles lists the APT sources files (path → deb822).
@@ -106,22 +113,44 @@ func distFetch(ctx context.Context, url string) (string, int, error) {
 	return string(b), resp.StatusCode, nil
 }
 
-// distSuites reads which releases "stable" and "testing" are (6 h cache).
-func distSuites(ctx context.Context) (stable, testing string) {
+// distSuites reads the stable, oldstable and testing suites of the archive
+// (6 h cache); the numbers they give are remembered.
+func distSuites(ctx context.Context) []system.ArchiveRelease {
 	distCache.Lock()
 	defer distCache.Unlock()
-	if time.Since(distCache.at) < 6*time.Hour && distCache.stable != "" {
-		return distCache.stable, distCache.testing
+	if time.Since(distCache.at) < 6*time.Hour && len(distCache.suites) > 0 {
+		return distCache.suites
 	}
 	m := distMirror()
-	if b, code, err := distFetch(ctx, m+"/dists/stable/Release"); err == nil && code == 200 {
-		distCache.stable = system.ReleaseCodename(b)
+	var out []system.ArchiveRelease
+	for _, suite := range []string{"stable", "oldstable", "testing"} {
+		if b, code, err := distFetch(ctx, m+"/dists/"+suite+"/Release"); err == nil && code == 200 {
+			r := system.ParseRelease(b)
+			r.Suite = suite
+			if r.Codename == "" {
+				continue
+			}
+			system.RememberRelease(r.Codename, r.Major())
+			out = append(out, r)
+		}
 	}
-	if b, code, err := distFetch(ctx, m+"/dists/testing/Release"); err == nil && code == 200 {
-		distCache.testing = system.ReleaseCodename(b)
+	distCache.suites, distCache.at = out, time.Now()
+	return out
+}
+
+// currentMajor is the major Debian version running (os-release, else the
+// codename's number).
+func currentMajor() string {
+	b, _ := os.ReadFile("/etc/os-release")
+	for _, l := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(l, "VERSION_ID="); ok {
+			v = strings.Trim(strings.TrimSpace(v), `"'`)
+			if m, _, _ := strings.Cut(v, "."); m != "" {
+				return m
+			}
+		}
 	}
-	distCache.at = time.Now()
-	return distCache.stable, distCache.testing
+	return system.ReleaseNumber(system.Codename())
 }
 
 // vendorPublishes tells whether a repository has a suite.
@@ -194,7 +223,7 @@ func sameFS(a, b string) bool {
 }
 
 // distFacts gathers what the pre-checks look at.
-func (s *Server) distFacts(ctx context.Context, from, to string) (system.UpgradeFacts, map[string]string, []system.SourceChange) {
+func (s *Server) distFacts(ctx context.Context, from, to string, deep bool) (system.UpgradeFacts, map[string]string, []system.SourceChange) {
 	f := system.UpgradeFacts{From: from, To: to, FreeRoot: freeOf("/"), FreeVar: freeOf("/var/cache/apt/archives"), FreeBoot: -1}
 	if !sameFS("/boot", "/") {
 		f.FreeBoot = freeOf("/boot")
@@ -233,7 +262,148 @@ func (s *Server) distFacts(ctx context.Context, from, to string) (system.Upgrade
 			f.Moved++
 		}
 	}
+	if out, err := sys.Run("apt", "list", "--installed"); err == nil {
+		f.Foreign = slices.DeleteFunc(system.ParseForeign(out), func(p string) bool { return p == "strataos" })
+	}
+	if k := distKernel(); k != "" {
+		if u, _ := sys.Run("uname", "-r"); strings.TrimSpace(u) != "" && strings.TrimSpace(u) != k {
+			f.KernelPending = k
+		}
+	}
+	f.DKMS, f.DKMSBroken = dkmsModules()
+	f.BootLoader = bootLoaderProblem()
+	if stacks, err := docker.ListStacks(ctx, s.docker); err == nil {
+		f.Apps = len(stacks)
+	}
+	if deep {
+		distSimulate(ctx, &f, files)
+	}
 	return f, files, changes
+}
+
+// dkmsModules lists the DKMS modules, and those not built for the running
+// kernel (dkms status: "zfs/2.3.2, 6.12.9-amd64, x86_64: installed").
+func dkmsModules() (mods, broken []string) {
+	if !sys.Has("dkms") {
+		return nil, nil
+	}
+	out, _ := sys.Run("dkms", "status")
+	u, _ := sys.Run("uname", "-r")
+	u = strings.TrimSpace(u)
+	built := map[string]bool{}
+	for _, l := range strings.Split(out, "\n") {
+		name, rest, ok := strings.Cut(l, "/")
+		if !ok || name == "" {
+			continue
+		}
+		if !slices.Contains(mods, name) {
+			mods = append(mods, name)
+		}
+		if strings.Contains(rest, ", "+u+",") && strings.Contains(rest, "installed") {
+			built[name] = true
+		}
+	}
+	for _, m := range mods {
+		if !built[m] {
+			broken = append(broken, m)
+		}
+	}
+	return mods, broken
+}
+
+// bootLoaderProblem says what is wrong with the boot loader ("" when it is
+// set up): its package, and in UEFI mode the EFI system partition.
+func bootLoaderProblem() string {
+	installed := func(p string) bool {
+		out, err := sys.Run("dpkg-query", "-W", "-f=${Status}", p)
+		return err == nil && strings.Contains(out, "ok installed")
+	}
+	if _, err := os.Stat("/sys/firmware/efi"); err == nil {
+		if !installed("grub-efi-amd64") && !installed("grub-efi-arm64") && !installed("grub-efi-amd64-signed") {
+			return "no GRUB package for UEFI is installed"
+		}
+		if out, _ := sys.Run("findmnt", "-n", "-o", "FSTYPE", "/boot/efi"); strings.TrimSpace(out) != "vfat" {
+			return "the EFI system partition is not mounted on /boot/efi"
+		}
+		return ""
+	}
+	if _, err := os.Stat("/boot/firmware/config.txt"); err == nil {
+		return "" // Raspberry Pi: its firmware starts the kernel
+	}
+	if !installed("grub-pc") {
+		return "no GRUB package for BIOS (grub-pc) is installed"
+	}
+	return ""
+}
+
+// distSimulate runs the upgrade against the new release's package lists in
+// a folder of its own (the real APT state is not touched): what it removes,
+// whether StrataOS and the components stay, which packages it has not.
+func distSimulate(ctx context.Context, f *system.UpgradeFacts, files map[string]string) {
+	dir := "/var/cache/strata/dist-check"
+	parts := filepath.Join(dir, "sources.list.d")
+	_ = os.RemoveAll(parts)
+	for _, d := range []string{parts, filepath.Join(dir, "lists", "partial"), filepath.Join(dir, "cache", "archives", "partial")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			f.SimError = err.Error()
+			return
+		}
+	}
+	n := 0
+	for p, deb822 := range distSourceFiles() {
+		content, ok := files[p]
+		if !ok {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			content = string(b)
+		}
+		ext := ".list"
+		if deb822 {
+			ext = ".sources"
+		}
+		n++
+		_ = os.WriteFile(filepath.Join(parts, fmt.Sprintf("%02d-%s%s", n, strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)), ext)), []byte(content), 0o644)
+	}
+	// StrataOS's own channels as they are: is there a build for the target?
+	for _, p := range []string{system.StrataSources, system.BetaSources} {
+		if b, err := os.ReadFile(p); err == nil {
+			n++
+			_ = os.WriteFile(filepath.Join(parts, fmt.Sprintf("%02d-%s", n, filepath.Base(p))), b, 0o644)
+		}
+	}
+	opts := []string{"-o", "Dir::Etc::SourceList=/dev/null", "-o", "Dir::Etc::SourceParts=" + parts,
+		"-o", "Dir::State::Lists=" + filepath.Join(dir, "lists"), "-o", "Dir::Cache=" + filepath.Join(dir, "cache")}
+	run := func(timeout time.Duration, args ...string) (string, error) {
+		return sys.RunOpts(ctx, sys.Opts{Timeout: timeout}, "nice", append([]string{"-n", "19", "ionice", "-c3"}, args...)...)
+	}
+	if _, err := run(20*time.Minute, append(append([]string{"apt-get", "-q"}, opts...), "update")...); err != nil {
+		f.SimError = "the package lists could not be read: " + firstLineOf(err.Error())
+		return
+	}
+	sim, err := run(10*time.Minute, append(append([]string{"apt-get", "-s", "-q"}, opts...), "full-upgrade")...)
+	if err != nil {
+		f.SimError = firstLineOf(err.Error())
+		return
+	}
+	f.SimDone = true
+	f.Removed = system.ParseSimulation(sim)
+	f.StrataRemoved = slices.Contains(f.Removed, "strataos")
+	for _, c := range components.All {
+		for _, p := range c.Packages {
+			if slices.Contains(f.Removed, p) && !slices.Contains(f.ComponentsGone, c.Name) {
+				f.ComponentsGone = append(f.ComponentsGone, c.Name)
+			}
+		}
+	}
+	if out, err := run(5*time.Minute, append(append([]string{"apt"}, opts...), "list", "--installed")...); err == nil {
+		for _, p := range system.ParseForeign(out) {
+			if p != "strataos" && !slices.Contains(f.Foreign, p) {
+				f.MissingInTarget = append(f.MissingInTarget, p)
+			}
+		}
+	}
 }
 
 type distView struct {
@@ -241,39 +411,124 @@ type distView struct {
 	CurrentVersion string                `json:"currentVersion"`
 	Target         string                `json:"target"`
 	TargetVersion  string                `json:"targetVersion"`
-	Stable         string                `json:"stable"`
-	Testing        string                `json:"testing"`
+	TargetPoint    string                `json:"targetPoint,omitempty"` // its latest point release (14.1)
+	Testing        bool                  `json:"testing,omitempty"`
 	Available      bool                  `json:"available"`
 	Reason         string                `json:"reason,omitempty"`
 	AllowTesting   bool                  `json:"allowTesting"`
 	Run            *store.DistUpgradeRun `json:"run,omitempty"`
+	Check          *store.DistCheck      `json:"check,omitempty"`
+	// Proposal: shown in Updates ("Do you want to upgrade…?"); Dismissed:
+	// the administrator answered No (until the next check).
+	Proposal   bool                `json:"proposal"`
+	Dismissed  bool                `json:"dismissed,omitempty"`
+	Scheduled  *store.DistSchedule `json:"scheduled,omitempty"`
+	NextWindow time.Time           `json:"nextWindow,omitzero"`
 }
 
 func (s *Server) distState(ctx context.Context) distView {
 	cur := system.Codename()
-	v := distView{Current: cur, CurrentVersion: system.ReleaseNumber(cur), Target: system.NextRelease(cur)}
-	v.TargetVersion = system.ReleaseNumber(v.Target)
-	s.store.Read(func(st *store.State) {
-		v.AllowTesting = st.DistUpgrade.AllowTesting
-		if r := st.DistUpgrade.Run; r != nil {
+	suites := distSuites(ctx)
+	v := distView{Current: cur, CurrentVersion: currentMajor()}
+	var st store.DistUpgrade
+	s.store.Read(func(x *store.State) {
+		st = x.DistUpgrade
+		if r := st.Run; r != nil {
 			c := *r
 			v.Run = &c
 		}
+		if c := st.Check; c != nil {
+			cc := *c
+			v.Check = &cc
+		}
+		if sc := st.Scheduled; sc != nil {
+			c := *sc
+			v.Scheduled = &c
+		}
 	})
-	v.Stable, v.Testing = distSuites(ctx)
+	v.AllowTesting = st.AllowTesting
+	t := system.TargetRelease(v.CurrentVersion, suites, st.AllowTesting)
+	v.Target, v.TargetVersion, v.TargetPoint, v.Testing = t.Codename, t.Number, t.Version, t.Testing
 	switch {
-	case v.Target == "":
-		v.Reason = "no newer Debian release is known for this system"
-	case v.Stable == v.Target:
-		v.Available = true
-	case v.AllowTesting && v.Testing == v.Target:
-		v.Available = true
-	case v.Stable == "":
+	case len(suites) == 0:
 		v.Reason = "the Debian archive could not be reached"
+	case t.Codename == "":
+		v.Reason = "this NAS runs the latest Debian release"
+	case !t.Ready:
+		v.Reason = fmt.Sprintf("Debian %s is out: it is proposed after its first point release (%s.1)", t.Number, t.Number)
 	default:
-		v.Reason = fmt.Sprintf("Debian %s is not released yet", v.TargetVersion)
+		v.Available = true
 	}
+	if v.Available && v.Check != nil && v.Check.Target == v.Target {
+		v.Dismissed = st.DismissedFor == v.Target && st.DismissedAt.After(v.Check.At)
+		busy := v.Run != nil && !slices.Contains([]string{"done", "failed", "rolled-back"}, v.Run.Phase)
+		v.Proposal = !v.Check.Blocked && !v.Dismissed && !busy && v.Scheduled == nil
+	}
+	v.NextWindow = nextDistWindow(s.autoConfig(), time.Now())
 	return v
+}
+
+// nextDistWindow is the next maintenance window (the hours of the automatic
+// updates, whether they are on or not).
+func nextDistWindow(c store.AutoUpdates, now time.Time) time.Time {
+	if ws, ok := autoWindow(c, now); ok {
+		return ws
+	}
+	for i := 0; i < 8; i++ {
+		ws := windowStart(now.AddDate(0, 0, i), c.Hour)
+		if ws.After(now) && autoDays(c, ws.Weekday()) {
+			return ws
+		}
+	}
+	return time.Time{}
+}
+
+// distCheck runs the compatibility checks of the next release (the
+// simulation included) and records them; a new proposal is told to the
+// administrators once per release.
+func (s *Server) distCheck(ctx context.Context, logf func(string, ...any)) (distView, error) {
+	v := s.distState(ctx)
+	if v.Target == "" {
+		return v, errors.New(firstNonEmpty(v.Reason, "no newer Debian release"))
+	}
+	logf("Checking the upgrade from Debian %s (%s) to Debian %s (%s)", v.CurrentVersion, v.Current, v.TargetVersion, v.Target)
+	f, _, _ := s.distFacts(ctx, v.Current, v.Target, true)
+	f.From, f.To = v.Current, v.Target
+	checks := system.UpgradeChecks(f)
+	c := &store.DistCheck{At: time.Now(), Target: v.Target, Number: v.TargetVersion, Blocked: system.Blocked(checks)}
+	for _, x := range checks {
+		c.Checks = append(c.Checks, store.UpgradeResult{ID: x.ID, Level: x.Level, Text: x.Text, Fix: x.Fix})
+		logf("%s: %s", x.Level, x.Text)
+	}
+	_ = s.store.Update(func(st *store.State) error {
+		st.DistUpgrade.Check = c
+		return nil
+	})
+	v = s.distState(ctx)
+	if v.Proposal {
+		var told string
+		s.store.Read(func(st *store.State) { told = st.DistUpgrade.NotifiedFor })
+		if told != v.Target {
+			_ = s.store.Update(func(st *store.State) error { st.DistUpgrade.NotifiedFor = v.Target; return nil })
+			s.notify("info", "System upgrade available", fmt.Sprintf("Debian %s can be installed on this NAS: see Updates", v.TargetVersion))
+		}
+	}
+	return v, nil
+}
+
+// distCheckLoop checks the next release once a day.
+func (s *Server) distCheckLoop() {
+	time.Sleep(3 * time.Minute)
+	for {
+		v := s.distState(context.Background())
+		busy := v.Run != nil && !slices.Contains([]string{"done", "failed", "rolled-back"}, v.Run.Phase)
+		if v.Target != "" && !busy {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+			_, _ = s.distCheck(ctx, func(string, ...any) {})
+			cancel()
+		}
+		time.Sleep(24 * time.Hour)
+	}
 }
 
 func (s *Server) distSet(f func(r *store.DistUpgradeRun)) {
@@ -417,7 +672,7 @@ func (s *Server) distRun(ctx context.Context, j *jobs.Job) error {
 		j.SetProgress(5)
 		if err := distApt(ctx, j, 0, 0, 0, "apt-get", "update", "-q"); err != nil {
 			restoreSources()
-			return fail(fmt.Errorf("the package lists of Debian %s could not be read: %v", system.ReleaseNumber(run.To), err))
+			return fail(fmt.Errorf("the package lists of Debian %s could not be read: %v", distNum(run.ToNumber, run.To), err))
 		}
 		sim, _ := sys.Run("apt-get", "-s", "-q", "full-upgrade")
 		n := system.PlanCount(sim)
@@ -471,16 +726,16 @@ func (s *Server) distRun(ctx context.Context, j *jobs.Job) error {
 		s.distSet(func(r *store.DistUpgradeRun) { r.Phase, r.BootID = "reboot", bootID() })
 		j.SetProgress(100)
 		if run.Auto {
-			j.Logf("Debian %s is installed: the NAS restarts into it now, then checks itself", system.ReleaseNumber(run.To))
-			s.notify("info", "Debian upgrade: restarting", fmt.Sprintf("Debian %s is installed: the NAS restarts into it and checks itself", system.ReleaseNumber(run.To)))
+			j.Logf("Debian %s is installed: the NAS restarts into it now, then checks itself", distNum(run.ToNumber, run.To))
+			s.notify("info", "Debian upgrade: restarting", fmt.Sprintf("Debian %s is installed: the NAS restarts into it and checks itself", distNum(run.ToNumber, run.To)))
 			go func() {
 				time.Sleep(10 * time.Second)
 				_, _ = sys.Run("systemctl", "reboot")
 			}()
 			return nil
 		}
-		s.notify("info", "Debian upgrade ready", fmt.Sprintf("Debian %s is installed: restart the NAS to finish", system.ReleaseNumber(run.To)))
-		j.Logf("Upgraded to Debian %s: restart the NAS to finish", system.ReleaseNumber(run.To))
+		s.notify("info", "Debian upgrade ready", fmt.Sprintf("Debian %s is installed: restart the NAS to finish", distNum(run.ToNumber, run.To)))
+		j.Logf("Upgraded to Debian %s: restart the NAS to finish", distNum(run.ToNumber, run.To))
 		return nil
 	}
 	return nil
@@ -516,7 +771,7 @@ func (s *Server) distRollback(logf func(string, ...any), why string) bool {
 		// is now usually starts it; say so in the log and go on.
 		logf("Boot loader of the restored system: %v", err)
 	}
-	s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The upgrade to Debian %s did not succeed (%s): the NAS restarts into Debian %s", system.ReleaseNumber(run.To), why, system.ReleaseNumber(run.From)))
+	s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The upgrade to Debian %s did not succeed (%s): the NAS restarts into Debian %s", distNum(run.ToNumber, run.To), why, distNum(run.FromNumber, run.From)))
 	s.store.Log("warning", "updates", "", fmt.Sprintf("Debian upgrade: back to the restore point %s (%s)", run.RestorePoint, why))
 	if !system.RebootsItself() {
 		go func() {
@@ -525,6 +780,64 @@ func (s *Server) distRollback(logf func(string, ...any), why string) bool {
 		}()
 	}
 	return true
+}
+
+// distNum is the number of a release of a run (saved when it started).
+func distNum(saved, codename string) string {
+	return firstNonEmpty(saved, system.ReleaseNumber(codename), codename)
+}
+
+// distFailed lists the texts of the checks that block.
+func distFailed(c *store.DistCheck) []string {
+	var out []string
+	for _, x := range c.Checks {
+		if x.Level == "block" {
+			out = append(out, x.Text)
+		}
+	}
+	return out
+}
+
+// distStart records and starts the upgrade (always with a restore point,
+// the restart, the checks after it and the rollback on failure).
+func (s *Server) distStart(v distView, user string, forced bool) jobs.Snapshot {
+	_ = s.store.Update(func(st *store.State) error {
+		st.DistUpgrade.Scheduled = nil
+		st.DistUpgrade.Run = &store.DistUpgradeRun{From: v.Current, To: v.Target, FromNumber: v.CurrentVersion, ToNumber: v.TargetVersion,
+			Started: time.Now(), Phase: "sources", Auto: true, Forced: forced}
+		if m, _ := system.Mode(); system.RollbackMode(m) {
+			st.DistUpgrade.Run.Rollback = true
+		}
+		return nil
+	})
+	return s.jobs.Start("dist-upgrade", fmt.Sprintf("Upgrading Debian %s to %s", v.CurrentVersion, v.TargetVersion), user, s.distRun)
+}
+
+// distWindowStart starts a planned upgrade in a maintenance window: the
+// checks run again first; failed ones cancel a plan that was not forced.
+func (s *Server) distWindowStart(ctx context.Context) {
+	v := s.distState(ctx)
+	sc := v.Scheduled
+	if sc == nil {
+		return
+	}
+	if v.Target != sc.Target || !v.Available {
+		_ = s.store.Update(func(st *store.State) error { st.DistUpgrade.Scheduled = nil; return nil })
+		return
+	}
+	v, err := s.distCheck(ctx, func(string, ...any) {})
+	if err != nil {
+		return
+	}
+	if failed := distFailed(v.Check); len(failed) > 0 && !sc.Force {
+		_ = s.store.Update(func(st *store.State) error { st.DistUpgrade.Scheduled = nil; return nil })
+		msg := fmt.Sprintf("The system upgrade to Debian %s planned for the maintenance window did not start: %s", v.TargetVersion, strings.Join(failed, "; "))
+		s.store.Log("warning", "updates", sc.By, msg)
+		s.notify("warning", "System upgrade not started", msg)
+		return
+	}
+	s.store.Log("info", "updates", sc.By, fmt.Sprintf("System upgrade to Debian %s started in the maintenance window", v.TargetVersion))
+	s.distStart(v, sc.By, sc.Force)
 }
 
 func hexEncodePath(p string) string { return hex.EncodeToString([]byte(p)) }
@@ -543,7 +856,7 @@ func (s *Server) distPostChecks(run store.DistUpgradeRun) []store.UpgradeResult 
 	var out []store.UpgradeResult
 	add := func(id, level, text string) { out = append(out, store.UpgradeResult{ID: id, Level: level, Text: text}) }
 	if c := system.Codename(); c == run.To {
-		add("release", "ok", "Debian "+system.ReleaseNumber(c)+" ("+c+") is running")
+		add("release", "ok", "Debian "+currentMajor()+" ("+c+") is running")
 	} else {
 		add("release", "block", "The system still reports "+c)
 	}
@@ -610,7 +923,7 @@ func (s *Server) distResume() {
 	}
 	switch run.Phase {
 	case "download", "upgrade", "finish":
-		s.jobs.Start("dist-upgrade", fmt.Sprintf("Upgrading Debian %s to %s (resumed)", system.ReleaseNumber(run.From), system.ReleaseNumber(run.To)), "system", s.distRun)
+		s.jobs.Start("dist-upgrade", fmt.Sprintf("Upgrading Debian %s to %s (resumed)", distNum(run.FromNumber, run.From), distNum(run.ToNumber, run.To)), "system", s.distRun)
 	case "reboot", "post-checks":
 		if bootID() == run.BootID {
 			return // not restarted yet
@@ -641,7 +954,7 @@ func (s *Server) distResume() {
 		if failed {
 			s.notify("error", "Debian upgrade: checks failed", "Some checks failed after the restart into the new release: see Updates")
 		} else {
-			s.notify("info", "Debian upgrade finished", fmt.Sprintf("The NAS runs Debian %s", system.ReleaseNumber(run.To)))
+			s.notify("info", "Debian upgrade finished", fmt.Sprintf("The NAS runs Debian %s", distNum(run.ToNumber, run.To)))
 		}
 	case "rolling-back":
 		if bootID() == run.BootID {
@@ -650,17 +963,18 @@ func (s *Server) distResume() {
 		if system.Codename() == run.To {
 			s.distSet(func(r *store.DistUpgradeRun) {
 				r.Phase, r.Finished = "failed", time.Now()
-				r.Error = run.RolledBack + "; the system still runs Debian " + system.ReleaseNumber(run.To) + " after going back to the restore point: see Restore points"
+				r.Error = run.RolledBack + "; the system still runs Debian " + distNum(run.ToNumber, run.To) + " after going back to the restore point: see Restore points"
 			})
 			return
 		}
 		s.distSet(func(r *store.DistUpgradeRun) { r.Phase, r.Finished = "rolled-back", time.Now() })
-		s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The NAS runs Debian %s again, as before the upgrade (%s)", system.ReleaseNumber(run.From), run.RolledBack))
+		s.notify("warning", "Debian upgrade rolled back", fmt.Sprintf("The NAS runs Debian %s again, as before the upgrade (%s)", distNum(run.FromNumber, run.From), run.RolledBack))
 	}
 }
 
 func (s *Server) distUpgradeRoutes() {
 	go s.distResume()
+	go s.distCheckLoop()
 
 	s.admin("GET /api/system/dist-upgrade", func(r *http.Request) (any, error) {
 		return s.distState(r.Context()), nil
@@ -685,55 +999,90 @@ func (s *Server) distUpgradeRoutes() {
 		return s.distState(r.Context()), nil
 	})
 
+	// Checks now (a job: the simulation reads the new release's lists).
 	s.admin("POST /api/system/dist-upgrade/check", func(r *http.Request) (any, error) {
 		v := s.distState(r.Context())
 		if v.Target == "" {
 			return nil, badRequest(v.Reason)
 		}
-		f, _, changes := s.distFacts(r.Context(), v.Current, v.Target)
-		checks := system.UpgradeChecks(f)
-		if changes == nil {
-			changes = []system.SourceChange{}
-		}
-		return map[string]any{"checks": checks, "blocked": system.Blocked(checks) || !v.Available, "sources": changes, "available": v.Available, "reason": v.Reason}, nil
+		return s.jobs.Start("dist-check", fmt.Sprintf("Checking the upgrade to Debian %s", v.TargetVersion), userOf(r), func(ctx context.Context, j *jobs.Job) error {
+			_, err := s.distCheck(ctx, j.Logf)
+			return err
+		}), nil
 	})
 
+	// The answer to the proposal: no hides it until the next check; show
+	// brings it back.
+	s.admin("POST /api/system/dist-upgrade/dismiss", func(r *http.Request) (any, error) {
+		v := s.distState(r.Context())
+		_ = s.store.Update(func(st *store.State) error {
+			st.DistUpgrade.DismissedFor, st.DistUpgrade.DismissedAt = v.Target, time.Now()
+			return nil
+		})
+		s.audit(r, "updates", fmt.Sprintf("System upgrade to Debian %s: not now", v.TargetVersion))
+		return s.distState(r.Context()), nil
+	})
+	s.admin("POST /api/system/dist-upgrade/show", func(r *http.Request) (any, error) {
+		_ = s.store.Update(func(st *store.State) error {
+			st.DistUpgrade.DismissedFor, st.DistUpgrade.DismissedAt = "", time.Time{}
+			return nil
+		})
+		return s.distState(r.Context()), nil
+	})
+
+	// Yes: now, or in the next maintenance window. Past failed checks only
+	// with force and the codename typed (logged and told).
 	s.admin("POST /api/system/dist-upgrade/start", func(r *http.Request) (any, error) {
 		var req struct {
+			When    string `json:"when"` // now | window
+			Force   bool   `json:"force"`
 			Confirm string `json:"confirm"`
-			// Auto: restart by itself and go back to the restore point on
-			// failure (the one-button upgrade of the Updates page).
-			Auto bool `json:"auto"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
+		}
+		if req.When != "now" && req.When != "window" {
+			return nil, badRequest("choose now or the maintenance window")
 		}
 		v := s.distState(r.Context())
 		if !v.Available {
 			return nil, badRequest(v.Reason)
 		}
-		if req.Confirm != v.Target {
-			return nil, badRequest("type " + v.Target + " to confirm")
-		}
 		if v.Run != nil && !slices.Contains([]string{"done", "failed", "rolled-back"}, v.Run.Phase) {
 			return nil, &Error{Status: http.StatusConflict, Msg: "an upgrade is already in progress"}
 		}
-		f, _, _ := s.distFacts(r.Context(), v.Current, v.Target)
-		if checks := system.UpgradeChecks(f); system.Blocked(checks) {
-			var why []string
-			for _, c := range checks {
-				if c.Level == "block" {
-					why = append(why, c.Text)
-				}
-			}
-			return nil, badRequest(strings.Join(why, "; "))
+		if v.Check == nil || v.Check.Target != v.Target || time.Since(v.Check.At) > 36*time.Hour {
+			return nil, badRequest("check the system first")
 		}
-		_ = s.store.Update(func(st *store.State) error {
-			st.DistUpgrade.Run = &store.DistUpgradeRun{From: v.Current, To: v.Target, Started: time.Now(), Phase: "sources", Auto: req.Auto, Rollback: system.RollbackMode(f.RestoreMode)}
-			return nil
-		})
-		s.audit(r, "updates", fmt.Sprintf("Debian upgrade %s → %s started", v.CurrentVersion, v.TargetVersion))
-		return s.jobs.Start("dist-upgrade", fmt.Sprintf("Upgrading Debian %s to %s", v.CurrentVersion, v.TargetVersion), userOf(r), s.distRun), nil
+		failed := distFailed(v.Check)
+		if len(failed) > 0 {
+			if !req.Force {
+				return nil, badRequest("the checks failed: " + strings.Join(failed, "; "))
+			}
+			if req.Confirm != v.Target {
+				return nil, badRequest("type " + v.Target + " to force the upgrade")
+			}
+			msg := fmt.Sprintf("System upgrade to Debian %s forced by %s despite failed checks: %s", v.TargetVersion, userOf(r), strings.Join(failed, "; "))
+			s.audit(r, "updates", msg)
+			s.store.Log("warning", "updates", userOf(r), msg)
+			s.notify("warning", "System upgrade forced", msg)
+		}
+		if req.When == "window" {
+			_ = s.store.Update(func(st *store.State) error {
+				st.DistUpgrade.Scheduled = &store.DistSchedule{Target: v.Target, Force: len(failed) > 0, By: userOf(r), At: time.Now()}
+				return nil
+			})
+			s.audit(r, "updates", fmt.Sprintf("System upgrade to Debian %s planned in the next maintenance window", v.TargetVersion))
+			return s.distState(r.Context()), nil
+		}
+		s.audit(r, "updates", fmt.Sprintf("System upgrade %s → %s started", v.CurrentVersion, v.TargetVersion))
+		return s.distStart(v, userOf(r), len(failed) > 0), nil
+	})
+
+	s.admin("DELETE /api/system/dist-upgrade/scheduled", func(r *http.Request) (any, error) {
+		_ = s.store.Update(func(st *store.State) error { st.DistUpgrade.Scheduled = nil; return nil })
+		s.audit(r, "updates", "Planned system upgrade cancelled")
+		return s.distState(r.Context()), nil
 	})
 
 	s.admin("POST /api/system/dist-upgrade/reboot", func(r *http.Request) (any, error) {

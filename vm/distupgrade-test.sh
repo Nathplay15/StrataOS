@@ -47,9 +47,9 @@ fi
 
 section "Pre-checks"
 S=$(api GET /api/system/dist-upgrade)
-check "target forky, not released yet" "$(echo "$S" | py 'print(d["current"], d["target"], d["available"], d["testing"])')" "trixie forky False forky"
-check "start refused while not offered" "$(api POST /api/system/dist-upgrade/start -d '{"confirm":"forky"}')" "not released yet"
-check "testing allowed by the administrator" "$(api PUT /api/system/dist-upgrade -d '{"allowTesting":true}' | py 'print(d["available"])')" "True"
+check "no next stable release yet" "$(echo "$S" | py 'print(d["current"], d["target"], d["available"])')" "trixie  False"
+check "start refused while not offered" "$(api POST /api/system/dist-upgrade/start -d '{"when":"now"}')" "latest Debian release"
+check "testing allowed by the administrator" "$(api PUT /api/system/dist-upgrade -d '{"allowTesting":true}' | py 'print(d["available"], d["target"], d["targetVersion"])')" "True forky 14"
 # The updates may restart the StrataOS service (its job is then lost): wait for none left.
 api POST /api/system/updates/refresh >/dev/null; sleep 20
 api POST /api/system/updates/upgrade >/dev/null
@@ -57,25 +57,25 @@ for _ in $(seq 1 120); do sleep 5; [ "$(vm 'systemctl is-active strata-apt.servi
   [ "$(api GET /api/system/updates | py 'print(len(d))' 2>/dev/null)" = 0 ] && break; done
 login
 check "pending updates installed first" "$(api GET /api/system/updates | py 'print(len(d))')" "0"
-C=$(api POST /api/system/dist-upgrade/check)
-echo "$C" | py 'print("\n".join("    %s: %s" % (c["level"], c["text"]) for c in d["checks"]))'
-check "pre-checks pass" "$(echo "$C" | py 'print(d["blocked"], [c["id"] for c in d["checks"] if c["level"]=="block"])')" "False []"
-check "Debian sources move to forky" "$(echo "$C" | py 'print(sorted({(s["from"], s["to"]) for s in d["sources"]}))')" "('trixie', 'forky')"
-check "wrong confirmation refused" "$(api POST /api/system/dist-upgrade/start -d '{"confirm":"yes"}')" "type forky"
+job "$(api POST /api/system/dist-upgrade/check)" >/dev/null
+C=$(api GET /api/system/dist-upgrade)
+echo "$C" | py 'print("\n".join("    %s: %s" % (c["level"], c["text"]) for c in d["check"]["checks"]))'
+check "checks pass, proposal shown" "$(echo "$C" | py 'print(d["check"]["blocked"], [c["id"] for c in d["check"]["checks"] if c["level"]=="block"], d["proposal"])')" "False [] True"
+check "StrataOS installs on the new release (simulation)" "$(echo "$C" | py 'print([c["level"] for c in d["check"]["checks"] if c["id"]=="strataos"])')" "['ok']"
 
 section "Upgrade"
-R=$(job "$(api POST /api/system/dist-upgrade/start -d '{"confirm":"forky"}')" 1500)
+R=$(job "$(api POST /api/system/dist-upgrade/start -d '{"when":"now"}')" 1500)
 check "upgrade job" "$R" "success"
 echo "$R" | grep -E "restore point|packages to upgrade|→|ZFS" | head -12 | sed 's/^/    /'
-check "waiting for the restart" "$(api GET /api/system/dist-upgrade | py 'r=d["run"]; print(r["phase"], r["to"], bool(r.get("kernel")))')" "reboot forky True"
+# The NAS restarts by itself into the new release.
+for _ in $(seq 1 60); do curl -sf -m 3 "http://localhost:$P/api/setup" >/dev/null || break; sleep 2; done
+sleep 20
+for _ in $(seq 1 60); do curl -sf -m 5 "http://localhost:$P/api/setup" >/dev/null && break; sleep 5; done
+login
 check "sources on forky" "$(vm 'cat /etc/apt/sources.list.d/debian.sources 2>/dev/null || cat /etc/apt/sources.list' | grep -m1 -E '^Suites|^deb ')" "forky"
 check "StrataOS sources untouched" "$(vm 'grep Suites /etc/apt/sources.list.d/strataos.sources 2>/dev/null || echo "Suites: stable (no repository in this build)"')" "stable"
 check "managed configuration kept (smb.conf)" "$(vm 'sudo testparm -s 2>/dev/null | grep -c "^\[Docs\]"')" "1"
 check "no half-installed package" "$(vm 'sudo dpkg --audit | wc -l')" "0"
-check "restart" "$(api POST /api/system/dist-upgrade/reboot)" '"ok":true'
-sleep 20
-for _ in $(seq 1 60); do curl -sf -m 5 "http://localhost:$P/api/setup" >/dev/null && break; sleep 5; done
-login
 
 section "After the restart"
 check "Debian 14 running" "$(vm 'grep VERSION_CODENAME /etc/os-release; uname -r')" "forky"
@@ -89,5 +89,5 @@ check "volume mounted, data there" "$(vm 'sudo cat /srv/strata/volume1/Docs/note
 check "StrataOS answers" "$(api GET /api/me)" "\"username\":\"$ADMIN_USER\""
 check "Samba running" "$(vm 'systemctl is-active smbd')" "active"
 [ -n "${ZFS:-}" ] && check "ZFS pool imported" "$(vm 'sudo zpool list -H -o name,health')" "ONLINE"
-check "the upgrade is not offered again" "$(api GET /api/system/dist-upgrade | py 'print(d["current"], d["target"])')" "forky duke"
+check "the upgrade is not offered again" "$(api GET /api/system/dist-upgrade | py 'print(d["current"], d["proposal"])')" "forky False"
 finish
