@@ -36,7 +36,13 @@ app() {
     MINGW* | MSYS* | CYGWIN*) os=windows; triple=x86_64-pc-windows-msvc; bundles=nsis,msi ;;
     *) echo "unknown system" >&2; exit 2 ;;
   esac
-  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then sign=true; fi
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    sign=true
+    # Secrets pasted with a final newline or spaces: Tauri refuses them.
+    TAURI_SIGNING_PRIVATE_KEY=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]')
+    TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(printf '%s' "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" | tr -d '\r\n')
+    export TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+  fi
   conf=$(printf '{"version":"%s","bundle":{"createUpdaterArtifacts":%s,"windows":{"wix":{"version":"%s"}}}}' "$FV" "$sign" "$MSIV")
   if [ "$triple" = universal-apple-darwin ]; then
     # Tauri looks for the sidecar of each architecture it builds, and the universal one.
@@ -44,7 +50,19 @@ app() {
     app/scripts/sidecar.sh x86_64-apple-darwin >/dev/null
   fi
   app/scripts/sidecar.sh "$triple" >/dev/null
-  (cd app && npm ci --no-audit --no-fund && npx tauri build --ci --bundles "$bundles" --target "$triple" --config "$conf")
+  (cd app && npm ci --no-audit --no-fund)
+  if $sign; then
+    # Check the key and its password before a long build (a wrong secret only
+    # fails at the very end otherwise).
+    local probe; probe=$(mktemp)
+    if ! (cd app && npx tauri signer sign "$probe") >/dev/null 2>"$probe.err"; then
+      echo "the updater key cannot sign: check the TAURI_SIGNING_PRIVATE_KEY secret (the content of the .key file) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD" >&2
+      tail -3 "$probe.err" >&2
+      rm -f "$probe" "$probe.err" "$probe.sig"; exit 1
+    fi
+    rm -f "$probe" "$probe.err" "$probe.sig"
+  fi
+  (cd app && npx tauri build --ci --bundles "$bundles" --target "$triple" --config "$conf")
   local out="app/src-tauri/target/$triple/release/bundle"
   case $os in
     linux)
