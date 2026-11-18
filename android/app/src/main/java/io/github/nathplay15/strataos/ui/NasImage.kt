@@ -110,6 +110,7 @@ fun NasImage(
     contentScale: ContentScale = ContentScale.Crop,
     fallback: ImageVector? = null,
     alternatives: List<HttpUrl> = emptyList(),
+    placeholder: (@Composable () -> Unit)? = null,
 ) {
     var bmp by remember(url) { mutableStateOf(url?.let { Thumbs.cached(it) }) }
     LaunchedEffect(url) { if (bmp == null && url != null) bmp = Thumbs.loadFirst(listOf(url) + alternatives, maxPx) }
@@ -117,7 +118,8 @@ fun NasImage(
     if (b != null) {
         Image(b.asImageBitmap(), contentDescription, modifier, contentScale = contentScale)
     } else {
-        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+        if (placeholder != null) Box(modifier, contentAlignment = Alignment.Center) { placeholder() }
+        else Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
             if (fallback != null) Icon(fallback, contentDescription, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             else Box(Modifier.fillMaxSize())
         }

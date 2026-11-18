@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -160,13 +163,13 @@ fun RefreshAction(reload: () -> Unit) {
     IconButton(onClick = reload) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh)) }
 }
 
-/** A small colored label (health, state). */
+/** A small colored pill (health, state). */
 @Composable
 fun Chip(text: String, tone: Tone = Tone.NEUTRAL) {
     val c = tone.color()
     Text(
-        text, color = c, fontSize = 12.sp, maxLines = 1,
-        modifier = Modifier.background(c.copy(alpha = 0.14f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+        text.replaceFirstChar { it.titlecase() }, color = c, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        modifier = Modifier.background(c.copy(alpha = 0.13f), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
     )
 }
 
@@ -193,11 +196,24 @@ fun toneOf(state: String): Tone = when (state.lowercase()) {
 fun UsageBar(used: Long, total: Long, modifier: Modifier = Modifier) {
     val frac = if (total > 0) (used.toFloat() / total).coerceIn(0f, 1f) else 0f
     Column(modifier) {
-        LinearProgressIndicator(progress = { frac }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            color = if (frac > 0.9f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        ThinBar(frac, Modifier.fillMaxWidth().padding(vertical = 6.dp))
         Text(stringResource(R.string.a_usage, formatBytes(used), formatBytes(total), (frac * 100).toInt()), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** A thin rounded progress bar: brand blue, amber above 80 %, red above 90 %. */
+@Composable
+fun ThinBar(frac: Float, modifier: Modifier = Modifier) {
+    val c = when {
+        frac > 0.9f -> MaterialTheme.colorScheme.error
+        frac > 0.8f -> Tone.WARN.color()
+        else -> MaterialTheme.colorScheme.primary
+    }
+    LinearProgressIndicator(
+        progress = { frac.coerceIn(0f, 1f) }, modifier = modifier.height(6.dp), color = c,
+        trackColor = MaterialTheme.colorScheme.surfaceVariant, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
+    )
 }
 
 /**

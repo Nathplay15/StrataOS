@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of the redesigned shell: home header and grid, Me tab, onboarding carousel. -->
+<resources>
+    <string name="tab_me">Me</string>
+    <string name="ui_search_files">Search files</string>
+    <string name="ui_transfers">Transfers</string>
+    <string name="ui_nas_details">Details of the NAS</string>
+    <string name="ui_more">More</string>
+    <string name="ui_offline">The NAS cannot be reached</string>
+    <string name="ui_backup_card_off">Back up the photos and videos of this phone automatically</string>
+    <string name="ui_backup_card_on">On: new photos and videos go to the NAS</string>
+    <string name="ui_go">Go</string>
+    <string name="ui_not_installed">Not installed</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d upload in progress</item>
+        <item quantity="other">%1$d uploads in progress</item>
+    </plurals>
+    <string name="ui_no_uploads">No upload in progress</string>
+    <string name="ui_running">In progress…</string>
+    <string name="ui_uploads">Uploads</string>
+    <string name="ui_role_admin">Administrator</string>
+    <string name="ui_role_user">User</string>
+    <string name="ui_me_data">Backup and sharing</string>
+    <string name="ui_me_app">This app</string>
+    <string name="ui_me_nas">NAS</string>
+
+    <!-- Onboarding carousel -->
+    <string name="ui_intro1_title">All your files, in your pocket</string>
+    <string name="ui_intro1_text">Browse, share and keep offline the files of your StrataOS NAS</string>
+    <string name="ui_intro2_title">Storage you can trust</string>
+    <string name="ui_intro2_text">Volumes, disks and alerts at a glance, wherever you are</string>
+    <string name="ui_intro3_title">Your memories, safe at home</string>
+    <string name="ui_intro3_text">The photos and videos of this phone backed up automatically</string>
+    <string name="ui_next">Next</string>
+    <string name="ui_skip">Skip</string>
+    <string name="ui_get_started">Get started</string>
+    <string name="ui_mock_documents">Documents</string>
+    <string name="ui_mock_music">Music</string>
+    <string name="ui_healthy">Healthy</string>
+    <string name="ui_mock_volume">Volume %1$d</string>
+</resources>

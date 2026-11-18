@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">Yo</string>
+    <string name="ui_search_files">Buscar archivos</string>
+    <string name="ui_transfers">Transferencias</string>
+    <string name="ui_nas_details">Detalles del NAS</string>
+    <string name="ui_more">Más</string>
+    <string name="ui_offline">No se puede contactar con el NAS</string>
+    <string name="ui_backup_card_off">Copia automática de las fotos y vídeos de este teléfono</string>
+    <string name="ui_backup_card_on">Activada: las fotos y vídeos nuevos van al NAS</string>
+    <string name="ui_go">Ir</string>
+    <string name="ui_not_installed">No instalado</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d elemento</item>
+        <item quantity="many">%1$d elementos</item>
+        <item quantity="other">%1$d elementos</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d subida en curso</item>
+        <item quantity="many">%1$d subidas en curso</item>
+        <item quantity="other">%1$d subidas en curso</item>
+    </plurals>
+    <string name="ui_no_uploads">Ninguna subida en curso</string>
+    <string name="ui_running">En curso…</string>
+    <string name="ui_uploads">Subidas</string>
+    <string name="ui_role_admin">Administrador</string>
+    <string name="ui_role_user">Usuario</string>
+    <string name="ui_me_data">Copia y uso compartido</string>
+    <string name="ui_me_app">Esta aplicación</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">Todos tus archivos en el bolsillo</string>
+    <string name="ui_intro1_text">Explora, comparte y guarda sin conexión los archivos de tu NAS StrataOS</string>
+    <string name="ui_intro2_title">Un almacenamiento de confianza</string>
+    <string name="ui_intro2_text">Volúmenes, discos y alertas de un vistazo, estés donde estés</string>
+    <string name="ui_intro3_title">Tus recuerdos, a salvo en casa</string>
+    <string name="ui_intro3_text">Las fotos y vídeos de este teléfono copiados automáticamente</string>
+    <string name="ui_next">Siguiente</string>
+    <string name="ui_skip">Omitir</string>
+    <string name="ui_get_started">Empezar</string>
+    <string name="ui_mock_documents">Documentos</string>
+    <string name="ui_mock_music">Música</string>
+    <string name="ui_healthy">Correcto</string>
+    <string name="ui_mock_volume">Volumen %1$d</string>
+</resources>

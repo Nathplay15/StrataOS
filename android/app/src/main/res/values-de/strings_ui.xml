@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">Ich</string>
+    <string name="ui_search_files">Dateien suchen</string>
+    <string name="ui_transfers">Übertragungen</string>
+    <string name="ui_nas_details">Details des NAS</string>
+    <string name="ui_more">Mehr</string>
+    <string name="ui_offline">Das NAS ist nicht erreichbar</string>
+    <string name="ui_backup_card_off">Fotos und Videos dieses Telefons automatisch sichern</string>
+    <string name="ui_backup_card_on">An: neue Fotos und Videos gehen auf das NAS</string>
+    <string name="ui_go">Los</string>
+    <string name="ui_not_installed">Nicht installiert</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d Element</item>
+        <item quantity="other">%1$d Elemente</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d Upload läuft</item>
+        <item quantity="other">%1$d Uploads laufen</item>
+    </plurals>
+    <string name="ui_no_uploads">Kein Upload läuft</string>
+    <string name="ui_running">Läuft…</string>
+    <string name="ui_uploads">Uploads</string>
+    <string name="ui_role_admin">Administrator</string>
+    <string name="ui_role_user">Benutzer</string>
+    <string name="ui_me_data">Sicherung und Freigaben</string>
+    <string name="ui_me_app">Diese App</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">Alle Ihre Dateien in der Tasche</string>
+    <string name="ui_intro1_text">Dateien Ihres StrataOS-NAS durchsuchen, teilen und offline verfügbar halten</string>
+    <string name="ui_intro2_title">Speicher, dem Sie vertrauen</string>
+    <string name="ui_intro2_text">Volumes, Festplatten und Warnungen auf einen Blick, wo immer Sie sind</string>
+    <string name="ui_intro3_title">Ihre Erinnerungen, sicher zu Hause</string>
+    <string name="ui_intro3_text">Fotos und Videos dieses Telefons automatisch gesichert</string>
+    <string name="ui_next">Weiter</string>
+    <string name="ui_skip">Überspringen</string>
+    <string name="ui_get_started">Los geht’s</string>
+    <string name="ui_mock_documents">Dokumente</string>
+    <string name="ui_mock_music">Musik</string>
+    <string name="ui_healthy">Fehlerfrei</string>
+    <string name="ui_mock_volume">Volume %1$d</string>
+</resources>

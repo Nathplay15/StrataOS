@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">Io</string>
+    <string name="ui_search_files">Cerca file</string>
+    <string name="ui_transfers">Trasferimenti</string>
+    <string name="ui_nas_details">Dettagli del NAS</string>
+    <string name="ui_more">Altro</string>
+    <string name="ui_offline">Il NAS non è raggiungibile</string>
+    <string name="ui_backup_card_off">Backup automatico di foto e video di questo telefono</string>
+    <string name="ui_backup_card_on">Attivo: le nuove foto e i nuovi video vanno sul NAS</string>
+    <string name="ui_go">Vai</string>
+    <string name="ui_not_installed">Non installato</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d elemento</item>
+        <item quantity="many">%1$d elementi</item>
+        <item quantity="other">%1$d elementi</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d caricamento in corso</item>
+        <item quantity="many">%1$d caricamenti in corso</item>
+        <item quantity="other">%1$d caricamenti in corso</item>
+    </plurals>
+    <string name="ui_no_uploads">Nessun caricamento in corso</string>
+    <string name="ui_running">In corso…</string>
+    <string name="ui_uploads">Caricamenti</string>
+    <string name="ui_role_admin">Amministratore</string>
+    <string name="ui_role_user">Utente</string>
+    <string name="ui_me_data">Backup e condivisione</string>
+    <string name="ui_me_app">Questa app</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">Tutti i tuoi file in tasca</string>
+    <string name="ui_intro1_text">Sfoglia, condividi e tieni offline i file del tuo NAS StrataOS</string>
+    <string name="ui_intro2_title">Uno spazio di cui fidarti</string>
+    <string name="ui_intro2_text">Volumi, dischi e avvisi a colpo d’occhio, ovunque tu sia</string>
+    <string name="ui_intro3_title">I tuoi ricordi, al sicuro a casa</string>
+    <string name="ui_intro3_text">Foto e video di questo telefono salvati automaticamente</string>
+    <string name="ui_next">Avanti</string>
+    <string name="ui_skip">Salta</string>
+    <string name="ui_get_started">Inizia</string>
+    <string name="ui_mock_documents">Documenti</string>
+    <string name="ui_mock_music">Musica</string>
+    <string name="ui_healthy">Integro</string>
+    <string name="ui_mock_volume">Volume %1$d</string>
+</resources>

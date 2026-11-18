@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">Eu</string>
+    <string name="ui_search_files">Buscar arquivos</string>
+    <string name="ui_transfers">Transferências</string>
+    <string name="ui_nas_details">Detalhes do NAS</string>
+    <string name="ui_more">Mais</string>
+    <string name="ui_offline">O NAS não está acessível</string>
+    <string name="ui_backup_card_off">Backup automático das fotos e vídeos deste celular</string>
+    <string name="ui_backup_card_on">Ativado: as novas fotos e vídeos vão para o NAS</string>
+    <string name="ui_go">Ir</string>
+    <string name="ui_not_installed">Não instalado</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d item</item>
+        <item quantity="many">%1$d itens</item>
+        <item quantity="other">%1$d itens</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d envio em andamento</item>
+        <item quantity="many">%1$d envios em andamento</item>
+        <item quantity="other">%1$d envios em andamento</item>
+    </plurals>
+    <string name="ui_no_uploads">Nenhum envio em andamento</string>
+    <string name="ui_running">Em andamento…</string>
+    <string name="ui_uploads">Envios</string>
+    <string name="ui_role_admin">Administrador</string>
+    <string name="ui_role_user">Usuário</string>
+    <string name="ui_me_data">Backup e compartilhamento</string>
+    <string name="ui_me_app">Este app</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">Todos os seus arquivos no bolso</string>
+    <string name="ui_intro1_text">Navegue, compartilhe e mantenha offline os arquivos do seu NAS StrataOS</string>
+    <string name="ui_intro2_title">Armazenamento confiável</string>
+    <string name="ui_intro2_text">Volumes, discos e alertas num relance, onde você estiver</string>
+    <string name="ui_intro3_title">Suas lembranças, seguras em casa</string>
+    <string name="ui_intro3_text">As fotos e vídeos deste celular com backup automático</string>
+    <string name="ui_next">Próximo</string>
+    <string name="ui_skip">Pular</string>
+    <string name="ui_get_started">Começar</string>
+    <string name="ui_mock_documents">Documentos</string>
+    <string name="ui_mock_music">Músicas</string>
+    <string name="ui_healthy">Saudável</string>
+    <string name="ui_mock_volume">Volume %1$d</string>
+</resources>

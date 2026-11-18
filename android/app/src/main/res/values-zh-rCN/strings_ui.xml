@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">我的</string>
+    <string name="ui_search_files">搜索文件</string>
+    <string name="ui_transfers">传输</string>
+    <string name="ui_nas_details">NAS 详情</string>
+    <string name="ui_more">更多</string>
+    <string name="ui_offline">无法连接 NAS</string>
+    <string name="ui_backup_card_off">自动备份这部手机的照片和视频</string>
+    <string name="ui_backup_card_on">已开启：新的照片和视频会传到 NAS</string>
+    <string name="ui_go">前往</string>
+    <string name="ui_not_installed">未安装</string>
+    <plurals name="ui_items">
+        <item quantity="other">%1$d 项</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="other">%1$d 个上传进行中</item>
+    </plurals>
+    <string name="ui_no_uploads">没有进行中的上传</string>
+    <string name="ui_running">进行中…</string>
+    <string name="ui_uploads">上传</string>
+    <string name="ui_role_admin">管理员</string>
+    <string name="ui_role_user">用户</string>
+    <string name="ui_me_data">备份与共享</string>
+    <string name="ui_me_app">本应用</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">所有文件，尽在掌中</string>
+    <string name="ui_intro1_text">浏览、分享并离线保存 StrataOS NAS 上的文件</string>
+    <string name="ui_intro2_title">值得信赖的存储</string>
+    <string name="ui_intro2_text">卷、硬盘和警报一目了然，随时随地</string>
+    <string name="ui_intro3_title">珍贵回忆，安全存家</string>
+    <string name="ui_intro3_text">自动备份这部手机的照片和视频</string>
+    <string name="ui_next">下一步</string>
+    <string name="ui_skip">跳过</string>
+    <string name="ui_get_started">开始使用</string>
+    <string name="ui_mock_documents">文档</string>
+    <string name="ui_mock_music">音乐</string>
+    <string name="ui_healthy">正常</string>
+    <string name="ui_mock_volume">卷 %1$d</string>
+</resources>

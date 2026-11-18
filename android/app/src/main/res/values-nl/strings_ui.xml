@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_me">Ik</string>
+    <string name="ui_search_files">Bestanden zoeken</string>
+    <string name="ui_transfers">Overdrachten</string>
+    <string name="ui_nas_details">Details van de NAS</string>
+    <string name="ui_more">Meer</string>
+    <string name="ui_offline">De NAS is niet bereikbaar</string>
+    <string name="ui_backup_card_off">Foto’s en video’s van deze telefoon automatisch back-uppen</string>
+    <string name="ui_backup_card_on">Aan: nieuwe foto’s en video’s gaan naar de NAS</string>
+    <string name="ui_go">Ga</string>
+    <string name="ui_not_installed">Niet geïnstalleerd</string>
+    <plurals name="ui_items">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <plurals name="ui_uploads_running">
+        <item quantity="one">%1$d upload bezig</item>
+        <item quantity="other">%1$d uploads bezig</item>
+    </plurals>
+    <string name="ui_no_uploads">Geen upload bezig</string>
+    <string name="ui_running">Bezig…</string>
+    <string name="ui_uploads">Uploads</string>
+    <string name="ui_role_admin">Beheerder</string>
+    <string name="ui_role_user">Gebruiker</string>
+    <string name="ui_me_data">Back-up en delen</string>
+    <string name="ui_me_app">Deze app</string>
+    <string name="ui_me_nas">NAS</string>
+    <string name="ui_intro1_title">Al je bestanden op zak</string>
+    <string name="ui_intro1_text">Blader door, deel en bewaar offline de bestanden van je StrataOS-NAS</string>
+    <string name="ui_intro2_title">Opslag waarop je kunt vertrouwen</string>
+    <string name="ui_intro2_text">Volumes, schijven en meldingen in één oogopslag, waar je ook bent</string>
+    <string name="ui_intro3_title">Je herinneringen, veilig thuis</string>
+    <string name="ui_intro3_text">De foto’s en video’s van deze telefoon automatisch geback-upt</string>
+    <string name="ui_next">Volgende</string>
+    <string name="ui_skip">Overslaan</string>
+    <string name="ui_get_started">Aan de slag</string>
+    <string name="ui_mock_documents">Documenten</string>
+    <string name="ui_mock_music">Muziek</string>
+    <string name="ui_healthy">Gezond</string>
+    <string name="ui_mock_volume">Volume %1$d</string>
+</resources>
