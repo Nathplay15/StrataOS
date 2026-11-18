@@ -328,6 +328,7 @@ func (s *Server) routes() {
 	s.albumRoutes()
 	s.energyRoutes()
 	s.versionRoutes()
+	s.snapshotRoutes()
 	s.guardRoutes()
 	s.vaultRoutes()
 	s.datastoreRoutes()

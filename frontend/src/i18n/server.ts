@@ -2706,4 +2706,10 @@ export const serverTexts: [string, string][] = [
   ["la routine a besoin d'au moins une action", "the routine needs at least one action"],
   ["l'URL du webhook doit être en http(s)", "the webhook URL must be http(s)"],
   ["routine inconnue", "unknown routine"],
+  // Self-service restore (#53)
+  ["{0} est un dossier : les dossiers sont restaurés en copie", "{0} is a folder: folders are restored as a copy"],
+  ["les liens symboliques ne sont pas suivis dans les snapshots", "symbolic links are not followed in snapshots"],
+  ["Restauration depuis un snapshot dans {0}", "Restoring from a snapshot into {0}"],
+  ["{0} restauré depuis le snapshot {1} dans {2}", "Restored {0} from snapshot {1} into {2}"],
+  ["Ignorés (liens ou fichiers spéciaux) : {0}", "Skipped (links or special files): {0}"],
 ];

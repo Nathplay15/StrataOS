@@ -14,7 +14,8 @@ import (
 	"strataos/internal/store"
 )
 
-// versionTarget is the file p as kept in a snapshot (read-only, confined).
+// versionTarget is the file p as kept in a snapshot (read-only, confined to
+// the caller's share folder in it).
 func (s *Server) versionTarget(r *http.Request, p, snap string) (target, target, error) {
 	t, err := s.locate(r, p)
 	if err != nil || !t.acc.read || t.acc.ancestor {
@@ -24,11 +25,13 @@ func (s *Server) versionTarget(r *http.Request, p, snap string) (target, target,
 	if !ok {
 		return target{}, target{}, notFound("version not found")
 	}
-	rel := tree.RelIn(t.abs)
-	if rel == "" {
-		return target{}, target{}, notFound("version not found")
+	// Confined to the share folder inside the snapshot (h_snapshots.go): a
+	// link kept in the snapshot cannot lead to another share.
+	sc, err := scopeIn(tree, t)
+	if err != nil {
+		return target{}, target{}, err
 	}
-	return t, target{root: tree.Root, rel: rel, abs: t.abs, acc: access{read: true}}, nil
+	return t, target{root: sc.root, rel: sc.rel, abs: t.abs, acc: access{read: true}}, nil
 }
 
 func (s *Server) versionRoutes() {
@@ -37,9 +40,16 @@ func (s *Server) versionRoutes() {
 		if err != nil || !t.acc.read || t.acc.ancestor {
 			return nil, firstErr(err, errForbidden)
 		}
-		v := storage.Versions(t.abs)
-		if v == nil {
-			v = []storage.Version{}
+		// Only the versions read inside the share folder, not through a link.
+		trees := map[string]storage.SnapshotTree{}
+		for _, tree := range storage.SnapshotTrees(t.abs) {
+			trees[tree.Name] = tree
+		}
+		v := []storage.Version{}
+		for _, x := range storage.Versions(t.abs) {
+			if _, err := scopeIn(trees[x.Snapshot], t); err == nil {
+				v = append(v, x)
+			}
 		}
 		return map[string]any{"versions": v, "writable": t.acc.write}, nil
 	})
@@ -80,8 +90,15 @@ func (s *Server) versionRoutes() {
 			return nil, notFound("version not found")
 		}
 		defer in.Close()
-		if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() {
+		fi, err := in.Stat()
+		if err != nil || !fi.Mode().IsRegular() {
 			return nil, badRequest("only files can be restored")
+		}
+		if why := s.readOnlyReason(t); why != "" {
+			return nil, &Error{Status: http.StatusForbidden, Msg: why}
+		}
+		if room := snapRestoreRoom(s, userOf(r), isAdmin(r), filepath.Dir(t.abs)); room >= 0 && fi.Size() > room {
+			return nil, errSnapNoRoom
 		}
 		dst, err := t.open()
 		if err != nil {
@@ -92,9 +109,15 @@ func (s *Server) versionRoutes() {
 		name := path.Base(t.rel)
 		ext := filepath.Ext(name)
 		tree, _ := storage.FindSnapshot(t.abs, req.Snapshot)
-		out := path.Join(dir, fmt.Sprintf("%s (version of %s)%s", strings.TrimSuffix(name, ext), tree.Time.Format("2006-01-02 15h04"), ext))
-		if req.Replace {
-			out = t.rel
+		out := t.rel
+		if !req.Replace {
+			// A second restore of the same version gets "… (2)", never
+			// replacing the first copy.
+			n, err := freeName(dst, dir, fmt.Sprintf("%s (version of %s)%s", strings.TrimSuffix(name, ext), tree.Time.Format("2006-01-02 15h04"), ext))
+			if err != nil {
+				return nil, err
+			}
+			out = path.Join(dir, n)
 		}
 		tmp := path.Join(dir, fmt.Sprintf(".%s.strata-restore-%d", name, time.Now().UnixNano()))
 		f, err := dst.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o664)
