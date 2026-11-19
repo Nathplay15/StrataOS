@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -302,6 +303,22 @@ func (s *Server) sysDiskResume() {
 	}
 }
 
+// sameNames compares two lists of disk names typed as "sda, sdb", in any order.
+func sameNames(typed, want string) bool {
+	split := func(s string) []string {
+		var out []string
+		for _, f := range strings.Split(s, ",") {
+			if f = strings.TrimSpace(f); f != "" {
+				out = append(out, f)
+			}
+		}
+		slices.Sort(out)
+		return out
+	}
+	a, b := split(typed), split(want)
+	return len(b) > 0 && slices.Equal(a, b)
+}
+
 // sysDiskOldNames: the names of the old system disks, as the user types
 // them to confirm their erasure.
 func sysDiskOldNames(o *store.SysDiskOp) string {
@@ -318,6 +335,7 @@ func sysDiskOldNames(o *store.SysDiskOp) string {
 			n = append(n, strings.TrimPrefix(cur, "/dev/"))
 		}
 	}
+	slices.Sort(n)
 	return strings.Join(n, ", ")
 }
 
@@ -395,7 +413,7 @@ func (s *Server) sysDiskRoutes() {
 		if p.Refusal != "" {
 			return nil, badRequest(p.Refusal)
 		}
-		if p.Target == nil || req.Confirm != p.Confirm {
+		if p.Target == nil || !sameNames(req.Confirm, p.Confirm) {
 			if len(p.Targets) > 1 {
 				return nil, badRequest("type the names of the disks to confirm, as listed: they will be erased")
 			}
@@ -481,7 +499,7 @@ func (s *Server) sysDiskRoutes() {
 		}
 		old := sysdisk.DiskBySerial(o.OldSerial, o.Old)
 		oldName := sysDiskOldNames(o)
-		if (o.Kind == "mirror" || req.Erase) && (old == "" || req.Confirm != oldName) {
+		if (o.Kind == "mirror" || req.Erase) && (old == "" || !sameNames(req.Confirm, oldName)) {
 			if len(o.OldDisks) > 1 {
 				return nil, badRequest("type the names of the old disks to confirm, as listed: their system is erased")
 			}
