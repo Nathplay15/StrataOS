@@ -85,9 +85,16 @@ func fnTool(name, desc string, props map[string]any, required ...string) llmTool
 	if props == nil {
 		props = map[string]any{}
 	}
+	params := map[string]any{"type": "object", "properties": props}
+	// A nil slice marshals to null, which strict providers (e.g. Mistral)
+	// reject with "invalid tool schema: None is not of type 'array'": omit
+	// the key entirely when no argument is required.
+	if len(required) > 0 {
+		params["required"] = required
+	}
 	return llmTool{Type: "function", Function: llmToolDef{
 		Name: name, Description: desc,
-		Parameters: map[string]any{"type": "object", "properties": props, "required": required},
+		Parameters: params,
 	}}
 }
 
@@ -579,7 +586,14 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d", req.URL, resp.StatusCode))
+		// Surface the provider error message when there is one: it names the
+		// exact field the provider rejected (e.g. an invalid tool schema).
+		var out llmResponse
+		detail := ""
+		if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err == nil && out.Error != nil {
+			detail = ": " + out.Error.Message
+		}
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d%s", req.URL, resp.StatusCode, detail))
 	}
 	msg := &assistantMessage{}
 	tools := map[int]*llmToolCall{}

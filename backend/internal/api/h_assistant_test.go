@@ -442,3 +442,24 @@ func TestLLMEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestFnToolSchema(t *testing.T) {
+	// Strict providers (e.g. Mistral) reject "required": null with
+	// "invalid tool schema: None is not of type 'array'": a tool without
+	// required arguments must not carry the key at all.
+	b, err := json.Marshal(fnTool("no_args", "A tool without arguments.", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), `"required"`) {
+		t.Errorf("empty required must be omitted, got %s", b)
+	}
+	// Tools with required arguments keep them, as a real array.
+	b, err = json.Marshal(fnTool("with_args", "A tool with arguments.", map[string]any{"path": strProp("Path")}, "path"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"required":["path"]`) {
+		t.Errorf("required args missing, got %s", b)
+	}
+}
