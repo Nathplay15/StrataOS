@@ -77,9 +77,10 @@ fi
 sys="8000 8000 -1"
 [ "$mode" = datadisks ] && sys="20480 20480 20480"
 recipe="strata-mirror :: $boot 2048 2048 2048 raid \$lvmignore{ } method{ raid } . $sys raid \$lvmignore{ } method{ raid } ."
-# Data disks: partition 4 takes the rest, left unused (install.sh names it
+# Data disks: partition 4 takes the rest, formatted without a mount point
+# (install.sh erases it and names it
 # "StrataOS data"); without it partman gives the free space to the system.
-[ "$mode" = datadisks ] && recipe="$recipe 1000 1000 -1 ext4 \$lvmignore{ } method{ keep } ."
+[ "$mode" = datadisks ] && recipe="$recipe 1000 1000 -1 ext4 \$lvmignore{ } method{ format } format{ } ."
 roots="" swaps=""
 for d in $chosen; do
   roots="${roots:+$roots#}$(p "$d" 3)"

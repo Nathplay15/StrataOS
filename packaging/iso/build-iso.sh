@@ -57,7 +57,7 @@ sed -e '/^d-i partman-auto\/method /d; /^d-i partman-auto\/choose_recipe /d' \
   "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-mirror.cfg"
 # "System on the data disks": the same, on two disks or more, a 20 GB system
 # part on each and the rest left for data (install.sh makes the partition).
-sed -e 's|mirror-disks.sh$|mirror-disks.sh datadisks|' -e 's|in-target bash /root/strataos/install.sh|touch /target/root/strataos/datadisks; &|' \
+sed -e 's|mirror-disks.sh$|mirror-disks.sh datadisks\nd-i partman-basicfilesystems/no_mount_point boolean false|' -e 's|in-target bash /root/strataos/install.sh|touch /target/root/strataos/datadisks; &|' \
   -e 's|^### Partitioning: RAID 1 on the two disks chosen by mirror-disks.sh|### Partitioning: RAID 1 on the data disks chosen by mirror-disks.sh datadisks|' \
   "$STAGE/strata/preseed-mirror.cfg" > "$STAGE/strata/preseed-datadisks.cfg"
 sed -e 's|in-target bash /root/strataos/install.sh|&; sh /cdrom/strata/restore.sh|' "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-restore.cfg"
