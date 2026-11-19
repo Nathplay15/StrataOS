@@ -722,6 +722,18 @@ func (s *Server) assistantExec(r *http.Request, tool string, in mcpWriteIn) (int
 	return 0, map[string]string{"error": "unknown tool: " + tool}
 }
 
+// llmEndpoint returns the chat/completions URL of the configured endpoint.
+// The setting is a base URL (e.g. https://api.mistral.ai/v1) but users often
+// paste the full endpoint copied from the provider documentation: a trailing
+// /chat/completions is tolerated instead of being doubled.
+func llmEndpoint(u string) string {
+	u = strings.TrimSuffix(strings.TrimSpace(u), "/")
+	if strings.HasSuffix(u, "/chat/completions") {
+		return u
+	}
+	return u + "/chat/completions"
+}
+
 // llmChat calls the configured OpenAI-compatible chat endpoint.
 func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []assistantMessage) (*llmResponse, error) {
 	body, err := json.Marshal(map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools()})
@@ -730,7 +742,7 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 	}
 	cctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(cctx, http.MethodPost, strings.TrimSuffix(set.AssistantURL, "/")+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, llmEndpoint(set.AssistantURL), bytes.NewReader(body))
 	if err != nil {
 		return nil, badRequest("invalid assistant URL")
 	}
@@ -743,13 +755,13 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 	defer resp.Body.Close()
 	var out llmResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
-		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d with an invalid body", resp.StatusCode))
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d with an invalid body", req.URL, resp.StatusCode))
 	}
 	if out.Error != nil {
-		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d: %s", resp.StatusCode, out.Error.Message))
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d: %s", req.URL, resp.StatusCode, out.Error.Message))
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d", resp.StatusCode))
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d", req.URL, resp.StatusCode))
 	}
 	return &out, nil
 }
@@ -765,7 +777,7 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 	}
 	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(cctx, http.MethodPost, strings.TrimSuffix(set.AssistantURL, "/")+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, llmEndpoint(set.AssistantURL), bytes.NewReader(body))
 	if err != nil {
 		return nil, badRequest("invalid assistant URL")
 	}
@@ -778,7 +790,7 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return nil, badRequest(fmt.Sprintf("the assistant endpoint answered %d", resp.StatusCode))
+		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d", req.URL, resp.StatusCode))
 	}
 	msg := &assistantMessage{}
 	tools := map[int]*llmToolCall{}
