@@ -264,9 +264,29 @@ func ParseLayout(f Facts) Layout {
 		}
 		return in, out, cs[0][len(cs[0])-1].Type
 	}
+	// onData: a device held by a data partition (storage.DataPartLabel) of
+	// the system disks, like a data volume on the data disks: not the system.
+	onData := func(path string) bool {
+		cs := holders(f.Disks, path)
+		if len(cs) == 0 {
+			return false
+		}
+		for _, c := range cs {
+			data := false
+			for _, n := range c {
+				if n.PartLabel == storage.DataPartLabel {
+					data = true
+				}
+			}
+			if !data {
+				return false
+			}
+		}
+		return true
+	}
 	l.Mounts = append(l.Mounts, l.Root)
 	for _, m := range f.Mounts {
-		if m.Target == "/" || !strings.HasPrefix(m.Source, "/dev/") {
+		if m.Target == "/" || !strings.HasPrefix(m.Source, "/dev/") || onData(m.Source) {
 			continue
 		}
 		in, out, typ := onSystem(m.Source)

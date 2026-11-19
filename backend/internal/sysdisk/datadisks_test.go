@@ -35,6 +35,10 @@ func TestLayoutDataDisks(t *testing.T) {
 	if len(l.Problems) > 0 || l.Placement != "datadisks" || !l.Mirrored || len(l.DataParts) != 2 || len(l.Disks) != 2 {
 		t.Fatalf("layout %+v", l)
 	}
+	// The data volume is neither copied with the system nor one of its arrays.
+	if len(l.Mounts) != 1 || len(l.Arrays) != 1 || l.Arrays[0].Role != "root" {
+		t.Fatalf("mounts %+v arrays %+v", l.Mounts, l.Arrays)
+	}
 	if l := ParseLayout(mirrored()); l.Placement != "mirror" {
 		t.Fatalf("mirror placement %q", l.Placement)
 	}
