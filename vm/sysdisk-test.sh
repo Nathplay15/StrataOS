@@ -206,6 +206,7 @@ part_datadisks() {
   check "old system partitions erased" "$(job "$R")" "success"
   joblog "$R" | grep -E 'Erasing|Stopping|wipefs' | head -6
   check "old system array gone" "$(vm "ls /dev/md/; cat /proc/mdstat")" "dd"
+  vm "lsblk -o NAME,FSTYPE,PARTLABEL,MOUNTPOINTS; findmnt /srv/strata/dd; sudo mdadm --examine /dev/disk/by-id/ata-*_STRATA-HDD-1-part4 | head -12; sudo cat /etc/mdadm/mdadm.conf; sudo journalctl -b --no-pager | grep -i -E 'md[0-9]|mdadm|strata-root|dd' | tail -20" | sed 's/^/    | /' 
   check "no old system array left" "$(vm "ls /dev/md/ | grep -c strata-root || true")" "0"
   check "data volume kept" "$(vm "cat /srv/strata/dd/f")" "data-kept"
   check "layout: own disk" "$(c GET /api/system/disk | py 'l=d["layout"]; print(l["placement"], l["mirrored"])')" "own False"

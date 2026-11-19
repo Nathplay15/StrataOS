@@ -87,6 +87,7 @@ check "force needs the codename typed" "$(c POST /api/system/dist-upgrade/start 
 vm 'touch /var/lib/strata/dist-postcheck-test'
 S=$(c POST /api/system/dist-upgrade/start -d '{"when":"now","force":true,"confirm":"forky"}')
 ID=$(echo "$S" | py 'print(d["id"])')
+for _ in $(seq 1 10); do c GET /api/notifications | grep -q 'forced by admin' && break; sleep 1; done
 check "forced upgrade told to the administrators" "$(c GET /api/notifications | grep -o 'forced by admin despite failed checks' | head -1)" "forced by admin despite failed checks"
 for _ in $(seq 1 900); do up || break; [ "$(phase)" = reboot ] && break; sleep 4; done
 check "packages installed, restarting by itself" "$(c GET "/api/jobs/$ID" | py 'print(d["status"], "restarts into it now" in d.get("log",""))')" "success True"
