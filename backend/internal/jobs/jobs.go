@@ -27,6 +27,9 @@ const (
 
 const maxLog = 64 * 1024
 
+// logfRoom: the room kept for the lines of Logf after maxLog.
+const logfRoom = 32 * 1024
+
 type Job struct {
 	mu       sync.Mutex
 	ID       string     `json:"id"`
@@ -81,7 +84,14 @@ func (j *Job) Write(p []byte) (int, error) {
 }
 
 func (j *Job) writeLocked(p []byte) {
-	if j.log.Len() >= maxLog || len(p) == 0 {
+	j.writeCapped(p, maxLog)
+}
+
+// writeCapped appends p while the log is under limit. Command output stops
+// at maxLog; the lines of Logf may go a little further (maxLog + logfRoom),
+// so the last steps of a job stay visible after a long command output.
+func (j *Job) writeCapped(p []byte, limit int) {
+	if j.log.Len() >= limit || len(p) == 0 {
 		return
 	}
 	j.log.Write(p)
@@ -97,14 +107,14 @@ func (j *Job) Logf(format string, args ...any) {
 	key, sargs, ok := MakeLogKey(format, args)
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	if j.log.Len() >= maxLog {
+	if j.log.Len() >= maxLog+logfRoom {
 		return
 	}
 	if j.partial {
-		j.writeLocked([]byte{'\n'})
+		j.writeCapped([]byte{'\n'}, maxLog+logfRoom)
 	}
 	line := j.lines
-	j.writeLocked([]byte(text + "\n"))
+	j.writeCapped([]byte(text+"\n"), maxLog+logfRoom)
 	if ok && len(j.keys) < maxLogKeys {
 		j.keys = append(j.keys, LogKey{Line: line, Lines: strings.Count(text, "\n") + 1, Key: key, Args: sargs})
 	}

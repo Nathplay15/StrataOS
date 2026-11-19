@@ -50,3 +50,15 @@ func TestLogfKeys(t *testing.T) {
 		t.Fatalf("first key %+v", s.LogKeys[0])
 	}
 }
+
+// A long command output fills the log; the last Logf lines still show.
+func TestLogfAfterLongOutput(t *testing.T) {
+	j := &Job{}
+	j.Write([]byte(strings.Repeat("apt output line\n", maxLog/16+10)))
+	j.Write([]byte("more output\n"))
+	j.Logf("Upgraded to %s", "forky")
+	s := j.snapshot(true)
+	if strings.Contains(s.Log, "more output") || !strings.HasSuffix(s.Log, "Upgraded to forky\n") || len(s.LogKeys) != 1 {
+		t.Fatalf("tail %q, keys %d", s.Log[len(s.Log)-60:], len(s.LogKeys))
+	}
+}
