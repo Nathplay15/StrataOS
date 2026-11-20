@@ -91,7 +91,13 @@ func (s *Server) photoRoutes() {
 			for _, p := range a.Items {
 				in[p] = true
 			}
-			allow = func(p string) bool { return in[p] && under(roots, p) }
+			if a.Owner == userOf(r) {
+				allow = func(p string) bool { return in[p] && under(roots, p) }
+			} else {
+				// Received album: the owner shared exactly these photos, they
+				// are listed even when this account does not have the folders.
+				allow = func(p string) bool { return in[p] }
+			}
 		}
 		// People, things and places of the smart features.
 		if f, err := s.photoFilter(r); err != nil {
@@ -138,7 +144,7 @@ func (s *Server) photoRoutes() {
 	s.userRaw("GET /api/photos/thumb", func(w http.ResponseWriter, r *http.Request) {
 		p := filepath.Clean(r.URL.Query().Get("path"))
 		it, ok := photos.Default.Get(p)
-		if !ok || !under(s.readableRoots(r), p) {
+		if !ok || (!under(s.readableRoots(r), p) && !s.sharedWithMe(r, p)) {
 			writeErr(w, notFound("photo not found"))
 			return
 		}
