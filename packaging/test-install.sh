@@ -14,7 +14,9 @@ DEB=${2:-$(ls dist/strataos_*_amd64.deb 2>/dev/null | sort -V | tail -1)}
 [ -f "$DEB" ] || { echo "missing .deb (make deb)"; exit 1; }
 # Packages known to be missing from a suite (temporarily removed from Debian
 # testing, see docs/DEBIAN-14.md): reported, not failed. Anything else fails.
-KNOWN_MISSING=${KNOWN_MISSING:-$([ "$SUITE" = trixie ] && echo "" || echo "wsdd2 rclone restic sssd-ldap libnss-sss libpam-sss")}
+# nut is temporarily absent from forky (Debian testing, in transition);
+# the suite is expected to regain it.
+KNOWN_MISSING=${KNOWN_MISSING:-$([ "$SUITE" = trixie ] && echo "" || echo "wsdd2 rclone restic sssd-ldap libnss-sss libpam-sss nut-client nut-server")}
 # Images from Docker Hub (debian:<suite>); IMAGE overrides it (mirror, cache).
 IMAGE=${IMAGE:-debian:$SUITE}
 
@@ -69,7 +71,10 @@ echo ">> Optional components (simulated, with the packages of their scripts)"
 for s in /scripts/install-*.sh; do
   name=$(basename "$s" .sh); name=${name#install-}
   # The words of its "apt-get install" commands (with continuation lines).
-  pkgs=$(awk '/apt-get install/ { on = 1; sub(/.*apt-get install/, "") } on { print; if ($0 !~ /\\$/) on = 0 }' "$s" | tr -d '\\' | tr ' ' '\n' |
+  # A line ending in "|| true" is best-effort: the script itself tolerates the
+  # packages being absent (e.g. the non-free Intel OpenCL runtime of photoml),
+  # so the simulation must not require them either.
+  pkgs=$(awk '/apt-get install/ { on = 1; sub(/.*apt-get install/, "") } on { if ($0 ~ /\|\|/) { on = 0; next } print; if ($0 !~ /\\$/) on = 0 }' "$s" | tr -d '\\' | tr ' ' '\n' |
     grep -E '^[a-z0-9][a-z0-9.+-]+$' | grep -vE '^(fi|then)$' | sort -u || true)
   # Vendor repositories (Tailscale, Cloudflare) are not added here.
   pkgs=$(for p in $pkgs; do case $p in tailscale | cloudflared) ;; *) echo "$p" ;; esac; done)
