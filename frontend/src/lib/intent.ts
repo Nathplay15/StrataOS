@@ -52,7 +52,7 @@ export function revealElement(id: string) {
 }
 
 /** Asks the account menu (classic or desktop) to open one of its dialogs. */
-export type AccountDialog = "appearance" | "password" | "2fa" | "passkeys" | "devices" | "widgets" | "securitykeys" | "s3" | "tokens" | "apps";
+export type AccountDialog = "appearance" | "password" | "2fa" | "passkeys" | "devices" | "widgets" | "securitykeys" | "s3" | "tokens" | "apps" | "sessions";
 export function openAccountDialog(d: AccountDialog) {
   window.dispatchEvent(new CustomEvent("strata:account", { detail: d }));
 }
