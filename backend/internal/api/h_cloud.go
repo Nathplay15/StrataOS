@@ -174,8 +174,8 @@ func (s *Server) cloudRoutes() {
 			if x == nil {
 				return notFound("cloud sync not found")
 			}
-			// Another folder or direction means a new two-way baseline.
-			synced := x.Synced && x.LocalPath == req.LocalPath && x.RemotePath == req.RemotePath && x.Provider == req.Provider && x.Direction == req.Direction
+			// Another folder, direction or encryption setting means a new two-way baseline.
+			synced := x.Synced && x.LocalPath == req.LocalPath && x.RemotePath == req.RemotePath && x.Provider == req.Provider && x.Direction == req.Direction && x.Encrypted == req.Encrypted
 			req.ID, req.CreatedAt, req.History, req.Synced = x.ID, x.CreatedAt, x.History, synced
 			*x = req
 			return nil

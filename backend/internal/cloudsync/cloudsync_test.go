@@ -1,6 +1,8 @@
 package cloudsync
 
 import (
+	"context"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -84,5 +86,80 @@ func TestRcloneTLSArgs(t *testing.T) {
 	drive.TLSInsecure = true
 	if err := Validate(&drive); err != nil || drive.TLSTrust.Set() {
 		t.Fatalf("http endpoint: %v", err)
+	}
+}
+
+func TestEncrypted(t *testing.T) {
+	Dir = t.TempDir()
+	ctx := context.Background()
+	c := store.CloudSync{Name: "x", Provider: "b2", Params: map[string]string{"account": "KEY"}, Secrets: map[string]string{"key": "APPKEY"}, LocalPath: "/srv/strata/main/Photos", RemotePath: "bucket/photos", Direction: "upload"}
+	if err := Validate(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Secrets["crypt_pass"] != "" || c.Secrets["crypt_salt"] != "" {
+		t.Error("encryption keys set without encryption")
+	}
+	// Too short or missing passphrase refused.
+	bad := c
+	bad.Encrypted = true
+	if err := Validate(&bad); err == nil || !strings.Contains(err.Error(), "at least 8") {
+		t.Errorf("missing passphrase accepted: %v", err)
+	}
+	bad.Secrets["crypt_pass"] = "short"
+	if err := Validate(&bad); err == nil {
+		t.Error("short passphrase accepted")
+	}
+	// A real passphrase generates a salt and a config with the crypt view on top.
+	c.Encrypted = true
+	c.Secrets["crypt_pass"] = "correct horse battery"
+	if err := Validate(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Secrets["crypt_salt"] == "" {
+		t.Error("salt not generated")
+	}
+	salt := c.Secrets["crypt_salt"]
+	if err := Validate(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Secrets["crypt_salt"] != salt {
+		t.Error("salt regenerated on every validate")
+	}
+	conf, err := writeConfig(ctx, &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txt := string(raw)
+	if !strings.Contains(txt, "[strata-cloud]\ntype = b2\n") || !strings.Contains(txt, "type = crypt") {
+		t.Errorf("wrong sections:\n%s", txt)
+	}
+	if !strings.Contains(txt, "remote = strata-cloud:bucket/photos") {
+		t.Errorf("crypt remote wrong:\n%s", txt)
+	}
+	if strings.Contains(txt, "correct horse battery") || strings.Contains(txt, salt) {
+		t.Error("plaintext secret in the config file")
+	}
+	if strings.Contains(txt, "[strata]\n") == false || strings.Count(txt, "type = ") != 2 {
+		t.Errorf("expected exactly two remotes:\n%s", txt)
+	}
+	// Turning encryption off forgets the keys.
+	c.Encrypted = false
+	if err := Validate(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Secrets["crypt_pass"] != "" || c.Secrets["crypt_salt"] != "" {
+		t.Error("keys kept after turning encryption off")
+	}
+	conf, err = writeConfig(ctx, &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(conf)
+	if strings.Contains(string(raw), "crypt") {
+		t.Errorf("crypt section kept:\n%s", raw)
 	}
 }

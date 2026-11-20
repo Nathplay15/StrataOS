@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ChevronRight, CloudCog, Edit3, Folder, History, Play, Plug, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ChevronRight, CloudCog, Edit3, Folder, History, Lock, Play, Plug, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { ScheduleRun } from "../../lib/types";
@@ -18,6 +18,7 @@ type Provider = { id: string; label: string; fields: ProviderField[]; authorize?
 type Task = {
   id: string; name: string; provider: string; params: Record<string, string>; secrets: Record<string, string>;
   localPath: string; remotePath: string; direction: "upload" | "download" | "bisync"; mirror: boolean;
+  encrypted?: boolean;
   excludes?: string[]; bwLimit?: string; cron: string; enabled: boolean; synced?: boolean;
   history: ScheduleRun[]; nextRun?: string | null; running?: boolean; jobId?: string;
 } & TLSTrust;
@@ -28,6 +29,13 @@ const directions = {
   upload: { label: tr("Uploading to the cloud"), sub: tr("The NAS is the source of truth"), icon: <ArrowUpFromLine size={18} /> },
   download: { label: tr("Download from the cloud"), sub: tr("The cloud is the source of truth"), icon: <ArrowDownToLine size={18} /> },
   bisync: { label: tr("Bidirectional (beta)"), sub: tr("Changes on both sides are propagated"), icon: <ArrowLeftRight size={18} /> },
+};
+
+// A password a human can read out loud and write down in a safe place.
+const genPass = () => {
+  const a = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const rnd = crypto.getRandomValues(new Uint8Array(21));
+  return Array.from({ length: 3 }, (_, g) => Array.from(rnd.slice(g * 7, g * 7 + 7), (n) => a[n % a.length]).join("")).join("-");
 };
 
 const blank = (p: Provider): Task => ({ id: "", name: "", provider: p.id, params: Object.fromEntries(p.fields.filter((f) => f.options).map((f) => [f.key, f.options![0]])), secrets: {}, localPath: "", remotePath: "", direction: "upload", mirror: false, cron: "0 */6 * * *", enabled: true, history: [] });
@@ -105,6 +113,20 @@ function Editor({ initial, providers, sources, onClose }: { initial: Task | null
           </div>
           {p.id === "sftp" && !t.secrets.pass && <div className="text-muted text-[12px]">{tr("Without a password, the StrataOS SSH key is used (shown in Backup → new backup → SSH server).")}</div>}
           {(p.id === "webdav" || p.id === "s3") && <TLSTrustField address={t.params.url || t.params.endpoint || ""} value={trustOf(t)} onChange={(v) => set(v)} />}
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-line p-4">
+          <div className="flex items-center gap-2 font-medium text-[13px]"><Lock size={15} />{tr("End-to-end encryption")}</div>
+          <Switch checked={!!t.encrypted} onChange={(v) => set({ encrypted: v, secrets: v && !t.secrets.crypt_pass ? { ...t.secrets, crypt_pass: genPass() } : t.secrets })} label={tr("Encrypt everything before it leaves the NAS")} hint={tr("File names and contents are unreadable in the cloud; only this NAS with the password can read them back.")} />
+          {!!t.encrypted && <>
+            <Field label={tr("Encryption password")} hint={tr("Also needed to restore on a new NAS. Empty field when editing: the password does not change.")}>
+              <div className="flex gap-2">
+                <Input className="mono" value={t.secrets.crypt_pass ?? ""} onChange={(e) => set({ secrets: { ...t.secrets, crypt_pass: e.target.value } })} autoComplete="off" />
+                <Button icon={<RefreshCcw size={15} />} onClick={() => set({ secrets: { ...t.secrets, crypt_pass: genPass() } })}>{tr("Generate")}</Button>
+              </div>
+            </Field>
+            <Notice tone="warn">{tr("Write this password down outside the NAS and keep it safe: without it, the copy in the cloud can never be read again, by anyone.")}</Notice>
+          </>}
         </div>
 
         <div>
@@ -188,7 +210,7 @@ export default function CloudSync() {
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">{directions[t.direction].icon}</div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 font-semibold">{t.name}{t.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}</div>
+                      <div className="flex items-center gap-2 font-semibold">{t.name}{t.running && <Badge tone="accent" dot>{tr("In progress")}</Badge>}{t.encrypted && <Badge tone="warn"><Lock size={11} className="mr-1 inline" />{tr("E2E")}</Badge>}</div>
                       <div className="text-muted text-[12px]">{pLabel(t.provider)} · {directions[t.direction].label}{t.mirror && t.direction !== "bisync" ? tr(" (mirror)") : ""}</div>
                     </div>
                     <Switch aria-label={tr("Enabled")} checked={t.enabled} onChange={() => toggle.mutate(t)} />
