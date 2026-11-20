@@ -56,6 +56,7 @@ const PhotosPage = lazy(() => import("./pages/Photos"));
 const SurveillancePage = lazy(() => import("./pages/Surveillance"));
 const LinksPage = lazy(() => import("./pages/Links"));
 const ActivityPage = lazy(() => import("./pages/Activity"));
+const MePage = lazy(() => import("./pages/Me"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const HardwarePage = lazy(() => import("./pages/system/Hardware"));
 const GuardPage = lazy(() => import("./pages/system/Guard"));
@@ -135,6 +136,7 @@ function Root() {
             <Route path="photos" element={<PhotosPage me={me} />} />
             <Route path="links" element={<LinksPage me={me} />} />
             <Route path="activity" element={<ActivityPage />} />
+            <Route path="me" element={<MePage me={me} />} />
             <Route path="media" element={<MediaPage me={me} />} />
             <Route path="vpn" element={<MyVpnPage />} />
             <Route path="shares" element={A(<Shares />)} />

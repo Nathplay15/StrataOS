@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp, KeySquare,
+  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, User, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp, KeySquare,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -218,6 +218,30 @@ export function PasswordModal({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+// The phone app's four tabs, shown at the bottom of small screens (the
+// installed app then feels like its Android app) and hidden beside the
+// sidebar on large ones.
+function MobileTabs() {
+  const tabs = [
+    { to: "/", label: "Home", icon: <LayoutDashboard size={21} /> },
+    { to: "/files", label: "Files", icon: <FolderOpen size={21} /> },
+    { to: "/photos", label: "Photos", icon: <Images size={21} /> },
+    { to: "/me", label: "Me", icon: <User size={21} /> },
+  ];
+  return (
+    <nav style={{ paddingBottom: "env(safe-area-inset-bottom)" }} className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 backdrop-blur lg:hidden" aria-label={tr("Main navigation")}>
+      <div className="mx-auto flex max-w-[560px]">
+        {tabs.map((t) => (
+          <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => cx("flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]", isActive ? "text-accent" : "text-muted hover:text-fg")}>
+            {t.icon}
+            {tr(t.label)}
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function Layout({ me }: { me: Me }) {
   const [theme, setTheme] = useTheme();
   const [mobileNav, setMobileNav] = useState(false);
@@ -243,6 +267,7 @@ export function Layout({ me }: { me: Me }) {
     else if (d === "tokens") setTokens(true);
     else if (d === "apps") setMyApps(true);
     else if (d === "devices") setMobile(true);
+    else if (d === "sessions") setSessions(true);
   });
   const loc = useLocation();
   const nav_ = useNavigate();
@@ -355,9 +380,11 @@ export function Layout({ me }: { me: Me }) {
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
             <PageBoundary key={loc.pathname}><Outlet /></PageBoundary>
+            <div className="h-16 lg:hidden" aria-hidden />
           </div>
         </main>
       </div>
+      <MobileTabs />
       <PasswordModal open={pwModal} onClose={() => setPwModal(false)} />
       <TwoFactorModal open={tfa} onClose={() => setTfa(false)} />
       <PasskeysModal open={passkeys} onClose={() => setPasskeys(false)} />
