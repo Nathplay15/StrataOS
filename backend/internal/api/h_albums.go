@@ -20,6 +20,10 @@ type albumView struct {
 	Cover   string    `json:"cover,omitempty"`
 	Created time.Time `json:"created"`
 	Shared  bool      `json:"shared"`
+	// From is the owner, when the album was received (shared with me).
+	From string `json:"from,omitempty"`
+	// With are the accounts the album is shared with (the owner only).
+	With []string `json:"with,omitempty"`
 }
 
 func validAlbumName(n string) (string, error) {
@@ -30,14 +34,15 @@ func validAlbumName(n string) (string, error) {
 	return n, nil
 }
 
-// album returns a copy of an album of the current user.
+// album returns a copy of an album of the current user, or of one that this
+// user received (shared by its owner with other accounts).
 func (s *Server) album(r *http.Request, id string) (store.Album, error) {
 	var a store.Album
 	found := false
 	me := userOf(r)
 	s.store.Read(func(st *store.State) {
 		for _, x := range st.Photos.Albums {
-			if x.ID == id && x.Owner == me {
+			if x.ID == id && (x.Owner == me || slices.Contains(x.With, me)) {
 				a, found = *x, true
 				a.Items = slices.Clone(x.Items)
 			}
@@ -61,19 +66,38 @@ func (s *Server) albumRoutes() {
 				}
 			}
 			for _, a := range st.Photos.Albums {
-				if a.Owner != me {
+				received := a.Owner != me && slices.Contains(a.With, me)
+				if a.Owner != me && !received {
 					continue
 				}
-				v := albumView{ID: a.ID, Name: a.Name, Created: a.Created, Shared: shared[a.ID]}
+				v := albumView{ID: a.ID, Name: a.Name, Created: a.Created}
 				var newest int64
-				for _, p := range a.Items {
-					it, ok := photos.Default.Get(p)
-					if !ok || !under(roots, p) {
-						continue
+				if received {
+					// Received: it says who shared it. The owner chose who
+					// sees it; like a share by link, its photos are shown
+					// even when this account does not have the folders
+					// they live in.
+					v.From = a.Owner
+					for _, p := range a.Items {
+						if it, ok := photos.Default.Get(p); ok {
+							v.Count++
+							if it.Date > newest {
+								newest, v.Cover = it.Date, p
+							}
+						}
 					}
-					v.Count++
-					if it.Date > newest {
-						newest, v.Cover = it.Date, p
+				} else {
+					v.Shared = shared[a.ID] || len(a.With) > 0
+					v.With = slices.Clone(a.With)
+					for _, p := range a.Items {
+						it, ok := photos.Default.Get(p)
+						if !ok || !under(roots, p) {
+							continue
+						}
+						v.Count++
+						if it.Date > newest {
+							newest, v.Cover = it.Date, p
+						}
 					}
 				}
 				out = append(out, v)
@@ -158,6 +182,41 @@ func (s *Server) albumRoutes() {
 		})
 	})
 
+	// Share with other accounts: they see the album, nobody else can change
+	// it. Replaces the list; an empty one takes the sharing off.
+	s.user("PUT /api/photos/albums/{id}/share", func(r *http.Request) (any, error) {
+		var req struct {
+			With []string `json:"with"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		id, me := r.PathValue("id"), userOf(r)
+		if _, err := s.album(r, id); err != nil {
+			return nil, err
+		}
+		with, err := s.usersExist(req.With)
+		if err != nil {
+			return nil, err
+		}
+		// The owner never shares with herself; sharing with nobody takes
+		// the sharing off.
+		with = slices.DeleteFunc(with, func(u string) bool { return u == me })
+		err = s.store.Update(func(st *store.State) error {
+			for _, a := range st.Photos.Albums {
+				if a.ID != id || a.Owner != me {
+					continue
+				}
+				a.With = slices.Clone(with)
+			}
+			return nil
+		})
+		if err == nil {
+			s.audit(r, "album share", id+": "+strings.Join(with, ", "))
+		}
+		return map[string]any{"with": with}, err
+	})
+
 	s.user("DELETE /api/photos/albums/{id}", func(r *http.Request) (any, error) {
 		id, me := r.PathValue("id"), userOf(r)
 		if _, err := s.album(r, id); err != nil {
@@ -170,6 +229,51 @@ func (s *Server) albumRoutes() {
 			return nil
 		})
 	})
+}
+
+// usersExist keeps the names that really are accounts, without duplicates.
+// A name that does not exist refuses the whole share: a typo must not share
+// with nobody, and it must not share with a stranger either.
+func (s *Server) usersExist(names []string) ([]string, error) {
+	if len(names) > 100 {
+		return nil, badRequest("too many users")
+	}
+	var out []string
+	var err error
+	s.store.Read(func(st *store.State) {
+		for _, n := range names {
+			n = strings.TrimSpace(n)
+			if n == "" || slices.Contains(out, n) {
+				continue
+			}
+			if st.User(n) == nil {
+				err = badRequest("unknown account: " + n)
+				return
+			}
+			out = append(out, n)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// sharedWithMe says whether a photo that is outside this account's roots is
+// still reachable: the owner of a shared album chose exactly who sees its
+// photos, like a share link does.
+func (s *Server) sharedWithMe(r *http.Request, path string) bool {
+	me := userOf(r)
+	found := false
+	s.store.Read(func(st *store.State) {
+		for _, a := range st.Photos.Albums {
+			if a.Owner != me && slices.Contains(a.With, me) && slices.Contains(a.Items, path) {
+				found = true
+				return
+			}
+		}
+	})
+	return found
 }
 
 // checkAlbumItems keeps indexed photos the user can read.
