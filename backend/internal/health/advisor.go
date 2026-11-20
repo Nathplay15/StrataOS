@@ -58,6 +58,9 @@ type Facts struct {
 
 	FailingDisks []string
 	WeakDisks    []string
+	// DoomedDisks: the disks whose counters grow on their own, with their
+	// doubling forecast in days ("~N"). The smallest forecast warns first.
+	DoomedDisks []string
 	// SystemDisk: redundancy and health of the system disk (nil: unknown).
 	SystemDisk *SystemDiskFact
 
@@ -253,6 +256,10 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 	if len(f.WeakDisks) > 0 {
 		add("disk-weak", "medium", sub("Disks showing signs of wear: {0}", list(f.WeakDisks)),
 			"Their SMART counters (reallocated sectors, errors, wear) are not zero. Watch the trend in Disks → SMART → History and plan their replacement.", "", "/storage/disks")
+	}
+	if len(f.DoomedDisks) > 0 {
+		add("disk-forecast", "medium", sub("Disks likely to fail: {0}", list(f.DoomedDisks)),
+			"Their counters (reallocated sectors, unreadable sectors) grow on their own: dead sectors never heal. Disks → SMART → History shows the prediction; replace the disk with the shortest time left and check that the backups still restore.", "", "/storage/disks")
 	}
 	if sd := f.SystemDisk; sd != nil {
 		const link = "/storage/disks#system-disk"
