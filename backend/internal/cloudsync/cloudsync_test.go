@@ -90,6 +90,7 @@ func TestRcloneTLSArgs(t *testing.T) {
 }
 
 func TestEncrypted(t *testing.T) {
+	fakeRclone(t)
 	Dir = t.TempDir()
 	ctx := context.Background()
 	c := store.CloudSync{Name: "x", Provider: "b2", Params: map[string]string{"account": "KEY"}, Secrets: map[string]string{"key": "APPKEY"}, LocalPath: "/srv/strata/main/Photos", RemotePath: "bucket/photos", Direction: "upload"}
