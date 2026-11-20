@@ -18,6 +18,12 @@ if (netToken) {
   fetch("/api/system/network/confirm", { method: "POST", headers: { "Content-Type": "application/json", "X-Strata": "1" }, body: JSON.stringify({ token: netToken }) }).finally(() => history.replaceState(null, "", location.pathname));
 }
 
+// Installable web app: register the service worker in production only (the
+// shell is cached, the NAS data never is).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+
 // The dictionaries must be loaded before the interface modules run (some build
 // their labels when imported), hence the dynamic import of App.
 initI18n().then(async () => {
