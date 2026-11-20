@@ -32,6 +32,10 @@ type Recording struct {
 	Dir            string
 	SegmentSeconds int
 	Audio          bool
+	// Motion turns on the movement watcher; Detection is the stream it
+	// decodes (sub-stream when the camera has one, otherwise the main one).
+	Motion    bool
+	Detection string
 }
 
 // Status of a camera recorder.
@@ -48,6 +52,9 @@ type Manager struct {
 	// delay (SetAlertAfter); OnUp when it records again after OnDown.
 	OnDown func(id, name string, since time.Time, reason string)
 	OnUp   func(id, name string, down time.Duration)
+	// OnMotion is called when movement is seen on a camera with motion
+	// detection (built-in engine), at most one event per camera per period.
+	OnMotion func(id, name string, at time.Time, picture []byte)
 
 	alertAfter atomic.Int64
 	mu         sync.Mutex
@@ -191,6 +198,9 @@ func (r *recorder) set(f func(s *Status)) {
 func (r *recorder) run(ctx context.Context) {
 	defer close(r.done)
 	go r.watch(ctx)
+	if r.cfg.Motion {
+		go r.motion(ctx)
+	}
 	backoff := 2 * time.Second
 	for {
 		start := time.Now()

@@ -678,11 +678,14 @@ type CloudSync struct {
 	LocalPath  string            `json:"localPath"`  // folder under /srv/strata
 	RemotePath string            `json:"remotePath"` // bucket/folder or folder in the cloud
 	Direction  string            `json:"direction"`  // upload | download | bisync
-	Mirror     bool              `json:"mirror"`     // one-way: also delete what was deleted at the source
-	Excludes   []string          `json:"excludes,omitempty"`
-	BWLimit    string            `json:"bwLimit,omitempty"` // e.g. 10M
-	Cron       string            `json:"cron"`
-	Enabled    bool              `json:"enabled"`
+	// Encrypted turns on client-side encryption (rclone crypt): nothing leaves
+	// the NAS readable, the cloud never sees file names or contents.
+	Encrypted bool     `json:"encrypted,omitempty"`
+	Mirror    bool     `json:"mirror"` // one-way: also delete what was deleted at the source
+	Excludes  []string `json:"excludes,omitempty"`
+	BWLimit   string   `json:"bwLimit,omitempty"` // e.g. 10M
+	Cron      string   `json:"cron"`
+	Enabled   bool     `json:"enabled"`
 	// Synced is set once a two-way sync has been initialised (rclone bisync --resync).
 	Synced    bool          `json:"synced,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
