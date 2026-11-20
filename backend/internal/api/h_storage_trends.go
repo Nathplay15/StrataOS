@@ -94,8 +94,11 @@ func (s *Server) measureShareUsage(ctx context.Context, asleep map[string]bool) 
 			continue // measured another day rather than waking the disks
 		}
 		key := fsID
+		// The unknown file systems walk together: MeasureShares keeps each
+		// root on its own device, so nested shares and shared hard links
+		// stay right even without a findmnt answer.
 		if key == "" {
-			key = "path:" + p // unknown: on its own
+			key = "path:"
 		}
 		if _, ok := byFS[key]; !ok {
 			order = append(order, key)
