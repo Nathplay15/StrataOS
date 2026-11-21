@@ -3,8 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>StrataOS</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="StrataOS" />
+    <meta name="theme-color" content="#0b1020" />
     <script>
       // Theme before the first paint, so the loading screen matches it.
       try { document.documentElement.dataset.theme = localStorage.getItem("strata-theme") || "dark"; } catch (e) { document.documentElement.dataset.theme = "dark"; }
@@ -20,6 +27,10 @@
       @keyframes strata-spin { to { transform: rotate(360deg); } }
       @keyframes strata-in { from { opacity: 0; transform: scale(.92); } }
       @media (prefers-reduced-motion: reduce) { .strata-splash img { animation: none; } .strata-splash i { animation-duration: 2s; } }
+      /* Standalone (installed app): keep the interface out of the notch and the home indicator. */
+      @media all and (display-mode: standalone) {
+        html { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+      }
     </style>
   </head>
   <body>
