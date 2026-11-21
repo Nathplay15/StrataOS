@@ -23,6 +23,7 @@ import (
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/sysdisk"
 	"strataos/internal/system"
 	"strataos/internal/vms"
 )
@@ -515,6 +516,19 @@ func (s *Server) advisorFacts() health.Facts {
 		case len(info.Warnings) > 0:
 			f.WeakDisks = append(f.WeakDisks, d.Path+" ("+d.Model+")")
 		}
+		if d.System && info != nil {
+			if f.SystemDisk == nil {
+				f.SystemDisk = &health.SystemDiskFact{}
+			}
+			f.SystemDisk.Failing = f.SystemDisk.Failing || (info.Passed != nil && !*info.Passed)
+			f.SystemDisk.Weak = append(f.SystemDisk.Weak, info.Warnings...)
+		}
+	}
+	if l, _, err := sysdisk.Detect(); err == nil && l.Boot != "rpi" {
+		if f.SystemDisk == nil {
+			f.SystemDisk = &health.SystemDiskFact{}
+		}
+		f.SystemDisk.Mirrored, f.SystemDisk.Degraded = l.Mirrored, l.Degraded
 	}
 	if out, err := sys.Run("timedatectl", "show", "-p", "NTP", "--value"); err == nil {
 		on := strings.TrimSpace(out) == "yes"

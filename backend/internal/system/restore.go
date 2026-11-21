@@ -8,6 +8,7 @@ package system
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -246,4 +247,62 @@ func btrfsSeparate(dataDir string) error {
 	// Mount it now over the old folder (whose content was copied).
 	_, err = sys.Run("mount", "-t", "btrfs", "-o", "subvol=@strata", "UUID="+strings.TrimSpace(uuid), dataDir)
 	return err
+}
+
+// ReinstallBootLoader puts back the boot loader of the system subvolume
+// after a rollback (btrfs only, before the restart): the restore point holds
+// /boot and the GRUB modules of its time, but the EFI system partition and
+// the boot sector hold what was installed since, which may not load them
+// (after a release upgrade, for example). The GRUB package of the restored
+// system is configured again in a chroot, which installs its own core.
+func ReinstallBootLoader(logf func(string, ...any)) error {
+	if m, _ := Mode(); m != "btrfs" {
+		return nil
+	}
+	top, done, err := mountTop()
+	if err != nil {
+		return err
+	}
+	defer done()
+	root := filepath.Join(top, Root().Subvol)
+	var mounted []string
+	defer func() {
+		for i := len(mounted) - 1; i >= 0; i-- {
+			_, _ = sys.Run("umount", "-l", mounted[i])
+		}
+	}()
+	for _, d := range []string{"/dev", "/dev/pts", "/proc", "/sys", "/sys/firmware/efi/efivars", "/run", "/boot/efi"} {
+		if out, _ := sys.Run("findmnt", "-n", "-o", "TARGET", d); strings.TrimSpace(out) != d {
+			continue
+		}
+		dst := filepath.Join(root, d)
+		_ = os.MkdirAll(dst, 0o755)
+		if _, err := sys.Run("mount", "--bind", d, dst); err != nil {
+			return err
+		}
+		mounted = append(mounted, dst)
+	}
+	var pkg string
+	for _, p := range []string{"grub-efi-amd64", "grub-efi-arm64", "grub-pc"} {
+		if out, err := sys.Run("chroot", root, "dpkg-query", "-W", "-f=${Status}", p); err == nil && strings.Contains(out, "ok installed") {
+			pkg = p
+			break
+		}
+	}
+	if pkg == "" {
+		return fmt.Errorf("no GRUB package in the restored system")
+	}
+	logf("Reinstalling the boot loader of the restored system (%s)", pkg)
+	if out, err := sys.RunOpts(context.Background(), sys.Opts{Timeout: 10 * time.Minute, Env: []string{"DEBIAN_FRONTEND=noninteractive"}}, "chroot", root, "dpkg-reconfigure", "-f", "noninteractive", pkg); err != nil {
+		return fmt.Errorf("%v: %s", err, lastLines(out, 5))
+	}
+	return nil
+}
+
+func lastLines(s string, n int) string {
+	l := strings.Split(strings.TrimSpace(s), "\n")
+	if len(l) > n {
+		l = l[len(l)-n:]
+	}
+	return strings.Join(l, " | ")
 }

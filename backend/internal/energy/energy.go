@@ -262,13 +262,30 @@ func MagicPacket(hw net.HardwareAddr) []byte {
 	return p
 }
 
-// Wake sends a magic packet to the broadcast address of the local network.
+// Wake sends a magic packet to the limited broadcast address and to the
+// broadcast address of every local IPv4 network (UDP port 9).
 func Wake(mac string) error {
 	hw, err := ParseMAC(mac)
 	if err != nil {
 		return err
 	}
-	conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4bcast, Port: 9})
+	var errs []string
+	sent := 0
+	for _, ip := range WakeTargets() {
+		if err := sendMagic(hw, ip); err != nil {
+			errs = append(errs, ip.String()+": "+err.Error())
+		} else {
+			sent++
+		}
+	}
+	if sent == 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func sendMagic(hw net.HardwareAddr, ip net.IP) error {
+	conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: ip, Port: 9})
 	if err != nil {
 		return err
 	}

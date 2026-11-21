@@ -208,3 +208,34 @@ func TestWithHeight(t *testing.T) {
 		t.Error("audio must not be transcoded for a picture height")
 	}
 }
+
+func TestArgsGPUVariants(t *testing.T) {
+	p := Plan{Mode: Transcode, Video: &Stream{Index: 0, Codec: "hevc"}, Audio: &Stream{Index: 1, Codec: "aac"}, CopyAudio: true, Type: "video/mp4"}
+	lp := strings.Join(Args(p, 0, HW{VAAPI: true, Device: "/dev/dri/renderD128", LowPower: true}), " ")
+	if !strings.Contains(lp, "h264_vaapi -qp 24 -g 60 -low_power 1") {
+		t.Errorf("low power: %s", lp)
+	}
+	nv := strings.Join(Args(p, 0, HW{NVENC: true}), " ")
+	if !strings.Contains(nv, "-c:v h264_nvenc") || strings.Contains(nv, "vaapi") || !strings.Contains(nv, "format=yuv420p") {
+		t.Errorf("nvenc: %s", nv)
+	}
+	if (HW{VAAPI: true}).On() || !(HW{NVENC: true}).On() || (HW{VAAPI: true, Device: "/dev/dri/renderD128"}).Encoder() != "vaapi" {
+		t.Error("On/Encoder")
+	}
+}
+
+func TestDeviceFailure(t *testing.T) {
+	for _, m := range []string{"ffmpeg: [AVHWDeviceContext @ 0x55] Failed to initialise VAAPI connection: -1 (unknown libva error).",
+		"ffmpeg: Device creation failed: -5.", "ffmpeg: [h264_nvenc @ 0x1] Cannot load libnvidia-encode.so.1",
+		"ffmpeg: [AVHWDeviceContext @ 0x1] No VA display found for device /dev/dri/renderD128."} {
+		if !DeviceFailure(m) {
+			t.Errorf("not a device failure: %s", m)
+		}
+	}
+	for _, m := range []string{"ffmpeg: [h264_vaapi @ 0x1] No usable encoding entrypoint found for profile VAProfileH264High (7).",
+		"ffmpeg: Error while decoding stream #0:0: Invalid data found when processing input"} {
+		if DeviceFailure(m) {
+			t.Errorf("file failure taken for a device failure: %s", m)
+		}
+	}
+}

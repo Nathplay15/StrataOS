@@ -34,8 +34,18 @@ type Config struct {
 	// E2E: keys of the end-to-end encrypted folders, by pair ID. Kept here
 	// like the device token: this file is readable by the user only.
 	E2E map[string]E2EKey `json:"e2e,omitempty"`
+	// OnDemand: the shared folders shown in the file manager, downloaded
+	// when opened (files on demand).
+	OnDemand *OnDemand `json:"onDemand,omitempty"`
 	// Configured once: the first launch turns start at login on.
 	Initialized bool `json:"initialized,omitempty"`
+}
+
+// OnDemand are the settings of files on demand.
+type OnDemand struct {
+	Enabled bool   `json:"enabled,omitempty"`
+	Path    string `json:"path,omitempty"`    // Linux mount point, Windows sync root ("": the default)
+	CacheMB int64  `json:"cacheMB,omitempty"` // Linux cache budget (0: automatic)
 }
 
 // E2EKey is the key of an encrypted folder.

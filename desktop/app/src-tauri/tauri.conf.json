@@ -53,6 +53,7 @@
     "linux": {
       "deb": {
         "depends": [],
+        "recommends": ["fuse3"],
         "conflicts": ["strataos-sync"],
         "replaces": ["strataos-sync"],
         "provides": ["strataos-sync"],

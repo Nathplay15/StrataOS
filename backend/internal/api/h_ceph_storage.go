@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"strataos/internal/backup"
 	"strataos/internal/ceph"
 	"strataos/internal/jobs"
 	"strataos/internal/storage"
@@ -220,7 +221,33 @@ func (s *Server) cephCreateVolume(ctx context.Context, req cephVolumeReq, j *job
 	})
 }
 
+// rbdConnOf finds the cluster of a Ceph pool holding VM disks (image
+// backups of VMs on RBD): a libvirt RBD pool of StrataOS on that Ceph pool,
+// else this node's own cluster.
+func (s *Server) rbdConnOf(pool string) (ceph.Conn, error) {
+	if ceph.ValidPool(pool) != nil {
+		return ceph.Conn{}, fmt.Errorf("invalid Ceph pool %q", pool)
+	}
+	cluster := ""
+	s.store.Read(func(st *store.State) {
+		for _, p := range st.Ceph.VMPools {
+			if p.Pool == pool {
+				cluster = p.Cluster
+			}
+		}
+	})
+	if cluster == "" {
+		cluster = ceph.LocalCluster
+	}
+	src, err := s.cephSource(cluster)
+	if err != nil {
+		return ceph.Conn{}, fmt.Errorf("the Ceph cluster of the pool %s is not known to this NAS", pool)
+	}
+	return src.conn, nil
+}
+
 func (s *Server) cephStorageRoutes() {
+	backup.RBDConnOf = s.rbdConnOf
 	s.admin("GET /api/ceph/storage", func(r *http.Request) (any, error) {
 		type volView struct {
 			store.CephVolume

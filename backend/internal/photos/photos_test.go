@@ -126,3 +126,80 @@ func TestScanFillsMissingHashes(t *testing.T) {
 		t.Error("an old failure is not retried")
 	}
 }
+
+// fakeGPSJPEG builds a JPEG header with only a GPS IFD.
+func fakeGPSJPEG(lat, lon [3][2]uint32, ns, ew byte) []byte {
+	t := make([]byte, 200)
+	copy(t, "MM\x00*")
+	binary.BigEndian.PutUint32(t[4:], 8)
+	binary.BigEndian.PutUint16(t[8:], 1)
+	binary.BigEndian.PutUint16(t[10:], 0x8825)
+	binary.BigEndian.PutUint16(t[12:], 4)
+	binary.BigEndian.PutUint32(t[14:], 1)
+	binary.BigEndian.PutUint32(t[18:], 26)
+	// GPS IFD at 26: 4 entries; rationals at 100 and 124.
+	binary.BigEndian.PutUint16(t[26:], 4)
+	e := 28
+	entry := func(tag, typ uint16, count uint32, val []byte) {
+		binary.BigEndian.PutUint16(t[e:], tag)
+		binary.BigEndian.PutUint16(t[e+2:], typ)
+		binary.BigEndian.PutUint32(t[e+4:], count)
+		copy(t[e+8:e+12], val)
+		e += 12
+	}
+	off := func(o uint32) []byte { b := make([]byte, 4); binary.BigEndian.PutUint32(b, o); return b }
+	entry(1, 2, 2, []byte{ns, 0})
+	entry(2, 5, 3, off(100))
+	entry(3, 2, 2, []byte{ew, 0})
+	entry(4, 5, 3, off(124))
+	for k := range 3 {
+		binary.BigEndian.PutUint32(t[100+8*k:], lat[k][0])
+		binary.BigEndian.PutUint32(t[104+8*k:], lat[k][1])
+		binary.BigEndian.PutUint32(t[124+8*k:], lon[k][0])
+		binary.BigEndian.PutUint32(t[128+8*k:], lon[k][1])
+	}
+	app1 := append([]byte("Exif\x00\x00"), t...)
+	b := []byte{0xFF, 0xD8, 0xFF, 0xE1, 0, 0}
+	binary.BigEndian.PutUint16(b[4:], uint16(len(app1)+2))
+	b = append(b, app1...)
+	return append(b, 0xFF, 0xDA, 0, 2)
+}
+
+func TestGPSAndPlaces(t *testing.T) {
+	// 48°51'24" N, 2°21'8" W
+	m, ok := exifOf(fakeGPSJPEG([3][2]uint32{{48, 1}, {51, 1}, {2400, 100}}, [3][2]uint32{{2, 1}, {21, 1}, {8, 1}}, 'N', 'W'))
+	if !ok || m.lat < 48.856 || m.lat > 48.857 || m.lon > -2.35 || m.lon < -2.36 || !m.date.IsZero() {
+		t.Fatalf("gps %+v %v", m, ok)
+	}
+	m, _ = exifOf(fakeGPSJPEG([3][2]uint32{{33, 1}, {52, 1}, {0, 0}}, [3][2]uint32{{151, 1}, {12, 1}, {0, 1}}, 'S', 'E'))
+	if m.lat != 0 {
+		t.Errorf("a zero denominator is no position: %+v", m)
+	}
+	p, ok := Nearest(48.8566, 2.3522)
+	if !ok || p.City != "Paris" || p.Country != "FR" {
+		t.Errorf("Paris: %+v", p)
+	}
+	if p, ok = Nearest(-33.87, 151.21); !ok || p.City != "Sydney" || p.Region == "" {
+		t.Errorf("Sydney: %+v", p)
+	}
+	if p2, ok := PlaceByID(p.ID); !ok || p2 != p {
+		t.Error("PlaceByID")
+	}
+	if _, ok = Nearest(0, -30); ok {
+		t.Error("the middle of the Atlantic has no town")
+	}
+	if _, ok := PlaceByID(-1); ok {
+		t.Error("invalid id")
+	}
+}
+
+func TestMemories(t *testing.T) {
+	now := time.Date(2026, 11, 11, 9, 0, 0, 0, time.Local)
+	at := func(y int, m time.Month, d int) Item {
+		return Item{Path: "x", Date: time.Date(y, m, d, 12, 0, 0, 0, time.Local).Unix()}
+	}
+	got := Memories([]Item{at(2026, 11, 11), at(2024, 11, 11), at(2024, 11, 11), at(2024, 11, 12), at(2019, 11, 11), at(2020, 10, 11)}, now)
+	if len(got) != 2 || got[0].Year != 2024 || got[0].Count != 2 || got[0].YearsAgo != 2 || got[1].Year != 2019 {
+		t.Errorf("memories: %+v", got)
+	}
+}

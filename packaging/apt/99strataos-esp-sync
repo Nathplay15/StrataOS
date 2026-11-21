@@ -1,0 +1,4 @@
+// StrataOS: after a package operation (GRUB or shim update), copy the EFI
+// system partition onto the other disk of a mirrored system (does nothing
+// otherwise).
+DPkg::Post-Invoke { "if [ -x /usr/lib/strata/scripts/esp-sync ]; then /usr/lib/strata/scripts/esp-sync >/dev/null || echo 'StrataOS: could not copy the EFI system partition onto the mirror disk'; fi"; };

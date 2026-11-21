@@ -100,7 +100,11 @@ Commands (headless):
   list      the synchronized folders
   status    the state of each folder
   sync-once synchronize until up to date, then exit [--confirm-deletes | --restore-deletes]
-  daemon    synchronize continuously (Ctrl+C stops)
+  daemon    synchronize continuously (Ctrl+C stops); also serves files on demand when on
+  ondemand  on|off [--path DIR] [--cache-mb N]: the shared folders in the file manager,
+            downloaded when opened (Linux: a FUSE mount, served by daemon or the app)
+  pin PATH / unpin PATH   keep a file or folder of the on-demand folder on this computer,
+            or free its space (Linux)
   unpair    sign this computer out of the NAS
   accounts  the NAS paired by the desktop app, with their account IDs
   agent     the sync engine of the desktop app (started by the app itself)
@@ -266,6 +270,52 @@ func runCommand(store *config.Store, cmd string, args []string) error {
 			return err
 		}
 		fmt.Println("passphrase changed")
+		return nil
+
+	case "ondemand":
+		path := fs.String("path", "", "folder of the shared folders (default: ~/StrataOS - NAS)")
+		cache := fs.Int64("cache-mb", -1, "size of the cache in MB (0: automatic)")
+		if len(args) == 0 || (args[0] != "on" && args[0] != "off") {
+			return errors.New("ondemand on|off [--path DIR] [--cache-mb N]")
+		}
+		_ = fs.Parse(args[1:])
+		on := args[0] == "on"
+		var pp *string
+		if *path != "" {
+			abs, err := filepath.Abs(*path)
+			if err != nil {
+				return err
+			}
+			pp = &abs
+		}
+		var cp *int64
+		if *cache >= 0 {
+			cp = cache
+		}
+		if err := a.SetOnDemand(&on, pp, cp); err != nil {
+			return err
+		}
+		st := a.OnDemandStatus()
+		if !st.Supported {
+			return errors.New("files on demand is not available on this system")
+		}
+		where := st.Path
+		if where == "" {
+			where = st.DefaultPath
+		}
+		fmt.Printf("files on demand: %v (%s), served while the app or `strataos-sync daemon` runs\n", on, where)
+		return nil
+
+	case "pin", "unpin":
+		_ = fs.Parse(args)
+		if fs.NArg() < 1 {
+			return errors.New(cmd + " PATH…")
+		}
+		for _, p := range fs.Args() {
+			if err := pinPath(p, cmd == "pin"); err != nil {
+				return fmt.Errorf("%s: %w", p, err)
+			}
+		}
 		return nil
 
 	case "remove":

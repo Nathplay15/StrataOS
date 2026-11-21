@@ -8,7 +8,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Inpu
 import { tr } from "../../lib/i18n";
 import { QuickBridge } from "../../components/QuickBridge";
 import { useIntent } from "../../lib/intent";
-import type { CloudImage, ImportInfo, Installer, MacOSVersion, VM, VMData } from "./types";
+import type { CloudImage, ImportInfo, Installer, MacOSHost, MacOSVersion, VM, VMData } from "./types";
 import type { LXCData } from "./containers/types";
 import { ContainerCard } from "./containers/ContainerCard";
 import { CreateContainer, ImportContainer } from "./containers/CreateContainer";
@@ -163,6 +163,7 @@ export default function VirtualMachines() {
               {shownCTs.map((c) => <ContainerCard key={`ct-${c.name}`} c={c} onOpen={(t) => setDetail({ name: c.name, tab: (t as DetailTab) ?? "summary" })} onConsole={() => setDetail({ name: c.name, tab: "console" })} />)}
             </div></div>
           )}
+          {vmOK && kind !== "lxc" && <MacOSCacheCard />}
         </>
       )}
       {tab === "cluster" && inCluster && clq.data && <ClusterPanel data={clq.data} />}
@@ -187,6 +188,35 @@ export default function VirtualMachines() {
       {log && <ConsoleLog vm={log} onClose={() => setLog(null)} />}
       {fw && <GuestFirewallModal kind="vm" name={fw.name} onClose={() => setFw(null)} />}
     </div>
+  );
+}
+
+/** The macOS images shared by the VMs of each volume (OpenCore, Apple's
+ * recovery images): listed with the VMs using them, the unused ones removed
+ * with one button. Shown only when there are some. */
+function MacOSCacheCard() {
+  const { confirm } = useUI();
+  const host = useQuery({ queryKey: ["vm-macos-host"], queryFn: () => api.get<MacOSHost>("/api/vms/macos/host"), refetchInterval: 60000 });
+  const del = useAction(() => api.del<{ removed: string[]; freed: number }>("/api/vms/macos/cache"), { success: (r) => tr("{0} removed", bytes(r?.freed ?? 0)), onDone: () => host.refetch() });
+  const cache = host.data?.cache ?? [];
+  if (cache.length === 0) return null;
+  const unused = cache.filter((c) => !c.usedBy?.length);
+  const freeable = unused.reduce((n, c) => n + c.size, 0);
+  return (
+    <Card className="mt-4" title={tr("macOS images")} actions={<Button size="sm" variant="danger" icon={<Trash2 size={14} />} disabled={unused.length === 0} loading={del.isPending}
+      onClick={async () => { if (await confirm({ title: tr("Remove the unused macOS images?"), text: tr("{0} of images that no macOS VM uses anymore are removed. A new macOS VM downloads them again from Apple.", bytes(freeable)), danger: true, confirm: tr("Remove") })) del.mutate(); }}>
+      {unused.length ? tr("Remove the unused images ({0})", bytes(freeable)) : tr("All in use")}</Button>}>
+      <div className="space-y-1.5 text-[12.5px]">
+        {cache.map((c) => (
+          <div key={c.path} className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{c.kind === "opencore" ? "OpenCore" : tr("Recovery image {0}", c.version ?? "")}</span>
+            <span className="text-muted">{c.volume} · {bytes(c.size)}</span>
+            {c.usedBy?.length ? <Badge>{tr("Used by {0}", c.usedBy.join(", "))}</Badge> : <Badge tone="warn">{tr("Unused")}</Badge>}
+          </div>
+        ))}
+      </div>
+      <ErrorBox error={del.error} />
+    </Card>
   );
 }
 
@@ -302,6 +332,7 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
   const files = useQuery({ queryKey: ["vm-importable"], queryFn: () => api.get<string[]>("/api/vms/importable"), enabled: source === "import" });
   const macos = useQuery({ queryKey: ["vm-macos"], queryFn: () => api.get<MacOSVersion[]>("/api/vms/macos"), enabled: source === "macos" });
   const [mac, setMac] = useState({ version: "tahoe", ignoreMsrs: true });
+  const macHost = useQuery({ queryKey: ["vm-macos-host"], queryFn: () => api.get<MacOSHost>("/api/vms/macos/host"), enabled: source === "macos" });
   const inspect = useAction((p: string) => api.post<ImportInfo>("/api/vms/import/inspect", { source: p }), {
     onDone: (r) => {
       setInfo(r);
@@ -436,6 +467,9 @@ function CreateVM({ bridges, onClose }: { bridges: string[]; onClose: () => void
       {/* Rendered even once a bridge shows up: it holds the trial confirmation. */}
       <QuickBridge what="vm" className="mt-4" onCreated={(b) => set({ network: b })} />
       {source !== "cloud" && f.os === "windows" && <div className="mt-4"><Notice>{tr("Windows 11: a virtual TPM 2.0 chip and Secure Boot are provided. The disk is SATA so the installer can see it without an extra driver.")}</Notice></div>}
+      {source === "macos" && macHost.data && !macHost.data.invariantTsc && (
+        <div className="mt-4"><Notice tone="warn">{tr("This processor does not report an invariant TSC (constant_tsc and nonstop_tsc), as when StrataOS itself runs in a virtual machine: macOS stops at boot on it. Give the virtual machine of StrataOS the invtsc CPU flag (QEMU/Proxmox: host,+invtsc), or use a physical NAS.")}</Notice></div>
+      )}
       {source === "macos" && <div className="mt-4"><Checkbox checked={mac.ignoreMsrs} onChange={(v) => setMac({ ...mac, ignoreMsrs: v })} label={tr("Let KVM ignore unknown CPU registers (needed by macOS; applies to every VM of the NAS, also after a restart)")} /></div>}
       {source === "macos" && <div className="mt-4"><Notice>{tr("Experimental. macOS is installed from Apple's recovery image via OpenCore (KVM on an x86-64 NAS only). The installer downloads several GB from Apple; finish the installation in the console: Disk Utility (erase the largest disk as APFS), then Reinstall macOS. Use macOS in accordance with Apple's licence.")}</Notice></div>}
       <div className="mt-4"><Checkbox checked={f.autostart} onChange={(v) => set({ autostart: v })} label={tr("Start the VM with the NAS")} /></div>

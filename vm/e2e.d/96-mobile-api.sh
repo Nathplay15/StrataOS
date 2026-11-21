@@ -30,7 +30,7 @@ u POST /api/login -d "{\"username\":\"$USER_NAME\",\"password\":\"$USER_PASS\"}"
 # Pairing with the QR code of the web interface (administrator).
 PR=$(c POST /api/me/devices/pairing)
 PC=$(echo "$PR" | py 'print(d["code"])')
-FP=$(echo | openssl s_client -connect localhost:7443 2>/dev/null | openssl x509 -noout -fingerprint -sha256 | cut -d= -f2)
+FP=$(echo | openssl s_client -connect localhost:$HTTPS_PORT 2>/dev/null | openssl x509 -noout -fingerprint -sha256 | cut -d= -f2)
 check "QR code carries the certificate fingerprint" "$(echo "$PR" | py 'print(d["fingerprint"])')" "$FP"
 TD=$(curl -s -X POST "$B/api/mobile/pair" -d "{\"pairingCode\":\"$PC\",\"deviceName\":\"Admin phone\",\"model\":\"Fairphone 5\"}" | py 'print(d.get("token",""))')
 check "paired with the one-time code" "$TD" "stdev_"

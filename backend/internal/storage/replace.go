@@ -146,6 +146,8 @@ func levelName(g ReplaceGroup) string {
 		return strings.ToUpper(strings.Replace(g.Level, "raid", "RAID ", 1))
 	case "zfs":
 		return "ZFS " + g.Level
+	case "system":
+		return "RAID 1"
 	}
 	return "LVM"
 }
@@ -290,13 +292,13 @@ func PlanReplace(f ReplaceFacts, sel ReplaceSel) ReplacePlan {
 		p.Refusal = "This disk is a hot spare: it holds no data. Remove it from the array and add the new disk as a spare instead."
 	case g.Rebuilding:
 		p.Refusal = fmt.Sprintf("A rebuild is already running on %s (%.1f %%): wait until it is finished.", g.Name, g.Progress)
-	case g.Kind == "raid" && g.Tolerates == 0:
+	case (g.Kind == "raid" || g.Kind == "system") && g.Tolerates == 0:
 		p.Refusal = fmt.Sprintf("%s has no redundancy: mdadm cannot rebuild one of its disks. Copy the data to another volume, then recreate the array with the new disk.", levelName(*g))
 	case p.Left < 0:
 		p.Refusal = fmt.Sprintf("Too many disks of %s are missing (%d, it tolerates %d): the data cannot be rebuilt. Restore it from a backup.", g.Name, missing, g.Tolerates)
 	case !mode.OK:
 		p.Refusal = mode.Reason
-	case g.Kind == "raid" && p.Mode == "add-first" && missing > 0:
+	case (g.Kind == "raid" || g.Kind == "system") && p.Mode == "add-first" && missing > 0:
 		p.Refusal = fmt.Sprintf("%s is already degraded (%d disk(s) missing): rebuild the missing disk first, then replace this one.", g.Name, missing)
 	case g.Kind == "lvm" && missing > 0:
 		p.Refusal = fmt.Sprintf("The volume group %s has a missing disk: its volumes are incomplete and cannot be moved.", g.Name)
@@ -419,7 +421,7 @@ func noGroupReason(disks []BlockDevice, path string) string {
 		}
 		switch {
 		case d.System:
-			return "This is the system disk: StrataOS cannot replace it while it runs. Back up the configuration, install StrataOS on the new disk, then restore the configuration."
+			return "This is the system disk and it is not mirrored: move the system to the new disk instead (Storage → Disks → System disk → Move the system to another disk)."
 		case d.Usage == "btrfs":
 			return "This disk belongs to a Btrfs volume: add the new disk to the volume, then remove this one (Volumes → the volume → Devices)."
 		case d.Usage == "ceph":
@@ -481,6 +483,19 @@ func needSize(g ReplaceGroup, old ReplaceMember) int64 {
 func replaceSteps(g ReplaceGroup, old ReplaceMember, mode string) []string {
 	o := disp(old)
 	switch {
+	case g.Kind == "system" && mode == "add-first":
+		return []string{
+			"Erase the new disk and give it the partitions of the other system disk",
+			"Add its partitions to the system arrays and copy " + o + " onto them (mdadm --replace): the system stays mirrored during the copy",
+			"Copy the EFI system partition, or install GRUB on the new disk, so that it can start the system",
+			"Take " + o + " out of the arrays",
+		}
+	case g.Kind == "system":
+		s := []string{"Erase the new disk and give it the partitions of the other system disk"}
+		if old.Disk != "" {
+			s = append(s, "Remove the failed disk "+o+" from the system arrays")
+		}
+		return append(s, "Add the new disk to the system arrays and rebuild them", "Copy the EFI system partition, or install GRUB on the new disk, so that it can start the system")
 	case g.Kind == "raid" && mode == "add-first":
 		return []string{
 			"Erase the new disk",

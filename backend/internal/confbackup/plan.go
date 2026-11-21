@@ -7,7 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"strataos/internal/firewall"
 	"strataos/internal/guard"
+	"strataos/internal/network"
 	"strataos/internal/store"
 )
 
@@ -38,7 +40,7 @@ type Section struct {
 }
 
 // Sections lists the section IDs in the order they are applied.
-var Sections = []string{"system", "settings", "groups", "users", "quotas", "volumes", "shares", "schedules", "backups", "cloudSyncs", "stacks", "network", "fileServices", "ransomware", "vpn", "ddns", "energy", "guard", "ups", "photos", "vaults", "fleet", "configBackup", "ha", "directory"}
+var Sections = []string{"system", "settings", "groups", "users", "quotas", "volumes", "shares", "schedules", "datastores", "backups", "cloudSyncs", "stacks", "network", "firewall", "fileServices", "ransomware", "vpn", "ddns", "energy", "guard", "ups", "photos", "vaults", "fleet", "configBackup", "oidc", "sso", "twoFactor", "s3", "photoSmart", "desktop", "ha", "directory"}
 
 // Env is what the plan needs to know about this NAS.
 type Env struct {
@@ -374,8 +376,37 @@ func Plan(file, cur *Config, env Env) []Section {
 	}
 	add("stacks", items)
 
-	// Network: applied on trial, confirmed by the browser.
-	if n := file.Network; n != nil && (len(n.Interfaces)+len(n.Bonds)+len(n.Bridges)+len(n.VLANs) > 0) {
+	// Backup repositories, before the tasks that write to them.
+	items = nil
+	for _, d := range file.Datastores {
+		if d.DestType == "local" && !d.Offsite && !env.OnVolume(d.DestPath) {
+			items = append(items, skip(d.ID, d.Name, "Volume missing here: "+d.DestPath))
+			continue
+		}
+		i := slices.IndexFunc(cur.Datastores, func(x store.Datastore) bool { return x.ID == d.ID })
+		if i < 0 {
+			i = slices.IndexFunc(cur.Datastores, func(x store.Datastore) bool { return x.Name == d.Name })
+		}
+		if i < 0 && !env.Secrets && hasMasked(d) {
+			items = append(items, skip(d.ID, d.Name, "Repository password not in the file (export with secrets)"))
+			continue
+		}
+		var c store.Datastore
+		if i >= 0 {
+			c = cur.Datastores[i]
+		}
+		it := diff(d.ID, d.Name, d, c, i >= 0, "id", "created", "verifies", "stats", "verifyNext", "lastPrune")
+		it.Target = c.ID
+		if it.Action == Create {
+			it.Detail = "The repository is opened where it is (created when it does not exist yet)"
+		}
+		items = append(items, it)
+	}
+	add("datastores", items)
+
+	// Network: applied on trial, confirmed by the browser. Virtual networks
+	// are part of it.
+	if n := file.Network; n != nil && (len(n.Interfaces)+len(n.Bonds)+len(n.Bridges)+len(n.VLANs)+len(n.Virtual) > 0) {
 		var missing string
 		names := []string{}
 		for _, i := range n.Interfaces {
@@ -399,7 +430,25 @@ func Plan(file, cur *Config, env Env) []Section {
 			if it.Action == Update {
 				it.Detail = "Applied on trial: confirm it within 2 minutes"
 			}
-			add("network", []Item{it})
+			items = []Item{it}
+			// Virtual networks: shown one by one, applied with the rest.
+			for _, v := range n.Virtual {
+				vi := Item{Key: "vnet:" + v.ID, Name: firstOf(v.Label, v.ID), Action: Report, Detail: "Virtual network (" + v.Kind + "), applied with the network configuration"}
+				if len(v.Members) > 0 {
+					// The tunnel side is computed again here (see exportNetwork).
+					vi.Detail = "Shared VXLAN network, applied with the network configuration, then sent again to the other NAS it is shared with (members of the Multi-NAS console or of the cluster of this NAS)"
+				}
+				if cur.Network != nil {
+					if j := slices.IndexFunc(cur.Network.Virtual, func(x network.VNet) bool { return x.ID == v.ID }); j >= 0 && len(changes(v, cur.Network.Virtual[j])) == 0 {
+						vi.Detail = "Virtual network (" + v.Kind + "), already here"
+					}
+				}
+				if v.Parent != "" && !slices.Contains(names, v.Parent) && !slices.Contains(env.Interfaces, v.Parent) && !slices.ContainsFunc(n.Bridges, func(b network.Bridge) bool { return b.Name == v.Parent }) && !slices.ContainsFunc(n.Bonds, func(b network.Bond) bool { return b.Name == v.Parent }) {
+					vi.Detail = "Virtual network: its link " + v.Parent + " is missing here"
+				}
+				items = append(items, vi)
+			}
+			add("network", items)
 		}
 	}
 
@@ -526,6 +575,177 @@ func Plan(file, cur *Config, env Env) []Section {
 			single("configBackup", cb, cur.ConfigBackup)
 		}
 	}
+
+	// Firewall: security groups, address sets and guests' firewalls are
+	// added or replaced by name; the NAS firewall is applied on trial.
+	if f := file.Firewall; f != nil {
+		var c firewall.Config
+		if cur.Firewall != nil {
+			c = *cur.Firewall
+		}
+		items = nil
+		it := diff("host", "NAS firewall", f.Host, c.Host, true)
+		if it.Action == Update {
+			it.Detail = "Applied on trial: rolled back unless this browser still reaches the NAS"
+		}
+		items = append(items, it)
+		for _, s := range f.IPSets {
+			i := slices.IndexFunc(c.IPSets, func(x firewall.IPSet) bool { return x.Name == s.Name })
+			var x firewall.IPSet
+			if i >= 0 {
+				x = c.IPSets[i]
+			}
+			items = append(items, diff("ipset:"+s.Name, "Address set "+s.Name, s, x, i >= 0))
+		}
+		for _, g := range f.Groups {
+			i := slices.IndexFunc(c.Groups, func(x firewall.Group) bool { return x.Name == g.Name })
+			var x firewall.Group
+			if i >= 0 {
+				x = c.Groups[i]
+			}
+			items = append(items, diff("group:"+g.Name, "Security group "+g.Name, g, x, i >= 0))
+		}
+		for _, g := range f.Guests {
+			i := slices.IndexFunc(c.Guests, func(x firewall.Guest) bool { return x.Key() == g.Key() })
+			var x firewall.Guest
+			if i >= 0 {
+				x = c.Guests[i]
+			}
+			gi := diff("guest:"+g.Key(), "Firewall of "+g.Key(), g, x, i >= 0)
+			if gi.Action == Create {
+				gi.Detail = "Applies once a VM or container with this name exists"
+			}
+			items = append(items, gi)
+		}
+		add("firewall", items)
+	}
+
+	// Sign-in providers (OIDC).
+	items = nil
+	for _, p := range file.OIDC {
+		i := slices.IndexFunc(cur.OIDC, func(x store.OIDCProvider) bool { return x.ID == p.ID })
+		var c store.OIDCProvider
+		if i >= 0 {
+			c = cur.OIDC[i]
+		}
+		it := diff(p.ID, p.Name, p, c, i >= 0, "createdAt", "clientSecret")
+		if it.Action == Create && p.ClientSecret == Masked && !env.Secrets {
+			it.Detail = "Created disabled: enter its client secret again"
+		} else if it.Action == Create {
+			it.Detail = "Register the address of this NAS as a redirect URI at the provider"
+		}
+		items = append(items, it)
+	}
+	add("oidc", items)
+
+	// Single sign-on of the apps: settings, then each application.
+	if f := file.SSO; f != nil {
+		c := cur.SSO
+		if c == nil {
+			c = &SSO{}
+		}
+		type set struct {
+			Enabled bool   `json:"enabled"`
+			Issuer  string `json:"issuer"`
+		}
+		items = []Item{diff("settings", "Settings", set{f.Enabled, f.Issuer}, set{c.Enabled, c.Issuer}, true)}
+		if items[0].Action == Update && f.Issuer != c.Issuer && c.Issuer != "" {
+			items[0].Detail = "Apps configured with the current address must be configured again"
+		}
+		for _, cl := range f.Clients {
+			i := slices.IndexFunc(c.Clients, func(x store.SSOClient) bool { return x.ID == cl.ID })
+			var x store.SSOClient
+			if i >= 0 {
+				x = c.Clients[i]
+			}
+			it := diff("client:"+cl.ID, cl.Name, cl, x, i >= 0, "created", "secret")
+			if it.Action == Create && cl.Secret == Masked && !env.Secrets {
+				it.Detail = "Created disabled: give it a new secret and enter it in the app"
+			}
+			items = append(items, it)
+		}
+		add("sso", items)
+	}
+
+	if t := file.TwoFactor; t != nil {
+		c := cur.TwoFactor
+		if c == nil {
+			c = &TwoFactor{}
+		}
+		it := diff("twoFactor", "Two-factor policy", t, c, true)
+		if it.Action == Update && t.Require {
+			it.Detail = "The grace period starts again; security keys and passkeys are not in the file: each administrator registers theirs on this NAS"
+		}
+		add("twoFactor", []Item{it})
+	}
+
+	// S3 service: settings and buckets, then the users' access keys.
+	if s3 := file.S3; s3 != nil {
+		c := cur.S3
+		if c == nil {
+			c = &S3{}
+		}
+		type set struct {
+			Enabled bool             `json:"enabled"`
+			Port    int              `json:"port,omitempty"`
+			Domain  string           `json:"domain,omitempty"`
+			Buckets []store.S3Bucket `json:"buckets,omitempty"`
+		}
+		// The import keeps the buckets that exist only here: compare the
+		// buckets of the file with those of the same shared folders.
+		var curBuckets []store.S3Bucket
+		for _, b := range s3.Buckets {
+			if i := slices.IndexFunc(c.Buckets, func(x store.S3Bucket) bool { return x.Share == b.Share }); i >= 0 {
+				curBuckets = append(curBuckets, c.Buckets[i])
+			}
+		}
+		items = []Item{diff("settings", "Settings", set{s3.Enabled, s3.Port, s3.Domain, s3.Buckets}, set{c.Enabled, c.Port, c.Domain, curBuckets}, true)}
+		for _, b := range s3.Buckets {
+			if !slices.ContainsFunc(file.Shares, func(x store.Share) bool { return x.Name == b.Share }) && !slices.ContainsFunc(cur.Shares, func(x store.Share) bool { return x.Name == b.Share }) && items[0].Action == Update {
+				items[0].Detail = "Buckets of shared folders missing here are left out"
+			}
+		}
+		for _, k := range s3.Keys {
+			name := k.User + " · " + firstOf(k.Name, k.Access)
+			known := slices.ContainsFunc(file.Users, func(u User) bool { return u.Username == k.User }) || slices.ContainsFunc(cur.Users, func(u User) bool { return u.Username == k.User })
+			switch {
+			case slices.ContainsFunc(c.Keys, func(x S3Key) bool { return x.Access == k.Access }):
+				items = append(items, Item{Key: "key:" + k.Access, Name: name, Action: Same})
+			case !known:
+				items = append(items, skip("key:"+k.Access, name, "Account "+k.User+" not found"))
+			case !env.Secrets:
+				items = append(items, skip("key:"+k.Access, name, "Secret key not in the file (export with secrets)"))
+			default:
+				items = append(items, Item{Key: "key:" + k.Access, Name: name, Action: Create})
+			}
+		}
+		add("s3", items)
+	}
+
+	if p := file.PhotoSmart; p != nil {
+		c := cur.PhotoSmart
+		if c == nil {
+			c = &store.PhotoSmart{}
+		}
+		add("photoSmart", []Item{diff("photoSmart", "photoSmart", p, c, true)})
+	}
+	// Desktop preferences of the accounts that exist (or are in the file).
+	items = nil
+	for _, p := range file.Desktop {
+		known := slices.ContainsFunc(file.Users, func(u User) bool { return u.Username == p.User }) || slices.ContainsFunc(cur.Users, func(u User) bool { return u.Username == p.User })
+		if !known {
+			items = append(items, skip(p.User, p.User, "Account "+p.User+" not found"))
+			continue
+		}
+		i := slices.IndexFunc(cur.Desktop, func(x DesktopPrefs) bool { return x.User == p.User })
+		var c DesktopPrefs
+		if i >= 0 {
+			c = cur.Desktop[i]
+		}
+		it := diff(p.User, p.User, p, c, true)
+		items = append(items, it)
+	}
+	add("desktop", items)
 
 	if h := file.HA; h != nil {
 		add("ha", []Item{{Key: "ha", Name: h.Role + " · " + h.PeerHost, Action: Report, Detail: "Never recreated: pair the NAS again from High availability"}})

@@ -79,7 +79,7 @@ function AppSettings() {
         {integ.data?.supported && (
           <Switch checked={integ.data.enabled} onChange={async (v) => {
             try {
-              await invoke("integration_set", { on: v, labels: { share: t("Copy a StrataOS share link"), open: t("Open on the NAS") } });
+              await invoke("integration_set", { on: v, labels: { share: t("Copy a StrataOS share link"), open: t("Open on the NAS"), keep: t("Keep on this device"), free: t("Free up space") } });
               void integ.refetch();
             } catch (e) {
               toast(String(e), "error");

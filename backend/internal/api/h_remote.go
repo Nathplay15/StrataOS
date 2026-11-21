@@ -116,6 +116,7 @@ func (s *Server) checkTarget(d *store.AppDomain) error {
 
 // proxyTable builds the routing table from the settings.
 func (s *Server) proxyTable() proxy.Table {
+	s.fwdSync() // forward-auth clients follow the domains (sso_forward.go)
 	var ds []store.AppDomain
 	s.store.Read(func(st *store.State) {
 		for _, d := range st.Remote.Proxy.Domains {
@@ -124,7 +125,7 @@ func (s *Server) proxyTable() proxy.Table {
 	})
 	t := proxy.Table{}
 	for _, d := range ds {
-		r := &proxy.Route{Host: d.Host, LANOnly: d.LANOnly}
+		r := &proxy.Route{Host: d.Host, LANOnly: d.LANOnly, Auth: d.SSO && d.Kind != "ui"}
 		if ps, err := proxy.ParsePrefixes(d.AllowedIPs); err == nil {
 			r.AllowedIPs = ps
 		}
@@ -423,7 +424,7 @@ func (s *Server) remoteRoutes() {
 		slog.Error("app domains certificates", "err", err)
 		return
 	}
-	appProxy = &proxy.Server{Certs: cs, UI: s, Allow: s.guardAllows, Private: guard.Private, StripCookie: cookieName}
+	appProxy = &proxy.Server{Certs: cs, UI: s, Allow: s.guardAllows, Private: guard.Private, StripCookie: cookieName, ForwardAuth: s.forwardAuth}
 	if s.certs != nil {
 		appProxy.Fallback80 = s.certs.HTTPHandler
 		appProxy.FallbackCert = s.certs.GetCertificate

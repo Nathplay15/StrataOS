@@ -3,7 +3,7 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 VERSION := $(shell cat VERSION)
 ARCH ?= amd64
 
-.PHONY: all frontend catalog-texts backend build deb repo iso docs dev clean test vm-test ha-test ceph-test cluster-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
+.PHONY: all frontend catalog-texts backend build deb repo iso docs dev clean test vm-test vm-smoke ha-test ceph-test cluster-test arm64-test upgrade-test rpi-image vm-create vm-start vm-stop vm-ssh vm-deploy vm-destroy
 
 all: deb
 
@@ -54,14 +54,11 @@ test:
 # Full end-to-end test on a brand new VM with 8 disks (about 20 minutes): storage, ZFS, shares,
 # security, notifications, Docker, scheduled tasks, reboot, missing disks, RAID and ZFS rebuild.
 vm-test: deb
-	./vm/vm.sh destroy
-	VM_DISKS=13 ./vm/vm.sh create
-	# Like a NAS kept up to date: current packages and kernel (the base image
-	# lags behind, and the headers of its kernel leave the archive), then a restart.
-	./vm/vm.sh ssh 'sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold full-upgrade'
-	./vm/vm.sh stop && ./vm/vm.sh start
-	./vm/vm.sh deploy dist/strataos_$(VERSION)_$(ARCH).deb
-	bash -c 'set -o pipefail; ./vm/e2e-test.sh | tee vm/last-test.log'
+	./vm/ci-e2e.sh full dist/strataos_$(VERSION)_$(ARCH).deb
+
+# The subset run on pull requests (vm/e2e-test.sh E2E_SMOKE).
+vm-smoke: deb
+	./vm/ci-e2e.sh smoke dist/strataos_$(VERSION)_$(ARCH).deb
 
 ha-test: deb
 	./vm/ha-test.sh

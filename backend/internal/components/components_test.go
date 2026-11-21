@@ -47,7 +47,7 @@ func TestPackages(t *testing.T) {
 	}{
 		// ffmpeg stays while the recorder (or Photos) still needs it.
 		{"photos", func(p string) bool { return p != "intel-media-va-driver" }, []string{"nvr"},
-			[]string{"libvips-tools", "libheif-plugin-libde265", "libimage-exiftool-perl", "mesa-va-drivers"},
+			[]string{"libvips-tools", "libheif-plugin-libde265", "libimage-exiftool-perl", "vainfo", "intel-media-va-driver-non-free", "i965-va-driver", "mesa-va-drivers"},
 			map[string]string{"ffmpeg": "Used by Surveillance recorder"}},
 		{"nvr", all, []string{"photos", "dlna"}, nil, map[string]string{"ffmpeg": "Used by Media tools (ffmpeg, libvips)"}},
 		{"nvr", all, nil, []string{"ffmpeg"}, nil},

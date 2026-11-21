@@ -8,6 +8,8 @@
 # restarted on another NAS after fencing, cl2 back without running it twice, then
 # maintenance of a member, a container moved to another NAS. About 15 minutes; needs about 4 GB of free RAM.
 # Usage: make deb && ./vm/cluster-test.sh   (recreates the three VMs; KEEP=1 keeps them)
+#   RBD_BACKUP=1 adds the image backups of the VM on Ceph (full, incremental with rbd
+#   export-diff, restore compared with the RBD snapshot); RBD_BACKUP_ONLY=1 stops after them.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 DEB=${DEB:-dist/strataos_$(cat VERSION)_amd64.deb}
@@ -124,6 +126,37 @@ N 3 ssh "sudo dnsmasq --interface=br0 --bind-interfaces --port=0 --dhcp-range=10
 api 1 POST /api/vms/tvm/start >/dev/null
 for _ in $(seq 1 40); do N 3 ssh 'ping -c1 -W2 10.97.0.50 >/dev/null' && break; sleep 5; done
 check "the VM boots and answers" "$(N 3 ssh 'ping -c2 -W2 10.97.0.50 >/dev/null && echo up')" "up"
+
+if [ -n "${RBD_BACKUP:-}" ]; then
+section "Image backups of a VM on Ceph (RBD snapshots, incremental)"
+[ "$(api 1 GET /api/system/components | py 'print(d.get("restic"))')" = True ] || check "restic component" "$(job 1 "$(api 1 POST /api/system/components/restic/install)")" "success"
+check "volume for the repository" "$(job 1 "$(api 1 POST /api/ceph/volumes -d '{"name":"bk","source":"local","kind":"rbd","pool":"rbd","image":"bk","create":true,"sizeGb":4,"fsType":"ext4","confirm":true}')")" "success"
+DS=$(api 1 POST /api/datastores -d '{"name":"rbd","destType":"local","destPath":"/srv/strata/bk/ds","password":"Rbd-Backup-012","verify":{}}' | py 'print(d["id"])')
+TK=$(api 1 POST /api/backups -d '{"name":"rbd images","kind":"restic","sources":[],"vms":["tvm"],"destType":"datastore","datastore":"'$DS'","keepLast":5,"cron":"","enabled":true}' | py 'print(d["id"])')
+jobfull() { local id; id=$(echo "$1" | py 'print(d.get("id",""))' 2>/dev/null); for _ in $(seq 1 400); do [ "$(api 1 GET "/api/jobs/$id" | py 'print(d["status"])' 2>/dev/null)" = running ] || break; sleep 3; done; api 1 GET "/api/jobs/$id" | py 'print(d["status"], d.get("error","")); print(d.get("log","")[-2500:])'; }
+R1=$(jobfull "$(api 1 POST /api/backups/$TK/run)")
+check "first backup of the RBD disk" "$R1" "success"
+check "read in full from an RBD snapshot" "$R1" "on Ceph, read in full"
+check "snapshot kept for the next run" "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0')" "strata-$TK-"
+N 3 ssh 'sleep 20' # the guest writes a little meanwhile (logs)
+R2=$(jobfull "$(api 1 POST /api/backups/$TK/run)")
+check "second backup" "$R2" "success"
+check "only the changes exported (rbd export-diff)" "$R2" "changes since strata-$TK-"
+check "history tells the incremental read" "$(api 1 GET /api/backups | py "print([b['history'][0]['message'] for b in d if b['id']=='$TK'][0])")" "incremental:"
+check "one snapshot left on the image" "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | grep -c "strata-$TK-")" "1"
+SNAPN=$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | awk '/strata-/{print $2}' | head -1)
+SID=$(api 1 GET /api/datastores/$DS/contents | py "print([i['id'] for i in d['items'] if i['name']=='tvm'][0])")
+N 1 ssh 'sudo mkdir -p /srv/strata/bk/vms'
+check "restored as a VM on files" "$(jobfull "$(api 1 POST /api/datastores/$DS/restore -d "{\"snapshot\":\"$SID\",\"name\":\"tvm2\",\"storage\":\"/srv/strata/bk/vms\"}")" | head -1)" "success"
+check "restored disk identical to the RBD snapshot" "$(N 1 ssh "sudo qemu-img compare -q /srv/strata/bk/vms/tvm2/disk0.qcow2 rbd:rbd/tvm-disk0@$SNAPN && echo same")" "same"
+check "its definition no longer points to Ceph" "$(N 1 ssh "sudo virsh -c qemu:///system dumpxml tvm2 | grep -c \"protocol='rbd'\"")" "0"
+api 1 DELETE "/api/vms/tvm2?disks=1" >/dev/null
+api 1 DELETE /api/backups/$TK >/dev/null
+for _ in 1 2 3 4 5 6; do [ "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | grep -c "strata-$TK-")" = 0 ] && break; sleep 5; done
+check "task deleted: its snapshot removed" "$(N 1 ssh 'sudo rbd snap ls rbd/tvm-disk0' | grep -c "strata-$TK-")" "0"
+N 1 ssh "sudo rbd snap purge rbd/tvm-disk0" >/dev/null 2>&1
+[ -n "${RBD_BACKUP_ONLY:-}" ] && { printf '\n%s passed, %s failed\n' "$PASSES" "$FAILS"; diag; cleanup_vms; [ "$FAILS" -eq 0 ]; exit; }
+fi
 
 section "Cluster-wide view and remote actions"
 check "cl2 sees the VM of cl1" "$(api 2 GET /api/vmcluster | py "print([(v['name'], v['state'], v['storage'], v['cpu']) for m in d['members'] if m['id']=='$M1' for v in m['inventory']['vms']])")" "('tvm', 'running', 'ceph', '$CPU')"

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -260,6 +261,13 @@ func (s *Server) fwEnv(ctx context.Context, c firewall.Config, resolve bool) fir
 	})
 	for _, v := range s.netConfigNow().Virtual {
 		env.Peers = append(env.Peers, v.Peers...)
+		if v.WG != nil {
+			for _, p := range v.WG.Peers { // the WireGuard ends of an encrypted network
+				if ap, err := netip.ParseAddrPort(p.Endpoint); err == nil {
+					env.Peers = append(env.Peers, ap.Addr().String())
+				}
+			}
+		}
 		if v.Isolate {
 			env.VNets = append(env.VNets, v.FW())
 		}

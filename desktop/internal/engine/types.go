@@ -36,6 +36,8 @@ type RemoteEntry struct {
 	Version string `json:"v,omitempty"`
 	Hash    string `json:"h,omitempty"`
 	ID      string `json:"i,omitempty"`
+	// E2E: a folder that is end-to-end encrypted (files on demand leaves it out).
+	E2E bool `json:"x,omitempty"`
 }
 
 // LocalEntry is a file or folder of the computer (MTime in nanoseconds).

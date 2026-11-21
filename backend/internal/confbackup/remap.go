@@ -81,6 +81,11 @@ func Remap(c *Config, m map[string]string) {
 	if c.ConfigBackup != nil {
 		mp(&c.ConfigBackup.Folder)
 	}
+	for i := range c.Datastores {
+		if c.Datastores[i].DestType == "local" {
+			mp(&c.Datastores[i].DestPath)
+		}
+	}
 	// App folders (DATA_DIR=/srv/strata/main/apps/…) follow their volume.
 	for i := range c.Stacks {
 		lines := strings.Split(c.Stacks[i].Env, "\n")

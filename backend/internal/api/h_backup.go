@@ -228,6 +228,7 @@ func (s *Server) backupRoutes() {
 				return nil, badRequest(err.Error())
 			}
 		}
+		var dropped []string // VMs no longer in the task
 		err := s.store.Update(func(st *store.State) error {
 			if req.DestType == "datastore" && st.Datastore(req.Datastore) == nil {
 				return badRequest("choose a backup repository")
@@ -245,11 +246,19 @@ func (s *Server) backupRoutes() {
 			req.ID, req.CreatedAt, req.History = x.ID, x.CreatedAt, x.History
 			// A two-way sync starts again with a merge when its folders change.
 			req.Synced = x.Synced && req.Kind == x.Kind && slices.Equal(req.Sources, x.Sources) && req.Host == x.Host && req.DestPath == x.DestPath
+			for _, v := range x.VMs {
+				if !slices.Contains(req.VMs, v) {
+					dropped = append(dropped, v)
+				}
+			}
 			*x = req
 			return nil
 		})
 		if err != nil {
 			return nil, err
+		}
+		if len(dropped) > 0 {
+			go backup.ForgetImageBases(req.ID, dropped)
 		}
 		s.audit(r, "backup", "Saved backup task "+req.Name)
 		return maskBackup(req), nil
@@ -260,12 +269,13 @@ func (s *Server) backupRoutes() {
 	s.admin("DELETE /api/backups/{id}", func(r *http.Request) (any, error) {
 		id := r.PathValue("id")
 		var name string
+		var guests []string
 		err := s.store.Update(func(st *store.State) error {
 			x := st.Backup(id)
 			if x == nil {
 				return notFound("backup not found")
 			}
-			name = x.Name
+			name, guests = x.Name, x.VMs
 			if x.Kind == "sync" {
 				backup.RemoveSync(id)
 			}
@@ -274,6 +284,8 @@ func (s *Server) backupRoutes() {
 			return nil
 		})
 		if err == nil {
+			// The checkpoints and RBD snapshots kept for its next incremental run.
+			go backup.ForgetImageBases(id, guests)
 			s.audit(r, "backup", "Deleted backup task "+name+" (backed-up data kept)")
 		}
 		return nil, err

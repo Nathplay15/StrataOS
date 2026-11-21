@@ -2,19 +2,26 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"strataos/internal/docker"
+	"strataos/internal/jobs"
+	"strataos/internal/lxc"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/tlstrust"
+	"strataos/internal/vms"
 )
 
 // routineTriggers are the "if" a routine can watch.
@@ -179,6 +186,92 @@ func (s *Server) routineWebhook(rt *store.Routine, a store.RoutineAction, detail
 	}
 }
 
+// routineActs are the actions that change the NAS (administrators only, like
+// the routines themselves); each runs as a job.
+var routineActs = map[string]bool{"snapshot": true, "backup": true, "vm": true, "lxc": true, "docker": true, "app-update": true}
+
+// routineUser is the account the jobs and the audit log name for a routine.
+func routineUser(rt *store.Routine) string { return "routine:" + rt.Name }
+
+// routineAct runs one action that changes the NAS. Its target is checked
+// again: it may have been deleted since the routine was saved.
+func (s *Server) routineAct(rt *store.Routine, a store.RoutineAction) error {
+	if err := s.validRoutineAction(a); err != nil {
+		return err
+	}
+	user := routineUser(rt)
+	var err error
+	switch a.Kind {
+	case "snapshot":
+		_, err = s.runSchedule(a.Target, user, true)
+	case "backup":
+		_, err = s.runBackup(a.Target, user, true)
+	case "vm":
+		op := map[string]string{"start": "start", "stop": "shutdown"}[a.Op]
+		s.jobs.Start("vm", routineJobTitle(a), user, func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Routine %s", rt.Name)
+			return vms.Action(a.Target, op)
+		})
+	case "lxc":
+		s.jobs.Start("lxc", routineJobTitle(a), user, func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Routine %s", rt.Name)
+			if a.Op == "start" {
+				return lxc.Start(ctx, a.Target)
+			}
+			return lxc.Stop(a.Target)
+		})
+	case "docker":
+		if err = s.requireDocker(); err != nil {
+			return err
+		}
+		s.jobs.Start("docker", routineJobTitle(a), user, func(ctx context.Context, j *jobs.Job) error {
+			j.Logf("Routine %s", rt.Name)
+			c, cancel := context.WithTimeout(ctx, 90*time.Second)
+			defer cancel()
+			return s.docker.Call(c, "POST", "/containers/"+url.PathEscape(a.Target)+"/"+a.Op, nil, nil, nil)
+		})
+	case "app-update":
+		if err = s.requireDocker(); err != nil {
+			return err
+		}
+		if !dockerUpdating.TryLock() {
+			return errors.New("another update of the apps is running")
+		}
+		s.jobs.Start("docker", routineJobTitle(a), user, func(ctx context.Context, j *jobs.Job) error {
+			defer dockerUpdating.Unlock()
+			j.Logf("Routine %s", rt.Name)
+			return s.updateStack(ctx, a.Target, j)
+		})
+	}
+	if err == nil {
+		s.store.Log("info", "routines", user, fmt.Sprintf("Routine %s: %s", rt.Name, routineJobTitle(a)))
+	}
+	return err
+}
+
+// routineJobTitle names the job of an action (server text, translated).
+func routineJobTitle(a store.RoutineAction) string {
+	switch a.Kind + ":" + a.Op {
+	case "vm:start":
+		return "Start VM " + a.Target
+	case "vm:stop":
+		return "Shut down VM " + a.Target
+	case "lxc:start", "docker:start":
+		return "Start container " + a.Target
+	case "lxc:stop", "docker:stop":
+		return "Stop container " + a.Target
+	}
+	switch a.Kind {
+	case "snapshot":
+		return "Snapshot task " + a.Target
+	case "backup":
+		return "Backup task " + a.Target
+	case "app-update":
+		return "Update " + a.Target
+	}
+	return a.Kind
+}
+
 // fireRoutine runs the actions of a routine (eval loop or manual test) and
 // records the run. rt is a copy (routineCopies): the webhook goroutines keep it.
 func (s *Server) fireRoutine(rt *store.Routine, detail string) {
@@ -188,9 +281,76 @@ func (s *Server) fireRoutine(rt *store.Routine, detail string) {
 			s.notify("warning", rt.Name, routineText(a.Message, rt, detail))
 		case "webhook":
 			s.bg.Go(func() { s.routineWebhook(rt, a, detail) })
+		default:
+			if routineActs[a.Kind] {
+				if err := s.routineAct(rt, a); err != nil {
+					s.store.Log("error", "routines", routineUser(rt), fmt.Sprintf("Routine %s: %s failed: %v", rt.Name, routineJobTitle(a), err))
+					s.notify("error", rt.Name, fmt.Sprintf("Routine %s: %s failed: %v", rt.Name, routineJobTitle(a), err))
+				}
+			}
 		}
 	}
 	s.store.Log("info", "routines", "", fmt.Sprintf("Routine %s: %s", rt.Name, detail))
+}
+
+// validRoutineAction checks an action that changes the NAS: its target
+// exists and its operation is allowed.
+func (s *Server) validRoutineAction(a store.RoutineAction) error {
+	switch a.Kind {
+	case "vm", "lxc", "docker":
+		if a.Op != "start" && a.Op != "stop" {
+			return badRequest("the action must start or stop")
+		}
+	default:
+		if a.Op != "" {
+			return badRequest("unknown action")
+		}
+	}
+	if a.Target == "" {
+		return badRequest("choose what the action works on")
+	}
+	var ok bool
+	switch a.Kind {
+	case "snapshot":
+		s.store.Read(func(st *store.State) {
+			x := st.Schedule(a.Target)
+			ok = x != nil && x.Type == "snapshot"
+		})
+		if !ok {
+			return badRequest("unknown snapshot task")
+		}
+	case "backup":
+		s.store.Read(func(st *store.State) { ok = st.Backup(a.Target) != nil })
+		if !ok {
+			return badRequest("unknown backup task")
+		}
+	case "vm":
+		if err := vms.ValidName(a.Target); err != nil {
+			return badRequest(err.Error())
+		}
+		if vm, err := vms.Get(a.Target); err != nil {
+			return badRequest("unknown virtual machine")
+		} else if vm.Template {
+			return badRequest("a template cannot be started")
+		}
+	case "lxc":
+		ok = slices.ContainsFunc(lxc.List(), func(c lxc.Container) bool { return c.Name == a.Target })
+		if !ok {
+			return badRequest("unknown container")
+		}
+	case "docker":
+		if !containerRefRe.MatchString(a.Target) {
+			return badRequest("invalid container")
+		}
+	case "app-update":
+		if docker.ValidStack(a.Target) != nil {
+			return badRequest("invalid stack name")
+		}
+		if _, err := os.Stat(filepath.Join(docker.StacksDir, a.Target)); err != nil {
+			return badRequest("unknown app")
+		}
+	}
+	return nil
 }
 
 // evalRoutinesState runs the enabled routines whose trigger is met and whose
@@ -266,7 +426,12 @@ func (s *Server) validRoutine(rt *store.Routine) error {
 				return badRequest("the webhook URL must be http(s)")
 			}
 		default:
-			return badRequest("unknown action")
+			if !routineActs[a.Kind] {
+				return badRequest("unknown action")
+			}
+			if err := s.validRoutineAction(a); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

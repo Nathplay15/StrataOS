@@ -30,8 +30,46 @@ function triggerLabel(rt: Routine): string {
   }
 }
 
+const kindLabel = (k: RoutineAction["kind"]) => ({
+  notify: tr("Notification"), webhook: tr("Webhook"), snapshot: tr("Take a snapshot"), backup: tr("Start a backup"),
+  vm: tr("Virtual machine"), lxc: tr("LXC container"), docker: tr("Docker container"), "app-update": tr("Update an app"),
+}[k]);
+
+function actionLabel(a: RoutineAction): string {
+  switch (a.kind) {
+    case "vm": return a.op === "stop" ? tr("Shut down VM {0}", a.target ?? "") : tr("Start VM {0}", a.target ?? "");
+    case "lxc": case "docker": return a.op === "stop" ? tr("Stop container {0}", a.target ?? "") : tr("Start container {0}", a.target ?? "");
+    case "app-update": return tr("Update {0}", a.target ?? "");
+    default: return kindLabel(a.kind);
+  }
+}
+
 function actionsSummary(actions: RoutineAction[]): string {
-  return actions.map((a) => (a.kind === "webhook" ? tr("Webhook") : tr("Notification"))).join(", ") || "—";
+  return actions.map(actionLabel).join(", ") || "—";
+}
+
+type Named = { id: string; name: string };
+
+/** The things NAS actions can work on, fetched when an action needs them. */
+function useActionTargets(kinds: RoutineAction["kind"][]) {
+  const need = (k: RoutineAction["kind"]) => kinds.includes(k);
+  const schedules = useQuery({ queryKey: ["schedules"], queryFn: () => api.get<{ id: string; name: string; type: string }[]>("/api/schedules"), enabled: need("snapshot") });
+  const backups = useQuery({ queryKey: ["backups"], queryFn: () => api.get<Named[]>("/api/backups"), enabled: need("backup") });
+  const vms = useQuery({ queryKey: ["vms"], queryFn: () => api.get<{ vms: { name: string; template?: boolean }[] }>("/api/vms"), enabled: need("vm") });
+  const lxcs = useQuery({ queryKey: ["lxc"], queryFn: () => api.get<{ containers: { name: string }[] }>("/api/lxc"), enabled: need("lxc") });
+  const docker = useQuery({ queryKey: ["docker-containers"], queryFn: () => api.get<{ Names: string[] }[]>("/api/docker/containers"), enabled: need("docker") });
+  const stacks = useQuery({ queryKey: ["docker-stacks"], queryFn: () => api.get<{ name: string }[]>("/api/docker/stacks"), enabled: need("app-update") });
+  return (k: RoutineAction["kind"]): Named[] => {
+    switch (k) {
+      case "snapshot": return (schedules.data ?? []).filter((x) => x.type === "snapshot").map((x) => ({ id: x.id, name: x.name }));
+      case "backup": return backups.data ?? [];
+      case "vm": return (vms.data?.vms ?? []).filter((v) => !v.template).map((v) => ({ id: v.name, name: v.name }));
+      case "lxc": return (lxcs.data?.containers ?? []).map((c) => ({ id: c.name, name: c.name }));
+      case "docker": return (docker.data ?? []).map((c) => (c.Names?.[0] ?? "").replace(/^\//, "")).filter(Boolean).map((n) => ({ id: n, name: n }));
+      case "app-update": return (stacks.data ?? []).map((x) => ({ id: x.name, name: x.name }));
+      default: return [];
+    }
+  };
 }
 
 const blank: Routine = { id: "", name: "", enabled: true, trigger: "volume-full", value: 90, target: "", actions: [{ kind: "notify", message: "" }], cooldown: 60 };
@@ -51,6 +89,7 @@ function RoutineModal({ initial, onClose }: { initial: Routine | null; onClose: 
   }, [rt.trigger, named]);
 
   const setAction = (i: number, k: Partial<RoutineAction>) => set({ actions: rt.actions.map((a, j) => (j === i ? { ...a, ...k } : a)) });
+  const targets = useActionTargets(rt.actions.map((a) => a.kind));
   const payload = { ...rt, cooldown: rt.cooldown ?? 60 };
   const save = useAction(() => (editing ? api.put(`/api/routines/${rt.id}`, payload) : api.post("/api/routines", payload)), { success: editing ? tr("Routine updated") : tr("Routine created"), onDone: onClose });
   const test = useAction(() => api.post(`/api/routines/${rt.id}/fire`), { success: tr("Test run: the actions were executed") });
@@ -60,7 +99,7 @@ function RoutineModal({ initial, onClose }: { initial: Routine | null; onClose: 
       {editing && <Button icon={<Play size={15} />} loading={test.isPending} onClick={() => test.mutate()}>{tr("Test now")}</Button>}
       <div className="flex-1" />
       <Button onClick={onClose}>{tr("Cancel")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!rt.name || !rt.actions.length} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!rt.name || !rt.actions.length || rt.actions.some((a) => a.kind !== "notify" && a.kind !== "webhook" && !a.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-3">
@@ -107,13 +146,39 @@ function RoutineModal({ initial, onClose }: { initial: Routine | null; onClose: 
           <div className="space-y-2">
             {rt.actions.map((a, i) => (
               <div key={i} className="flex flex-wrap items-end gap-2 rounded-xl border border-line p-3">
-                <Field label={tr("Action")} className="w-40">
-                  <Select value={a.kind} onChange={(e) => setAction(i, { kind: e.target.value as RoutineAction["kind"] })}>
-                    <option value="notify">{tr("Notification")}</option>
-                    <option value="webhook">{tr("Webhook")}</option>
+                <Field label={tr("Action")} className="w-48">
+                  <Select value={a.kind} onChange={(e) => {
+                    const kind = e.target.value as RoutineAction["kind"];
+                    setAction(i, { kind, target: "", op: kind === "vm" || kind === "lxc" || kind === "docker" ? "start" : undefined, message: kind === "notify" ? a.message : undefined, url: kind === "webhook" ? a.url : undefined });
+                  }}>
+                    <optgroup label={tr("Tell")}>
+                      <option value="notify">{tr("Notification")}</option>
+                      <option value="webhook">{tr("Webhook")}</option>
+                    </optgroup>
+                    <optgroup label={tr("Act")}>
+                      {(["snapshot", "backup", "vm", "lxc", "docker", "app-update"] as const).map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
+                    </optgroup>
                   </Select>
                 </Field>
-                {a.kind === "notify" ? (
+                {a.kind !== "notify" && a.kind !== "webhook" ? (
+                  <>
+                    <Field label={a.kind === "snapshot" ? tr("Snapshot task") : a.kind === "backup" ? tr("Backup task") : a.kind === "app-update" ? tr("App") : tr("Name")} className="min-w-[200px] flex-1"
+                      hint={a.kind === "snapshot" ? tr("Runs a scheduled snapshot task now (Scheduled tasks), with its retention") : a.kind === "app-update" ? tr("Pulls the new images of the app and restarts it") : undefined}>
+                      <Select value={a.target ?? ""} onChange={(e) => setAction(i, { target: e.target.value })}>
+                        <option value="">{tr("Choose…")}</option>
+                        {targets(a.kind).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                      </Select>
+                    </Field>
+                    {(a.kind === "vm" || a.kind === "lxc" || a.kind === "docker") && (
+                      <Field label={tr("Do")} className="w-36">
+                        <Select value={a.op ?? "start"} onChange={(e) => setAction(i, { op: e.target.value as "start" | "stop" })}>
+                          <option value="start">{tr("Start")}</option>
+                          <option value="stop">{a.kind === "vm" ? tr("Shut down") : tr("Stop")}</option>
+                        </Select>
+                      </Field>
+                    )}
+                  </>
+                ) : a.kind === "notify" ? (
                   <Field label={tr("Message")} className="min-w-[240px] flex-1" hint={tr("{detail} = what fired the rule; empty = default text")}>
                     <Input value={a.message ?? ""} onChange={(e) => setAction(i, { message: e.target.value })} placeholder="{name}: {detail}" />
                   </Field>
@@ -154,7 +219,7 @@ export default function Routines() {
       <ErrorBox error={error} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card>
-          <Empty icon={<Workflow />} title={tr("No routines")} text={tr("A routine watches a condition — a full volume, a failing disk, a failed backup — and reacts: notification, webhook. Example: \"if a volume is more than 85 % full, notify me\".")}
+          <Empty icon={<Workflow />} title={tr("No routines")} text={tr("A routine watches a condition — a full volume, a failing disk, a failed backup — and reacts: a notification, a webhook, or an action on the NAS (snapshot, backup, start or stop a VM or a container, update an app). Example: \"if a disk is getting weak, start the offsite backup\".")}
             action={<Button variant="primary" icon={<Plus size={15} />} onClick={() => setEdit(null)}>{tr("New routine")}</Button>} />
         </Card>
       ) : (
@@ -190,7 +255,7 @@ export default function Routines() {
           </div>
         </Card>
       )}
-      <p className="mt-4 text-[12px] text-muted">{tr("Routines are evaluated every minute. Webhook actions receive a JSON body with the fields title, message, host, routine and trigger.")}</p>
+      <p className="mt-4 text-[12px] text-muted">{tr("Routines are evaluated every minute. Webhook actions receive a JSON body with the fields title, message, host, routine and trigger. Actions on the NAS run as tasks, visible in the task list with their log.")}</p>
       {edit !== undefined && <RoutineModal initial={edit} onClose={() => setEdit(undefined)} />}
     </div>
   );

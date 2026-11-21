@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"strataos/internal/energy"
 	"strataos/internal/hardware"
 	"strataos/internal/storage"
 	"strataos/internal/store"
@@ -36,6 +37,11 @@ func (s *Server) fleetHealthHere(fresh bool) fleetHealth {
 		return fleetHere.h
 	}
 	h := fleetHealth{Version: s.version, UptimeDays: uptimeDays(), At: time.Now()}
+	for _, n := range s.energyConfig().WoL {
+		if mac := energy.PermanentMAC(n); mac != "" {
+			h.WoL = append(h.WoL, mac)
+		}
+	}
 	h.Hostname, _ = hostname()
 	u := s.updateInfo(false)
 	h.Updates = &u
@@ -176,6 +182,8 @@ type fleetHealthRow struct {
 	Checked time.Time     `json:"checked"`           // last attempt
 	Seen    time.Time     `json:"seen,omitzero"`     // last answer
 	Pending bool          `json:"pending,omitempty"` // not asked yet
+	// Wakeable: its Wake-on-LAN addresses are known.
+	Wakeable bool `json:"wakeable,omitempty"`
 }
 
 var fleetDash struct {
@@ -243,7 +251,7 @@ func (s *Server) fleetHealthRefresh(ctx context.Context, fresh bool) {
 			defer wg.Done()
 			c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			row := fleetHealthRow{ID: m.ID, Name: m.Name, Host: m.Host, Checked: time.Now()}
+			row := fleetHealthRow{ID: m.ID, Name: m.Name, Host: m.Host, Checked: time.Now(), Wakeable: len(m.MACs) > 0}
 			h, err := fleetHealthOf(c, m, fresh)
 			if err != nil {
 				var pe *peerError
@@ -257,7 +265,17 @@ func (s *Server) fleetHealthRefresh(ctx context.Context, fresh bool) {
 					row.Health, row.Seen = p.Health, p.Seen
 				}
 			} else {
-				row.Online, row.Health, row.Seen = true, h, time.Now()
+				row.Online, row.Health, row.Seen, row.Wakeable = true, h, time.Now(), len(h.WoL) > 0
+				if !slices.Equal(h.WoL, m.MACs) {
+					_ = s.store.Update(func(st *store.State) error {
+						for i := range st.Fleet.Members {
+							if st.Fleet.Members[i].ID == m.ID {
+								st.Fleet.Members[i].MACs = h.WoL
+							}
+						}
+						return nil
+					})
+				}
 				if h.Hostname != "" {
 					row.Name = h.Hostname
 				}
@@ -361,6 +379,32 @@ func (s *Server) fleetHealthRoutes() {
 		}
 		return s.fleetDashboardView(false), nil
 	})
+	// Wakes a NAS of the fleet that is off, with the addresses it reported
+	// while it was on (the console must be on the same local network).
+	s.admin("POST /api/fleet/{id}/wake", func(r *http.Request) (any, error) {
+		var m store.FleetMember
+		s.store.Read(func(st *store.State) {
+			for _, x := range st.Fleet.Members {
+				if x.ID == r.PathValue("id") {
+					m = x
+				}
+			}
+		})
+		if m.ID == "" {
+			return nil, notFound("unknown NAS")
+		}
+		if len(m.MACs) == 0 {
+			return nil, badRequest("this NAS has not reported a network card with Wake-on-LAN on: turn it on in its Power page while it is running")
+		}
+		for _, mac := range m.MACs {
+			if err := energy.Wake(mac); err != nil {
+				return nil, badRequest(err.Error())
+			}
+		}
+		s.audit(r, "fleet", "Wake-on-LAN packet sent to "+m.Name)
+		return map[string]any{"macs": m.MACs}, nil
+	})
+
 	s.admin("POST /api/fleet/health/refresh", func(r *http.Request) (any, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()

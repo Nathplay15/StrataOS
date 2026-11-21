@@ -416,7 +416,7 @@ func Undefine(name string) error {
 	if st, _ := virsh("domstate", name); strings.TrimSpace(st) != "shut off" {
 		_, _ = virsh("destroy", name)
 	}
-	if _, err := virsh("undefine", name, "--keep-nvram", "--snapshots-metadata"); err != nil {
+	if _, err := virsh("undefine", name, "--keep-nvram", "--snapshots-metadata", "--checkpoints-metadata"); err != nil {
 		if _, err2 := virsh("undefine", name); err2 != nil {
 			return err
 		}
@@ -610,6 +610,9 @@ func Migrate(ctx context.Context, name string, o MigrateOpts, setProgress func(f
 	if err := os.WriteFile(pf, []byte(o.Persistent), 0o600); err != nil {
 		return err
 	}
+	// Backup checkpoints do not follow the VM (libvirt refuses to migrate
+	// them): the next image backup on the target reads the disks in full.
+	DropCheckpoints(name, "strata-", "")
 	args := []string{"--connect", "qemu:///system", "migrate", "--live", "--p2p", "--tls", "--persistent", "--undefinesource", "--verbose", "--auto-converge",
 		"--xml", xf, "--persistent-xml", pf, "--migrateuri", "tcp://" + host, "--tls-destination", ip.String()}
 	if o.CopyStorage {

@@ -21,6 +21,7 @@ import (
 	"strataos/internal/health"
 	"strataos/internal/jobs"
 	"strataos/internal/network"
+	"strataos/internal/sso"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 	"strataos/internal/system"
@@ -71,6 +72,8 @@ type Server struct {
 	// mcpConf holds the write requests of MCP clients waiting for a
 	// person's approval (h_mcp.go).
 	mcpConf mcpConfirmations
+	// sso: the OpenID provider of the apps (sso.go).
+	sso *sso.Provider
 }
 
 type Config struct {
@@ -134,6 +137,7 @@ func New(c Config) *Server {
 	go s.photoLoop()
 	go s.fulltextLoop()
 	go s.certLoop()
+	go s.smartLoop()
 	go s.shareQuotaLoop()
 	go s.energyLoop()
 	go s.versionLinksLoop()
@@ -156,6 +160,7 @@ func New(c Config) *Server {
 	go s.vmcLoop()
 	go s.dockerUpdatesLoop() // Android app v2 (part A): container updates
 	go s.replaceResume()
+	go s.sysDiskResume()
 	go s.fwLoop()
 	return s
 }
@@ -282,6 +287,7 @@ func (s *Server) routes() {
 	s.bridgeRoutes()
 	s.firewallRoutes()
 	s.vnetRoutes()
+	s.vnetShareRoutes()
 	s.wallpaperRoutes()
 	s.shareRoutes()
 	s.dockerRoutes()
@@ -320,6 +326,7 @@ func (s *Server) routes() {
 	s.vpnRoutes()
 	s.photoRoutes()
 	s.restoreRoutes()
+	s.distUpgradeRoutes()
 	s.dataProtectRoutes()
 	s.updateRoutes()
 	s.reportRoutes()
@@ -327,6 +334,7 @@ func (s *Server) routes() {
 	s.trendsRoutes()
 	s.linkRoutes()
 	s.albumRoutes()
+	s.smartRoutes()
 	s.energyRoutes()
 	s.versionRoutes()
 	s.snapshotRoutes()
@@ -343,8 +351,10 @@ func (s *Server) routes() {
 	s.configRoutes()
 	s.storageToolsRoutes()
 	s.replaceRoutes()
+	s.sysDiskRoutes()
 	s.uninstallRoutes()
 	s.hardwareRoutes()
+	s.gpuRoutes()
 	s.mediaRoutes()
 	s.nvrRoutes()
 	s.consoleRoutes()
@@ -365,6 +375,7 @@ func (s *Server) routes() {
 	s.clusterRoutes()
 	s.cephRoutes()
 	s.vmClusterRoutes()
+	s.ssoRoutes()
 	s.mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, notFound("unknown endpoint"))
 	}))

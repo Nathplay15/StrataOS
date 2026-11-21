@@ -561,13 +561,22 @@ func write(c Config, mgr string) error {
 		return err
 	}
 	old, _ := filepath.Glob(filepath.Join(NetworkdDir, filePrefix+"*"))
+	before := map[string]string{}
 	for _, f := range old {
+		if b, err := os.ReadFile(f); err == nil {
+			before[filepath.Base(f)] = string(b)
+		}
 		_ = os.Remove(f)
 	}
-	for name, content := range Render(c) {
+	files := Render(c)
+	for name, content := range files {
 		if err := sys.WriteFileAtomic(filepath.Join(NetworkdDir, name), []byte(content), 0o644); err != nil {
 			return err
 		}
+	}
+	// Changed tunnels are created again at the reload (see changedTunnels).
+	for _, l := range changedTunnels(before, files) {
+		_, _ = sys.Run("ip", "link", "delete", l)
 	}
 	if mgr == "ifupdown" {
 		if err := releaseFromIfupdown(links(c)); err != nil {

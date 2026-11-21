@@ -3,10 +3,8 @@ package api
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -41,27 +39,10 @@ func TestFsIdentities(t *testing.T) {
 	}
 }
 
-func TestDuArgs(t *testing.T) {
-	all := []string{"/srv/strata/v/A", "/srv/strata/v/A/B", "/srv/strata/v/AB", "/srv/strata/v/A/[x]*"}
-	nested := nestedShares("/srv/strata/v/A", all)
-	if !slices.Equal(nested, []string{"/srv/strata/v/A/B", "/srv/strata/v/A/[x]*"}) {
-		t.Fatalf("nested: %v", nested)
-	}
-	got := strings.Join(duArgs("/srv/strata/v/A", nested), " ")
-	want := `-n 19 ionice -c3 du -sbx --exclude=.recycle --exclude=.snapshots --exclude=/srv/strata/v/A/B --exclude=/srv/strata/v/A/\[x\]\* -- /srv/strata/v/A`
-	if got != want {
-		t.Fatalf("du args:\n%s\nwant\n%s", got, want)
-	}
-}
-
-// One measurement: the shares (with du, nested shares, bins and snapshots
-// left out), every account, and the histories of what is gone forgotten.
+// One measurement: the shares (nested shares, bins and snapshots left out,
+// a file hard-linked into two shares counted once), every account, and the
+// histories of what is gone forgotten.
 func TestMeasureShareUsage(t *testing.T) {
-	for _, c := range []string{"du", "nice", "ionice"} {
-		if _, err := exec.LookPath(c); err != nil {
-			t.Skip(c + " missing")
-		}
-	}
 	s := newTestServer(t)
 	s.hist = health.NewStore(t.TempDir())
 	dir := t.TempDir()
@@ -78,8 +59,16 @@ func TestMeasureShareUsage(t *testing.T) {
 	if err := os.Link(filepath.Join(a, "one"), filepath.Join(a, "one-again")); err != nil {
 		t.Fatal(err)
 	}
+	// The same file in a third share: counted in A only.
+	c := filepath.Join(dir, "C")
+	if err := os.MkdirAll(c, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(filepath.Join(a, "one"), filepath.Join(c, "one-shared")); err != nil {
+		t.Fatal(err)
+	}
 	_ = s.store.Update(func(st *store.State) error {
-		st.Shares = append(st.Shares, &store.Share{Name: "A", Path: a}, &store.Share{Name: "B", Path: b})
+		st.Shares = append(st.Shares, &store.Share{Name: "A", Path: a}, &store.Share{Name: "B", Path: b}, &store.Share{Name: "C", Path: c})
 		st.Users = append(st.Users, &store.User{Username: "alice"})
 		return nil
 	})
@@ -92,7 +81,10 @@ func TestMeasureShareUsage(t *testing.T) {
 		}
 		return pts[len(pts)-1].Used
 	}
-	// du counts the folders too: compare with a margin of a few blocks.
+	if uc := used("share:" + c); uc < 0 || uc > 2*4096 {
+		t.Errorf("C: %d (its file is a hard link of A's: counted in A)", uc)
+	}
+	// The folders count too: compare with a margin of a few blocks.
 	if ua := used("share:" + a); ua < 1000 || ua > 1000+2*4096 {
 		t.Errorf("A: %d (hard link once, B, .recycle and .snapshots left out)", ua)
 	}

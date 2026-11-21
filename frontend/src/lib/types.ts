@@ -34,6 +34,8 @@ export interface Job {
   started: string;
   finished?: string;
   log?: string;
+  /** The lines of the log written by the server as a key and its arguments, to translate (lib/i18n.ts jobLog). */
+  logKeys?: { line: number; lines?: number; key: string; args?: string[] }[];
   /** Whether an administrator may stop it now; cancelReason says why not. */
   cancellable?: boolean;
   cancelReason?: string;
@@ -63,6 +65,8 @@ export interface BlockDevice {
   /** What uses the disk right now (not a leftover signature): mounted | swap | raid | lvm | zfs | holder. */
   activeUse?: string;
   activeBy?: string;
+  /** A data partition of a disk that also holds the system: that disk. */
+  dataOf?: string;
 }
 
 export interface Disk extends BlockDevice {
@@ -504,9 +508,13 @@ export interface ScheduleTarget {
 }
 
 export interface RoutineAction {
-  kind: "notify" | "webhook";
+  kind: "notify" | "webhook" | "snapshot" | "backup" | "vm" | "lxc" | "docker" | "app-update";
   message?: string;
   url?: string;
+  /** What a NAS action works on: snapshot or backup task ID, VM, container or app name. */
+  target?: string;
+  /** vm, lxc, docker: start or stop. */
+  op?: "start" | "stop";
 }
 
 export interface Routine {

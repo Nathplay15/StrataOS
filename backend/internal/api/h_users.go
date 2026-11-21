@@ -234,6 +234,9 @@ func (s *Server) userRoutes() {
 		s.sessions.dropUser(name)
 		go s.vpnUserGone(name)
 		_ = os.Remove(s.wallpaperPath(name))
+		if db, err := s.smartDB(); err == nil {
+			_ = db.ForgetOwner(name) // their people and names
+		}
 		if source != "" {
 			// Only the StrataOS profile goes away; the directory account stays.
 			s.audit(r, "users", "Removed directory user "+name)

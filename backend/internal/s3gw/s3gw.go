@@ -184,7 +184,7 @@ func UnitFile(o Options) string {
 	if o.Domain != "" {
 		args = append(args, "--virtual-domain", o.Domain)
 	}
-	args = append(args, "posix", "--bucketlinks", "--chuid", "--chgid", "--sidecar", MetaDir, BucketsDir)
+	args = append(args, "posix", "--bucketlinks", "--chuid", "--chgid", "--sidecar", MetaDir, "--versioning-dir", VersionsDir, BucketsDir)
 	return fmt.Sprintf(`# Managed by StrataOS: built-in S3 service
 # Certificate: %s
 [Unit]

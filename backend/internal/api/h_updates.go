@@ -37,6 +37,10 @@ const (
 // the automatic update only simulates. Used by the end-to-end test.
 var autoTestHook = "/run/strata/auto-update-test"
 
+// distWindowTestHook: when this file exists (root only), the maintenance
+// window of a planned system upgrade opens now (end-to-end test).
+var distWindowTestHook = "/run/strata/dist-window-test"
+
 func autoDays(c store.AutoUpdates, d time.Weekday) bool {
 	return len(c.Days) == 0 || slices.Contains(c.Days, int(d))
 }
@@ -167,6 +171,19 @@ func (s *Server) autoUpdateLoop() {
 	for {
 		c := s.autoConfig()
 		now := time.Now()
+		// A system upgrade planned for the maintenance window goes first.
+		var planned bool
+		s.store.Read(func(st *store.State) { planned = st.DistUpgrade.Scheduled != nil })
+		if planned {
+			_, inWindow := autoWindow(c, now)
+			_, hookErr := os.Stat(distWindowTestHook)
+			if (inWindow || hookErr == nil) && s.maintenanceBusy() == "" {
+				_ = os.Remove(distWindowTestHook)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+				s.distWindowStart(ctx)
+				cancel()
+			}
+		}
 		if _, err := os.Stat(autoTestHook); err == nil {
 			_ = os.Remove(autoTestHook)
 			s.autoUpdateStart(c, now.Truncate(time.Minute), true)

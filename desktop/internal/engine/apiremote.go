@@ -16,7 +16,7 @@ import (
 type APIRemote struct{ C *api.Client }
 
 func fromAPI(e api.Entry) RemoteEntry {
-	return RemoteEntry{Path: e.Path, Dir: e.Dir, Size: e.Size, MTime: e.MTime, Version: e.Version, Hash: e.Hash, ID: e.ID}
+	return RemoteEntry{Path: e.Path, Dir: e.Dir, Size: e.Size, MTime: e.MTime, Version: e.Version, Hash: e.Hash, ID: e.ID, E2E: e.E2E}
 }
 
 // mapErr turns API errors into the engine's.
@@ -69,6 +69,11 @@ func (a APIRemote) Hashes(ctx context.Context, folder string, paths []string) (m
 func (a APIRemote) Download(ctx context.Context, folder, rel, version string, offset int64, w io.Writer) (string, int64, error) {
 	v, n, err := a.C.Download(ctx, folder, rel, version, offset, w)
 	return v, n, mapErr(err, rel)
+}
+
+// DownloadRange writes the bytes [off, off+n) of the file (files on demand).
+func (a APIRemote) DownloadRange(ctx context.Context, folder, rel, version string, off, n int64, w io.Writer) error {
+	return mapErr(a.C.DownloadRange(ctx, folder, rel, version, off, n, w), rel)
 }
 
 func (a APIRemote) Upload(ctx context.Context, folder string, u UploadReq) (RemoteEntry, error) {

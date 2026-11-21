@@ -51,4 +51,8 @@ type AppDomain struct {
 	Created    time.Time `json:"created"`
 	CertError  string    `json:"certError,omitempty"`
 	CertTried  time.Time `json:"certTried,omitzero"`
+	// SSO: the proxy asks for a NAS sign-in before forwarding (forward
+	// authentication, api/sso_forward.go; the access rules are those of the
+	// SSOClient whose Domain is this ID).
+	SSO bool `json:"sso,omitempty"`
 }

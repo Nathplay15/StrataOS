@@ -79,9 +79,31 @@ func firstLine(s string) string {
 type Player struct {
 	transcodes chan struct{} // re-encoding slots (CPU/GPU heavy)
 	remuxes    chan struct{} // stream copy slots (disk bound)
-	hwOnce     sync.Once
-	hw         HW
-	hwBroken   atomic.Bool // VAAPI failed once: software from now on
+
+	mu     sync.Mutex
+	detect func() HW // the daemon's choice of GPU (nil: probe renderD128)
+	hwSet  bool
+	hw     HW
+	st     HWStatus
+	// OnFallback is told when a GPU conversion failed and the CPU took
+	// over; disabled when the GPU is off until Configure is called again.
+	OnFallback func(reason string, disabled bool)
+	// exec runs ffmpeg (tests replace it).
+	exec func(ctx context.Context, f *os.File, args []string, out io.Writer) error
+}
+
+// HWStatus says how videos were converted since the daemon started.
+type HWStatus struct {
+	Encoder string `json:"encoder"` // vaapi, nvenc, "" (CPU)
+	Device  string `json:"device,omitempty"`
+	// Disabled: the GPU failed in a way that will not get better by itself
+	// (driver, device, permissions): the CPU converts until Configure.
+	Disabled   bool      `json:"disabled,omitempty"`
+	GPUStreams int       `json:"gpuStreams"`
+	CPUStreams int       `json:"cpuStreams"`
+	Fallbacks  int       `json:"fallbacks"`
+	LastReason string    `json:"lastReason,omitempty"`
+	LastAt     time.Time `json:"lastAt,omitzero"`
 }
 
 // NewPlayer allows maxTranscodes re-encodings and 3× as many stream copies.
@@ -95,22 +117,100 @@ func NewPlayer(maxTranscodes int) *Player {
 // Default is the player shared by the file manager and the recordings.
 var Default = NewPlayer(2)
 
-// HW returns the hardware encoder found on this machine (detected once).
+// Configure sets how the GPU is chosen (called again after a change of
+// settings or drivers): the choice is made again on the next conversion
+// and a GPU turned off by a failure is tried again.
+func (p *Player) Configure(detect func() HW) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.detect, p.hwSet, p.st.Disabled = detect, false, false
+}
+
+// HW returns the hardware encoder in use (detected once).
 func (p *Player) HW() HW {
-	p.hwOnce.Do(func() {
-		dev := "/dev/dri/renderD128"
-		if _, err := os.Stat(dev); err != nil {
-			return
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.hwSet {
+		p.hwSet = true
+		if p.detect != nil {
+			p.hw = p.detect()
+		} else {
+			p.hw = probeVAAPI()
 		}
-		out, err := sys.Run("ffmpeg", "-hide_banner", "-encoders")
-		if err == nil && strings.Contains(out, "h264_vaapi") {
-			p.hw = HW{VAAPI: true, Device: dev}
-		}
-	})
-	if p.hwBroken.Load() {
+	}
+	if p.st.Disabled {
 		return HW{}
 	}
 	return p.hw
+}
+
+// Status reports the encoder chosen and the fallbacks to the CPU.
+func (p *Player) Status() HWStatus {
+	hw := p.HW()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	st := p.st
+	st.Encoder, st.Device = hw.Encoder(), hw.Device
+	if p.st.Disabled {
+		st.Encoder, st.Device = p.hw.Encoder(), p.hw.Device
+	}
+	return st
+}
+
+// probeVAAPI is the detection without the daemon: the first render node
+// when ffmpeg has the VA-API encoder.
+func probeVAAPI() HW {
+	dev := "/dev/dri/renderD128"
+	if _, err := os.Stat(dev); err != nil {
+		return HW{}
+	}
+	out, err := sys.Run("ffmpeg", "-hide_banner", "-encoders")
+	if err == nil && strings.Contains(out, "h264_vaapi") {
+		return HW{VAAPI: true, Device: dev}
+	}
+	return HW{}
+}
+
+// DeviceFailure tells whether ffmpeg's error means the GPU cannot work at
+// all (no driver, no device, no access) rather than refusing one file.
+func DeviceFailure(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, s := range []string{"failed to initialise vaapi", "no va display", "device creation failed", "vainitialize failed",
+		"failed to open the drm device", "permission denied", "cannot load libcuda", "cannot load libnvidia-encode",
+		"no capable devices found", "driver does not support the required nvenc api", "openencodesessionex failed", "unknown encoder"} {
+		if strings.Contains(m, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// fellBack records a GPU conversion that failed.
+func (p *Player) fellBack(reason string) {
+	p.mu.Lock()
+	p.st.Fallbacks++
+	p.st.LastReason, p.st.LastAt = reason, time.Now()
+	off := DeviceFailure(reason) && !p.st.Disabled
+	if off {
+		p.st.Disabled = true
+	}
+	first := p.st.Fallbacks == 1
+	cb := p.OnFallback
+	p.mu.Unlock()
+	slog.Warn("GPU video conversion failed, using the CPU", "err", reason, "gpuOff", off)
+	if cb != nil && (first || off) {
+		cb(reason, off)
+	}
+}
+
+func (p *Player) counted(gpu bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if gpu {
+		p.st.GPUStreams++
+	} else {
+		p.st.CPUStreams++
+	}
 }
 
 // countingWriter remembers whether anything reached the client.
@@ -151,12 +251,19 @@ func (p *Player) Stream(w http.ResponseWriter, r *http.Request, f *os.File, plan
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	cw := &countingWriter{w: w}
 	hw := p.HW()
+	gpu := hw.On() && !plan.CopyVideo && !plan.AudioOnly
+	if plan.Mode == Transcode {
+		p.counted(gpu)
+	}
 	err := p.run(r.Context(), f, Args(plan, start, hw), cw)
-	if err != nil && hw.VAAPI && cw.n.Load() == 0 && r.Context().Err() == nil && !plan.CopyVideo && !plan.AudioOnly {
-		// The GPU refused this file (or the driver is missing): software from now on.
-		slog.Warn("VAAPI transcoding failed, using the CPU", "err", err)
-		p.hwBroken.Store(true)
-		err = p.run(r.Context(), f, Args(plan, start, HW{}), cw)
+	if err != nil && gpu && r.Context().Err() == nil {
+		// The GPU refused this file, or cannot work at all (then it stays
+		// off): the CPU converts it, when nothing reached the client yet.
+		p.fellBack(err.Error())
+		if cw.n.Load() == 0 {
+			p.counted(false)
+			err = p.run(r.Context(), f, Args(plan, start, HW{}), cw)
+		}
 	}
 	if err != nil && r.Context().Err() != nil {
 		return nil // the player moved on (seek, closed tab)
@@ -169,6 +276,9 @@ func (p *Player) Stream(w http.ResponseWriter, r *http.Request, f *os.File, plan
 }
 
 func (p *Player) run(ctx context.Context, f *os.File, args []string, out io.Writer) error {
+	if p.exec != nil {
+		return p.exec(ctx, f, args, out)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 6*time.Hour)
 	defer cancel()
 	cmd, err := command(ctx, f, "ffmpeg", args...)
@@ -335,3 +445,6 @@ func ServePath(w http.ResponseWriter, r *http.Request, path string) error {
 	defer f.Close()
 	return ServeFile(w, r, f, path)
 }
+
+// Active is the number of videos being converted or remuxed now.
+func (p *Player) Active() int { return len(p.transcodes) + len(p.remuxes) }

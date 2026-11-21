@@ -6,8 +6,8 @@ Section: admin
 Priority: optional
 Homepage: https://github.com/strataos/strataos
 Depends: mdadm, lvm2, btrfs-progs, xfsprogs, e2fsprogs, smartmontools, samba, nfs-kernel-server, acl, parted, gdisk, util-linux, udev, procps, ca-certificates, rsync, openssh-client, quota, hdparm, ethtool, gocryptfs, nftables, dpkg-repack
-Recommends: sshpass, docker.io | docker-ce, docker-compose | docker-compose-plugin, avahi-daemon, wsdd2 | wsdd-server, restic, openssh-server, nut-client, nut-server, rclone, cifs-utils, 7zip, zstd, xz-utils
-Suggests: zfsutils-linux
+Recommends: sshpass, dosfstools, efibootmgr, docker.io | docker-ce, docker-compose | docker-compose-plugin, avahi-daemon, wsdd2 | wsdd-server, restic, openssh-server, nut-client, nut-server, rclone, cifs-utils, 7zip, zstd, xz-utils
+Suggests: zfsutils-linux, vainfo, intel-media-va-driver-non-free | intel-media-va-driver, i965-va-driver, mesa-va-drivers
 Installed-Size: @SIZE@
 Description: StrataOS - complete NAS operating system on top of Debian
  StrataOS turns a plain Debian 13 installation into a full featured NAS:

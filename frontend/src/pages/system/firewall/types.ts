@@ -27,12 +27,14 @@ export type VNet = {
   parent?: string; vlan?: number; vni?: number; peers?: string[]; local?: string; mtu?: number;
   address?: string; subnet?: string; gateway?: string; dhcp?: boolean; dns?: string[];
   isolate?: boolean; nasPorts?: string; logDrops?: boolean; docker?: boolean;
+  members?: string[]; origin?: string; originKey?: string; encrypt?: boolean; wg?: unknown;
 };
 export type VNetView = VNet & {
   status: { exists: boolean; up: boolean; mtu?: number; addresses: string[]; docker: boolean };
   guests: { kind: GuestKind; name: string; state: string }[];
+  shared?: { member: string; name: string; ok: boolean; error?: string; at: string }[];
 };
 export type VNetData = {
-  networks: VNetView[]; parents: string[] | null; peers: { name: string; addr: string; from: string }[]; dns: string[];
+  networks: VNetView[]; parents: string[] | null; peers: { name: string; addr: string; from: string; key: string }[]; dns: string[];
   pending: boolean; manager: string; docker: boolean; nextBridge: string; addresses: string[] | null;
 };

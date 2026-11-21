@@ -35,9 +35,20 @@ pub fn new_token() -> String {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Action {
-    ShareLink { path: String },
-    OpenOnNas { path: String },
-    DeepLink { url: String },
+    ShareLink {
+        path: String,
+    },
+    OpenOnNas {
+        path: String,
+    },
+    /// Files on demand (Linux menus): keep on this device / free up space.
+    Pin {
+        path: String,
+        pinned: bool,
+    },
+    DeepLink {
+        url: String,
+    },
 }
 
 /// Reads the actions of a command line (the program name first).
@@ -58,11 +69,43 @@ pub fn actions_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<Action>
                     });
                 }
             }
-            _ if a.starts_with("strataos://") => out.push(Action::DeepLink { url: a }),
+            "--keep-here" | "--free-up" => {
+                if let Some(p) = it.next().filter(|p| !p.is_empty()) {
+                    out.push(Action::Pin {
+                        path: p,
+                        pinned: a == "--keep-here",
+                    });
+                }
+            }
+            _ if a.starts_with("strataos://") => out.push(action_from_url(&a)),
             _ => {}
         }
     }
     out
+}
+
+/// Reads a strataos:// link: the Finder menu (macOS Finder Sync extension)
+/// opens strataos://share-link?path=… and strataos://open-on-nas?path=…;
+/// any other link goes to the window as it is (pairing links).
+pub fn action_from_url(u: &str) -> Action {
+    if let Ok(url) = url::Url::parse(u) {
+        let kind = url.host_str().unwrap_or_default();
+        if kind == "share-link" || kind == "open-on-nas" {
+            let path = url
+                .query_pairs()
+                .find(|(k, _)| k == "path")
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default();
+            if !path.is_empty() {
+                return if kind == "share-link" {
+                    Action::ShareLink { path }
+                } else {
+                    Action::OpenOnNas { path }
+                };
+            }
+        }
+    }
+    Action::DeepLink { url: u.to_string() }
 }
 
 /// Whether the app was started at login (hidden window).
@@ -166,6 +209,29 @@ mod tests {
     }
 
     #[test]
+    fn finder_links() {
+        assert_eq!(
+            action_from_url("strataos://share-link?path=/Users/a/Sync/r%26d%2B1%20x.pdf"),
+            Action::ShareLink {
+                path: "/Users/a/Sync/r&d+1 x.pdf".into()
+            }
+        );
+        assert_eq!(
+            action_from_url("strataos://open-on-nas?path=/Users/a/Sync"),
+            Action::OpenOnNas {
+                path: "/Users/a/Sync".into()
+            }
+        );
+        for u in [
+            "strataos://share-link",
+            "strataos://share-link?path=",
+            "strataos://pair?code=1",
+        ] {
+            assert_eq!(action_from_url(u), Action::DeepLink { url: u.into() });
+        }
+    }
+
+    #[test]
     fn json_of_actions() {
         let v = serde_json::to_string(&Action::OpenOnNas { path: "/a".into() }).unwrap();
         assert_eq!(v, "{\"kind\":\"openOnNas\",\"path\":\"/a\"}");
@@ -189,5 +255,29 @@ mod tests {
         assert_eq!(tray_icon_name("syncing"), "syncing");
         assert_eq!(tray_icon_name("whatever"), "idle");
         assert_eq!(semver_of("0.11.0~beta.1\n"), "0.11.0-beta.1");
+    }
+
+    #[test]
+    fn pin_actions() {
+        assert_eq!(
+            actions_from_args(args(&[
+                "app",
+                "--keep-here",
+                "/h/S/a",
+                "--free-up",
+                "/h/S/b",
+                "--free-up"
+            ])),
+            vec![
+                Action::Pin {
+                    path: "/h/S/a".into(),
+                    pinned: true
+                },
+                Action::Pin {
+                    path: "/h/S/b".into(),
+                    pinned: false
+                },
+            ]
+        );
     }
 }
