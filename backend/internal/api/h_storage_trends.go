@@ -2,8 +2,9 @@ package api
 
 // Granular storage trends (admin): the space used per share and per account,
 // its growth, and how long each volume still has before it fills up. Once a
-// day the shares are measured with du (one file system, low priority, like
-// the share quotas) and the accounts read from the user quotas; both go in
+// day the shares of each file system are measured together (one walk at low
+// priority, each file once: a file hard-linked into several shares counts
+// in one of them) and the accounts read from the user quotas; both go in
 // the same history as the volumes (keys "share:<path>" and "user:<name>"),
 // so the trends, the projections and the retention come for free.
 
@@ -11,19 +12,18 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"strataos/internal/health"
 	"strataos/internal/storage"
+	"strataos/internal/storagetools"
 	"strataos/internal/store"
 	"strataos/internal/sys"
 )
@@ -84,19 +84,37 @@ func (s *Server) measureShareUsage(ctx context.Context, asleep map[string]bool) 
 		}
 	})
 	usage := map[string]health.VolumePoint{}
+	// The shares of one file system are walked together: a hard link
+	// between two shares is one file.
+	byFS := map[string][]string{}
+	var order []string
 	for _, p := range paths {
+		fsID := fileSystemOf(p)
+		if len(asleep) > 0 && asleep[fsID] {
+			continue // measured another day rather than waking the disks
+		}
+		key := fsID
+		if key == "" {
+			key = "path:" + p // unknown: on its own
+		}
+		if _, ok := byFS[key]; !ok {
+			order = append(order, key)
+		}
+		byFS[key] = append(byFS[key], p)
+	}
+	for _, key := range order {
 		if ctx.Err() != nil {
 			break
 		}
-		if len(asleep) > 0 && asleep[fileSystemOf(p)] {
-			continue // measured another day rather than waking the disks
-		}
-		used, err := shareDu(ctx, p, nestedShares(p, paths))
+		c, cancel := context.WithTimeout(ctx, shareUsageDuMax*time.Duration(len(byFS[key])))
+		got, err := storagetools.MeasureShares(c, byFS[key])
+		cancel()
 		if err != nil {
-			slog.Warn("storage trends", "share", p, "err", err)
-			continue
+			slog.Warn("storage trends", "shares", byFS[key], "err", err)
 		}
-		usage["share:"+p] = health.VolumePoint{Used: used}
+		for p, used := range got {
+			usage["share:"+p] = health.VolumePoint{Used: used}
+		}
 	}
 	// Accounts: what the user quotas already count, on every volume where
 	// they are on. A volume asleep would make a sum too small: skipped then.
@@ -132,55 +150,6 @@ func (s *Server) measureShareUsage(ctx context.Context, asleep map[string]bool) 
 	s.hist.Forget(func(key string) bool {
 		return (strings.HasPrefix(key, "share:") || strings.HasPrefix(key, "user:")) && !keep[key]
 	})
-}
-
-// nestedShares are the other shares inside p: measured on their own, not
-// counted in p as well.
-func nestedShares(p string, all []string) []string {
-	var out []string
-	for _, q := range all {
-		if strings.HasPrefix(q, p+"/") {
-			out = append(out, q)
-		}
-	}
-	return out
-}
-
-// duArgs measures one share: one file system (-x: no mount, no Btrfs
-// sub-volume or snapshot below it), hard links once, without the recycle
-// bins, the snapshots and the nested shares.
-func duArgs(p string, nested []string) []string {
-	args := []string{"-n", "19", "ionice", "-c3", "du", "-sbx", "--exclude=.recycle", "--exclude=.snapshots"}
-	for _, n := range nested {
-		args = append(args, "--exclude="+globEscape(n))
-	}
-	return append(args, "--", p)
-}
-
-// globEscape quotes the wildcard characters of a path for du --exclude.
-func globEscape(p string) string {
-	var b strings.Builder
-	for _, r := range p {
-		if strings.ContainsRune(`*?[]\`, r) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-// shareDu runs du on a share. du also prints its total when some entries
-// could not be read (files deleted during the walk): that total is kept.
-func shareDu(ctx context.Context, p string, nested []string) (int64, error) {
-	out, err := sys.RunOpts(ctx, sys.Opts{Timeout: shareUsageDuMax, AllowCodes: []int{1}}, "nice", duArgs(p, nested)...)
-	if err != nil {
-		return 0, err
-	}
-	f := strings.Fields(out)
-	if len(f) == 0 {
-		return 0, fmt.Errorf("du: no output")
-	}
-	return strconv.ParseInt(f[0], 10, 64)
 }
 
 // lsblkNode is a block device of `lsblk -J`, with what it holds.

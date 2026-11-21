@@ -31,6 +31,7 @@ type Entry struct {
 	Hash    string `json:"hash,omitempty"`
 	ID      string `json:"id,omitempty"`
 	Deleted bool   `json:"deleted,omitempty"`
+	E2E     bool   `json:"e2e,omitempty"` // an end-to-end encrypted folder (NAS 0.12)
 }
 
 // Changes is a page of changes.
@@ -415,6 +416,46 @@ func (c *Client) Download(ctx context.Context, folder, rel, version string, offs
 	}
 	n, err := io.Copy(w, src)
 	return got, n, err
+}
+
+// DownloadRange writes the bytes [off, off+n) of the file at version to w
+// (files on demand reads parts of files). A file changed on the NAS
+// answers ErrChanged.
+func (c *Client) DownloadRange(ctx context.Context, folder, rel, version string, off, n int64, w io.Writer) error {
+	if n <= 0 {
+		return nil
+	}
+	r, err := c.req(ctx, "GET", "/api/sync/file", url.Values{"folder": {folder}, "path": {rel}}, nil)
+	if err != nil {
+		return err
+	}
+	r.Header.Set("Range", "bytes="+strconv.FormatInt(off, 10)+"-"+strconv.FormatInt(off+n-1, 10))
+	if version != "" {
+		r.Header.Set("If-Range", `"`+version+`"`)
+	}
+	resp, err := c.hc.Do(r)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return readErr(resp)
+	}
+	if got := resp.Header.Get("X-Strata-Version"); version != "" && got != version {
+		return ErrChanged
+	}
+	if resp.StatusCode != http.StatusPartialContent && off > 0 {
+		return ErrChanged // a whole file instead of the range: it changed
+	}
+	var src io.Reader = io.LimitReader(resp.Body, n)
+	if c.Down != nil {
+		src = ratelimit.Reader(ctx, src, c.Down)
+	}
+	got, err := io.Copy(w, src)
+	if err == nil && got < n {
+		err = io.ErrUnexpectedEOF
+	}
+	return err
 }
 
 // Upload describes a file to send.

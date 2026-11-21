@@ -1,0 +1,80 @@
+#!/bin/sh
+# Keeps the EFI system partitions of a mirrored system disk identical.
+#
+# The system is on mdadm RAID 1, but the firmware reads the ESP (FAT) of one
+# disk directly, so each disk has its own ESP: the one mounted on /boot/efi is
+# copied onto the ESPs of the other disks of the system mirror, and each ESP
+# gets its own UEFI boot entry. Run by StrataOS (start, mirror changes), after
+# each package operation (/etc/apt/apt.conf.d/99strataos-esp-sync) and by the
+# installer. Without an ESP mirror (BIOS, a single disk), it does nothing.
+#
+#   esp-sync            copy the ESP onto the others
+#   esp-sync --setup    also format the other ESPs when needed (same volume
+#                       ID), add the missing UEFI boot entries and make
+#                       /boot/efi optional at start
+set -eu
+setup=0
+[ "${1:-}" = --setup ] && setup=1
+ESP_TYPE=c12a7328-f81f-11d2-ba4b-00a0c93ec93b
+
+[ -d /sys/firmware/efi ] || exit 0
+src=$(findmnt -n -o SOURCE /boot/efi 2>/dev/null) || exit 0
+root=$(findmnt -n -o SOURCE -T / | sed 's/\[.*//')
+case "$root" in /dev/md*) ;; *) exit 0 ;; esac
+srcdisk=/dev/$(lsblk -n -d -o PKNAME "$src" | head -1)
+
+# Disks of the arrays holding the system.
+disks=""
+for m in $(mdadm --detail "$root" | sed -n 's|.*active sync.* \(/dev/[^ ]*\)$|\1|p'); do
+  disks="$disks /dev/$(lsblk -n -d -o PKNAME "$m" | head -1)"
+done
+
+# A missing ESP (its disk died) must not stop the start of the system.
+if [ "$setup" = 1 ] && grep -q -E '^[^#]+[[:space:]]/boot/efi[[:space:]]' /etc/fstab && ! grep -E '^[^#]+[[:space:]]/boot/efi[[:space:]]' /etc/fstab | grep -q nofail; then
+  sed -i -E '/^[^#]+[[:space:]]\/boot\/efi[[:space:]]/ s/^([^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+)([^[:space:]]+)/\1\2,nofail,x-systemd.device-timeout=15s/' /etc/fstab
+  echo "esp-sync: /boot/efi is now optional at start (nofail)"
+fi
+
+srcid=$(blkid -c /dev/null -o value -s UUID "$src" | tr -d -)
+tmp=$(mktemp -d /run/strata-esp.XXXXXX)
+trap 'umount "$tmp" 2>/dev/null || true; rmdir "$tmp"' EXIT
+loader=""
+for f in shimx64.efi shimaa64.efi grubx64.efi grubaa64.efi; do
+  [ -f "/boot/efi/EFI/debian/$f" ] && { loader="\\EFI\\debian\\$f"; break; }
+done
+
+for disk in $disks; do
+  [ "$disk" = "$srcdisk" ] && continue
+  esp=$(lsblk -n -r -o PATH,PARTTYPE "$disk" | awk -v t="$ESP_TYPE" 'tolower($2) == t {print $1; exit}')
+  [ -n "$esp" ] || { echo "esp-sync: no EFI system partition on $disk" >&2; continue; }
+  # The copy has the same FAT volume ID as the mounted ESP: the UUID= line of
+  # /etc/fstab then finds /boot/efi whichever disk is left. Only the copy is
+  # formatted: a power cut here leaves the mounted ESP intact.
+  if [ "$setup" = 1 ] && [ -n "$srcid" ] && [ "$(blkid -c /dev/null -o value -s UUID "$esp" 2>/dev/null | tr -d -)" != "$srcid" ]; then
+    echo "esp-sync: formatting $esp (FAT, volume ID $srcid)"
+    mkfs.vfat -F 32 -n EFI -i "$srcid" "$esp" >/dev/null
+    udevadm settle 2>/dev/null || true
+  fi
+  [ "$(blkid -c /dev/null -o value -s TYPE "$esp" 2>/dev/null)" = vfat ] || { echo "esp-sync: $esp is not formatted (FAT)" >&2; continue; }
+  mount -t vfat "$esp" "$tmp"
+  # FAT keeps neither owners nor permissions, and its times are 2 s precise.
+  rsync -rt --delete --modify-window=2 /boot/efi/ "$tmp/"
+  sync
+  umount "$tmp"
+  echo "esp-sync: $esp is a copy of $src"
+  if [ "$setup" = 1 ] && [ -n "$loader" ] && command -v efibootmgr >/dev/null; then
+    partuuid=$(lsblk -n -d -o PARTUUID "$esp")
+    if ! efibootmgr -v | grep -qi "$partuuid"; then
+      part=$(cat "/sys/class/block/$(basename "$esp")/partition")
+      order=$(efibootmgr | sed -n 's/^BootOrder: //p')
+      new=$(efibootmgr -c -d "$disk" -p "$part" -L "StrataOS (mirror, $(basename "$disk"))" -l "$loader" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} StrataOS (mirror.*/\1/p' | tail -1)
+      # Keep the current first entry first: the copy is the fallback.
+      if [ -n "$new" ] && [ -n "$order" ]; then
+        first=${order%%,*}
+        rest=$(echo "$order" | sed "s/^$first,\{0,1\}//")
+        efibootmgr -o "$(echo "$first,$new,$rest" | sed 's/,$//; s/,,/,/g')" >/dev/null
+      fi
+      echo "esp-sync: boot entry $new added for $disk"
+    fi
+  fi
+done

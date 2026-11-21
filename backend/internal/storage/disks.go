@@ -65,6 +65,7 @@ type lsblkDev struct {
 	PKName      flex       `json:"pkname"`
 	RM          flex       `json:"rm"`
 	WWN         flex       `json:"wwn"`
+	PartLabel   flex       `json:"partlabel"`
 	Children    []lsblkDev `json:"children"`
 }
 
@@ -84,7 +85,11 @@ type BlockDevice struct {
 	UUID        string        `json:"uuid"`
 	Mountpoints []string      `json:"mountpoints"`
 	Removable   bool          `json:"removable"`
+	PartLabel   string        `json:"partLabel,omitempty"`
 	Children    []BlockDevice `json:"children,omitempty"`
+	// DataOf: a data partition of a disk that also holds the system (the
+	// system on the data disks, see DataPartLabel): the name of that disk.
+	DataOf string `json:"dataOf,omitempty"`
 	// Computed fields (disks only).
 	Kind   string `json:"kind,omitempty"`   // hdd | ssd | nvme | usb | virtual
 	System bool   `json:"system,omitempty"` // hosts the running OS
@@ -102,7 +107,7 @@ func convert(d lsblkDev) BlockDevice {
 		Name: d.Name, Path: d.Path, Type: d.Type, Size: d.Size.Int(),
 		Model: strings.TrimSpace(string(d.Model)), Serial: string(d.Serial), Vendor: strings.TrimSpace(string(d.Vendor)),
 		Rotational: d.Rota.Bool(), Transport: string(d.Tran), FSType: string(d.FSType), Label: string(d.Label),
-		UUID: string(d.UUID), Removable: d.RM.Bool(), Mountpoints: []string{},
+		UUID: string(d.UUID), Removable: d.RM.Bool(), Mountpoints: []string{}, PartLabel: string(d.PartLabel),
 	}
 	for _, m := range d.Mountpoints {
 		if m != nil && *m != "" {
@@ -115,7 +120,7 @@ func convert(d lsblkDev) BlockDevice {
 	return b
 }
 
-const lsblkCols = "NAME,PATH,TYPE,SIZE,MODEL,SERIAL,VENDOR,ROTA,TRAN,FSTYPE,LABEL,UUID,MOUNTPOINTS,PKNAME,RM,WWN"
+const lsblkCols = "NAME,PATH,TYPE,SIZE,MODEL,SERIAL,VENDOR,ROTA,TRAN,FSTYPE,LABEL,UUID,MOUNTPOINTS,PKNAME,RM,WWN,PARTLABEL"
 
 // ListBlock returns the full lsblk tree.
 func ListBlock() ([]BlockDevice, error) {
@@ -162,6 +167,84 @@ func ListDisks() ([]BlockDevice, error) {
 		disks = append(disks, d)
 	}
 	return disks, nil
+}
+
+// systemDevice tells whether dev is a system disk d or something on it,
+// except its data partitions (DataPartLabel) and what they hold, which are
+// for data.
+func systemDevice(d BlockDevice, dev string) bool {
+	if d.Path == dev {
+		return true
+	}
+	bad := false
+	for _, c := range d.Children {
+		if c.Type == "part" && c.PartLabel == DataPartLabel && !hasSystemMount(c) {
+			continue
+		}
+		walk(c, func(b BlockDevice) {
+			if b.Path == dev {
+				bad = true
+			}
+		})
+	}
+	return bad
+}
+
+// DataPartLabel is the GPT name of the data partition StrataOS leaves on
+// each disk when the system lives on the data disks (sysdisk "datadisks",
+// ISO entry "System on the data disks"): the disk holds the system, but
+// that partition is for data, like a whole free disk.
+const DataPartLabel = "StrataOS data"
+
+// hasSystemMount tells whether b or what it holds carries the system.
+func hasSystemMount(b BlockDevice) bool {
+	sys := false
+	walk(b, func(c BlockDevice) {
+		for _, m := range c.Mountpoints {
+			if systemMounts[m] {
+				sys = true
+			}
+		}
+	})
+	return sys
+}
+
+// dataPartitions returns the data partitions of the system disks among the
+// disks of an lsblk tree, classified like disks.
+func dataPartitions(all []BlockDevice, holders func(string) []string, zfsImported func(string) bool, swaps map[string]bool) []BlockDevice {
+	var out []BlockDevice
+	for _, d := range all {
+		if d.Type != "disk" || !hasSystemMount(d) {
+			continue
+		}
+		for _, c := range d.Children {
+			if c.Type != "part" || c.PartLabel != DataPartLabel || hasSystemMount(c) {
+				continue
+			}
+			p := c
+			p.Model, p.Vendor, p.Rotational, p.Transport, p.Removable = d.Model, d.Vendor, d.Rotational, d.Transport, d.Removable
+			p.DataOf = d.Name
+			classify(&p)
+			// classify names the kind from the partition name (sda4): take the disk's.
+			dk := d
+			classify(&dk)
+			p.Kind = dk.Kind
+			p.ActiveUse, p.ActiveBy = activeUse(p, holders, zfsImported, swaps)
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// ListDataPartitions lists the data partitions of the disks that also hold
+// the system (DataPartLabel). They take the place of whole disks in arrays,
+// pools and volumes; ListDisks shows their disk as a system disk.
+func ListDataPartitions() ([]BlockDevice, error) {
+	all, err := ListBlock()
+	if err != nil {
+		return nil, err
+	}
+	return dataPartitions(all, sysHolders, zpoolImported, swapDevices()), nil
 }
 
 func sysHolders(name string) []string {
@@ -344,12 +427,7 @@ func ValidateDevice(path string) error {
 		if !d.System {
 			continue
 		}
-		var bad bool
-		walk(d, func(b BlockDevice) {
-			if b.Path == real || b.Path == path {
-				bad = true
-			}
-		})
+		bad := systemDevice(d, real) || systemDevice(d, path)
 		if bad {
 			return fmt.Errorf("%s belongs to the system disk", path)
 		}
@@ -366,6 +444,8 @@ func ValidateFreeDisks(paths []string, allowInUse bool) error {
 	if err != nil {
 		return err
 	}
+	parts, _ := ListDataPartitions()
+	disks = append(disks, parts...)
 	seen := map[string]bool{}
 	for _, p := range paths {
 		if seen[p] {
@@ -411,6 +491,8 @@ func Wipe(path string) error {
 	// Compare resolved paths: a /dev/disk/by-id link must not skip the checks below.
 	real := resolve(path)
 	disks, _ := ListDisks()
+	parts, _ := ListDataPartitions()
+	disks = append(disks, parts...)
 	for _, d := range disks {
 		if d.Path != path && d.Path != real {
 			continue

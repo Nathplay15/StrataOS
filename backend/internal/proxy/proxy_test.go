@@ -421,3 +421,78 @@ func mustPrefixes(t *testing.T, list ...string) []netip.Prefix {
 	}
 	return ps
 }
+
+func TestForwardAuthHeaders(t *testing.T) {
+	var got *http.Request
+	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Clone(r.Context())
+		http.SetCookie(w, &http.Cookie{Name: FwdCookie, Value: "planted", Path: "/", Secure: true})
+		io.WriteString(w, "ok")
+	})
+	open := &Route{Host: "open.example.com"}
+	s, _, front := testServer(t, app, open)
+	prot := &Route{Host: "app.example.com", Auth: true, Target: open.Target}
+	s.SetRoutes(Table{"open.example.com": open, "app.example.com": prot})
+	spoof := func(host string) *http.Response {
+		req, _ := http.NewRequest("GET", "https://"+host+"/", nil)
+		for _, h := range []string{"Remote-User", "remote-groups", "Remote-Email", "X-Forwarded-User", "X-WEBAUTH-USER", "X-Remote-User", "X-Authentik-Username", "X-Auth-Request-User"} {
+			req.Header.Set(h, "admin")
+		}
+		req.Header["Remote_user"] = []string{"admin"}
+		req.Header["x_forwarded_user"] = []string{"admin"}
+		req.Header.Set("Cookie", FwdCookie+"=stolen; app=1")
+		resp, err := client(front).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		return resp
+	}
+	check := func(want map[string]string) {
+		t.Helper()
+		for _, h := range []string{"Remote-User", "Remote-Groups", "Remote-Email", "X-Forwarded-User", "X-Webauth-User", "X-Remote-User", "X-Authentik-Username", "X-Auth-Request-User"} {
+			if got.Header.Get(h) != want[h] {
+				t.Errorf("%s = %q, want %q", h, got.Header.Get(h), want[h])
+			}
+		}
+		if got.Header.Get("Cookie") != "app=1" {
+			t.Errorf("cookie passed: %q", got.Header.Get("Cookie"))
+		}
+		for k := range got.Header {
+			if strings.Contains(strings.ToLower(k), "_user") {
+				t.Errorf("underscore variant passed: %s", k)
+			}
+		}
+	}
+	// Unprotected host: spoofed identity headers never reach the app.
+	resp := spoof("open.example.com")
+	check(nil)
+	for _, c := range resp.Cookies() {
+		if c.Name == FwdCookie {
+			t.Error("app set the forward-auth cookie")
+		}
+	}
+	// Protected host without the hook: refused.
+	got = nil
+	if resp := spoof("app.example.com"); resp.StatusCode != 503 || got != nil {
+		t.Fatalf("no hook: %d", resp.StatusCode)
+	}
+	// The hook refuses: the app is not reached.
+	s.ForwardAuth = func(w http.ResponseWriter, r *http.Request, rt *Route) (http.Header, bool) {
+		if r.Header.Get("Remote-User") != "" {
+			t.Error("hook saw a spoofed header")
+		}
+		w.WriteHeader(401)
+		return nil, true
+	}
+	if resp := spoof("app.example.com"); resp.StatusCode != 401 || got != nil {
+		t.Fatalf("refused: %d", resp.StatusCode)
+	}
+	// The hook accepts: only its headers reach the app.
+	s.ForwardAuth = func(w http.ResponseWriter, r *http.Request, rt *Route) (http.Header, bool) {
+		return http.Header{"Remote-User": {"alice"}, "Remote-Groups": {"family"}}, false
+	}
+	spoof("app.example.com")
+	check(map[string]string{"Remote-User": "alice", "Remote-Groups": "family"})
+}

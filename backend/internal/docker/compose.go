@@ -44,8 +44,52 @@ func compose(ctx context.Context, name string, out io.Writer, args ...string) (s
 	}
 	dir := filepath.Join(StacksDir, name)
 	full := append(append([]string{}, pre...), "-p", name, "--project-directory", dir, "-f", filepath.Join(dir, "compose.yaml"))
+	for _, o := range []string{OverrideFile, GPUOverrideFile} {
+		if _, err := os.Stat(filepath.Join(dir, o)); err == nil {
+			full = append(full, "-f", filepath.Join(dir, o))
+		}
+	}
 	full = append(full, args...)
 	return sys.RunOpts(ctx, sys.Opts{Dir: dir, Timeout: 30 * time.Minute, Output: out}, cmd, full...)
+}
+
+// OverrideFile is a compose file StrataOS adds on top of a stack's own
+// (sign-in with the NAS, api/sso_apps.go): kept when the stack is edited.
+const OverrideFile = "compose.strata.yaml"
+
+// GPUOverrideFile gives a stack the graphics card (Hardware page).
+const GPUOverrideFile = "compose.gpu.yaml"
+
+// WriteOverride writes (content "" removes) the override file of a stack;
+// it may hold secrets, so only root reads it.
+func WriteOverride(stack, content string) error { return writeOverride(stack, OverrideFile, content) }
+
+// WriteGPUOverride writes (content "" removes) the graphics card override.
+func WriteGPUOverride(stack, content string) error {
+	return writeOverride(stack, GPUOverrideFile, content)
+}
+
+func writeOverride(stack, name, content string) error {
+	if err := ValidStack(stack); err != nil {
+		return err
+	}
+	p := filepath.Join(StacksDir, stack, name)
+	if content == "" {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	return os.WriteFile(p, []byte(content), 0o600)
+}
+
+// StackApp is the catalog app of an installed stack ("" for others).
+func StackApp(stack string) string {
+	if ValidStack(stack) != nil {
+		return ""
+	}
+	b, _ := os.ReadFile(filepath.Join(StacksDir, stack, ".strata-app"))
+	return strings.TrimSpace(string(b))
 }
 
 type Stack struct {

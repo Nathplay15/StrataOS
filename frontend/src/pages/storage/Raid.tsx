@@ -9,6 +9,7 @@ import { Badge, Button, Card, Empty, ErrorBox, Field, Health, Input, Modal, Noti
 import { DiskPicker, useCandidates } from "../../components/DiskPicker";
 import { tr } from "../../lib/i18n";
 import { ReplaceBanner, ReplaceWizard, type ReplaceSel } from "./ReplaceDisk";
+import { useSysDisk } from "./SystemDisk";
 
 // Same words as the ZFS page and the replacement wizard: "Rebuilding x %".
 function syncLabel(a: RaidArray): string {
@@ -88,7 +89,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
-function ArrayCard({ a, onReplace }: { a: RaidArray; onReplace: (s: ReplaceSel) => void }) {
+function ArrayCard({ a, onReplace, system }: { a: RaidArray; onReplace: (s: ReplaceSel) => void; system?: boolean }) {
   const { confirm } = useUI();
   const [addOpen, setAddOpen] = useState<null | "add" | "add-spare">(null);
   const [dev, setDev] = useState<string[]>([]);
@@ -102,12 +103,12 @@ function ArrayCard({ a, onReplace }: { a: RaidArray; onReplace: (s: ReplaceSel) 
 
   return (
     <Card
-      title={<span className="flex items-center gap-2.5">{a.label || a.name} <Badge>{a.level.toUpperCase()}</Badge> <Health value={a.health} /></span>}
+      title={<span className="flex items-center gap-2.5">{a.label || a.name} <Badge>{a.level.toUpperCase()}</Badge> {system && <Badge tone="accent" title={tr("Holds the operating system: replace its disks from Storage → Disks")}>{tr("System")}</Badge>} <Health value={a.health} /></span>}
       actions={<>
         <Button size="sm" variant="ghost" icon={<ShieldCheck size={14} />} onClick={() => act.mutate({ action: a.syncAction ? "idle" : "check" })}>{a.syncAction?.startsWith("check") ? tr("Stop verification") : tr("Check")}</Button>
-        {(a.health === "degraded" || a.failedDevices > 0) && <Button size="sm" variant="primary" icon={<Replace size={14} />} onClick={() => onReplace({ group: `raid:${a.name}` })}>{tr("Replace the missing disk")}</Button>}
-        <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={() => setAddOpen("add")}>{tr("Add a disk")}</Button>
-        <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={remove} />
+        {(a.health === "degraded" || a.failedDevices > 0) && <Button size="sm" variant="primary" icon={<Replace size={14} />} onClick={() => onReplace({ group: system ? "sys:mirror" : `raid:${a.name}` })}>{tr("Replace the missing disk")}</Button>}
+        {!system && <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={() => setAddOpen("add")}>{tr("Add a disk")}</Button>}
+        {!system && <Button size="sm" variant="ghost" className="text-danger" icon={<Trash2 size={14} />} onClick={remove} />}
       </>}
     >
       <div className="grid gap-4 sm:grid-cols-4">
@@ -132,7 +133,7 @@ function ArrayCard({ a, onReplace }: { a: RaidArray; onReplace: (s: ReplaceSel) 
                 <td className="mono">{m.device || "—"}</td>
                 <td><Badge tone={m.state.includes("faulty") || m.state.includes("removed") ? "danger" : m.state.includes("rebuild") ? "warn" : m.state.includes("spare") ? "accent" : "ok"}>{m.state}</Badge></td>
                 <td className="text-right">
-                  {m.device && (
+                  {m.device && !system && (
                     <div className="flex justify-end gap-1">
                       <Button size="sm" variant="ghost" icon={<Replace size={13} />} onClick={() => onReplace({ group: `raid:${a.name}`, member: m.device })}>{tr("Replace")}</Button>
                       {!m.state.includes("faulty") && <Button size="sm" variant="ghost" onClick={async () => { if (await confirm({ title: tr("Mark as failed?"), text: tr("{0} will be removed from service; the array will become degraded.", m.device), danger: true })) act.mutate({ action: "fail", device: m.device }); }}>{tr("Mark as failed")}</Button>}
@@ -170,6 +171,7 @@ export default function Raid() {
   const [replace, setReplace] = useState<ReplaceSel | null>(null);
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["raid"], queryFn: () => api.get<RaidArray[]>("/api/storage/raid"), refetchInterval: 5000 });
+  const sysArrays = new Set((useSysDisk().data?.layout.arrays ?? []).filter((x) => x.role !== "other").map((x) => x.name));
   return (
     <div>
       <PageHeader title={tr("Software RAID")} subtitle={tr("mdadm arrays: RAID 0, 1, 4, 5, 6, 10 and JBOD")} icon={<Layers size={20} />} actions={<Button variant="primary" icon={<Plus size={15} />} onClick={() => setOpen(true)}>{tr("Create an array")}</Button>} />
@@ -177,7 +179,7 @@ export default function Raid() {
       <ReplaceBanner onOpen={setReplaceId} />
       {isLoading ? <Spinner /> : !data?.length ? (
         <Card><Empty icon={<Layers />} title={tr("No RAID arrays")} text={tr("Group several disks for redundancy or performance. For ZFS or Btrfs (built-in RAID), use the ZFS or Volumes pages.")} action={<Button variant="primary" onClick={() => setOpen(true)}>{tr("Create an array")}</Button>} /></Card>
-      ) : <div className="space-y-5">{data.map((a) => <ArrayCard key={a.name} a={a} onReplace={setReplace} />)}</div>}
+      ) : <div className="space-y-5">{data.map((a) => <ArrayCard key={a.name} a={a} onReplace={setReplace} system={sysArrays.has(a.name)} />)}</div>}
       {open && <CreateModal open={open} onClose={() => setOpen(false)} />}
       <ReplaceWizard sel={replace} replacement={replaceId} onClose={() => { setReplace(null); setReplaceId(null); }} />
     </div>

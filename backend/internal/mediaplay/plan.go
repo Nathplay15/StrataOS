@@ -270,6 +270,25 @@ func Decide(info *Info, name string, c Caps, audio int) (Plan, error) {
 type HW struct {
 	VAAPI  bool
 	Device string // render node, e.g. /dev/dri/renderD128
+	// LowPower: the VA-API driver encodes H.264 only with its low-power
+	// entry point (recent Intel graphics).
+	LowPower bool
+	// NVENC: NVIDIA's encoder (decoding and scaling stay on the CPU).
+	NVENC bool
+}
+
+// On tells whether a GPU encodes.
+func (h HW) On() bool { return (h.VAAPI && h.Device != "") || h.NVENC }
+
+// Encoder names the encoder used: vaapi, nvenc or "" (software).
+func (h HW) Encoder() string {
+	switch {
+	case h.VAAPI && h.Device != "":
+		return "vaapi"
+	case h.NVENC:
+		return "nvenc"
+	}
+	return ""
 }
 
 // MaxHeight bounds transcoded pictures: 1080p is plenty for a browser window
@@ -319,6 +338,16 @@ func Args(p Plan, start float64, hw HW) []string {
 			}
 			vf += fmt.Sprintf(",scale_vaapi=w=-2:h='min(ih,%d)':format=nv12", maxH)
 			args = append(args, "-vf", vf, "-c:v", "h264_vaapi", "-qp", "24", "-g", "60")
+			if hw.LowPower {
+				args = append(args, "-low_power", "1")
+			}
+		case hw.NVENC:
+			vf := ""
+			if p.Video.Interlaced {
+				vf = "yadif,"
+			}
+			vf += fmt.Sprintf("scale=-2:'min(ih,%d)',format=yuv420p", maxH)
+			args = append(args, "-vf", vf, "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-g", "60", "-profile:v", "high")
 		default:
 			vf := ""
 			if p.Video.Interlaced {

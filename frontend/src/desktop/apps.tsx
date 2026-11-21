@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone,
+  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone, KeySquare,
 } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -51,6 +51,7 @@ const DirectoryPage = lazy(() => import("../pages/system/Directory"));
 const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
 const HAPage = lazy(() => import("../pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("../pages/system/RemoteAccess"));
+const SingleSignOn = lazy(() => import("../pages/system/SingleSignOn"));
 const MediaPage = lazy(() => import("../pages/Media"));
 
 type PageComponent = ComponentType<{ me: Me }>;
@@ -116,6 +117,7 @@ export const APPS: AppDef[] = [
       { id: "security", label: tr("Security advisor"), icon: <ShieldCheck size={16} />, component: page(SecurityAdvisorPage), path: "/system/security" },
       { id: "network", label: tr("Network"), icon: <Network size={16} />, component: page(NetworkPage), path: "/system/network" },
       { id: "remote", label: tr("Remote access"), icon: <Waypoints size={16} />, component: page(RemotePage), path: "/system/remote" },
+      { id: "sso", label: tr("Single sign-on"), icon: <KeySquare size={16} />, component: page(SingleSignOn), path: "/system/sso" },
       { id: "ha", label: tr("High availability"), icon: <ServerCog size={16} />, component: page(HAPage), path: "/system/ha" },
       { id: "ups", label: tr("UPS"), icon: <BatteryCharging size={16} />, component: page(UPSPage), path: "/system/ups" },
       { id: "energy", label: tr("Power"), icon: <Leaf size={16} />, component: page(EnergyPage), path: "/system/energy" },

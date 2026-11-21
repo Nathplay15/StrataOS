@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import type { Job } from "../lib/types";
-import { srv, tr } from "../lib/i18n";
+import { srv, tr, jobLog } from "../lib/i18n";
 import { Badge, Button, Checkbox, ErrorBox, Modal, Notice, Spinner } from "./ui";
 
 /** Components that can be uninstalled (components.All in the backend). */
@@ -37,7 +37,7 @@ function JobLog({ id }: { id: string }) {
       <div className="text-[13px]">
         {data.status === "running" ? <Spinner label={tr("Uninstalling…")} /> : data.status === "success" ? <Badge tone="ok">{tr("Uninstalled")}</Badge> : <Badge tone="danger">{srv(data.error) || tr("failed")}</Badge>}
       </div>
-      <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[11.5px]">{data.log ?? ""}</pre>
+      <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-panel-2 p-3 text-[11.5px]">{jobLog(data.log, data.logKeys)}</pre>
     </div>
   );
 }

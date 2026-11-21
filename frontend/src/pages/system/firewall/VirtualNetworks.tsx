@@ -4,7 +4,7 @@ import { Cable, Container as ContainerIcon, House, Lock, Network, Pencil, Plus, 
 import { api } from "../../../lib/api";
 import { useAction } from "../../../lib/hooks";
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, Select, Spinner, Switch, useUI } from "../../../components/ui";
-import { tr } from "../../../lib/i18n";
+import { srv, tr } from "../../../lib/i18n";
 import { TrialModal, type Pending } from "../Network";
 import type { VNet, VNetData, VNetKind, VNetView } from "./types";
 
@@ -53,6 +53,7 @@ const presets: Preset[] = [
 function VNetForm({ v, set, d, editing }: { v: VNet; set: (v: VNet) => void; d: VNetData; editing: boolean }) {
   const upd = (x: Partial<VNet>) => set({ ...v, ...x });
   const peers = v.peers ?? [];
+  const members = v.members ?? [];
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -80,11 +81,19 @@ function VNetForm({ v, set, d, editing }: { v: VNet; set: (v: VNet) => void; d: 
             <Field label="MTU" hint={tr("1450 leaves room for the tunnel on a 1500 LAN")}><Input type="number" value={v.mtu || ""} placeholder="1450" onChange={(e) => upd({ mtu: +e.target.value || 0 })} /></Field>
           </div>
           {d.peers.length > 0 && (
-            <div className="flex flex-wrap gap-4">{d.peers.map((p) => (
-              <Checkbox key={p.from + p.addr} checked={peers.includes(p.addr)} onChange={(c) => upd({ peers: c ? [...peers, p.addr] : peers.filter((x) => x !== p.addr) })} label={<span>{p.name} <span className="mono text-muted">{p.addr}</span></span>} />
-            ))}</div>
+            <Field label={tr("Create it on these NAS too")} hint={tr("Sent over the Multi-NAS console or cluster link (on each NAS of the console: Multi-NAS Console → Authorized access → allow shared virtual networks), with the same VNI, MTU and subnet; kept in step and removed with it.")}>
+              <div className="flex flex-wrap gap-4">{d.peers.map((p) => (
+                <Checkbox key={p.key} checked={members.includes(p.key)} onChange={(c) => upd({ members: c ? [...members, p.key] : members.filter((x) => x !== p.key) })}
+                  label={<span>{p.name} <span className="mono text-muted">{p.addr}</span> <span className="text-muted">({p.from === "cluster" ? tr("cluster") : tr("console")})</span></span>} />
+              ))}</div>
+            </Field>
           )}
-          <Field label={tr("Other NAS (addresses)")} hint={tr("Create the same network, with the same VNI, on each of them, listing this NAS.")}><Input className="mono" value={peers.join(" ")} onChange={(e) => upd({ peers: list(e.target.value) })} /></Field>
+          {members.length > 0 ? (
+            <Switch checked={!!v.encrypt} onChange={(c) => upd({ encrypt: c })} label={tr("Encrypt the tunnel (WireGuard)")}
+              hint={tr("VXLAN inside a WireGuard mesh between the NAS (keys exchanged over the same link, UDP 51900–51999): the traffic cannot be read on the LAN. The MTU of the guests becomes 1350.")} />
+          ) : (
+            <Field label={tr("Other NAS (addresses)")} hint={tr("Create the same network, with the same VNI, on each of them, listing this NAS.")}><Input className="mono" value={peers.join(" ")} onChange={(e) => upd({ peers: list(e.target.value) })} /></Field>
+          )}
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -128,7 +137,7 @@ export function VirtualNetworksTab() {
 
   if (isLoading || !data) return <div><ErrorBox error={error} /><Spinner /></div>;
   const busy = data.pending || data.manager === "NetworkManager";
-  const submit = () => form && (form.editing ? update : create).mutate({ ...form.v, peers: form.v.kind === "vxlan" ? form.v.peers : undefined });
+  const submit = () => form && (form.editing ? update : create).mutate({ ...form.v, peers: form.v.kind === "vxlan" && !(form.v.members ?? []).length ? form.v.peers : undefined });
 
   return (
     <div className="space-y-5">
@@ -151,7 +160,7 @@ export function VirtualNetworksTab() {
           {data.networks.map((n: VNetView) => (
             <Card key={n.id} title={<span className="flex flex-wrap items-center gap-2"><Waypoints size={16} className="text-accent" /><span className="mono">{n.id}</span>{n.label && <span className="font-normal text-muted">{n.label}</span>}</span>} actions={<>
               {n.docker && n.status.docker && <IconButton title={tr("Connect a Docker container")} onClick={() => setDock({ id: n.id, container: "", address: "" })}><ContainerIcon size={15} /></IconButton>}
-              <IconButton title={tr("Edit")} disabled={busy} onClick={() => setForm({ v: structuredClone(n), editing: true })}><Pencil size={15} /></IconButton>
+              <IconButton title={n.originKey ? tr("Managed by {0}", n.origin ?? "") : tr("Edit")} disabled={busy || !!n.originKey} onClick={() => setForm({ v: structuredClone(n), editing: true })}><Pencil size={15} /></IconButton>
               <IconButton title={tr("Delete")} disabled={busy} onClick={async () => (await confirm({ title: tr("Delete the network {0}?", n.id), text: tr("Applied on trial like any network change."), confirm: tr("Delete"), danger: true })) && remove.mutate(n.id)}><Trash2 size={15} /></IconButton>
             </>}>
               <div className="flex flex-wrap gap-2 text-[12.5px]">
@@ -165,7 +174,14 @@ export function VirtualNetworksTab() {
                 {n.status.mtu && n.status.mtu !== 1500 && <Badge>MTU {n.status.mtu}</Badge>}
                 {n.isolate && <Badge tone="warn">{tr("isolated from the LAN")}{n.nasPorts ? ` · ${tr("NAS ports")} ${n.nasPorts}` : ""}</Badge>}
                 {n.docker && <Badge tone={n.status.docker ? "ok" : "neutral"}>Docker strata-{n.id}</Badge>}
+                {n.encrypt && <Badge tone="ok">{tr("encrypted (WireGuard)")}</Badge>}
+                {n.originKey && <Badge tone="accent">{tr("shared by {0}", n.origin ?? "")}</Badge>}
               </div>
+              {(n.shared ?? []).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 text-[12.5px]">
+                  {n.shared!.map((m) => <Badge key={m.member} tone={m.ok ? "ok" : "danger"} dot>{m.name}{m.ok ? "" : ` · ${srv(m.error ?? "")}`}</Badge>)}
+                </div>
+              )}
               <div className="mt-3 text-[12.5px]">
                 {n.guests.length === 0 ? <span className="text-muted">{tr("No VM or container on this network yet: choose it in their network settings.")}</span> : (
                   <span className="flex flex-wrap items-center gap-2"><Cable size={14} />{n.guests.map((g) => <Badge key={g.kind + g.name}>{g.name} · {g.state}</Badge>)}</span>

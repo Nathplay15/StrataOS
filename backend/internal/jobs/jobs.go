@@ -2,11 +2,13 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -24,6 +26,9 @@ const (
 )
 
 const maxLog = 64 * 1024
+
+// logfRoom: the room kept for the lines of Logf after maxLog.
+const logfRoom = 32 * 1024
 
 type Job struct {
 	mu       sync.Mutex
@@ -43,6 +48,11 @@ type Job struct {
 	CancelledBy  string `json:"cancelledBy,omitempty"`
 	log          strings.Builder
 	cancel       context.CancelFunc
+	// The lines written by Logf, as a key and arguments (logkeys.go): the
+	// interface shows them in the reader's language.
+	keys    []LogKey
+	lines   int  // newlines written so far
+	partial bool // the log does not end with a newline
 }
 
 // Snapshot is a lock-free copy suitable for JSON encoding.
@@ -57,6 +67,8 @@ type Snapshot struct {
 	Started  time.Time  `json:"started"`
 	Finished *time.Time `json:"finished,omitempty"`
 	Log      string     `json:"log,omitempty"`
+	// LogKeys: the lines of Log written by Logf, to translate.
+	LogKeys []LogKey `json:"logKeys,omitempty"`
 
 	Cancellable  bool   `json:"cancellable"`
 	CancelReason string `json:"cancelReason,omitempty"`
@@ -67,14 +79,45 @@ type Snapshot struct {
 func (j *Job) Write(p []byte) (int, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	if j.log.Len() < maxLog {
-		j.log.Write(p)
-	}
+	j.writeLocked(p)
 	return len(p), nil
 }
 
+func (j *Job) writeLocked(p []byte) {
+	j.writeCapped(p, maxLog)
+}
+
+// writeCapped appends p while the log is under limit. Command output stops
+// at maxLog; the lines of Logf may go a little further (maxLog + logfRoom),
+// so the last steps of a job stay visible after a long command output.
+func (j *Job) writeCapped(p []byte, limit int) {
+	if j.log.Len() >= limit || len(p) == 0 {
+		return
+	}
+	j.log.Write(p)
+	j.lines += bytes.Count(p, []byte{'\n'})
+	j.partial = p[len(p)-1] != '\n'
+}
+
+// Logf adds a line to the log. The format and its arguments are also kept
+// apart (a key with {0}, {1}… and the arguments as text) for the interface
+// to show the line in the reader's language (frontend/src/i18n/server.ts).
 func (j *Job) Logf(format string, args ...any) {
-	fmt.Fprintf(j, format+"\n", args...)
+	text := fmt.Sprintf(format, args...)
+	key, sargs, ok := MakeLogKey(format, args)
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.log.Len() >= maxLog+logfRoom {
+		return
+	}
+	if j.partial {
+		j.writeCapped([]byte{'\n'}, maxLog+logfRoom)
+	}
+	line := j.lines
+	j.writeCapped([]byte(text+"\n"), maxLog+logfRoom)
+	if ok && len(j.keys) < maxLogKeys {
+		j.keys = append(j.keys, LogKey{Line: line, Lines: strings.Count(text, "\n") + 1, Key: key, Args: sargs})
+	}
 }
 
 func (j *Job) SetProgress(p float64) {
@@ -108,6 +151,7 @@ func (j *Job) snapshot(withLog bool) Snapshot {
 		Cancellable: j.Cancellable && j.Status == Running, CancelReason: j.CancelReason, CancelledBy: j.CancelledBy}
 	if withLog {
 		s.Log = j.log.String()
+		s.LogKeys = slices.Clone(j.keys)
 	}
 	return s
 }

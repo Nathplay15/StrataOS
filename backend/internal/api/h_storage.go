@@ -59,6 +59,13 @@ func (s *Server) storageRoutes() {
 			}
 			out = append(out, v)
 		}
+		// Data partitions of the disks shared with the system: usable like
+		// free disks (their SMART is the one of their disk).
+		if parts, err := storage.ListDataPartitions(); err == nil {
+			for _, p := range parts {
+				out = append(out, diskView{BlockDevice: p})
+			}
+		}
 		return out, nil
 	})
 	s.admin("GET /api/storage/block", func(r *http.Request) (any, error) { return storage.ListBlock() })

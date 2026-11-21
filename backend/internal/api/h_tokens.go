@@ -218,6 +218,8 @@ func tokenDenied(path string) bool {
 	}
 	for _, p := range []string{
 		"/api/logout", "/api/sessions", "/api/devices", "/api/assistant/approvals",
+		// Approving an app's sign-in would hand out tokens for that app.
+		"/api/sso/requests", "/api/sso/logouts",
 	} {
 		if path == p || strings.HasPrefix(path, p+"/") {
 			return true

@@ -72,6 +72,9 @@ type User struct {
 	OIDC []OIDCLink `json:"oidc,omitempty"`
 	// S3Keys: access keys for the built-in S3 service.
 	S3Keys []S3Key `json:"s3Keys,omitempty"`
+	// SSOSubject: the "sub" apps know this account by (store/sso.go),
+	// random and never reused.
+	SSOSubject string `json:"ssoSubject,omitempty"`
 }
 
 type Share struct {
@@ -270,10 +273,17 @@ type Routine struct {
 
 // RoutineAction is one "then" of a routine. Message is the notification text
 // ({detail} = trigger detail, {name} = routine), URL the webhook endpoint.
+// The actions that change the NAS (0.13) name their Target: snapshot (a
+// scheduled snapshot task, run now), backup (a backup task, run now), vm
+// and lxc (a virtual machine or LXC container, Op start or stop), docker (a
+// Docker container, Op start or stop), app-update (an App Center stack,
+// updated). They run as jobs, like the same buttons of the interface.
 type RoutineAction struct {
-	Kind    string `json:"kind"` // notify | webhook
+	Kind    string `json:"kind"` // notify | webhook | snapshot | backup | vm | lxc | docker | app-update
 	Message string `json:"message,omitempty"`
 	URL     string `json:"url,omitempty"`
+	Target  string `json:"target,omitempty"`
+	Op      string `json:"op,omitempty"` // start | stop (vm, lxc, docker)
 }
 
 // BackupTask copies data elsewhere: rsync mirror, restic versioned backup, ZFS
@@ -430,6 +440,15 @@ type Fleet struct {
 	// Transfers: VMs and containers copied or moved between NAS through
 	// this console (newest last).
 	Transfers []FleetTransfer `json:"transfers,omitempty"`
+	// VNetSent: the shared VXLAN networks this NAS sent to other NAS
+	// ("fleet:<id>" | "cluster:<id>"), so that a removal reaches them.
+	VNetSent []VNetSent `json:"vnetSent,omitempty"`
+}
+
+// VNetSent is a virtual network applied on another NAS.
+type VNetSent struct {
+	VNet   string `json:"vnet"`
+	Member string `json:"member"`
 }
 
 type FleetMember struct {
@@ -439,6 +458,9 @@ type FleetMember struct {
 	Cert  string    `json:"cert"` // SHA-256 of its certificate, pinned at pairing
 	Token string    `json:"token,omitempty"`
 	Added time.Time `json:"added"`
+	// MACs: its network cards with Wake-on-LAN on, as it last reported
+	// them (the console wakes it up with them).
+	MACs []string `json:"macs,omitempty"`
 }
 
 type FleetManager struct {
@@ -454,6 +476,9 @@ type FleetManager struct {
 	// AllowVMs: the console may copy VMs and containers to and from this
 	// NAS (off by default).
 	AllowVMs bool `json:"allowVms,omitempty"`
+	// AllowNetworks: the console may create, change and remove the shared
+	// VXLAN networks it declared on this NAS (off by default).
+	AllowNetworks bool `json:"allowNetworks,omitempty"`
 }
 
 // Vault receives the backups of other StrataOS NAS (restic REST protocol);
@@ -493,6 +518,10 @@ type Energy struct {
 	Schedule    energy.Schedule `json:"schedule"`
 	WoL         []string        `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
 	Devices     []WakeDevice    `json:"devices,omitempty"`
+	// Rules: scheduled shutdowns, restarts and power-ons (0.12; Schedule
+	// is the 0.11 form, turned into rules when read).
+	Rules []energy.PowerRule `json:"rules,omitempty"`
+	Guard energy.PowerGuard  `json:"guard,omitzero"`
 }
 
 // WakeDevice is a machine the NAS can wake up (Wake-on-LAN).
@@ -505,6 +534,24 @@ type WakeDevice struct {
 type Photos struct {
 	Folders []string `json:"folders"`
 	Albums  []*Album `json:"albums,omitempty"`
+	// Smart: people, things, search and places computed on the NAS (photoml).
+	Smart PhotoSmart `json:"smart,omitzero"`
+}
+
+// PhotoSmart are the settings of the smart photos analysis.
+type PhotoSmart struct {
+	Enabled   bool `json:"enabled,omitempty"`
+	NoFaces   bool `json:"noFaces,omitempty"`   // no face recognition
+	NoObjects bool `json:"noObjects,omitempty"` // no things nor search by description
+	// Background work limits, shared with the document search.
+	Limits BackgroundLimits `json:"limits,omitzero"`
+}
+
+// BackgroundLimits keep long background analyses out of the way.
+type BackgroundLimits struct {
+	Threads int    `json:"threads,omitempty"` // CPU threads (0: a quarter of the cores, 1 at least)
+	Hours   string `json:"hours,omitempty"`   // "HH:MM-HH:MM" when it may run ("" any time)
+	AnyLoad bool   `json:"anyLoad,omitempty"` // also when the NAS is busy
 }
 
 // Album is a named selection of photos of one user.
@@ -702,9 +749,17 @@ type State struct {
 	// service (store/auth.go).
 	OIDC []*OIDCProvider `json:"oidc,omitempty"`
 	S3   S3Service       `json:"s3,omitzero"`
+	// SSO: the NAS as the sign-in of its apps (store/sso.go).
+	SSO SSO `json:"sso,omitzero"`
+	// Transcoding: store/mediapower.go.
+	Transcoding Transcoding `json:"transcoding,omitzero"`
 
 	// DiskReplacements: guided disk replacements, newest last (store/diskreplace.go).
 	DiskReplacements []*DiskReplacement `json:"diskReplacements,omitempty"`
+	// SysDiskOps: mirroring of the system disk and moves of the system to
+	// another disk, newest last; SysBackups: system backups (store/sysdisk.go).
+	SysDiskOps []*SysDiskOp `json:"sysDiskOps,omitempty"`
+	SysBackups []*SysBackup `json:"sysBackups,omitempty"`
 
 	// Cluster of NAS and Ceph storage (store/cluster.go).
 	Cluster Cluster `json:"cluster,omitzero"`
@@ -730,6 +785,8 @@ type State struct {
 	RPiKernel RPiKernel `json:"rpiKernel,omitzero"`
 	// Advisor: security advisor (ignored items, last run).
 	Advisor Advisor `json:"advisor,omitzero"`
+	// DistUpgrade: the Debian release upgrade (store/distupgrade.go).
+	DistUpgrade DistUpgrade `json:"distUpgrade,omitzero"`
 	// CatalogSources: community app catalogs of the App Center (store/catalog.go).
 	CatalogSources []*CatalogSource `json:"catalogSources,omitempty"`
 	// Protection: 3-2-1 assistant and restore tests.

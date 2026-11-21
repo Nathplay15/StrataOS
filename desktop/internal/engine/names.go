@@ -185,6 +185,11 @@ func conflictName(name, device string, t time.Time, n int) string {
 	return fmt.Sprintf("%s (conflict from %s %s%s)%s", base, safeDevice(device), t.Format("2006-01-02 15-04"), suffix, ext)
 }
 
+// ConflictName is conflictName for files on demand.
+func ConflictName(name, device string, t time.Time, n int) string {
+	return conflictName(name, device, t, n)
+}
+
 func parentOf(p string) string {
 	if i := strings.LastIndexByte(p, '/'); i >= 0 {
 		return p[:i]

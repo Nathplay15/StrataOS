@@ -1,7 +1,8 @@
 # Checks the NAS (OS) on every change and pull request: Go format, vet and
 # unit tests, the TypeScript build, translations, and both Debian packages.
-# The full test on a virtual machine (about an hour) runs every week and on
-# demand. The Android app (ci-android.yml) and the desktop app
+# The end-to-end test on a virtual machine (the runners have /dev/kvm):
+# the smoke subset (about 25 minutes) on pull requests, the full suite
+# (about an hour) every night, on release tags and on demand. The Android app (ci-android.yml) and the desktop app
 # (ci-desktop.yml) have their own workflows, run only when their files
 # change; the weekly runs cover everything.
 name: CI
@@ -9,6 +10,7 @@ name: CI
 on:
   push:
     branches: ["**"]
+    tags: ["v*"]
     paths:
       - "backend/**"
       - "frontend/**"
@@ -31,13 +33,14 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/scripts/**"
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       e2e:
-        description: "Run the full test on a virtual machine"
-        type: boolean
-        default: true
+        description: "Test on a virtual machine"
+        type: choice
+        options: [full, smoke, none]
+        default: full
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -126,35 +129,53 @@ jobs:
       - name: Install in debian:${{ matrix.suite }}
         run: packaging/test-install.sh ${{ matrix.suite }}
 
+  # The end-to-end test: a Debian 13 VM (nested KVM) with 13 disks, the
+  # amd64 package of the checks job installed, vm/e2e-test.sh against it.
   e2e:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.e2e != 'none')
     needs: checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 180
+    env:
+      MODE: ${{ github.event_name == 'pull_request' && 'smoke' || (github.event_name == 'workflow_dispatch' && inputs.e2e) || 'full' }}
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v7
+      - uses: actions/download-artifact@v7
         with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
+          name: packages
+          path: dist
 
       - name: KVM and QEMU
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-system-x86 qemu-utils socat
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils socat openssl
+          ls -l /dev/kvm
+          # VMs inside the test VM need nested virtualisation.
+          cat /sys/module/kvm_intel/parameters/nested 2>/dev/null || cat /sys/module/kvm_amd/parameters/nested 2>/dev/null || true
 
-      - name: Full test on a virtual machine
-        run: make vm-test
+      # The Debian cloud image (about 430 MB), checked against its SHA512SUMS
+      # by vm/vm.sh; kept between runs.
+      - uses: actions/cache@v5
+        with:
+          path: vm/images
+          key: debian-13-cloud-${{ github.run_id }}
+          restore-keys: debian-13-cloud-
+
+      - name: End-to-end test (${{ env.MODE }})
+        run: ./vm/ci-e2e.sh "$MODE" "dist/strataos_$(cat VERSION)_amd64.deb"
 
       - if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-log
-          path: vm/last-test.log
+          name: e2e-log-${{ env.MODE }}
+          path: |
+            vm/last-test.log
+            vm/state/console.log
+          retention-days: 14

@@ -7,6 +7,7 @@ import { Badge, Button, Card, Empty, ErrorBox, Field, Notice, PageHeader, Select
 import { dateTime } from "../../lib/format";
 import { locale, tr } from "../../lib/i18n";
 import { RPiKernelCard } from "./RPiKernel";
+import { DistUpgradeCard } from "./DistUpgrade";
 
 type Up = { package: string; current: string; new: string; source: string };
 
@@ -66,6 +67,7 @@ export default function Updates() {
       </>} />
       <StrataCard />
       <RPiKernelCard />
+      <DistUpgradeCard />
       <div className="@container"><div className="mb-5 grid gap-5 @3xl:grid-cols-2">
         <ChannelCard />
         <AutoUpdatesCard />

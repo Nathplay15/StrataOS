@@ -17,7 +17,7 @@ type Summary = {
   updates?: Updates; ha?: { role: string; peers: string[] }; access?: { updates: boolean; reboot: boolean };
 };
 type Row = { id: string; name: string; host: string; online: boolean; error?: string; summary?: Summary; haWith?: string[] };
-type Manager = { id: string; name: string; created: string; lastSeen?: string; allowUpdates?: boolean; allowReboot?: boolean; allowVms?: boolean };
+type Manager = { id: string; name: string; created: string; lastSeen?: string; allowUpdates?: boolean; allowReboot?: boolean; allowVms?: boolean; allowNetworks?: boolean };
 type Item = { member: string; name: string; host: string; ha?: string; state: string; progress: number; from?: string; target?: string; version?: string; note?: string; error?: string };
 type Run = {
   id: string; kind: "strata" | "system"; strategy: "parallel" | "rolling"; reboot?: boolean; dryRun?: boolean; cancel?: boolean; user: string; status: string;
@@ -151,7 +151,7 @@ export default function Fleet() {
   const remove = useAction((id: string) => api.del(`/api/fleet/${id}`), { success: tr("NAS removed from the console") });
   const mkCode = useAction(() => api.post<{ code: string }>("/api/fleet/code"), { onDone: (r) => setCode(r.code) });
   const revoke = useAction((id: string) => api.del(`/api/fleet/managers/${id}`), { success: tr("Access removed") });
-  const perms = useAction((m: Manager) => api.put(`/api/fleet/managers/${m.id}`, { allowUpdates: !!m.allowUpdates, allowReboot: !!m.allowReboot, allowVms: !!m.allowVms }), { success: tr("Permissions saved") });
+  const perms = useAction((m: Manager) => api.put(`/api/fleet/managers/${m.id}`, { allowUpdates: !!m.allowUpdates, allowReboot: !!m.allowReboot, allowVms: !!m.allowVms, allowNetworks: !!m.allowNetworks }), { success: tr("Permissions saved") });
   const [tab, setTab] = useState<"health" | "nas" | "transfers">("health");
   const health = useQuery({ queryKey: ["fleet-health"], queryFn: () => api.get<Dashboard>("/api/fleet/health"), refetchInterval: 30000 });
 
@@ -201,6 +201,7 @@ export default function Fleet() {
                 <Switch checked={!!m.allowUpdates} onChange={(v) => perms.mutate({ ...m, allowUpdates: v, allowReboot: v && !!m.allowReboot })} label={tr("Allow this console to install updates")} />
                 <Switch checked={!!m.allowUpdates && !!m.allowReboot} disabled={!m.allowUpdates} onChange={(v) => perms.mutate({ ...m, allowReboot: v })} label={tr("Allow it to restart this NAS when an update requires it")} />
                 <Switch checked={!!m.allowVms} onChange={(v) => perms.mutate({ ...m, allowVms: v })} label={tr("Allow it to copy virtual machines and containers to and from this NAS")} />
+                <Switch checked={!!m.allowNetworks} onChange={(v) => perms.mutate({ ...m, allowNetworks: v })} label={tr("Allow it to create shared virtual networks (VXLAN) on this NAS")} />
               </td>
               <td className="text-right"><Button size="sm" variant="ghost" onClick={() => revoke.mutate(m.id)}>{tr("Remove")}</Button></td>
             </tr>)}

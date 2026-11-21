@@ -12,6 +12,7 @@ import { useApp } from "../lib/state";
 import { t, tk } from "../lib/i18n";
 import { PageHeader } from "../components/kit";
 import { RemoteFolderPicker } from "../components/RemoteFolderPicker";
+import { OnDemandCard } from "../components/OnDemand";
 import type { PairStatus, SyncPair } from "../lib/types";
 
 export function SyncPage() {
@@ -39,6 +40,7 @@ export function SyncPage() {
         <Button variant="primary" icon={<FolderPlus size={15} />} onClick={() => setAdding(true)}>{tk("folders.add")}</Button>
       </>} />
       {st.signedOut && <div className="mb-4"><Notice tone="warn">{tk("status.signedout")}</Notice></div>}
+      {account.paired && <OnDemandCard accountId={accountId} nasName={account.config.nasName ?? ""} />}
       {!pairs.length ? (
         <Card><Empty icon={<ArrowLeftRight />} title={t("No folder synchronized yet")} text={tk("folders.localhint")} action={<Button variant="primary" icon={<FolderPlus size={15} />} onClick={() => setAdding(true)}>{tk("folders.add")}</Button>} /></Card>
       ) : (

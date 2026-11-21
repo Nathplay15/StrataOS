@@ -131,19 +131,21 @@ func runDatastore(ctx context.Context, t *store.BackupTask, p Progress) (string,
 		return Progress{Log: p.Log, Set: func(v float64) { p.Set(from + (to-from)*v/100) }}
 	}
 	var failed []string
-	var logical, added int64
+	var logical, added, read int64
+	incremental := false
 	for _, n := range t.VMs {
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		l, a, err := backupVMImage(ctx, t, n, at, sub())
+		st, err := backupVMImage(ctx, t, n, at, sub())
 		step++
 		if err != nil {
 			p.Log("VM %s: %v", n, err)
 			failed = append(failed, fmt.Sprintf("VM %s: %v", n, err))
 			continue
 		}
-		logical, added = logical+l, added+a
+		logical, added, read = logical+st.logical, added+st.added, read+st.read
+		incremental = incremental || st.incremental
 	}
 	for _, n := range t.Containers {
 		if ctx.Err() != nil {
@@ -161,6 +163,9 @@ func runDatastore(ctx context.Context, t *store.BackupTask, p Progress) (string,
 	msg := ""
 	if steps > len(t.Sources) && len(failed) < len(t.VMs)+len(t.Containers) {
 		msg = fmt.Sprintf("%d VM(s) and container(s) backed up: %s read, %s new data stored", len(t.VMs)+len(t.Containers)-len(failed), humanBytes(logical), humanBytes(added))
+		if incremental {
+			msg += fmt.Sprintf(" (incremental: %s read from the VM disks)", humanBytes(read))
+		}
 	}
 	if len(t.Sources) > 0 {
 		m, err := resticFolders(ctx, t, sub())
@@ -179,73 +184,6 @@ func runDatastore(ctx context.Context, t *store.BackupTask, p Progress) (string,
 	}
 	p.Log("Finished in %s", time.Since(start).Round(time.Second))
 	return msg, nil
-}
-
-// backupVMImage stores the disks of a VM, then its definition.
-func backupVMImage(ctx context.Context, t *store.BackupTask, name string, at time.Time, p Progress) (logical, added int64, err error) {
-	if !sys.Has("qemu-nbd") {
-		return 0, 0, fmt.Errorf("qemu-nbd is not installed")
-	}
-	p.Log("Backing up virtual machine %s", name)
-	src, err := vms.OpenForImage(ctx, name, t.VMMode, vms.Progress{Log: p.Log})
-	if err != nil {
-		return 0, 0, err
-	}
-	released := false
-	release := func() {
-		if !released {
-			released = true
-			src.Release()
-		}
-	}
-	defer release()
-	b := &src.Bundle
-	guest := guestTag + "vm-" + name
-	var ids []string
-	defer func() {
-		if err != nil {
-			forgetIDs(ctx, t, ids)
-		}
-	}()
-	for i, d := range b.Disks {
-		conn, closeImg, err := openImage(ctx, d.Source, d.Format, false)
-		if err != nil {
-			return 0, 0, fmt.Errorf("disk %s: %w", d.Target, err)
-		}
-		b.Disks[i].Size = conn.size
-		from, to := float64(i)*95/float64(len(b.Disks)), float64(i+1)*95/float64(len(b.Disks))
-		cr := &countingReader{r: &nbdReader{n: conn}, size: conn.size, set: func(v float64) { p.Set(from + (to-from)*v/100) }}
-		p.Log("Disk %s: %s (%s)", d.Target, humanBytes(conn.size), b.Manifest.Consistency)
-		sum, err := backupStream(ctx, t, cr, d.Target+".raw", at, []string{guest, partTag + "disk-" + d.Target}, p)
-		closeImg()
-		if err == nil && cr.n != conn.size {
-			err = fmt.Errorf("read %d of %d bytes", cr.n, conn.size)
-		}
-		if sum.SnapshotID != "" {
-			ids = append(ids, sum.SnapshotID)
-		}
-		if err != nil {
-			return 0, 0, fmt.Errorf("disk %s: %w", d.Target, err)
-		}
-		logical += sum.TotalBytes
-		added += sum.DataAddedPacked
-		p.Log("Disk %s: %s new data stored", d.Target, humanBytes(sum.DataAddedPacked))
-	}
-	release()
-	b.Manifest.Size = logical
-	data, err := json.Marshal(b)
-	if err != nil {
-		return 0, 0, err
-	}
-	sum, err := backupStream(ctx, t, bytes.NewReader(data), "guest.json", at, []string{guest, partTag + "config"}, p)
-	if sum.SnapshotID != "" {
-		ids = append(ids, sum.SnapshotID)
-	}
-	if err != nil {
-		return 0, 0, err
-	}
-	p.Set(100)
-	return logical, added + sum.DataAddedPacked, nil
 }
 
 // backupContainerImage stores a container as an uncompressed archive.

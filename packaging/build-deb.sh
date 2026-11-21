@@ -14,6 +14,8 @@ install -Dm755 "$BIN" "$ROOT/usr/bin/strata"
 install -Dm644 packaging/systemd/strata.service "$ROOT/usr/lib/systemd/system/strata.service"
 install -Dm644 packaging/systemd/strata-console.service "$ROOT/usr/lib/systemd/system/strata-console.service"
 install -Dm644 packaging/avahi/strata.service "$ROOT/etc/avahi/services/strata.service"
+# Keeps the EFI system partitions of a mirrored system disk identical (esp-sync).
+install -Dm644 packaging/apt/99strataos-esp-sync "$ROOT/etc/apt/apt.conf.d/99strataos-esp-sync"
 # Every helper script (component installers, HA and UPS hooks).
 for f in packaging/scripts/*; do install -Dm755 "$f" "$ROOT/usr/lib/strata/scripts/$(basename "$f")"; done
 # Raspberry Pi boot and APT files of the image, for the switch of older
@@ -43,7 +45,7 @@ mkdir -p "$ROOT/DEBIAN"
 SIZE=$(du -sk "$ROOT" | cut -f1)
 sed -e "s/@VERSION@/$VERSION/" -e "s/@ARCH@/$ARCH/" -e "s/@SIZE@/$SIZE/" packaging/debian/control.in > "$ROOT/DEBIAN/control"
 install -m755 packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm "$ROOT/DEBIAN/"
-echo "/etc/avahi/services/strata.service" > "$ROOT/DEBIAN/conffiles"
+printf '%s\n' /etc/avahi/services/strata.service /etc/apt/apt.conf.d/99strataos-esp-sync > "$ROOT/DEBIAN/conffiles"
 [ -f "$ROOT/etc/apt/sources.list.d/strataos.sources" ] && echo "/etc/apt/sources.list.d/strataos.sources" >> "$ROOT/DEBIAN/conffiles"
 mkdir -p dist
 OUT="dist/strataos_${VERSION}_${ARCH}.deb"

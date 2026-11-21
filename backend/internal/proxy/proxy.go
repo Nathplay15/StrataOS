@@ -73,7 +73,10 @@ type Route struct {
 	LANOnly bool
 	// AllowedIPs restricts the visitors to these networks; empty: everyone.
 	AllowedIPs []netip.Prefix
-	proxy      *httputil.ReverseProxy
+	// Auth: a NAS sign-in is needed before the request goes on (forward
+	// authentication, Server.ForwardAuth).
+	Auth  bool
+	proxy *httputil.ReverseProxy
 }
 
 // ParsePrefixes turns a list of IP addresses or CIDR networks into prefixes.
@@ -184,8 +187,36 @@ type Server struct {
 	// StripCookie is never passed to the apps nor set by them (the session
 	// cookie of the interface, which browsers also send to other ports).
 	StripCookie string
+	// ForwardAuth decides the requests of routes with Auth: it answers
+	// itself (sign-in redirect, refusal, its own paths) and returns done, or
+	// returns the identity headers to pass to the app.
+	ForwardAuth func(w http.ResponseWriter, r *http.Request, rt *Route) (identity http.Header, done bool)
 	// Listen addresses (":80" and ":443"; changed in tests).
 	HTTPAddr, HTTPSAddr string
+}
+
+// FwdCookie is the forward-auth session cookie of a protected host: it is
+// never passed to the apps nor set by them.
+const FwdCookie = "__Host-strata_fwd"
+
+// identityHeaders are the request headers apps may take as the signed-in
+// user (Remote-User and the like): a client never gets to send them, only
+// the forward authentication of a protected host sets them.
+var identityPrefixes = []string{"Remote-", "X-Remote-", "X-Forwarded-User", "X-Forwarded-Email", "X-Forwarded-Groups", "X-Forwarded-Preferred-Username", "X-Webauth-", "X-Auth-Request-", "X-Authentik-"}
+
+// StripIdentity removes every identity header from a request, whatever its
+// case and with underscores for dashes (CGI and WSGI servers map Remote_User
+// to the same variable as Remote-User).
+func StripIdentity(h http.Header) {
+	for k := range h {
+		ck := http.CanonicalHeaderKey(strings.ReplaceAll(k, "_", "-"))
+		for _, p := range identityPrefixes {
+			if strings.HasPrefix(ck, p) {
+				delete(h, k)
+				break
+			}
+		}
+	}
 }
 
 // SetRoutes replaces the routing table.
@@ -353,6 +384,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Strict-Transport-Security", "max-age=15552000")
+	StripIdentity(r.Header)
+	if rt.Auth && rt.Target != nil {
+		if s.ForwardAuth == nil {
+			page(w, http.StatusServiceUnavailable, "Sign-in unavailable", "This application needs a sign-in that is not available.")
+			return
+		}
+		id, done := s.ForwardAuth(w, r, rt)
+		if done {
+			return
+		}
+		for k, v := range id {
+			r.Header[http.CanonicalHeaderKey(k)] = v
+		}
+	}
 	if rt.Target == nil {
 		if s.UI == nil {
 			page(w, http.StatusBadGateway, "Unavailable", "The interface is not available.")
@@ -378,9 +423,11 @@ func (s *Server) newProxy(target *url.URL) *httputil.ReverseProxy {
 			pr.Out.Host = pr.In.Host
 			Forwarded(pr.Out.Header, pr.In)
 			StripCookie(pr.Out.Header, s.StripCookie)
+			StripCookie(pr.Out.Header, FwdCookie)
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			StripSetCookie(resp.Header, s.StripCookie)
+			StripSetCookie(resp.Header, FwdCookie)
 			return nil
 		},
 		Transport:     tr,

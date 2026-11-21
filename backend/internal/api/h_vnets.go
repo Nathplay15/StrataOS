@@ -41,6 +41,8 @@ type vnetView struct {
 	network.VNet
 	Status vnetStatus  `json:"status"`
 	Guests []vnetGuest `json:"guests"`
+	// Shared: the state of each member of a shared network (declaring NAS).
+	Shared []vnetMemberStatus `json:"shared,omitempty"`
 }
 
 func cloneNet(c network.Config) network.Config {
@@ -178,6 +180,9 @@ func (s *Server) vnetViews(ctx context.Context, c network.Config) []vnetView {
 	out := []vnetView{}
 	for _, v := range c.Virtual {
 		vv := vnetView{VNet: v, Guests: []vnetGuest{}}
+		if len(v.Members) > 0 {
+			vv.Shared = vnetShareStatus(v.ID)
+		}
 		if _, err := os.Stat("/sys/class/net/" + v.Bridge); err == nil {
 			vv.Status.Exists = true
 			op, _ := os.ReadFile("/sys/class/net/" + v.Bridge + "/operstate")
@@ -206,6 +211,7 @@ type vnetPeer struct {
 	Name string `json:"name"`
 	Addr string `json:"addr"`
 	From string `json:"from"` // cluster | fleet
+	Key  string `json:"key"`  // cluster:<id> | fleet:<id>, for a shared network's Members
 }
 
 // applyVNets puts a network configuration with changed virtual networks on trial.
@@ -269,11 +275,11 @@ func (s *Server) vnetRoutes() {
 				if a == "" {
 					a = hostOnly(m.Host)
 				}
-				peers = append(peers, vnetPeer{Name: m.Name, Addr: a, From: "cluster"})
+				peers = append(peers, vnetPeer{Name: m.Name, Addr: a, From: "cluster", Key: "cluster:" + m.ID})
 			}
 			for _, m := range st.Fleet.Members {
 				if a := hostOnly(m.Host); net.ParseIP(a) != nil {
-					peers = append(peers, vnetPeer{Name: m.Name, Addr: a, From: "fleet"})
+					peers = append(peers, vnetPeer{Name: m.Name, Addr: a, From: "fleet", Key: "fleet:" + m.ID})
 				}
 			}
 		})
@@ -301,6 +307,7 @@ func (s *Server) vnetRoutes() {
 		prev, _ := s.netConfigAndLinks()
 		next := cloneNet(prev)
 		v.Bridge = network.NextBridge(prev, linkNames())
+		v.Origin, v.OriginKey, v.WG = "", "", nil
 		next.Virtual = append(next.Virtual, v)
 		if err := network.CheckVNetAddrs(v, otherAddrs(v.Bridge)); err != nil {
 			return nil, badRequest(err.Error())
@@ -319,7 +326,15 @@ func (s *Server) vnetRoutes() {
 		if i < 0 {
 			return nil, notFound("no virtual network " + r.PathValue("id"))
 		}
-		v.ID, v.Bridge = next.Virtual[i].ID, next.Virtual[i].Bridge
+		if o := next.Virtual[i]; o.OriginKey != "" {
+			return nil, badRequest("this network is managed by the NAS " + o.Origin + ": change it there")
+		}
+		v.ID, v.Bridge, v.Origin, v.OriginKey = next.Virtual[i].ID, next.Virtual[i].Bridge, "", ""
+		if v.Encrypt == next.Virtual[i].Encrypt && slices.Equal(v.Members, next.Virtual[i].Members) {
+			v.Peers, v.Local, v.WG = next.Virtual[i].Peers, next.Virtual[i].Local, next.Virtual[i].WG // kept by the sharing
+		} else if len(v.Members) > 0 {
+			v.WG = nil // computed again
+		}
 		next.Virtual[i] = v
 		if err := network.CheckVNetAddrs(v, otherAddrs(v.Bridge)); err != nil {
 			return nil, badRequest(err.Error())
@@ -342,6 +357,9 @@ func (s *Server) vnetRoutes() {
 				}
 				return nil, badRequest("the network is used by " + strings.Join(names, ", ") + ": move them to another network first")
 			}
+		}
+		if o := next.Virtual[i]; o.OriginKey != "" && s.vnetOriginActive(o.OriginKey) {
+			return nil, badRequest("this network is managed by the NAS " + o.Origin + ": remove it there, or revoke its access first")
 		}
 		next.Virtual = slices.Delete(next.Virtual, i, i+1)
 		return s.applyVNets(r, next, "Virtual network "+r.PathValue("id")+" removed")

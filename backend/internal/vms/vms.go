@@ -649,13 +649,22 @@ func Delete(name string, removeDisks bool) error {
 		_, _ = virsh("destroy", name)
 	}
 	ceph := rbdDisks(name)
-	if _, err := virsh("undefine", name, "--nvram", "--snapshots-metadata", "--tpm"); err != nil {
-		if _, err2 := virsh("undefine", name, "--nvram"); err2 != nil {
+	if _, err := virsh("undefine", name, "--nvram", "--snapshots-metadata", "--checkpoints-metadata", "--tpm"); err != nil {
+		if _, err2 := virsh("undefine", name, "--nvram", "--checkpoints-metadata"); err2 != nil {
 			return err
 		}
 	}
 	_ = os.Remove(consoleLogPath(name))
 	if removeDisks && len(ceph) > 0 {
+		// Ceph refuses to delete an image that has snapshots: drop the
+		// ones kept by image backups for their next incremental run.
+		if DropBackupSnapshots != nil {
+			for _, d := range vm.Disks {
+				if img, ok := strings.CutPrefix(d.Source, RBDPrefix); ok && d.Device == "disk" {
+					DropBackupSnapshots(img, "strata-")
+				}
+			}
+		}
 		if err := deleteRBDDisks(ceph); err != nil {
 			return err
 		}

@@ -50,6 +50,8 @@ type sessions struct {
 	mu   sync.Mutex
 	m    map[string]*session
 	path string
+	// onDrop follows dropUser (the app sessions of single sign-on end too).
+	onDrop func(user string)
 }
 
 func newSessions(path string) *sessions {
@@ -141,6 +143,9 @@ func (s *sessions) dropUser(user string) {
 	}
 	s.saveLocked()
 	s.mu.Unlock()
+	if s.onDrop != nil {
+		s.onDrop(user)
+	}
 }
 
 // sessionView is a live session as the interface shows it. ID is the SHA-256

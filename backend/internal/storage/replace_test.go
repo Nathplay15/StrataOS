@@ -371,3 +371,30 @@ func TestParseMdFinish(t *testing.T) {
 		}
 	}
 }
+
+// A disk of the system mirror fails: the group is made of whole system
+// disks, the new disk must be at least as large as the one that stays.
+func TestPlanSystemMirror(t *testing.T) {
+	sda, sdb := disk("sda", 32*gib, "system"), disk("sdb", 32*gib, "system")
+	sda.System, sdb.System = true, true
+	f := ReplaceFacts{
+		Disks: []BlockDevice{sda, sdb, disk("sdc", 40*gib, "free"), disk("sdd", 16*gib, "free")},
+		Groups: []ReplaceGroup{{ID: "sys:mirror", Kind: "system", Name: "System mirror", Level: "raid1", Tolerates: 1,
+			Members: []ReplaceMember{{Name: "/dev/sda", Disk: "/dev/sda", Size: 32 * gib, State: "active"}, {Name: "/dev/sdb", Disk: "/dev/sdb", Size: 32 * gib, State: "faulty"}}}},
+		Now: now,
+	}
+	p := PlanReplace(f, ReplaceSel{Disk: "/dev/sdb", New: "/dev/sdc"})
+	if p.Refusal != "" || p.Mode != "degraded" || p.Need != 32*gib || len(p.Steps) == 0 || !strings.Contains(p.Steps[0], "partitions") {
+		t.Fatalf("plan: %+v", p)
+	}
+	if c := candidate(p, "/dev/sdd"); c.OK {
+		t.Errorf("a 16 GiB disk cannot replace a 32 GiB system disk: %+v", c)
+	}
+	if c := candidate(p, "/dev/sda"); c.Path != "" {
+		t.Errorf("the other system disk is no candidate: %+v", c)
+	}
+	f.Groups[0].Members[1].State = "active"
+	if p := PlanReplace(f, ReplaceSel{Disk: "/dev/sda", New: "/dev/sdc"}); p.Refusal != "" || p.Mode != "add-first" {
+		t.Fatalf("add-first: %+v", p)
+	}
+}

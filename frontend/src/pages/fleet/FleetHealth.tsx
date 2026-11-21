@@ -24,7 +24,7 @@ export type FleetHealth = {
 type Reason = { level: "info" | "warning" | "critical"; kind: string; text: string };
 export type HealthRow = {
   id: string; name: string; host: string; online: boolean; error?: string; health?: FleetHealth; level: "ok" | "info" | "warning" | "critical";
-  reasons: Reason[]; checked: string; seen?: string; pending?: boolean;
+  reasons: Reason[]; checked: string; seen?: string; pending?: boolean; wakeable?: boolean;
 };
 type Totals = { total: number; online: number; offline: number; critical: number; warning: number; attention: number; updates: number; spaceTotal: number; spaceUsed: number };
 export type Dashboard = { rows: HealthRow[]; totals: Totals; refreshed?: string; refreshing: boolean };
@@ -136,6 +136,7 @@ function Version({ h, partial }: { h?: FleetHealth; partial?: boolean }) {
 
 function Details({ r }: { r: HealthRow }) {
   const h = r.health;
+  const wake = useAction(() => api.post(`/api/fleet/${r.id}/wake`), { success: tr("Wake packet sent") });
   return (
     <div className="grid gap-4 p-3 text-[12.5px] md:grid-cols-3">
       <div>
@@ -145,6 +146,7 @@ function Details({ r }: { r: HealthRow }) {
         ))}
         {!r.online && r.error && <div className="mt-1 break-words text-muted">{srv(r.error)}</div>}
         {!r.online && r.seen && <div className="mt-1 text-muted">{tr("Last answer {0}", ago(r.seen))}</div>}
+        {!r.online && r.wakeable && <Button size="sm" className="mt-2" loading={wake.isPending} onClick={() => wake.mutate()}>{tr("Wake up (Wake-on-LAN)")}</Button>}
       </div>
       <div>
         <div className="mb-1 font-medium">{tr("Alerts")}</div>
