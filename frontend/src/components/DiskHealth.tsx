@@ -15,7 +15,7 @@ export type SsdCache = { kind: "lvm" | "l2arc" | "slog"; name: string; mode?: st
 
 export type SsdWear = { device: string; model: string; serial: string; kind: string; wear: Wear; caches: SsdCache[]; advice: string[] };
 
-type History = { device: string; model: string; serial: string; kind: string; points: HistoryPoint[]; wear?: Wear };
+type History = { device: string; model: string; serial: string; kind: string; points: HistoryPoint[]; wear?: Wear; forecast?: { days: number; field: string } };
 
 /** Wear of the SSDs and the caches they hold (Disks, LVM). */
 export function useSsdWear() {
@@ -123,6 +123,16 @@ export function SmartHistory({ device }: { device: string }) {
         <div className="text-[12px] text-muted">{pts.length === 1
           ? tr("One reading so far ({0}): the graphs fill in day after day.", day(first.t))
           : tr("{0} readings from {1} to {2}", pts.length, day(first.t), day(last.t))}</div>
+        {data.forecast && (() => {
+          const d = Math.max(1, Math.round(data.forecast.days));
+          const label = counters.find((c) => c.key === data.forecast!.field)?.label.toLowerCase() ?? data.forecast.field;
+          return (
+            <div>
+              <Badge tone={d < 30 ? "danger" : "warn"}>{tr("Likely to fail in about {0} days", d)}</Badge>{" "}
+              <span className="text-[12px] text-muted">{tr("The {0} keep climbing: dead sectors never heal, plan a replacement and check the backups.", label)}</span>
+            </div>
+          );
+        })()}
         {worse.length > 0 && (
           <div className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-[13px] text-warn">
             <b>{tr("Getting worse:")}</b>{" "}{worse.map((c) => tr("{0} {1} → {2}", c.label.toLowerCase(), first[c.key] as number, last[c.key] as number)).join(", ")}
