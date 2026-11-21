@@ -38,6 +38,7 @@ const assistantPrompt = `You are the StrataOS assistant, embedded in a NAS web i
 type assistantMessage struct {
 	Role       string        `json:"role"`
 	Content    string        `json:"content,omitempty"`
+	Reasoning  string        `json:"reasoning,omitempty"` // thinking models stream it apart
 	ToolCalls  []llmToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string        `json:"tool_call_id,omitempty"`
 }
@@ -298,7 +299,7 @@ func (s *Server) assistantLoop(ctx context.Context, t *assistantTurn) error {
 	for iter := 0; iter < 5; iter++ {
 		var msg *assistantMessage
 		if t.stream {
-			m, err := s.llmStream(ctx, t.set, t.conv, func(text string) { t.send(assistantEvent{Type: "delta", Text: text}) })
+			m, err := s.llmStream(ctx, t.set, t.conv, func(text string) { t.send(assistantEvent{Type: "delta", Text: text}) }, func(text string) { t.send(assistantEvent{Type: "reasoning", Text: text}) })
 			if err != nil {
 				return err
 			}

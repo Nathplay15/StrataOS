@@ -33,6 +33,7 @@ export default function Assistant() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [tool, setTool] = useState<string | null>(null);
+  const [think, setThink] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, actions, busy]);
@@ -43,6 +44,7 @@ export default function Assistant() {
     setMessages([...base, { role: "assistant" as const, content: "" }]);
     setBusy(true);
     setTool(null);
+    setThink(null);
     const show = (reply: string) => setMessages([...base, { role: "assistant", content: reply }]);
     try {
       const res = await fetch(url, {
@@ -71,8 +73,9 @@ export default function Assistant() {
           const line = raw.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
           const ev = JSON.parse(line.slice(5).trim()) as { type: string; text?: string; tool?: string; token?: string; summary?: string; resume?: boolean; conversationId?: string };
-          if (ev.type === "delta") { reply += ev.text ?? ""; show(reply); }
+          if (ev.type === "delta") { reply += ev.text ?? ""; setThink(null); show(reply); }
           else if (ev.type === "status") setTool(ev.tool ?? null);
+          else if (ev.type === "reasoning") setThink((t) => (t ?? "") + (ev.text ?? ""));
           else if (ev.type === "action" && ev.token) armed.push({ token: ev.token, tool: ev.tool ?? "", summary: ev.summary ?? "", resume: ev.resume });
           else if (ev.type === "error") throw new Error(ev.text || "assistant error");
           else if (ev.type === "done") { if (ev.conversationId) setConvId(ev.conversationId); qc.invalidateQueries({ queryKey: ["assistant-conversations"] }); }
@@ -85,6 +88,7 @@ export default function Assistant() {
       setMessages((ms) => (ms.length && ms[ms.length - 1].role === "assistant" && !ms[ms.length - 1].content ? base : ms));
     }
     setTool(null);
+    setThink(null);
     setBusy(false);
   };
 
@@ -216,6 +220,9 @@ export default function Assistant() {
                 </div>
               </div>
             ))}
+            {busy && think && (
+              <div className="ml-9 max-h-32 max-w-[85%] overflow-y-auto whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-panel-2 px-3.5 py-2 text-[12px] text-muted">{think}</div>
+            )}
             {busy && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}</div>}
             {actions.map((a, i) => (
               <div key={a.token} className="ml-7 rounded-xl border border-line bg-panel-2 p-3">

@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone,
+  Activity, AppWindow, Bot, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone,
 } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -52,6 +52,7 @@ const AntivirusPage = lazy(() => import("../pages/system/Antivirus"));
 const HAPage = lazy(() => import("../pages/system/HighAvailability"));
 const RemotePage = lazy(() => import("../pages/system/RemoteAccess"));
 const MediaPage = lazy(() => import("../pages/Media"));
+const AssistantPage = lazy(() => import("../pages/Assistant"));
 
 type PageComponent = ComponentType<{ me: Me }>;
 
@@ -86,6 +87,7 @@ export const APPS: AppDef[] = [
   { id: "photos", title: tr("Photos"), icon: PhotosIcon, colors: ["#f472b6", "#db2777"], admin: false, size: [1120, 760], component: PhotosPage as PageComponent, path: "/photos" },
   { id: "media", title: tr("Media"), icon: Clapperboard, colors: ["#fb7185", "#9333ea"], admin: false, size: [1120, 780], component: MediaPage as PageComponent, path: "/media" },
   { id: "links", title: tr("Shared links"), icon: Link2, colors: ["#22d3ee", "#0891b2"], admin: false, size: [1000, 640], component: LinksPage as PageComponent, path: "/links" },
+  { id: "assistant", title: tr("Assistant"), icon: Bot, colors: ["#818cf8", "#4f46e5"], admin: false, size: [900, 720], component: page(AssistantPage), path: "/assistant" },
   { id: "myvpn", title: tr("My VPN devices"), icon: Smartphone, colors: ["#34d399", "#059669"], admin: false, size: [900, 620], component: page(MyVpnPage), path: "/vpn" },
   {
     id: "storage", title: tr("Storage Manager"), icon: HardDrive, colors: ["#0ea5e9", "#2563eb"], admin: true, size: [1120, 760],
