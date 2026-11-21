@@ -4,6 +4,8 @@ package cloudsync
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -113,6 +115,8 @@ func Validate(t *store.CloudSync) error {
 		return fmt.Errorf("unknown cloud provider")
 	}
 	known := map[string]bool{}
+	// The encryption keys travel in Secrets too, outside the provider fields.
+	known["crypt_pass"], known["crypt_salt"] = true, true
 	for _, f := range p.Fields {
 		known[f.Key] = true
 		v := t.Params[f.Key]
@@ -193,6 +197,23 @@ func Validate(t *store.CloudSync) error {
 	if t.BWLimit != "" && !bwRe.MatchString(t.BWLimit) {
 		return fmt.Errorf("invalid bandwidth limit (e.g. 10M)")
 	}
+	// End-to-end encryption: a passphrase is required, a salt is generated on
+	// the first save. Turning encryption off forgets both keys for good.
+	if t.Encrypted {
+		if len(strings.TrimSpace(t.Secrets["crypt_pass"])) < 8 || strings.ContainsAny(t.Secrets["crypt_pass"], "\n\r") {
+			return fmt.Errorf("the encryption password must be at least 8 characters")
+		}
+		if t.Secrets["crypt_salt"] == "" {
+			b := make([]byte, 16)
+			if _, err := rand.Read(b); err != nil {
+				return fmt.Errorf("cannot generate the encryption salt: %w", err)
+			}
+			t.Secrets["crypt_salt"] = hex.EncodeToString(b)
+		}
+	} else {
+		delete(t.Secrets, "crypt_pass")
+		delete(t.Secrets, "crypt_salt")
+	}
 	return nil
 }
 
@@ -217,7 +238,11 @@ func writeConfig(ctx context.Context, t *store.CloudSync) (string, error) {
 		return "", err
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "[%s]\ntype = %s\n", remote, p.Backend)
+	backend := remote
+	if t.Encrypted {
+		backend = remote + "-cloud"
+	}
+	fmt.Fprintf(&b, "[%s]\ntype = %s\n", backend, p.Backend)
 	for _, f := range p.Fields {
 		v := t.Params[f.Key]
 		if f.Secret {
@@ -227,11 +252,10 @@ func writeConfig(ctx context.Context, t *store.CloudSync) (string, error) {
 			continue
 		}
 		if obscured[f.Key] {
-			out, err := sys.RunOpts(ctx, sys.Opts{Stdin: v}, "rclone", "obscure", "-")
-			if err != nil {
-				return "", fmt.Errorf("rclone obscure: %w", err)
+			var err error
+			if v, err = obscure(ctx, v); err != nil {
+				return "", err
 			}
-			v = strings.TrimSpace(out)
 		}
 		fmt.Fprintf(&b, "%s = %s\n", f.Key, v)
 	}
@@ -262,11 +286,34 @@ func writeConfig(ctx context.Context, t *store.CloudSync) (string, error) {
 	case "s3":
 		b.WriteString("env_auth = false\nno_check_bucket = true\n")
 	}
+	// The crypt view sits on top of the provider remote: what leaves the NAS
+	// through it is unreadable in the cloud, names included.
+	if t.Encrypted {
+		pass, err := obscure(ctx, t.Secrets["crypt_pass"])
+		if err != nil {
+			return "", err
+		}
+		salt, err := obscure(ctx, t.Secrets["crypt_salt"])
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(&b, "\n[%s]\ntype = crypt\nremote = %s:%s\npassword = %s\npassword2 = %s\nfilename_encryption = standard\ndirectory_name_encryption = true\n",
+			remote, backend, t.RemotePath, pass, salt)
+	}
 	path := confPath(t.ID)
 	if err := sys.WriteFileAtomic(path, []byte(b.String()), 0o600); err != nil {
 		return "", err
 	}
 	return path, nil
+}
+
+// obscure asks rclone to scramble a secret for its configuration file.
+func obscure(ctx context.Context, v string) (string, error) {
+	out, err := sys.RunOpts(ctx, sys.Opts{Stdin: v}, "rclone", "obscure", "-")
+	if err != nil {
+		return "", fmt.Errorf("rclone obscure: %w", err)
+	}
+	return strings.TrimSpace(out), nil
 }
 
 func knownHost(ctx context.Context, host, port string) (string, error) {
