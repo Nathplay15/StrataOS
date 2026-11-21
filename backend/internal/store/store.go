@@ -561,6 +561,9 @@ type Album struct {
 	Owner   string    `json:"owner"`
 	Items   []string  `json:"items"` // file paths
 	Created time.Time `json:"created"`
+	// With are the other accounts the album is shared with (view only);
+	// sharing by link is a ShareLink with an album.
+	With []string `json:"with,omitempty"`
 }
 
 // ShareLink gives access to a file, a folder or an album without an account.

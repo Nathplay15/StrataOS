@@ -399,6 +399,9 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(p, "assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
+			if p == "manifest.webmanifest" {
+				w.Header().Set("Content-Type", "application/manifest+json")
+			}
 			http.ServeFileFS(w, r, s.web, p)
 			return
 		}
