@@ -21,9 +21,10 @@ pub struct Labels {
     pub share: String,
     pub open: String,
     /// Files on demand (Linux): "Keep on this device", "Free up space".
-    #[serde(default)]
+    // Read by the menus of the on-demand provider only where it exists.
+    #[allow(dead_code)]
     pub keep: String,
-    #[serde(default)]
+    #[allow(dead_code)]
     pub free: String,
 }
 
