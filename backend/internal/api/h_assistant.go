@@ -186,7 +186,8 @@ func (s *Server) assistantChatSettings(r *http.Request, req *assistantChatReq) (
 	}
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
-	if set.AssistantURL == "" || set.AssistantKey == "" || set.AssistantModel == "" {
+	// A local endpoint (Ollama) needs no key: only a cloud one does.
+	if set.AssistantURL == "" || set.AssistantModel == "" {
 		return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
 	}
 	return set, nil
@@ -452,11 +453,37 @@ func (s *Server) assistantRoutes() {
 	s.user("GET /api/assistant/config", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		enabled := set.AssistantURL != "" && set.AssistantKey != "" && set.AssistantModel != ""
+		enabled := set.AssistantURL != "" && set.AssistantModel != ""
 		return struct {
 			Enabled bool   `json:"enabled"`
 			Model   string `json:"model"`
 		}{enabled, set.AssistantModel}, nil
+	})
+
+	// Lets an admin switch the model live (local Ollama model or cloud model)
+	// from the assistant itself, without touching the global settings.
+	s.admin("PUT /api/assistant/model", func(r *http.Request) (any, error) {
+		var req struct {
+			Model string `json:"model"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		req.Model = strings.TrimSpace(req.Model)
+		if req.Model == "" || len(req.Model) > 100 {
+			return nil, badRequest("invalid model")
+		}
+		err := s.store.Update(func(st *store.State) error {
+			st.Settings.AssistantModel = req.Model
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.audit(r, "assistant", "Assistant model set to "+req.Model)
+		return struct {
+			Model string `json:"model"`
+		}{req.Model}, nil
 	})
 
 	s.user("POST /api/assistant/chat", func(r *http.Request) (any, error) {
@@ -525,7 +552,7 @@ func (s *Server) assistantRoutes() {
 		}
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		if set.AssistantURL == "" || set.AssistantKey == "" || set.AssistantModel == "" {
+		if set.AssistantURL == "" || set.AssistantModel == "" {
 			writeErr(w, badRequest("the assistant is not configured: set it up in Settings"))
 			return
 		}
@@ -755,7 +782,9 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 		return nil, badRequest("invalid assistant URL")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+set.AssistantKey)
+	if set.AssistantKey != "" {
+		req.Header.Set("Authorization", "Bearer "+set.AssistantKey)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, badRequest("the assistant endpoint is unreachable")
@@ -778,7 +807,7 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 // stream:true, forwards every content delta to onDelta as it arrives and
 // accumulates the tool calls (their arguments arrive in small chunks). It
 // returns the complete message of the answer.
-func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []assistantMessage, onDelta func(string)) (*assistantMessage, error) {
+func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []assistantMessage, onDelta func(string), onReasoning func(string)) (*assistantMessage, error) {
 	body, err := json.Marshal(map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools(), "stream": true})
 	if err != nil {
 		return nil, err
@@ -790,7 +819,9 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 		return nil, badRequest("invalid assistant URL")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+set.AssistantKey)
+	if set.AssistantKey != "" {
+		req.Header.Set("Authorization", "Bearer "+set.AssistantKey)
+	}
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -838,6 +869,10 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 			continue
 		}
 		d := chunk.Choices[0].Delta
+		if d.Reasoning != "" {
+			msg.Reasoning += d.Reasoning
+			onReasoning(d.Reasoning)
+		}
 		if d.Content != "" {
 			msg.Content += d.Content
 			onDelta(d.Content)

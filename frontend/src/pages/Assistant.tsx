@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CircleCheck, CircleX, History, MessageSquarePlus, SendHorizonal, Trash2, User } from "lucide-react";
 import { api, ApiError } from "../lib/api";
-import { Badge, Button, ErrorBox, Input, Notice, PageHeader, Spinner, useUI } from "../components/ui";
+import type { LocalModel } from "../components/LocalModels";
+import type { Me } from "../lib/types";
+import { Badge, Button, ErrorBox, Input, Notice, PageHeader, Select, Spinner, useUI } from "../components/ui";
+import { useAction } from "../lib/hooks";
 import { tr } from "../lib/i18n";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -19,6 +22,12 @@ type ConvMeta = { id: string; title: string; updated: string };
 export default function Assistant() {
   const config = useQuery({ queryKey: ["assistant-config"], queryFn: () => api.get<{ enabled: boolean; model: string }>("/api/assistant/config") });
   const qc = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me"), staleTime: 60000 });
+  const localModels = useQuery({ queryKey: ["assistant-models"], queryFn: () => api.get<{ reachable: boolean; models: LocalModel[] }>("/api/assistant/models"), enabled: me.data?.role === "admin", staleTime: 60000 });
+  const setModel = useAction((model: string) => api.put("/api/assistant/model", { model }), {
+    success: tr("Assistant model updated"),
+    onDone: () => qc.invalidateQueries({ queryKey: ["assistant-config"] }),
+  });
   const { confirm } = useUI();
   const convs = useQuery({ queryKey: ["assistant-conversations"], queryFn: () => api.get<ConvMeta[]>("/api/assistant/conversations") });
   // Write requests of AI clients (MCP) waiting for this user's approval.
@@ -154,9 +163,26 @@ export default function Assistant() {
         subtitle={tr("Ask anything about your NAS")}
         icon={<Bot size={20} />}
         actions={
-          <Button size="sm" icon={<MessageSquarePlus size={14} />} disabled={!messages.length && !actions.length} onClick={newConversation}>
-            {tr("New conversation")}
-          </Button>
+          <div className="flex items-center gap-2">
+            {me.data?.role === "admin" && config.data?.enabled && (
+              <Select
+                aria-label={tr("Model")}
+                title={tr("Model")}
+                className="!w-auto text-[12.5px]"
+                value={config.data.model}
+                disabled={setModel.isPending}
+                onChange={(e) => setModel.mutate(e.target.value)}
+              >
+                {(() => {
+                  const names = [...new Set([...(localModels.data?.reachable ? localModels.data.models.map((m) => m.name) : []), config.data.model])];
+                  return names.map((n) => <option key={n} value={n}>{n}</option>);
+                })()}
+              </Select>
+            )}
+            <Button size="sm" icon={<MessageSquarePlus size={14} />} disabled={!messages.length && !actions.length} onClick={newConversation}>
+              {tr("New conversation")}
+            </Button>
+          </div>
         }
       />
       <ErrorBox error={error} />
