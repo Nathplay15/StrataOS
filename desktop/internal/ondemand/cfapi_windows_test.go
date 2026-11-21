@@ -32,6 +32,9 @@ func TestCldapiProcs(t *testing.T) {
 // the fake NAS: placeholders, hydration on read, a new file sent, a change
 // of the NAS shown. Skipped where the Cloud Files driver is unavailable.
 func TestCfapiEndToEnd(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("hydration needs a logged-in desktop session, hosted runners have none")
+	}
 	if ok, _ := supported(); !ok {
 		t.Skip("no cldapi.dll")
 	}

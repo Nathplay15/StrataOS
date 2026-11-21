@@ -3,12 +3,16 @@ package ondemand
 import (
 	"encoding/json"
 	"reflect"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func TestAgentJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the agent.json folders are the macOS app group ones")
+	}
 	var v struct {
 		Port    int
 		Token   string
@@ -27,6 +31,9 @@ func TestAgentJSON(t *testing.T) {
 }
 
 func TestHelperRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the helper and its output are macOS ones")
+	}
 	if p, err := HelperRoot("warning\n/Users/a/Library/CloudStorage/StrataOS-NAS\n"); err != nil || p != "/Users/a/Library/CloudStorage/StrataOS-NAS" {
 		t.Fatal(p, err)
 	}
