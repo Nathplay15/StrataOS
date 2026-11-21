@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Sparkles, ChevronLeft, ChevronRight, Copy, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Sparkles, ChevronLeft, ChevronRight, Copy, Download, FolderPlus, Images, Link2, Pencil, Play, Plug, Plus, RefreshCcw, Search, Settings2, Trash2, Users, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { api, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
@@ -14,7 +14,7 @@ import { tagLabel, tagOf } from "../lib/photoTags";
 import { Memories, PeopleView, PersonTools, PlacesView, SmartProgress, SmartSettings, ThingsView, placeLabel, useSmart, type Filter, type Memory, type Person } from "./photos/Smart";
 
 type Item = { path: string; date: number; mtime: number; size: number; video?: boolean };
-type Album = { id: string; name: string; count: number; cover?: string; created: string; shared: boolean };
+type Album = { id: string; name: string; count: number; cover?: string; created: string; shared: boolean; from?: string; with?: string[] };
 type Page = { installed: boolean; total: number; items: Item[]; running: boolean; updated: string; folders?: string[] };
 
 const PAGE = 300;
@@ -162,6 +162,7 @@ function DuplicatesView() {
 function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
   const { data, isLoading } = useQuery({ queryKey: ["albums"], queryFn: () => api.get<Album[]>("/api/photos/albums") });
   const [name, setName] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<Album | null>(null);
   const create = useAction(() => api.post("/api/photos/albums", { name, items: [] }), { onDone: () => setName(null) });
   if (isLoading) return <Spinner />;
   return (
@@ -172,6 +173,9 @@ function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
             <div className="relative aspect-square overflow-hidden rounded-xl bg-panel-2">
               {a.cover ? <img src={thumb(a.cover)} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-muted"><Images size={36} /></div>}
               {a.shared && <span className="absolute top-2 right-2 rounded-full bg-black/60 p-1.5 text-white" title={tr("Shared by link")}><Link2 size={13} /></span>}
+              {a.from && <span className="absolute top-2 left-2 rounded-full bg-black/60 px-2 py-1 text-[11px] text-white" title={tr("Shared by {0}", a.from)}><Users size={11} className="mr-1 inline" />{a.from}</span>}
+              {!a.from && !!a.with?.length && <span className="absolute top-2 left-2 rounded-full bg-black/60 p-1.5 text-white" title={tr("Shared with {0}", a.with.length)}><Users size={13} /></span>}
+              {!a.from && <span role="button" tabIndex={0} className="absolute right-2 bottom-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 transition group-hover:opacity-100 focus:opacity-100" title={tr("Share album")} onClick={(e) => { e.stopPropagation(); setSharing(a); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setSharing(a); } }}><Users size={13} /></span>}
             </div>
             <div className="mt-2 truncate font-medium text-[13.5px]">{a.name}</div>
             <div className="text-muted text-[12px]">{tr("{0} item(s)", a.count)}</div>
@@ -186,7 +190,30 @@ function AlbumsView({ onOpen }: { onOpen: (a: Album) => void }) {
         <p className="mt-3 text-muted text-[12.5px]">{tr("Then add photos from the timeline with \"Select\".")}</p>
         <ErrorBox error={create.error} />
       </Modal>
+      {sharing && <ShareAlbumModal album={sharing} onClose={() => setSharing(null)} />}
     </div>
+  );
+}
+
+// Sharing an album with other accounts: they see its photos in their Photos
+// page, read-only, without the rest of the library.
+function ShareAlbumModal({ album, onClose }: { album: Album; onClose: () => void }) {
+  const [names, setNames] = useState<string[]>(album.with ?? []);
+  const [text, setText] = useState("");
+  const save = useAction(() => api.put(`/api/photos/albums/${album.id}/share`, { with: names }), { success: tr("Saved"), onDone: onClose });
+  const add = () => {
+    const n = text.trim();
+    if (!n || names.includes(n)) return setText("");
+    setNames([...names, n]);
+    setText("");
+  };
+  return (
+    <Modal open onClose={onClose} title={tr("Share album")} footer={<><Button onClick={onClose}>{tr("Cancel")}</Button><Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button></>}>
+      <p className="mb-3 text-muted text-[12.5px]">{tr("Accounts you share it with see this album in their Photos, read-only.")}</p>
+      {names.length > 0 && <div className="mb-3 flex flex-wrap gap-2">{names.map((n) => <span key={n} className="flex items-center gap-1.5 rounded-full bg-panel-2 px-2.5 py-1 text-[12.5px]">{n}<button onClick={() => setNames(names.filter((x) => x !== n))} title={tr("Remove access")} className="text-muted hover:text-danger"><X size={13} /></button></span>)}</div>}
+      <Field label={tr("Add account")}><div className="flex gap-2"><Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} placeholder="marie" /><Button onClick={add}>{tr("Add")}</Button></div></Field>
+      <ErrorBox error={save.error} />
+    </Modal>
   );
 }
 
