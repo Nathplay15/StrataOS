@@ -244,11 +244,15 @@ export default function SettingsPage() {
             <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>
               <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
             </Field>
-            <Field label={tr("API key")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
+            <Field label={tr("API key")} hint={tr("Only cloud APIs need a key. Leave empty with a local model.")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
             <Field label={tr("Model")} hint={tr("e.g. mistral-small-latest")}><Input className="mono" value={s.assistantModel ?? ""} onChange={(e) => set("assistantModel", e.target.value)} /></Field>
           </div>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.")}</p>
-          <LocalModels current={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: s.assistantKey || "ollama", assistantModel: name })} />
+          <LocalModels current={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: "", assistantModel: name })} />
+          <p className="mt-3 text-[12.5px] text-muted">{tr("Local models need no key. The model can also be switched directly from the assistant page.")}</p>
+          <div className="mt-3 flex justify-end">
+            <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>
+          </div>
         </Card>
         <Card id="settings-time" title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">
