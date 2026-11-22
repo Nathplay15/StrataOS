@@ -77,6 +77,7 @@ Done in 0.13.0 (ticked).
 - **Cinema app.** The films and series of the NAS get a real media center: the library fetches posters, synopses, actors and ratings by itself, and everything is watched directly in the desktop interface, the PWA and the mobile app, with the playback position following the viewer from one screen to the next.
 - **Subtitles fetched and generated.** The subtitles of a film or an episode are found automatically; a missing track is generated from the audio by the local speech-to-text model.
 - **HDMI out.** Plugged to a TV, the NAS shows a full-screen menu driven with the arrows of any remote: films, series, photos and every media of the NAS, in the same graphic style as the apps. Optional Bluetooth support where the NAS has a Bluetooth adapter: browse the menu with a Bluetooth remote or a gamepad.
+- **Cinema interface polish.** A dark "10-foot" look with large cards and zoom/blur hover effects; a permanent "continue watching" row resuming exactly where playback stopped; smart auto-collections (a franchise, "recently watched", "added this week"); the trailer plays on poster hover; subtitle size, color and outline are adjustable; a night mode limits brightness and volume late in the evening; family profiles with kid-only shelves and filtered content; the PWA becomes the remote of the HDMI menu; shared "watch together" lists; a screensaver with a slow wall of posters, clock and weather; instant search as you type; gamepad shortcuts (A = ok, B = back, L/R = shelves).
 
 ### Notifications and mobile
 
