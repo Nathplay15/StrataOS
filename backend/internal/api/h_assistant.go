@@ -188,7 +188,17 @@ func (s *Server) assistantChatSettings(r *http.Request, req *assistantChatReq) (
 	}
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
-	// A local endpoint (Ollama) needs no key: only a cloud one does.
+	// A local endpoint (Ollama) needs no key: only a cloud one does. A
+	// connected ChatGPT account needs neither a URL nor a key.
+	if set.AssistantProvider == "chatgpt" {
+		if set.ChatGPTRefresh == "" {
+			return store.Settings{}, badRequest("no ChatGPT account is connected")
+		}
+		if set.AssistantModel == "" {
+			return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
+		}
+		return set, nil
+	}
 	if set.AssistantURL == "" || set.AssistantModel == "" {
 		return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
 	}
@@ -302,13 +312,27 @@ func (s *Server) assistantLoop(ctx context.Context, t *assistantTurn) error {
 	for iter := 0; iter < 5; iter++ {
 		var msg *assistantMessage
 		if t.stream {
-			m, err := s.llmStream(ctx, t.set, t.conv, func(text string) { t.send(assistantEvent{Type: "delta", Text: text}) }, func(text string) { t.send(assistantEvent{Type: "reasoning", Text: text}) })
+			deltas := func(text string) { t.send(assistantEvent{Type: "delta", Text: text}) }
+			reasoning := func(text string) { t.send(assistantEvent{Type: "reasoning", Text: text}) }
+			var m *assistantMessage
+			var err error
+			if t.set.AssistantProvider == "chatgpt" {
+				m, err = s.chatgptStream(ctx, t.set, t.conv, deltas, reasoning)
+			} else {
+				m, err = s.llmStream(ctx, t.set, t.conv, deltas, reasoning)
+			}
 			if err != nil {
 				return err
 			}
 			msg = m
 		} else {
-			resp, err := s.llmChat(ctx, t.set, t.conv)
+			var resp *llmResponse
+			var err error
+			if t.set.AssistantProvider == "chatgpt" {
+				resp, err = s.chatgptChat(ctx, t.set, t.conv)
+			} else {
+				resp, err = s.llmChat(ctx, t.set, t.conv)
+			}
 			if err != nil {
 				return err
 			}
@@ -455,11 +479,17 @@ func (s *Server) assistantRoutes() {
 	s.user("GET /api/assistant/config", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		enabled := set.AssistantURL != "" && set.AssistantModel != ""
+		var enabled bool
+		if set.AssistantProvider == "chatgpt" {
+			enabled = set.ChatGPTRefresh != "" && set.AssistantModel != ""
+		} else {
+			enabled = set.AssistantURL != "" && set.AssistantModel != ""
+		}
 		return struct {
-			Enabled bool   `json:"enabled"`
-			Model   string `json:"model"`
-		}{enabled, set.AssistantModel}, nil
+			Enabled  bool   `json:"enabled"`
+			Model    string `json:"model"`
+			Provider string `json:"provider"`
+		}{enabled, set.AssistantModel, set.AssistantProvider}, nil
 	})
 
 	// Lets an admin switch the model live (local Ollama model or cloud model)

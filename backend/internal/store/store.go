@@ -196,10 +196,20 @@ type Settings struct {
 	ACMEZoneID string `json:"acmeZoneId,omitempty"` // zone ID matching ACMEToken
 	// Assistant of the web interface: an OpenAI-compatible chat endpoint
 	// (base URL such as https://api.mistral.ai/v1), its API key and model.
-	// All three must be set for the assistant to be enabled.
-	AssistantURL   string `json:"assistantUrl,omitempty"`
-	AssistantKey   string `json:"assistantKey,omitempty"`
-	AssistantModel string `json:"assistantModel,omitempty"`
+	// The URL and model must be set for the assistant to be enabled — or a
+	// ChatGPT account must be connected (AssistantProvider="chatgpt"), which
+	// needs no key. ChatGPTAccess and ChatGPTRefresh are secrets: the access
+	// token is renewed by the NAS itself from the refresh token, and neither
+	// ever leaves the server in a settings answer.
+	AssistantURL      string    `json:"assistantUrl,omitempty"`
+	AssistantKey      string    `json:"assistantKey,omitempty"`
+	AssistantModel    string    `json:"assistantModel,omitempty"`
+	AssistantProvider string    `json:"assistantProvider,omitempty"` // "" (endpoint) | "chatgpt"
+	ChatGPTAccess     string    `json:"chatgptAccess,omitempty"`
+	ChatGPTRefresh    string    `json:"chatgptRefresh,omitempty"`
+	ChatGPTAccount    string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header
+	ChatGPTEmail      string    `json:"chatgptEmail,omitempty"`
+	ChatGPTExpires    time.Time `json:"chatgptExpires,omitempty"`
 	// VolumeFullPct is the fill percentage above which a volume is alerted
 	// as full (dashboard and notifications); 0 keeps the default of 90.
 	VolumeFullPct int `json:"volumeFullPct,omitempty"`

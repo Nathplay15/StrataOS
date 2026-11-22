@@ -284,7 +284,7 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken} {
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken, &set.ChatGPTAccess, &set.ChatGPTRefresh} {
 			if *p != "" {
 				*p = "********"
 			}
@@ -379,6 +379,14 @@ func (s *Server) systemRoutes() {
 					return badRequest("the assistant address changed: type its API key again")
 				}
 				req.AssistantKey = st.Settings.AssistantKey
+			}
+			// The ChatGPT account tokens are masked in the answers and never
+			// edited by hand: only the sign-in sets them.
+			if req.ChatGPTAccess == "********" {
+				req.ChatGPTAccess = st.Settings.ChatGPTAccess
+			}
+			if req.ChatGPTRefresh == "********" {
+				req.ChatGPTRefresh = st.Settings.ChatGPTRefresh
 			}
 			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics
 			if req.ACMEToken == "********" {
