@@ -249,7 +249,7 @@ export default function Assistant() {
             {busy && think && (
               <div className="ml-9 max-h-32 max-w-[85%] overflow-y-auto whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-panel-2 px-3.5 py-2 text-[12px] text-muted">{think}</div>
             )}
-            {busy && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}</div>}
+            {busy && !think && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}</div>}
             {actions.map((a, i) => (
               <div key={a.token} className="ml-7 rounded-xl border border-line bg-panel-2 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">

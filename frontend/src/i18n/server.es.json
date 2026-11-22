@@ -2470,6 +2470,8 @@
  "l'endpoint de l'assistant a répondu {0} : {1}": "El endpoint del asistente respondió {0}: {1}",
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "El endpoint del asistente respondió {0} con un cuerpo no válido",
  "l'endpoint de l'assistant est injoignable": "El endpoint del asistente no está accesible",
+ "l'endpoint de l'assistant est injoignable : {0}": "El endpoint del asistente no está accesible: {0}",
+ "l'endpoint de l'assistant met trop de temps à répondre (le modèle se charge peut-être ?)": "El endpoint del asistente tarda demasiado en responder (¿se está cargando el modelo?)",
  "l'endpoint de l'assistant n'a pas renvoyé de réponse": "El endpoint del asistente no devolvió ninguna respuesta",
  "l'enregistrement n'a pas de vidéo": "la grabación no tiene vídeo",
  "l'entrée de démarrage UEFI du nouveau disque n'a pas été créée": "no se creó la entrada de arranque UEFI del disco nuevo",
