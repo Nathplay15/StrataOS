@@ -5312,5 +5312,9 @@
  "· modified": "· 已修改",
  "· stack": "· 堆栈",
  "← Back": "← 返回",
- "≈ {0} usable": "≈ {0} 可用"
+ "≈ {0} usable": "≈ {0} 可用",
+ "A picture is kept and a notification sent each time something moves (at most every 90 seconds).": "每次检测到物体移动时都会保存一张照片并发送通知（最多每 90 秒一次）。",
+ "Detect movement and warn me": "检测移动并通知我",
+ "Movement detected at {0}": "{0} 检测到移动",
+ "Movement detection on": "移动检测已开启"
 }

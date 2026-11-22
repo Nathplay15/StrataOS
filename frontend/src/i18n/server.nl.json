@@ -1270,6 +1270,8 @@
  "Limite invalide": "Ongeldige limiet",
  "Limites invalides": "Ongeldige limieten",
  "Longueur de préfixe invalide": "Ongeldige prefixlengte",
+ "Mouvement détecté": "Beweging gedetecteerd",
+ "Mouvement détecté sur la caméra {0} à {1}": "Beweging gedetecteerd op camera {0} om {1}",
  "MTU invalide": "ongeldige MTU",
  "Machines virtuelles": "Virtuele machines",
  "Machines virtuelles : {0} (supprimez-les d'abord)": "Virtuele machines: {0} (verwijder ze eerst)",

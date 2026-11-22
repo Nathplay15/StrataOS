@@ -10,8 +10,8 @@ import { caps } from "../components/files/MediaPlayer";
 
 type Status = { state: string; since?: string; error?: string; restarts: number };
 type Camera = {
-  id: string; name: string; url: string; subUrl?: string; username?: string; password?: string; enabled: boolean; engine?: string; audio?: boolean;
-  keepDays?: number; maxGb?: number; status: Status; size: number; segments: number; oldest?: string; frigateName?: string;
+  id: string; name: string; url: string; subUrl?: string; username?: string; password?: string; enabled: boolean; engine?: string; audio?: boolean; motion?: boolean;
+  keepDays?: number; maxGb?: number; status: Status; size: number; segments: number; oldest?: string; frigateName?: string; motionAt?: string;
 };
 type Frigate = {
   installed: boolean; docker: boolean; detector: string; resolved: string; intelGpu: string; coral: boolean; objects: string[]; allObjects: string[];
@@ -43,15 +43,15 @@ function StateBadge({ s }: { s: Status }) {
 
 /* ---------- Camera dialog ---------- */
 
-type Draft = { name: string; url: string; subUrl: string; username: string; password: string; enabled: boolean; engine: string; audio: boolean; keepDays: string; maxGb: string };
+type Draft = { name: string; url: string; subUrl: string; username: string; password: string; enabled: boolean; engine: string; audio: boolean; motion: boolean; keepDays: string; maxGb: string };
 
 const draftOf = (c?: Camera): Draft => ({
   name: c?.name ?? "", url: c?.url ?? "", subUrl: c?.subUrl ?? "", username: c?.username ?? "", password: c?.password ?? "",
-  enabled: c?.enabled ?? true, engine: c?.engine ?? "", audio: c?.audio ?? false, keepDays: String(c?.keepDays ?? 14), maxGb: c?.maxGb ? String(c.maxGb) : "",
+  enabled: c?.enabled ?? true, engine: c?.engine ?? "", audio: c?.audio ?? false, motion: c?.motion ?? false, keepDays: String(c?.keepDays ?? 14), maxGb: c?.maxGb ? String(c.maxGb) : "",
 });
 
 const bodyOf = (d: Draft) => ({
-  name: d.name, url: d.url, subUrl: d.subUrl, username: d.username, password: d.password, enabled: d.enabled, engine: d.engine, audio: d.audio,
+  name: d.name, url: d.url, subUrl: d.subUrl, username: d.username, password: d.password, enabled: d.enabled, engine: d.engine, audio: d.audio, motion: d.motion,
   keepDays: parseInt(d.keepDays) || 0, maxGb: parseFloat(d.maxGb) || 0,
 });
 
@@ -125,6 +125,10 @@ function CameraModal({ cam, frigate, onClose }: { cam?: Camera; frigate: Frigate
         <div className="space-y-2">
           <Checkbox checked={d.enabled} onChange={(v) => up({ enabled: v })} label={tr("Enabled")} />
           {d.engine === "" && <Checkbox checked={d.audio} onChange={(v) => up({ audio: v })} label={tr("Record the sound (converted to AAC)")} />}
+          {d.engine === "" && <div>
+            <Checkbox checked={d.motion} onChange={(v) => up({ motion: v })} label={tr("Detect movement and warn me")} />
+            {d.motion && <div className="ml-7 text-muted text-[12px]">{tr("A picture is kept and a notification sent each time something moves (at most every 90 seconds).")}</div>}
+          </div>}
         </div>
       </div>
     </Modal>
@@ -157,7 +161,7 @@ function Cameras({ data }: { data: Data }) {
                   <td><StateBadge s={c.status} />{c.status.state === "offline" && c.status.error && <div className="mt-1 max-w-xs truncate text-[11.5px] text-danger" title={srv(c.status.error)}>{srv(c.status.error)}</div>}</td>
                   <td>{c.engine === "frigate" ? <Badge tone="accent">Frigate{c.frigateName ? ` · ${c.frigateName}` : ""}</Badge> : <Badge>{tr("Built-in")}</Badge>}</td>
                   <td className="whitespace-nowrap">{c.segments ? <>{bytes(c.size)}<div className="text-[11.5px] text-muted">{tr("since {0}", dateTime(c.oldest))}</div></> : "—"}</td>
-                  <td className="whitespace-nowrap text-[12.5px]">{[c.keepDays ? tr("{0} days", c.keepDays) : "", c.maxGb && c.engine !== "frigate" ? `${c.maxGb} GB` : ""].filter(Boolean).join(" · ") || tr("No limit")}</td>
+                  <td className="whitespace-nowrap text-[12.5px]">{[c.keepDays ? tr("{0} days", c.keepDays) : "", c.maxGb && c.engine !== "frigate" ? `${c.maxGb} GB` : ""].filter(Boolean).join(" · ") || tr("No limit")}{c.motion && <div className="text-[11.5px] text-accent">{c.motionAt ? tr("Movement detected at {0}", dateTime(c.motionAt)) : tr("Movement detection on")}</div>}</td>
                   <td className="text-right whitespace-nowrap">
                     <IconButton title={tr("Edit")} onClick={() => setEdit(c)}><Pencil size={14} /></IconButton>
                     <IconButton title={tr("Delete")} onClick={() => remove(c)}><Trash2 size={14} /></IconButton>

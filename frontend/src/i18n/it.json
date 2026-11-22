@@ -5312,5 +5312,9 @@
  "· modified": "· modificata",
  "· stack": "· stack",
  "← Back": "← Indietro",
- "≈ {0} usable": "≈ {0} utili"
+ "≈ {0} usable": "≈ {0} utili",
+ "A picture is kept and a notification sent each time something moves (at most every 90 seconds).": "Una foto viene salvata e una notifica inviata ogni volta che qualcosa si muove (al massimo ogni 90 secondi).",
+ "Detect movement and warn me": "Rileva i movimenti e avvisami",
+ "Movement detected at {0}": "Movimento rilevato alle {0}",
+ "Movement detection on": "Rilevamento movimento attivo"
 }

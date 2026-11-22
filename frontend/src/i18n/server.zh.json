@@ -1270,6 +1270,8 @@
  "Limite invalide": "限制无效",
  "Limites invalides": "限制值无效",
  "Longueur de préfixe invalide": "前缀长度无效",
+ "Mouvement détecté": "检测到移动",
+ "Mouvement détecté sur la caméra {0} à {1}": "检测到摄像头 {0} 在 {1} 有移动",
  "MTU invalide": "MTU 无效",
  "Machines virtuelles": "虚拟机",
  "Machines virtuelles : {0} (supprimez-les d'abord)": "虚拟机：{0}（请先删除它们）",

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -118,8 +119,12 @@ func (s *Server) nvrSync() {
 			if !c.Enabled || c.Engine != "" {
 				continue
 			}
-			recs = append(recs, nvr.Recording{ID: c.ID, Name: c.Name, Stream: nvr.WithCredentials(c.URL, c.Username, c.Password),
-				Dir: filepath.Join(folder, c.ID), SegmentSeconds: n.SegmentSeconds, Audio: c.Audio})
+			detect := c.URL
+			if c.SubURL != "" {
+				detect = c.SubURL // low resolution: cheaper to decode
+			}
+			recs = append(recs, nvr.Recording{ID: c.ID, Name: c.Name, Stream: nvr.WithCredentials(c.URL, c.Username, c.Password), Detection: nvr.WithCredentials(detect, c.Username, c.Password),
+				Dir: filepath.Join(folder, c.ID), SegmentSeconds: n.SegmentSeconds, Audio: c.Audio, Motion: c.Motion})
 		}
 	}
 	cams.mgr.Sync(recs)
@@ -136,6 +141,21 @@ func (s *Server) nvrLoop() {
 		s.store.Log("info", "nvr", "", msg)
 		s.notify("info", "Camera back online", msg)
 	}
+	cams.mgr.OnMotion = func(id, name string, at time.Time, picture []byte) {
+		msg := fmt.Sprintf("Movement detected on camera %s at %s", name, at.Format("15:04:05"))
+		s.store.Log("warning", "nvr", "", msg)
+		s.notify("warning", "Motion detected", msg)
+		// One picture per event: the newest ones stay, the folder never grows.
+		if folder, err := nvrFolder(s.nvrState().Folder); err == nil && len(picture) > 0 {
+			dir := filepath.Join(folder, id, "motion")
+			if err := os.MkdirAll(dir, 0o755); err == nil {
+				f := filepath.Join(dir, at.Format("2006-01-02_15h04m05s")+".jpg")
+				if err := os.WriteFile(f, picture, 0o600); err == nil {
+					s.nvrMotionPrune(dir, 10)
+				}
+			}
+		}
+	}
 	time.Sleep(15 * time.Second)
 	for i := 0; ; i++ {
 		if len(s.nvrState().Cameras) > 0 {
@@ -148,6 +168,71 @@ func (s *Server) nvrLoop() {
 			s.frigatePoll()
 		}
 		time.Sleep(15 * time.Second)
+	}
+}
+
+// Motion pictures of a camera sit in a "motion" subfolder of its recordings.
+
+// latestMotion returns when the newest movement picture was taken (nil: none).
+func latestMotion(dir string) *time.Time {
+	f := newestMotion(filepath.Join(dir, "motion"))
+	if f == "" {
+		return nil
+	}
+	if fi, err := os.Stat(f); err == nil {
+		t := fi.ModTime()
+		return &t
+	}
+	return nil
+}
+
+// newestMotion returns the path of the newest picture of a motion folder.
+func newestMotion(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	best, bestTime := "", time.Time{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jpg") {
+			continue
+		}
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if fi.ModTime().After(bestTime) {
+			best, bestTime = filepath.Join(dir, e.Name()), fi.ModTime()
+		}
+	}
+	return best
+}
+
+// nvrMotionPrune keeps the newest keep pictures and deletes the rest.
+func (s *Server) nvrMotionPrune(dir string, keep int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type pic struct {
+		path string
+		mod  time.Time
+	}
+	var pics []pic
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jpg") {
+			continue
+		}
+		if fi, err := e.Info(); err == nil {
+			pics = append(pics, pic{filepath.Join(dir, e.Name()), fi.ModTime()})
+		}
+	}
+	if len(pics) <= keep {
+		return
+	}
+	slices.SortFunc(pics, func(a, b pic) int { return b.mod.Compare(a.mod) })
+	for _, p := range pics[keep:] {
+		_ = os.Remove(p.path)
 	}
 }
 
@@ -194,6 +279,8 @@ type cameraView struct {
 	Segments    int        `json:"segments"`
 	Oldest      *time.Time `json:"oldest,omitempty"`
 	FrigateName string     `json:"frigateName,omitempty"`
+	// MotionAt is when the newest movement picture was taken.
+	MotionAt *time.Time `json:"motionAt,omitempty"`
 }
 
 func cameraViewOf(n store.NVR, c *store.Camera, names map[string]string) cameraView {
@@ -211,6 +298,7 @@ func cameraViewOf(n store.NVR, c *store.Camera, names map[string]string) cameraV
 		v.Status = nvr.Status{State: "disabled"}
 	}
 	if d := camFolder(n, c); d != "" {
+		v.MotionAt = latestMotion(d)
 		if segs, err := nvr.ListSegments(d, false); err == nil {
 			v.Segments = len(segs)
 			for _, sg := range segs {
@@ -243,6 +331,7 @@ type cameraReq struct {
 	Enabled  *bool   `json:"enabled"`
 	Engine   string  `json:"engine"`
 	Audio    bool    `json:"audio"`
+	Motion   bool    `json:"motion"`
 	KeepDays int     `json:"keepDays"`
 	MaxGB    float64 `json:"maxGb"`
 }
@@ -296,6 +385,11 @@ func (req cameraReq) apply(c, old *store.Camera) error {
 	}
 	c.Name, c.URL, c.SubURL, c.Username, c.Password = name, main, sub, req.Username, req.Password
 	c.Engine, c.Audio, c.KeepDays, c.MaxGB = req.Engine, req.Audio, req.KeepDays, req.MaxGB
+	if req.Engine != "" {
+		c.Motion = false // motion detection is a built-in engine feature
+	} else {
+		c.Motion = req.Motion
+	}
 	if req.Enabled != nil {
 		c.Enabled = *req.Enabled
 	}
@@ -592,6 +686,33 @@ func (s *Server) nvrRoutes() {
 		img, err := os.ReadFile(p)
 		if err != nil {
 			writeErr(w, &Error{Status: http.StatusServiceUnavailable, Msg: "no picture from the camera yet"})
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(img)
+	})
+
+	// Motion picture: the newest one taken by the movement detector.
+	s.adminRaw("GET /api/nvr/cameras/{id}/motion.jpg", func(w http.ResponseWriter, r *http.Request) {
+		c, n, err := s.nvrCamera(r.PathValue("id"))
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		dir := camFolder(n, c)
+		if dir == "" {
+			writeErr(w, badRequest("no recordings folder"))
+			return
+		}
+		f := newestMotion(filepath.Join(dir, "motion"))
+		if f == "" {
+			writeErr(w, &Error{Status: http.StatusServiceUnavailable, Msg: "no movement has been detected yet"})
+			return
+		}
+		img, err := os.ReadFile(f)
+		if err != nil {
+			writeErr(w, err)
 			return
 		}
 		w.Header().Set("Content-Type", "image/jpeg")

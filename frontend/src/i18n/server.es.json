@@ -1270,6 +1270,8 @@
  "Limite invalide": "Límite no válido",
  "Limites invalides": "Límites no válidos",
  "Longueur de préfixe invalide": "Longitud de prefijo no válida",
+ "Mouvement détecté": "Movimiento detectado",
+ "Mouvement détecté sur la caméra {0} à {1}": "Movimiento detectado en la cámara {0} a las {1}",
  "MTU invalide": "MTU no válido",
  "Machines virtuelles": "Máquinas virtuales",
  "Machines virtuelles : {0} (supprimez-les d'abord)": "Máquinas virtuales: {0} (elimínelas primero)",
