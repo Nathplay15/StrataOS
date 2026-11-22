@@ -5316,5 +5316,8 @@
  "A picture is kept and a notification sent each time something moves (at most every 90 seconds).": "Ein Bild wird gespeichert und eine Benachrichtigung gesendet, sobald sich etwas bewegt (höchstens alle 90 Sekunden).",
  "Detect movement and warn me": "Bewegung erkennen und melden",
  "Movement detected at {0}": "Bewegung erkannt um {0}",
- "Movement detection on": "Bewegungserkennung aktiv"
+ "Movement detection on": "Bewegungserkennung aktiv",
+ "Assistant model updated": "Assistent-Modell aktualisiert",
+ "Local models need no key. The model can also be switched directly from the assistant page.": "Lokale Modelle benötigen keinen Schlüssel. Das Modell lässt sich auch direkt auf der Assistent-Seite wechseln.",
+ "Only cloud APIs need a key. Leave empty with a local model.": "Nur Cloud-APIs benötigen einen Schlüssel. Lassen Sie das Feld bei einem lokalen Modell leer."
 }

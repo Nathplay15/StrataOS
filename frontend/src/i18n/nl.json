@@ -5316,5 +5316,8 @@
  "A picture is kept and a notification sent each time something moves (at most every 90 seconds).": "Er wordt een foto bewaard en een melding verstuurd zodra iets beweegt (ten hoogste elke 90 seconden).",
  "Detect movement and warn me": "Beweging detecteren en melden",
  "Movement detected at {0}": "Beweging gedetecteerd om {0}",
- "Movement detection on": "Bewegingsdetectie actief"
+ "Movement detection on": "Bewegingsdetectie actief",
+ "Assistant model updated": "Assistentmodel bijgewerkt",
+ "Local models need no key. The model can also be switched directly from the assistant page.": "Lokale modellen hebben geen sleutel nodig. Het model kan ook direct op de assistentpagina gewisseld worden.",
+ "Only cloud APIs need a key. Leave empty with a local model.": "Alleen cloud-API's hebben een sleutel nodig. Laat leeg bij een lokaal model."
 }
