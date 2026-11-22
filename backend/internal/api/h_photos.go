@@ -19,10 +19,14 @@ import (
 
 // readableRoots returns the folders a user may read (administrators: all).
 func (s *Server) readableRoots(r *http.Request) []string {
-	if isAdmin(r) {
+	return s.readableRootsFor(userOf(r), isAdmin(r))
+}
+
+// readableRootsFor is readableRoots for an account (background work).
+func (s *Server) readableRootsFor(me string, admin bool) []string {
+	if admin {
 		return []string{storage.MountRoot}
 	}
-	me := userOf(r)
 	groups := accounts.UserGroups(me)
 	var roots []string
 	s.store.Read(func(st *store.State) {
@@ -87,7 +91,20 @@ func (s *Server) photoRoutes() {
 			for _, p := range a.Items {
 				in[p] = true
 			}
-			allow = func(p string) bool { return in[p] && under(roots, p) }
+			if a.Owner == userOf(r) {
+				allow = func(p string) bool { return in[p] && under(roots, p) }
+			} else {
+				// Received album: the owner shared exactly these photos, they
+				// are listed even when this account does not have the folders.
+				allow = func(p string) bool { return in[p] }
+			}
+		}
+		// People, things and places of the smart features.
+		if f, err := s.photoFilter(r); err != nil {
+			return nil, err
+		} else if f != nil {
+			prev := allow
+			allow = func(p string) bool { return prev(p) && f(p) }
 		}
 		if q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))); q != "" {
 			prev := allow
@@ -127,7 +144,7 @@ func (s *Server) photoRoutes() {
 	s.userRaw("GET /api/photos/thumb", func(w http.ResponseWriter, r *http.Request) {
 		p := filepath.Clean(r.URL.Query().Get("path"))
 		it, ok := photos.Default.Get(p)
-		if !ok || !under(s.readableRoots(r), p) {
+		if !ok || (!under(s.readableRoots(r), p) && !s.sharedWithMe(r, p)) {
 			writeErr(w, notFound("photo not found"))
 			return
 		}

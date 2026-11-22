@@ -7,6 +7,7 @@
 mod agent;
 mod integration;
 mod logic;
+mod syncroot;
 
 use std::sync::{Arc, Mutex};
 
@@ -170,6 +171,18 @@ async fn open_web_window(
     Ok(())
 }
 
+/// Files on demand (Windows): registers the sync root with Explorer
+/// (async: WinRT calls off the main thread).
+#[tauri::command]
+async fn ondemand_register(id: String, path: String, name: String) -> Result<(), String> {
+    syncroot::register(&id, &path, &name)
+}
+
+#[tauri::command]
+async fn ondemand_unregister(id: String) -> Result<(), String> {
+    syncroot::unregister(&id)
+}
+
 #[tauri::command]
 fn integration_status() -> integration::Status {
     integration::status()
@@ -294,6 +307,8 @@ pub fn run() {
             open_web_window,
             integration_status,
             integration_set,
+            ondemand_register,
+            ondemand_unregister,
             save_text,
             save_bytes,
             quit
@@ -311,7 +326,7 @@ pub fn run() {
                 let actions = ev
                     .urls()
                     .into_iter()
-                    .map(|u| Action::DeepLink { url: u.to_string() })
+                    .map(|u| logic::action_from_url(u.as_str()))
                     .collect();
                 dispatch(&h, actions);
             });
@@ -322,7 +337,7 @@ pub fn run() {
             let mut first = logic::actions_from_args(std::env::args());
             if let Ok(Some(urls)) = app.deep_link().get_current() {
                 for u in urls {
-                    let a = Action::DeepLink { url: u.to_string() };
+                    let a = logic::action_from_url(u.as_str());
                     if !first.contains(&a) {
                         first.push(a);
                     }

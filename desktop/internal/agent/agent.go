@@ -55,7 +55,13 @@ type Agent struct {
 	events   eventLog
 	xfers    transfers
 	enter    map[string]enterKey // one-time keys of the web interface windows
-	lang     string
+	// FPToken: the token of the macOS File Provider and Finder Sync
+	// extensions (written in their app group folder), for /v1/fp/ only.
+	FPToken   string
+	fpPort    int
+	fpFolders string
+	fpDone    bool
+	lang      string
 }
 
 type account struct {
@@ -69,7 +75,7 @@ func New(ctx context.Context, root, version, token string) (*Agent, error) {
 	if len(token) < 32 {
 		return nil, errors.New("agent token too short")
 	}
-	a := &Agent{Root: root, Version: version, Token: token, ctx: ctx, accounts: map[string]*account{}, enter: map[string]enterKey{}}
+	a := &Agent{Root: root, Version: version, Token: token, ctx: ctx, accounts: map[string]*account{}, enter: map[string]enterKey{}, FPToken: newKey(24)}
 	a.events.init()
 	a.xfers.init(a)
 	if err := os.MkdirAll(filepath.Join(root, "accounts"), 0o700); err != nil {
@@ -97,9 +103,13 @@ func (a *Agent) load(id, dir string) error {
 	if err != nil {
 		return err
 	}
+	x.Account, x.Shell = id, true
 	acc := &account{id: id, app: x}
 	x.Notify = func(title, body string) { a.events.add(Event{Kind: "notify", Account: id, Title: title, Body: body}) }
-	x.OnChange(func() { a.events.add(Event{Kind: "changed", Account: id}) })
+	x.OnChange(func() {
+		a.events.add(Event{Kind: "changed", Account: id})
+		go a.publishFP(0) // the synchronized folders may have changed (Finder menus)
+	})
 	if err := x.Start(a.ctx); err != nil {
 		log.Printf("account %s: start: %v", id, err)
 	}
@@ -166,6 +176,8 @@ func (a *Agent) Listen() (int, error) {
 	}
 	srv := &http.Server{Handler: a.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
+	port := ln.Addr().(*net.TCPAddr).Port
+	a.publishFP(port)
 	go func() {
 		<-a.ctx.Done()
 		_ = srv.Close()
@@ -196,6 +208,9 @@ func (a *Agent) authed(r *http.Request) bool {
 	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
 		tok = r.URL.Query().Get("st")
+	}
+	if tok != "" && strings.HasPrefix(r.URL.Path, "/v1/fp/") && subtle.ConstantTimeCompare([]byte(tok), []byte(a.FPToken)) == 1 {
+		return true
 	}
 	return tok != "" && subtle.ConstantTimeCompare([]byte(tok), []byte(a.Token)) == 1
 }
@@ -243,6 +258,7 @@ func (a *Agent) Handler() http.Handler {
 		})
 	})
 	mux.HandleFunc("/v1/accounts/{id}/nas/{rest...}", a.serveNAS)
+	a.fpRoutes(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if o := r.Header.Get("Origin"); o != "" {
 			if !a.allowedOrigin(o) {

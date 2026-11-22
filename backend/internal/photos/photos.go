@@ -41,6 +41,9 @@ type Item struct {
 	Hash uint64 `json:"hash,omitempty"`
 	// HashFailed: when the hash last failed (Unix time); retried after hashRetry.
 	HashFailed int64 `json:"hashFailed,omitempty"`
+	// GPS position from the EXIF data (0, 0: none).
+	Lat float64 `json:"lat,omitempty"`
+	Lon float64 `json:"lon,omitempty"`
 }
 
 const (
@@ -62,6 +65,12 @@ func needsHash(it Item, now time.Time) bool {
 	return !it.Video && it.Hash == 0 && (it.HashFailed == 0 || now.Sub(time.Unix(it.HashFailed, 0)) > hashRetry)
 }
 
+// HasGPS tells whether the picture has a position.
+func (it Item) HasGPS() bool { return it.Lat != 0 || it.Lon != 0 }
+
+// indexVersion: 2 added the GPS positions (read again once for old items).
+const indexVersion = 2
+
 // Installed reports whether thumbnails can be made.
 func Installed() bool { return sys.Has("vipsthumbnail") && sys.Has("ffmpeg") }
 
@@ -71,6 +80,7 @@ type Index struct {
 	byPath  map[string]int
 	Updated time.Time
 	running bool
+	version int
 }
 
 var Default = &Index{byPath: map[string]int{}}
@@ -85,11 +95,12 @@ func (x *Index) Load() {
 	}
 	var saved struct {
 		Updated time.Time `json:"updated"`
+		Version int       `json:"version"`
 		Items   []Item    `json:"items"`
 	}
 	if json.Unmarshal(b, &saved) == nil {
 		x.mu.Lock()
-		x.items, x.Updated = saved.Items, saved.Updated
+		x.items, x.Updated, x.version = saved.Items, saved.Updated, saved.Version
 		x.reindexLocked()
 		x.mu.Unlock()
 	}
@@ -151,6 +162,7 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 		return 0, fmt.Errorf("indexing already running")
 	}
 	x.running = true
+	version := x.version
 	old := make(map[string]Item, len(x.items))
 	for _, it := range x.items {
 		old[it.Path] = it
@@ -195,14 +207,18 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 			}
 			it := Item{Path: p, Mtime: fi.ModTime().Unix(), Size: fi.Size(), Video: video}
 			if o, ok := old[p]; ok && o.Mtime == it.Mtime && o.Size == it.Size {
-				if hashable && needsHash(o, now) {
-					missing = append(missing, len(items))
+				if version >= indexVersion || video {
+					if hashable && needsHash(o, now) {
+						missing = append(missing, len(items))
+					}
+					items = append(items, o)
+					return nil
 				}
-				items = append(items, o)
-				return nil
+				// Read again for its position: the file did not change, its hash holds.
+				it.Hash, it.HashFailed = o.Hash, o.HashFailed
 			}
-			it.Date = takenAt(p, ext, fi.ModTime())
-			if hashable && !video {
+			it.Date, it.Lat, it.Lon = takenAt(p, ext, fi.ModTime())
+			if hashable && needsHash(it, now) {
 				if it.Hash = hashImage(ctx, p); it.Hash == 0 {
 					it.HashFailed = now.Unix()
 				}
@@ -237,9 +253,9 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 		logf("%d earlier photos hashed for the duplicates (%d waiting)", hashed, len(missing)-hashed)
 	}
 	x.mu.Lock()
-	x.items, x.Updated = items, time.Now()
+	x.items, x.Updated, x.version = items, time.Now(), indexVersion
 	x.reindexLocked()
-	saved, _ := json.Marshal(map[string]any{"updated": x.Updated, "items": x.items})
+	saved, _ := json.Marshal(map[string]any{"updated": x.Updated, "version": indexVersion, "items": x.items})
 	x.mu.Unlock()
 	if err := os.MkdirAll(Dir, 0o700); err == nil {
 		_ = sys.WriteFileAtomic(indexFile(), saved, 0o600)
@@ -248,21 +264,43 @@ func (x *Index) Scan(ctx context.Context, roots []string, logf func(string, ...a
 	return len(items), nil
 }
 
-// takenAt returns the EXIF date taken of a picture, or its modification time.
-func takenAt(p, ext string, mtime time.Time) int64 {
+// takenAt returns the EXIF date taken of a picture (else its modification
+// time) and its GPS position.
+func takenAt(p, ext string, mtime time.Time) (int64, float64, float64) {
 	if ext == ".jpg" || ext == ".jpeg" {
-		if t, ok := jpegDate(p); ok {
-			return t.Unix()
+		if m, ok := jpegMeta(p); ok && !m.date.IsZero() {
+			return m.date.Unix(), m.lat, m.lon
+		} else if ok {
+			return mtime.Unix(), m.lat, m.lon
 		}
 	}
+	date := mtime.Unix()
+	var lat, lon float64
 	if ext == ".heic" || ext == ".heif" || ext == ".tif" || ext == ".tiff" || ext == ".avif" || ext == ".webp" {
 		if out, err := sys.Run("vipsheader", "-f", "exif-ifd2-DateTimeOriginal", p); err == nil {
 			if t, ok := parseExifDate(strings.TrimSpace(out)); ok {
-				return t.Unix()
+				date = t.Unix()
+			}
+		}
+		// exiftool (Media tools) reads the positions of these formats.
+		if sys.Has("exiftool") {
+			if out, err := sys.Run("exiftool", "-n", "-s3", "-GPSLatitude", "-GPSLongitude", "--", p); err == nil {
+				f := strings.Fields(out)
+				if len(f) == 2 {
+					la, e1 := strconv.ParseFloat(f[0], 64)
+					lo, e2 := strconv.ParseFloat(f[1], 64)
+					if e1 == nil && e2 == nil && validGPS(la, lo) {
+						lat, lon = la, lo
+					}
+				}
 			}
 		}
 	}
-	return mtime.Unix()
+	return date, lat, lon
+}
+
+func validGPS(lat, lon float64) bool {
+	return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && (lat != 0 || lon != 0)
 }
 
 func parseExifDate(s string) (time.Time, bool) {
@@ -276,43 +314,55 @@ func parseExifDate(s string) (time.Time, bool) {
 	return t, true
 }
 
-// jpegDate reads DateTimeOriginal (or DateTime) from the EXIF block of a JPEG.
-func jpegDate(p string) (time.Time, bool) {
+type exifMeta struct {
+	date     time.Time
+	lat, lon float64
+}
+
+// jpegMeta reads DateTimeOriginal (or DateTime) and the GPS position from
+// the EXIF block of a JPEG.
+func jpegMeta(p string) (exifMeta, bool) {
 	f, err := os.Open(p)
 	if err != nil {
-		return time.Time{}, false
+		return exifMeta{}, false
 	}
 	defer f.Close()
 	buf := make([]byte, 256<<10)
 	n, _ := io.ReadFull(f, buf)
-	return exifDate(buf[:n])
+	return exifOf(buf[:n])
 }
 
 func exifDate(b []byte) (time.Time, bool) {
+	m, ok := exifOf(b)
+	return m.date, ok && !m.date.IsZero()
+}
+
+func exifOf(b []byte) (exifMeta, bool) {
 	if len(b) < 4 || b[0] != 0xFF || b[1] != 0xD8 {
-		return time.Time{}, false
+		return exifMeta{}, false
 	}
 	i := 2
 	for i+4 <= len(b) {
 		if b[i] != 0xFF {
-			return time.Time{}, false
+			return exifMeta{}, false
 		}
 		marker := b[i+1]
 		size := int(binary.BigEndian.Uint16(b[i+2:]))
 		if marker == 0xDA || size < 2 { // start of scan: no more metadata
-			return time.Time{}, false
+			return exifMeta{}, false
 		}
 		if marker == 0xE1 && i+4+size-2 <= len(b) && string(b[i+4:min(i+10, len(b))]) == "Exif\x00\x00" {
-			return tiffDate(b[i+10 : i+2+size])
+			return tiffMeta(b[i+10 : i+2+size])
 		}
 		i += 2 + size
 	}
-	return time.Time{}, false
+	return exifMeta{}, false
 }
 
-func tiffDate(t []byte) (time.Time, bool) {
+func tiffMeta(t []byte) (exifMeta, bool) {
+	var m exifMeta
 	if len(t) < 8 {
-		return time.Time{}, false
+		return m, false
 	}
 	var bo binary.ByteOrder
 	switch string(t[:2]) {
@@ -321,7 +371,7 @@ func tiffDate(t []byte) (time.Time, bool) {
 	case "MM":
 		bo = binary.BigEndian
 	default:
-		return time.Time{}, false
+		return m, false
 	}
 	readIFD := func(off uint32) map[uint16][2]uint32 {
 		tags := map[uint16][2]uint32{}
@@ -340,10 +390,29 @@ func tiffDate(t []byte) (time.Time, bool) {
 	}
 	str := func(v [2]uint32) string {
 		cnt, off := int(v[0]), int(v[1])
+		if cnt <= 4 { // stored in the entry itself
+			return ""
+		}
 		if cnt <= 0 || off+cnt > len(t) || cnt > 64 {
 			return ""
 		}
 		return strings.TrimRight(string(t[off:off+cnt]), "\x00 ")
+	}
+	// Degrees, minutes, seconds: three rationals.
+	dms := func(v [2]uint32) (float64, bool) {
+		off := int(v[1])
+		if v[0] != 3 || off+24 > len(t) {
+			return 0, false
+		}
+		var out float64
+		for k, div := range []float64{1, 60, 3600} {
+			num, den := bo.Uint32(t[off+8*k:]), bo.Uint32(t[off+8*k+4:])
+			if den == 0 {
+				return 0, false
+			}
+			out += float64(num) / float64(den) / div
+		}
+		return out, true
 	}
 	ifd0 := readIFD(bo.Uint32(t[4:]))
 	if ptr, ok := ifd0[0x8769]; ok {
@@ -351,15 +420,42 @@ func tiffDate(t []byte) (time.Time, bool) {
 		for _, tag := range []uint16{0x9003, 0x9004} { // DateTimeOriginal, DateTimeDigitized
 			if v, ok := exif[tag]; ok {
 				if d, ok := parseExifDate(str(v)); ok {
-					return d, true
+					m.date = d
+					break
 				}
 			}
 		}
 	}
-	if v, ok := ifd0[0x0132]; ok { // DateTime
-		return parseExifDate(str(v))
+	if m.date.IsZero() {
+		if v, ok := ifd0[0x0132]; ok { // DateTime
+			m.date, _ = parseExifDate(str(v))
+		}
 	}
-	return time.Time{}, false
+	if ptr, ok := ifd0[0x8825]; ok { // GPS IFD
+		g := readIFD(ptr[1])
+		lat, ok1 := dms(g[2])
+		lon, ok2 := dms(g[4])
+		// The references (N/S, E/W) are one character stored in the entry.
+		if ok1 && ok2 {
+			if ref, ok := g[1]; ok && refChar(bo, ref[1]) == 'S' {
+				lat = -lat
+			}
+			if ref, ok := g[3]; ok && refChar(bo, ref[1]) == 'W' {
+				lon = -lon
+			}
+			if validGPS(lat, lon) {
+				m.lat, m.lon = lat, lon
+			}
+		}
+	}
+	return m, true
+}
+
+// refChar is the first byte of a value stored inside an IFD entry.
+func refChar(bo binary.ByteOrder, v uint32) byte {
+	var b [4]byte
+	bo.PutUint32(b[:], v)
+	return b[0]
 }
 
 // ---- Thumbnails ----

@@ -1,6 +1,7 @@
-# Checks the Android app (android/) on every change and pull request: unit
-# tests (uploads, dedupe, certificate pinning, token storage) and an unsigned
-# release build (R8). It has its own version (android/VERSION) and its own
+# Checks the Android app (android/) on every change and pull request: lint
+# (errors fail the run: a broken or incomplete translation file, a wrong
+# resource), unit tests (uploads, dedupe, certificate pinning, token
+# storage) and an unsigned release build (R8). It has its own version (android/VERSION) and its own
 # releases (release-android.yml, tags android-v*); the weekly run covers it too.
 name: CI Android
 
@@ -38,4 +39,10 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null
-          cd android && ./gradlew --no-daemon testDebugUnitTest assembleRelease
+          cd android && ./gradlew --no-daemon lintDebug testDebugUnitTest assembleRelease
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-lint
+          path: android/app/build/reports/lint-results-debug.*
+          retention-days: 7

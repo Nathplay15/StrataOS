@@ -1,0 +1,33 @@
+Template: strata/mirror-disks
+Type: multiselect
+Choices-C: ${DEVS}
+Choices: ${CHOICES}
+Description: The two system disks (mirror)
+ StrataOS is installed on both disks at once (RAID 1): the NAS keeps
+ starting and running when one of them fails.
+ .
+ Choose exactly two disks, ideally of the same size. Both are completely
+ erased. Data disks are added later from the web interface: do not select
+ them here.
+
+Template: strata/mirror-wrong
+Type: error
+Description: Choose two disks
+ The system mirror needs exactly two disks.
+
+Template: strata/datadisks-disks
+Type: multiselect
+Choices-C: ${DEVS}
+Choices: ${CHOICES}
+Description: The data disks (the system goes on each of them)
+ StrataOS takes about 22 GB at the start of each chosen disk: a copy of the
+ system on each (RAID 1), so the NAS keeps starting while one disk is left.
+ The rest of each disk becomes a data partition, where you create your
+ volumes from the web interface.
+ .
+ Choose two disks or more (eight at most). They are completely erased.
+
+Template: strata/datadisks-wrong
+Type: error
+Description: Choose two disks or more
+ The system on the data disks needs two to eight disks.

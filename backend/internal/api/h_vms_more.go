@@ -252,6 +252,28 @@ func (s *Server) vmMoreRoutes() {
 	s.admin("GET /api/vms/macos", func(r *http.Request) (any, error) {
 		return vms.MacOSVersions(), nil
 	})
+	// The host and the shared images: invariant TSC (macOS stops at boot
+	// without it), and the cached recovery images with the VMs using them.
+	s.admin("GET /api/vms/macos/host", func(r *http.Request) (any, error) {
+		imgs, err := vms.MacOSCache()
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"invariantTsc": vms.InvariantTSC(), "cache": imgs}, nil
+	})
+	s.admin("DELETE /api/vms/macos/cache", func(r *http.Request) (any, error) {
+		removed, freed, err := vms.DeleteMacOSCache(r.Context())
+		if len(removed) > 0 {
+			s.audit(r, "vms", fmt.Sprintf("Removed %d unused macOS images (%d MB)", len(removed), freed>>20))
+		}
+		if err != nil {
+			return nil, badRequest(err.Error())
+		}
+		if removed == nil {
+			removed = []string{}
+		}
+		return map[string]any{"removed": removed, "freed": freed}, nil
+	})
 	s.admin("POST /api/vms/macos", func(r *http.Request) (any, error) {
 		var req vms.MacOSReq
 		if err := decode(r, &req); err != nil {

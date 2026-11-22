@@ -43,6 +43,8 @@ type importer struct {
 	failed int
 	// what to refresh at the end
 	shares, files bool
+	// dsMap: backup repository ID of the file → its ID here (config_apply12.go)
+	dsMap map[string]string
 }
 
 func (im *importer) ok(section string, it confbackup.Item) {
@@ -109,6 +111,14 @@ func (s *Server) applyImport(ctx context.Context, j *jobs.Job, p *importPlan, se
 		"vaults":       im.vaults,
 		"fleet":        im.fleet,
 		"configBackup": im.configBackup,
+		"datastores":   im.datastores,
+		"firewall":     im.firewall,
+		"oidc":         im.oidc,
+		"sso":          im.sso,
+		"twoFactor":    func() { im.put("twoFactor", "/api/security/2fa-policy", f.TwoFactor) },
+		"s3":           im.s3,
+		"photoSmart":   im.photoSmart,
+		"desktop":      im.desktop,
 	}
 	for i, id := range confbackup.Sections {
 		if !slices.Contains(sections, id) || ctx.Err() != nil {
@@ -561,6 +571,9 @@ func (im *importer) backups() {
 		i := slices.IndexFunc(im.p.full.Backups, func(x store.BackupTask) bool { return x.ID == it.Key })
 		b := im.p.full.Backups[i]
 		b.Sources, b.Excludes = slices.Clone(b.Sources), slices.Clone(b.Excludes)
+		if id, ok := im.dsMap[b.Datastore]; ok {
+			b.Datastore = id // its repository got another ID here
+		}
 		if it.Action == confbackup.Update {
 			im.s.unmaskBackup(&b, it.Target) // secrets not in the file: keep the current ones
 		}

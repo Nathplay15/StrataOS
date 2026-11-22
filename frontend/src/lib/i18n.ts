@@ -42,6 +42,8 @@ let dict: Record<string, string> = {};
 let serverDict: Record<string, string> = {};
 type Rule = { re: RegExp; from: string; to: string };
 let rules: Rule[] = [];
+// English key of a server text → its text in the current language.
+let byKey: Map<string, string> | null = null;
 
 const loaders = import.meta.glob<{ default: Record<string, string> }>("../i18n/*.json");
 const load = async (name: string) => (loaders[`../i18n/${name}.json`] ? (await loaders[`../i18n/${name}.json`]()).default : {});
@@ -95,6 +97,35 @@ export function srv(text: string | undefined | null, depth = 0): string {
     if (m) return r.to.replace(/\{(\d)\}/g, (_, i) => (depth < 3 ? srv(m[+i + 1], depth + 1) : m[+i + 1]) ?? "");
   }
   return text;
+}
+
+/** A server text given as its English key ({0}, {1}… placeholders) and its
+ * arguments, in the current language (arguments that are server texts
+ * themselves are translated too). */
+export function srvKey(key: string, args: string[] = []): string {
+  if (!byKey) {
+    byKey = new Map();
+    for (const [fr, en] of serverTexts) byKey.set(en, lang === "fr" ? fr : lang === "en" ? en : (serverDict[fr] || en));
+  }
+  const to = byKey.get(key) ?? key;
+  return to.replace(/\{(\d+)\}/g, (_, i) => srv(args[+i] ?? ""));
+}
+
+/** A job log in the current language: the lines the server wrote with a
+ * key are rendered from it, command output stays as it is. */
+export function jobLog(log: string | undefined, keys?: { line: number; lines?: number; key: string; args?: string[] }[]): string {
+  if (!log || !keys?.length || lang === "en") return log ?? "";
+  const lines = log.split("\n");
+  const at = new Map(keys.map((k) => [k.line, k]));
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const k = at.get(i);
+    if (k) {
+      out.push(srvKey(k.key, k.args));
+      i += (k.lines ?? 1) - 1;
+    } else out.push(lines[i]);
+  }
+  return out.join("\n");
 }
 
 let reverse: Map<string, string> | null = null;

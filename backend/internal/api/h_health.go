@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"slices"
@@ -23,6 +24,7 @@ import (
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sys"
+	"strataos/internal/sysdisk"
 	"strataos/internal/system"
 	"strataos/internal/vms"
 )
@@ -191,11 +193,19 @@ func (s *Server) healthRoutes() {
 				continue
 			}
 			out := map[string]any{"device": d.Path, "model": d.Model, "serial": d.Serial, "kind": d.Kind, "points": []health.Point{}}
+			var pts []health.Point
 			if h := s.hist.Disk(d.Model, d.Serial, d.Path); h != nil {
-				out["points"] = h.Points
-				if d.Kind == "ssd" || d.Kind == "nvme" {
-					out["wear"] = health.WearOf(h.Points)
-				}
+				pts = h.Points
+			} else if e, ok := smartCache.Load(d.Path); ok {
+				info := e.(smartEntry).info
+				pts = []health.Point{{T: time.Now().Unix(), SmartSample: info.Sample()}}
+			}
+			out["points"] = pts
+			if d.Kind == "ssd" || d.Kind == "nvme" {
+				out["wear"] = health.WearOf(pts)
+			}
+			if days, field, ok := health.FailIn(pts, time.Now()); ok {
+				out["forecast"] = map[string]any{"days": math.Round(days*10) / 10, "field": field}
 			}
 			return out, nil
 		}
@@ -515,6 +525,33 @@ func (s *Server) advisorFacts() health.Facts {
 		case len(info.Warnings) > 0:
 			f.WeakDisks = append(f.WeakDisks, d.Path+" ("+d.Model+")")
 		}
+		// A counter that grows on its own projects the weeks left before
+		// the disk is done: only the shortest forecast is kept.
+		if info != nil {
+			var pts []health.Point
+			if h := s.hist.Disk(d.Model, d.Serial, d.Path); h != nil {
+				pts = h.Points
+			} else if e, ok := smartCache.Load(d.Path); ok {
+				si := e.(smartEntry).info
+				pts = []health.Point{{T: f.Now.Unix(), SmartSample: si.Sample()}}
+			}
+			if days, _, ok := health.FailIn(pts, f.Now); ok {
+				f.DoomedDisks = append(f.DoomedDisks, fmt.Sprintf("%s (~%d days)", d.Path+" ("+d.Model+")", int(math.Ceil(days))))
+			}
+		}
+		if d.System && info != nil {
+			if f.SystemDisk == nil {
+				f.SystemDisk = &health.SystemDiskFact{}
+			}
+			f.SystemDisk.Failing = f.SystemDisk.Failing || (info.Passed != nil && !*info.Passed)
+			f.SystemDisk.Weak = append(f.SystemDisk.Weak, info.Warnings...)
+		}
+	}
+	if l, _, err := sysdisk.Detect(); err == nil && l.Boot != "rpi" {
+		if f.SystemDisk == nil {
+			f.SystemDisk = &health.SystemDiskFact{}
+		}
+		f.SystemDisk.Mirrored, f.SystemDisk.Degraded = l.Mirrored, l.Degraded
 	}
 	if out, err := sys.Run("timedatectl", "show", "-p", "NTP", "--value"); err == nil {
 		on := strings.TrimSpace(out) == "yes"

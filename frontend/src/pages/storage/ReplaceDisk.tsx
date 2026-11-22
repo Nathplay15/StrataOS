@@ -18,7 +18,7 @@ import { postIntent } from "../../lib/intent";
 export type ReplaceSel = { disk?: string; group?: string; member?: string };
 
 type Member = { name: string; disk?: string; serial?: string; model?: string; size?: number; used?: number; state: string; detail?: string; was?: string; failing?: boolean; weak?: string[] };
-type Group = { id: string; kind: "raid" | "zfs" | "lvm"; name: string; device?: string; level: string; vdev?: string; tolerates: number; members: Member[]; usedBy?: string[]; rebuilding?: boolean; progress?: number };
+type Group = { id: string; kind: "raid" | "zfs" | "lvm" | "system"; name: string; device?: string; level: string; vdev?: string; tolerates: number; members: Member[]; usedBy?: string[]; rebuilding?: boolean; progress?: number };
 type Candidate = { path: string; name: string; model?: string; serial?: string; size: number; ok: boolean; reason?: string; erase?: string; weak?: string[] };
 type Plan = {
   group?: Group; old?: Member; mode?: string; modes: { id: string; ok: boolean; reason?: string }[]; need?: number; left: number;
@@ -40,7 +40,7 @@ export function ReplaceLink({ sel, children }: { sel: ReplaceSel; children: Reac
   return <AppLink to="/storage/disks"><span onClick={() => postIntent({ page: "disks", replace: sel })}>{children}</span></AppLink>;
 }
 
-const levelName = (g: Group) => (g.kind === "raid" ? g.level.toUpperCase().replace("RAID", "RAID ") : g.kind === "zfs" ? `ZFS ${g.level === "stripe" ? tr("single disk") : g.level}` : "LVM");
+const levelName = (g: Group) => (g.kind === "system" ? tr("RAID 1 (system)") : g.kind === "raid" ? g.level.toUpperCase().replace("RAID", "RAID ") : g.kind === "zfs" ? `ZFS ${g.level === "stripe" ? tr("single disk") : g.level}` : "LVM");
 
 const stateBadge = (m: Member) => {
   const t = { active: ["ok", tr("Active")], spare: ["accent", tr("Spare")], faulty: ["danger", tr("Failed")], missing: ["danger", tr("Missing")], rebuilding: ["warn", tr("Rebuilding")] }[m.state] as ["ok" | "accent" | "danger" | "warn", string] | undefined;
@@ -82,7 +82,7 @@ function Situation({ plan }: { plan: Plan }) {
     <div className="space-y-4 text-[13px]">
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl bg-panel-2 p-3">
-          <div className="text-muted text-[12px]">{g.kind === "lvm" ? tr("Volume group") : g.kind === "zfs" ? tr("ZFS pool") : tr("RAID array")}</div>
+          <div className="text-muted text-[12px]">{g.kind === "lvm" ? tr("Volume group") : g.kind === "zfs" ? tr("ZFS pool") : g.kind === "system" ? tr("System mirror") : tr("RAID array")}</div>
           <div className="font-semibold">{g.name} <span className="font-normal text-muted">· {levelName(g)}{g.vdev && g.vdev !== g.members[0]?.name ? ` (${g.vdev})` : ""}</span></div>
           {!!g.usedBy?.length && <div className="text-muted text-[12px]">{tr("Holds: {0}", g.usedBy.map((u) => srv(u)).join(", "))}</div>}
         </div>

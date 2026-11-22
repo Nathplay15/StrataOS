@@ -45,14 +45,68 @@ type VNet struct {
 	LogDrops bool   `json:"logDrops,omitempty"`
 	// Docker: a Docker network (macvlan) is bound to it, through a veth pair.
 	Docker bool `json:"docker,omitempty"`
+
+	// Shared VXLAN networks (0.12). Members: the other NAS this NAS sends
+	// the network to, "fleet:<id>" (a NAS of its Multi-NAS console) or
+	// "cluster:<id>" (a cluster member); they get the same VNI, MTU and
+	// subnet, and the tunnel peers are kept in step.
+	Members []string `json:"members,omitempty"`
+	// Origin: name of the NAS that declared a network received here, which
+	// manages it; OriginKey identifies its link to this NAS
+	// ("fleet:<console access id>" | "cluster:<member id>").
+	Origin    string `json:"origin,omitempty"`
+	OriginKey string `json:"originKey,omitempty"`
+	// Encrypt: the VXLAN tunnel runs inside a WireGuard mesh between the NAS
+	// (link vnNwg, keys exchanged over the fleet or cluster link); WG is
+	// its rendered side, filled by StrataOS.
+	Encrypt bool    `json:"encrypt,omitempty"`
+	WG      *VNetWG `json:"wg,omitempty"`
 }
+
+// VNetWG is the WireGuard link of an encrypted VXLAN network: this NAS's
+// address in the mesh (IPv6 ULA /64, one per network) and the other NAS.
+type VNetWG struct {
+	Port    int      `json:"port"`
+	Address string   `json:"address"`
+	Peers   []WGPeer `json:"peers"`
+}
+
+// WGPeer is another NAS of the mesh.
+type WGPeer struct {
+	PublicKey string `json:"publicKey"`
+	Endpoint  string `json:"endpoint"` // address:port on the LAN
+	Address   string `json:"address"`  // in the mesh
+}
+
+// WGKeyDir holds the private keys of the WireGuard links of virtual
+// networks. A folder of its own (root:systemd-network 0750, files 0640):
+// networkd reads them as its own user, which cannot enter /etc/strata.
+var WGKeyDir = "/etc/strata-vnet-wg"
+
+// WGKeyFile is the private key file of a network's WireGuard link.
+func WGKeyFile(id string) string { return WGKeyDir + "/" + id + ".key" }
+
+// WGLink names the WireGuard link of a network.
+func (v VNet) WGLink() string { return v.Bridge + "wg" }
+
+// WGMTU is the MTU of the WireGuard link; the VXLAN inside it (IPv6
+// between mesh addresses: 70 bytes) leaves EncryptedMTU to the guests.
+const (
+	WGMTU        = 1420
+	EncryptedMTU = WGMTU - 70
+)
 
 var (
 	vnetIDRe     = regexp.MustCompile(`^[a-z][a-z0-9]{0,11}$`)
 	vnetBridgeRe = regexp.MustCompile(`^vn[0-9]{1,3}$`)
 	// vnetLinkRe: the links a virtual network creates (bridge, VXLAN, veth pair).
-	vnetLinkRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|dk|dkp)?$`)
-	vnetKinds  = []string{"nat", "isolated", "vlan", "vxlan"}
+	vnetLinkRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|dk|dkp|wg)?$`)
+	// vnetTunnelRe: links whose settings (tunnel ends, keys, forwarding
+	// entries) networkd does not update in place.
+	vnetTunnelRe = regexp.MustCompile(`^vn[0-9]{1,3}(vx|wg)$`)
+	wgKeyRe      = regexp.MustCompile(`^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$`)
+	memberRe     = regexp.MustCompile(`^(fleet|cluster):[A-Za-z0-9_-]{1,40}$`)
+	vnetKinds    = []string{"nat", "isolated", "vlan", "vxlan"}
 )
 
 // VXLANPort is the UDP port of VXLAN tunnels.
@@ -74,6 +128,8 @@ func (v VNet) EffectiveMTU() int {
 	switch {
 	case v.MTU > 0:
 		return v.MTU
+	case v.Kind == "vxlan" && v.Encrypt:
+		return EncryptedMTU
 	case v.Kind == "vxlan":
 		return 1450
 	}
@@ -199,7 +255,7 @@ func validVNet(v *VNet) error {
 		if v.VNI < 1 || v.VNI > 16777215 {
 			return fmt.Errorf("%s: the VXLAN id (VNI) goes from 1 to 16777215", v.ID)
 		}
-		if len(v.Peers) == 0 || len(v.Peers) > 32 {
+		if (len(v.Peers) == 0 && len(v.Members) == 0 && v.OriginKey == "") || len(v.Peers) > 32 {
 			return fmt.Errorf("%s: give the addresses of the other NAS (32 at most)", v.ID)
 		}
 		for i, p := range v.Peers {
@@ -217,12 +273,16 @@ func validVNet(v *VNet) error {
 				return fmt.Errorf("%s: invalid local address", v.ID)
 			}
 		}
+		if err := validShare(v); err != nil {
+			return err
+		}
 	}
 	if v.Kind != "vlan" {
 		v.Parent, v.VLAN = "", 0
 	}
 	if v.Kind != "vxlan" {
 		v.VNI, v.Peers, v.Local = 0, nil, ""
+		v.Members, v.Origin, v.OriginKey, v.Encrypt, v.WG = nil, "", "", false, nil
 	}
 	if v.DHCP {
 		if v.Address == "" || addr.Bits() > 28 {
@@ -254,6 +314,65 @@ func validVNet(v *VNet) error {
 	return nil
 }
 
+// validShare checks the sharing fields of a VXLAN network.
+func validShare(v *VNet) error {
+	if len(v.Members) > 32 {
+		return fmt.Errorf("%s: 32 NAS at most", v.ID)
+	}
+	for _, m := range v.Members {
+		if !memberRe.MatchString(m) {
+			return fmt.Errorf("%s: invalid NAS %q", v.ID, m)
+		}
+	}
+	if len(slices.Compact(slices.Sorted(slices.Values(v.Members)))) != len(v.Members) {
+		return fmt.Errorf("%s: a NAS is listed twice", v.ID)
+	}
+	if v.OriginKey != "" && (!memberRe.MatchString(v.OriginKey) || len(v.Members) > 0) {
+		return fmt.Errorf("%s: a network received from another NAS is shared by that NAS only", v.ID)
+	}
+	v.Origin = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, v.Origin))
+	if len(v.Origin) > 64 {
+		return fmt.Errorf("%s: invalid origin", v.ID)
+	}
+	if !v.Encrypt {
+		v.WG = nil
+		return nil
+	}
+	if v.MTU > EncryptedMTU {
+		return fmt.Errorf("%s: an encrypted network has an MTU of %d at most", v.ID, EncryptedMTU)
+	}
+	if v.WG == nil {
+		return nil // keys not exchanged yet: the tunnel waits for them
+	}
+	w := v.WG
+	if w.Port < 1024 || w.Port > 65535 {
+		return fmt.Errorf("%s: invalid WireGuard port", v.ID)
+	}
+	if p, err := netip.ParsePrefix(w.Address); err != nil || !p.Addr().Is6() || p.Bits() != 64 || !p.Addr().IsPrivate() {
+		return fmt.Errorf("%s: invalid mesh address", v.ID)
+	}
+	if len(w.Peers) > 32 {
+		return fmt.Errorf("%s: too many WireGuard peers", v.ID)
+	}
+	for _, p := range w.Peers {
+		if !wgKeyRe.MatchString(p.PublicKey) {
+			return fmt.Errorf("%s: invalid WireGuard key", v.ID)
+		}
+		if ap, err := netip.ParseAddrPort(p.Endpoint); err != nil || ap.Port() == 0 || ap.Addr().IsLoopback() || ap.Addr().IsUnspecified() {
+			return fmt.Errorf("%s: invalid WireGuard endpoint %q", v.ID, p.Endpoint)
+		}
+		if a, err := netip.ParseAddr(p.Address); err != nil || !a.Is6() {
+			return fmt.Errorf("%s: invalid mesh address %q", v.ID, p.Address)
+		}
+	}
+	return nil
+}
+
 // validVNets checks the virtual networks of a configuration; used holds the
 // link names claimed so far (see Validate).
 func validVNets(c *Config, used map[string]string) error {
@@ -271,6 +390,9 @@ func validVNets(c *Config, used map[string]string) error {
 		names := []string{v.Bridge}
 		if v.Kind == "vxlan" {
 			names = append(names, v.VXLANLink())
+			if v.Encrypt {
+				names = append(names, v.WGLink())
+			}
 		}
 		if v.Docker {
 			names = append(names, v.DockerPort(), v.DockerParent())
@@ -421,6 +543,9 @@ func renderVNet(files map[string]string, v VNet) {
 			port += fmt.Sprintf("\n[BridgeFDB]\nMACAddress=00:00:00:00:00:00\nDestination=%s\n", p)
 		}
 		files[filePrefix+l+".network"] = port
+		if v.Encrypt && v.WG != nil {
+			renderWG(files, v)
+		}
 	}
 	if v.Docker {
 		files[filePrefix+v.DockerPort()+".netdev"] = fmt.Sprintf("# Managed by StrataOS (virtual network %s, Docker)\n[NetDev]\nName=%s\nKind=veth\n%s\n[Peer]\nName=%s\n", v.ID, v.DockerPort(), mtuLine, v.DockerParent())
@@ -433,6 +558,22 @@ func renderVNet(files map[string]string, v VNet) {
 	}
 }
 
+// renderWG writes the WireGuard link carrying an encrypted VXLAN network.
+func renderWG(files map[string]string, v VNet) {
+	w := v.WG
+	var nd strings.Builder
+	fmt.Fprintf(&nd, "# Managed by StrataOS (virtual network %s, encryption)\n[NetDev]\nName=%s\nKind=wireguard\nMTUBytes=%d\n\n[WireGuard]\nPrivateKeyFile=%s\nListenPort=%d\n",
+		v.ID, v.WGLink(), WGMTU, WGKeyFile(v.ID), w.Port)
+	for _, p := range w.Peers {
+		fmt.Fprintf(&nd, "\n[WireGuardPeer]\nPublicKey=%s\nEndpoint=%s\nAllowedIPs=%s/128\nPersistentKeepalive=25\n", p.PublicKey, p.Endpoint, p.Address)
+	}
+	files[filePrefix+v.WGLink()+".netdev"] = nd.String()
+	var n strings.Builder
+	header(&n, v.WGLink())
+	fmt.Fprintf(&n, "\n[Network]\nAddress=%s\nLinkLocalAddressing=no\nIPv6AcceptRA=no\nConfigureWithoutCarrier=yes\n", w.Address)
+	files[filePrefix+v.WGLink()+".network"] = n.String()
+}
+
 // vnetLinks lists the links of a virtual network (for activation).
 func vnetLinks(v VNet) []string {
 	out := []string{v.Bridge}
@@ -440,6 +581,9 @@ func vnetLinks(v VNet) []string {
 	case "vlan":
 		out = append(out, v.VLANLink(), v.Parent)
 	case "vxlan":
+		if v.Encrypt {
+			out = append(out, v.WGLink())
+		}
 		out = append(out, v.VXLANLink())
 	}
 	if v.Docker {
@@ -482,5 +626,27 @@ func DockerForwardRules(c Config, nat []string) [][]string {
 			add(b, true)
 		}
 	}
+	return out
+}
+
+// changedTunnels lists the tunnel links of virtual networks (VXLAN,
+// WireGuard) whose files differ between two renderings and that exist in
+// both: they must be deleted so that networkd creates them again, a
+// reconfiguration would keep the old tunnel address, peers and forwarding
+// entries (an unencrypted path left open, for a network just encrypted).
+func changedTunnels(old, next map[string]string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for name, content := range next {
+		link := strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(name, filePrefix), ".netdev"), ".network")
+		if !vnetTunnelRe.MatchString(link) || seen[link] {
+			continue
+		}
+		if prev, ok := old[name]; ok && prev != content {
+			seen[link] = true
+			out = append(out, link)
+		}
+	}
+	slices.Sort(out)
 	return out
 }

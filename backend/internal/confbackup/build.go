@@ -1,12 +1,14 @@
 package confbackup
 
 import (
+	"encoding/json"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"strataos/internal/firewall"
 	"strataos/internal/guard"
 	"strataos/internal/network"
 	"strataos/internal/store"
@@ -28,6 +30,11 @@ type Secrets struct {
 	Vaults   map[string]map[string]string `json:"vaults,omitempty"` // vault ID → client ID → token hash
 	Fleet    map[string]string            `json:"fleet,omitempty"`  // member ID → token
 	AutoPass string                       `json:"autoPassphrase,omitempty"`
+	// Since 0.12.
+	OIDC       map[string]string        `json:"oidc,omitempty"`       // provider ID → client secret
+	S3Keys     map[string]string        `json:"s3Keys,omitempty"`     // access key → secret key
+	Datastores map[string]BackupSecrets `json:"datastores,omitempty"` // by repository ID
+	SSO        map[string]string        `json:"sso,omitempty"`        // client ID → secret
 }
 
 // UserSecrets lets an account sign in again without a new password.
@@ -130,7 +137,7 @@ func MergeEnv(env, cur string) string {
 func Build(src Source) (Config, Secrets) {
 	st := src.State
 	sec := Secrets{Settings: map[string]string{}, Users: map[string]UserSecrets{}, Backups: map[string]BackupSecrets{}, Clouds: map[string]map[string]string{}, Stacks: map[string]string{}, UPS: map[string]string{}, HA: map[string]string{}, Vaults: map[string]map[string]string{}, Fleet: map[string]string{}}
-	c := Config{System: src.System, Groups: src.Groups, Quotas: src.Quotas, Network: src.Network}
+	c := Config{System: src.System, Groups: src.Groups, Quotas: src.Quotas, Network: exportNetwork(src.Network)}
 
 	set := st.Settings
 	put(sec.Settings, "smtpPassword", mask(&set.SMTPPassword))
@@ -321,7 +328,110 @@ func Build(src Source) (Config, Secrets) {
 		sec.LDAPBind = mask(&d.BindPassword)
 		c.Directory = &d
 	}
+
+	// 0.12 sections.
+	sec.OIDC, sec.S3Keys, sec.Datastores = map[string]string{}, map[string]string{}, map[string]BackupSecrets{}
+	if st.Firewall != nil {
+		var fw firewall.Config
+		b, _ := json.Marshal(st.Firewall)
+		_ = json.Unmarshal(b, &fw)
+		c.Firewall = &fw
+	}
+	for _, p := range st.OIDC {
+		x := *p
+		x.Scopes, x.AdminGroups, x.AllowedGroups, x.MFAValues, x.GroupMap = slices.Clone(p.Scopes), slices.Clone(p.AdminGroups), slices.Clone(p.AllowedGroups), slices.Clone(p.MFAValues), cloneMap(p.GroupMap)
+		put(sec.OIDC, x.ID, mask(&x.ClientSecret))
+		c.OIDC = append(c.OIDC, x)
+	}
+	if tf := st.TwoFactor; tf.Require || tf.RequireKey || tf.GraceDays != 0 || tf.KeyUV != "" {
+		c.TwoFactor = &TwoFactor{Require: tf.Require, GraceDays: tf.GraceDays, RequireKey: tf.RequireKey, KeyUV: tf.KeyUV}
+	}
+	s3 := S3{Enabled: st.S3.Enabled, Port: st.S3.Port, Domain: st.S3.Domain, Buckets: slices.Clone(st.S3.Buckets)}
+	for _, u := range st.Users {
+		for _, k := range u.S3Keys {
+			x := S3Key{User: u.Username, Access: k.Access, Name: k.Name, Created: k.Created, Secret: k.Secret}
+			put(sec.S3Keys, k.Access, mask(&x.Secret))
+			s3.Keys = append(s3.Keys, x)
+		}
+	}
+	if s3.Enabled || len(s3.Buckets) > 0 || len(s3.Keys) > 0 {
+		c.S3 = &s3
+	}
+	for _, d := range st.Datastores {
+		x := *d
+		x.Verifies, x.Stats, x.VerifyNext, x.LastPrune = nil, nil, 0, time.Time{}
+		ds := BackupSecrets{Password: mask(&x.Password), SecretKey: mask(&x.SecretKey), VaultToken: mask(&x.VaultToken)}
+		if ds != (BackupSecrets{}) {
+			sec.Datastores[x.ID] = ds
+		}
+		c.Datastores = append(c.Datastores, x)
+	}
+	if ps := st.Photos.Smart; ps != (store.PhotoSmart{}) {
+		c.PhotoSmart = &ps
+	}
+	if x := st.SSO; x.Enabled || x.Issuer != "" || len(x.Clients) > 0 {
+		sec.SSO = map[string]string{}
+		o := SSO{Enabled: x.Enabled, Issuer: x.Issuer, Subjects: map[string]string{}}
+		for _, cl := range x.Clients {
+			if cl.Kind == "forward" {
+				continue
+			}
+			c := *cl
+			c.RedirectURIs, c.PostLogoutURIs, c.Users, c.Groups = slices.Clone(cl.RedirectURIs), slices.Clone(cl.PostLogoutURIs), slices.Clone(cl.Users), slices.Clone(cl.Groups)
+			put(sec.SSO, c.ID, mask(&c.Secret))
+			o.Clients = append(o.Clients, c)
+		}
+		for _, u := range st.Users {
+			if u.SSOSubject != "" {
+				o.Subjects[u.Username] = u.SSOSubject
+			}
+		}
+		c.SSO = &o
+	}
+	for _, u := range st.Users {
+		p := DesktopPrefs{User: u.Username, Accent: u.Accent, Lang: u.Lang, Wallpaper: u.Wallpaper}
+		if p.Wallpaper == "custom" {
+			p.Wallpaper = ""
+		}
+		if len(u.Desktop) > 0 {
+			p.Icons = map[string][2]int{}
+			for k, v := range u.Desktop {
+				p.Icons[k] = v
+			}
+		}
+		if u.DesktopWidgets != nil {
+			w := slices.Clone(*u.DesktopWidgets)
+			if w == nil {
+				w = []string{}
+			}
+			p.Widgets = &w
+		}
+		if p.Icons != nil || p.Widgets != nil || p.Wallpaper != "" || p.Accent != "" || p.Lang != "" {
+			c.Desktop = append(c.Desktop, p)
+		}
+	}
 	return c, sec
+}
+
+// exportNetwork copies the network configuration without what belongs to
+// other NAS or is filled by StrataOS: virtual networks received from
+// another NAS (that NAS manages them and sends them again once its link is
+// back), and the tunnel side of shared VXLAN networks (peers, local address,
+// WireGuard mesh: computed again by the share loop, with keys made here).
+func exportNetwork(n *network.Config) *network.Config {
+	if n == nil {
+		return nil
+	}
+	var out network.Config
+	b, _ := json.Marshal(n)
+	_ = json.Unmarshal(b, &out)
+	out.Virtual = slices.DeleteFunc(out.Virtual, func(v network.VNet) bool { return v.OriginKey != "" })
+	for i := range out.Virtual {
+		if v := &out.Virtual[i]; len(v.Members) > 0 {
+			v.Peers, v.Local, v.WG = nil, "", nil
+		}
+	}
+	return &out
 }
 
 func cloneMap(m map[string]string) map[string]string {
@@ -418,4 +528,25 @@ func Merge(c *Config, sec *Secrets) {
 	if c.Directory != nil {
 		unmask(&c.Directory.BindPassword, sec.LDAPBind)
 	}
+	for i := range c.OIDC {
+		unmask(&c.OIDC[i].ClientSecret, sec.OIDC[c.OIDC[i].ID])
+	}
+	if c.S3 != nil {
+		for i := range c.S3.Keys {
+			unmask(&c.S3.Keys[i].Secret, sec.S3Keys[c.S3.Keys[i].Access])
+		}
+	}
+	for i := range c.Datastores {
+		d := &c.Datastores[i]
+		ds := sec.Datastores[d.ID]
+		unmask(&d.Password, ds.Password)
+		unmask(&d.SecretKey, ds.SecretKey)
+		unmask(&d.VaultToken, ds.VaultToken)
+	}
+	if c.SSO != nil {
+		for i := range c.SSO.Clients {
+			unmask(&c.SSO.Clients[i].Secret, sec.SSO[c.SSO.Clients[i].ID])
+		}
+	}
+
 }

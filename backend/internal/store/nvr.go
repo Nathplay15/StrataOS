@@ -28,7 +28,10 @@ type Camera struct {
 	Enabled  bool   `json:"enabled"`
 	// Engine records the camera: "" (built-in recorder) or "frigate".
 	Engine string `json:"engine,omitempty"`
-	Audio  bool   `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
+	// Motion turns on movement detection (built-in engine): one notification
+	// with a picture per event, at most every 90 s.
+	Motion bool `json:"motion,omitempty"`
+	Audio  bool `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
 	// Retention: days kept and total size in GB (0 = no limit).
 	KeepDays  int       `json:"keepDays,omitempty"`
 	MaxGB     float64   `json:"maxGb,omitempty"`

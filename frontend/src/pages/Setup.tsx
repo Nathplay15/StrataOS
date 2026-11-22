@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Bell, Check, CheckCircle2, FolderPlus, Globe, HardDrive, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Check, CheckCircle2, FolderPlus, Globe, HardDrive, Loader2, Server, ShieldCheck, Sparkles } from "lucide-react";
 import logo from "../logo.svg";
 import { api } from "../lib/api";
 import { bytes, cx } from "../lib/format";
@@ -79,11 +79,17 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
   const [shares, setShares] = useState<string[]>(["Documents", "Photos", "Musique", "Videos"]);
   const [svc, setSvc] = useState({ maintenance: true, webdav: false, sftp: false, ntfyUrl: "", telegramToken: "", telegramChatId: "" });
   const [done, setDone] = useState<string[]>([]);
+  // Where the system lives: on its own disk (as installed), mirrored on a
+  // second disk, or on the data disks. Mirroring and moving go through a
+  // restart, so they are offered once the NAS is set up (System disk card).
+  const [sysPlace, setSysPlace] = useState<"own" | "mirror" | "datadisks">("own");
+  const [sysNow, setSysNow] = useState<{ placement?: string; mirrored?: boolean } | null>(null);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const labels = [tr("Welcome"), tr("Administrator"), tr("Storage"), tr("Folders"), tr("Services"), tr("Completed")];
 
   useEffect(() => {
     if (step === 2 && me && !disks) {
+      api.get<{ layout: { placement?: string; mirrored?: boolean } }>("/api/system/disk").then((r) => setSysNow(r.layout)).catch(() => setSysNow(null));
       api.get<Disk[]>("/api/storage/disks").then((d) => {
         const free = d.filter((x) => x.usage === "free" && !x.system && !x.removable);
         setDisks(free);
@@ -255,6 +261,27 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
                   {layout === "protect" && selected.length === 1 && <Notice tone="warn">{tr("With a single disk, there is no protection against failure: remember to back up.")}</Notice>}
                 </div>
               )}
+              {sysNow && (
+                <div className="mt-5 border-t border-line pt-4">
+                  <div className="mb-1 flex items-center gap-2 text-[13.5px] font-medium"><Server size={16} className="text-muted" />{tr("Where StrataOS lives")}</div>
+                  {sysNow.mirrored ? (
+                    <p className="text-muted text-[12.5px]">{sysNow.placement === "datadisks" ? tr("StrataOS is installed on the data disks, mirrored: their data partitions are listed above.") : tr("StrataOS is mirrored on two disks of its own.")}</p>
+                  ) : (
+                    <>
+                      <p className="text-muted mb-2 text-[12.5px]">{tr("StrataOS is on a disk of its own, without redundancy. You can change this now or later in Storage → Disks → System disk (the NAS restarts once):")}</p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {([["own", tr("Its own disk"), tr("As installed")], ["mirror", tr("Mirrored"), tr("RAID 1 on a second disk")], ["datadisks", tr("On the data disks"), tr("A copy on each data disk")]] as ["own" | "mirror" | "datadisks", string, string][]).map(([id, l, sub]) => (
+                          <button key={id} type="button" onClick={() => setSysPlace(id)} className={cx("rounded-xl border px-3 py-2.5 text-left transition", sysPlace === id ? "border-accent bg-accent-soft" : "border-line bg-panel-2 hover:border-accent/40")}>
+                            <div className="text-[13px] font-medium">{l}</div><div className="text-muted text-[11.5px]">{sub}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {sysPlace === "mirror" && <p className="text-muted mt-2 text-[12px]">{tr("Leave the second disk out of the volume above: it is chosen at the end of the setup.")}</p>}
+                      {sysPlace === "datadisks" && <p className="text-muted mt-2 text-[12px]">{tr("Choose “Later” above: the data disks are partitioned when the system moves onto them, then the volume is created on their data partitions.")}</p>}
+                    </>
+                  )}
+                </div>
+              )}
               {progress && <div className="text-muted mt-4 flex items-center gap-2 text-[13px]"><Loader2 size={15} className="animate-spin" />{progress}</div>}
               <ErrorBox error={err} />
               {nav(false, <Button variant="primary" icon={p ? <Sparkles size={15} /> : <ArrowRight size={15} />} loading={busy} disabled={!disks || (layout !== "later" && selected.length === 0)} onClick={createStorage}>{p ? tr("Erase and create volume") : tr("Continue")}</Button>)}
@@ -310,7 +337,14 @@ export function Setup({ hostname, onDone }: { hostname: string; onDone: (m: Me) 
                 {done.map((d) => <li key={d} className="flex items-center gap-2"><Check size={15} className="text-ok" />{d}</li>)}
               </ul>
               <div className="mt-4"><Notice>{tr("From a Windows PC, open \\\\{0} in File Explorer; on a Mac, Finder → Go → smb://{0}.", f.hostname)}</Notice></div>
-              {nav(false, <Button variant="primary" icon={<ArrowRight size={15} />} onClick={() => onDone(me)}>{tr("Open StrataOS")}</Button>)}
+              {sysPlace !== "own" && <div className="mt-3"><Notice>{sysPlace === "mirror" ? tr("Next: mirror the system onto a second disk. The System disk page opens with the disks it can use.") : tr("Next: move the system onto the data disks. The System disk page opens with the disks it can use.")}</Notice></div>}
+              {nav(false, <Button variant="primary" icon={<ArrowRight size={15} />} onClick={() => {
+                if (sysPlace !== "own") {
+                  try { sessionStorage.setItem("strata-sysdisk-wizard", sysPlace); } catch { /* private mode */ }
+                  window.history.replaceState(null, "", "/storage/disks");
+                }
+                onDone(me);
+              }}>{tr("Open StrataOS")}</Button>)}
             </>
           )}
         </div>

@@ -201,3 +201,45 @@ func TestQemuNBD(t *testing.T) {
 		t.Fatalf("sockets left: %d", len(entries))
 	}
 }
+
+// TestQemuNBDBitmap reads the dirty extents of a persistent bitmap through
+// qemu-nbd (block status with structured replies).
+func TestQemuNBDBitmap(t *testing.T) {
+	for _, b := range []string{"qemu-nbd", "qemu-img", "qemu-io"} {
+		if _, err := exec.LookPath(b); err != nil {
+			t.Skip(b + " not installed")
+		}
+	}
+	dir := t.TempDir()
+	NBDRun = filepath.Join(dir, "run")
+	img := filepath.Join(dir, "d.qcow2")
+	run := func(args ...string) {
+		if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
+			t.Fatal(args, string(out))
+		}
+	}
+	run("qemu-img", "create", "-q", "-f", "qcow2", img, "64M")
+	run("qemu-io", "-f", "qcow2", "-c", "write -P 0x11 0 8M", img) // before the bitmap: not dirty
+	run("qemu-img", "bitmap", "--add", img, "strata-t1")
+	run("qemu-io", "-f", "qcow2", "-c", "write -P 0x22 1M 64k", "-c", "write -P 0x33 40M 1M", "-c", "write -P 0x44 41M 64k", img)
+	n, bm, done, err := openImageBitmap(context.Background(), img, "qcow2", false, "strata-t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	ext, err := bm.dirtyExtents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []extent{{1 << 20, 64 << 10}, {40 << 20, 1<<20 + 64<<10}}
+	if len(ext) != len(want) || ext[0] != want[0] || ext[1] != want[1] {
+		t.Fatalf("extents %v, want %v", ext, want)
+	}
+	buf := make([]byte, 64<<10)
+	if _, err := n.ReadAt(buf, 1<<20); err != nil || buf[0] != 0x22 {
+		t.Fatal("read through the other connection", err, buf[0])
+	}
+	if _, _, _, err := openImageBitmap(context.Background(), img, "qcow2", false, "nope"); err == nil {
+		t.Fatal("missing bitmap accepted")
+	}
+}

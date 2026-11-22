@@ -143,7 +143,12 @@ func (s *Store) disk(key string) *DiskHistory {
 		h = &DiskHistory{Key: key}
 		s.load(filepath.Join(s.dir, "disks", fileName(key)), h)
 		h.Key = key
-		s.disks[key] = h
+		// Only cache a history that exists: an empty one must not stick,
+		// the file can appear later (a seeded backup, a disk that starts
+		// reporting SMART).
+		if len(h.Points) > 0 {
+			s.disks[key] = h
+		}
 	}
 	return h
 }

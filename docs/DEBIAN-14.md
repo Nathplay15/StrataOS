@@ -4,7 +4,7 @@ StrataOS targets **Debian 13 (trixie)**. Debian 14 (forky) is the current
 testing release; this page records how far StrataOS works on it, what was
 changed so that the same package runs on both, what is blocked by Debian
 itself, and how an installed NAS will move from 13 to 14 once forky is
-released. Status as of November 2026 (StrataOS 0.11); testing changes every
+released. Status as of November 2026 (StrataOS 0.12); testing changes every
 day, so re-run the checks below before trusting it.
 
 ## How it is checked
@@ -101,40 +101,52 @@ Nothing changes on Debian 13: every fallback picks the trixie behaviour there.
 
 ## Upgrading an installed NAS from 13 to 14
 
-There is no button for it: a Debian release upgrade is done by hand, once
-Debian 14 is released (not while it is testing). What to do, in order:
+Since StrataOS 0.12 the upgrade is done from the interface: **Updates → Debian
+release upgrade**. The card is closed until the Debian archive's `stable`
+suite is forky (the NAS reads `dists/stable/Release` of its own mirror); an
+administrator may open it earlier with "testing (not recommended)", for tests.
+It then does what used to be done by hand:
 
-1. **Before**: check that every backup job is recent and a restore test passed;
-   Settings → Configuration backup → download. Stop the VMs and containers.
-   On a Ceph cluster, see the risks below first.
-2. **APT sources**: in `/etc/apt/sources.list.d/debian.sources` (or
-   `/etc/apt/sources.list`), replace `trixie` by `forky` (`trixie-updates` →
-   `forky-updates`, `trixie-security` → `forky-security`). Leave
-   `strataos.sources` alone (suite `stable`). Third-party sources:
-   `tailscale.list` → `forky` (Tailscale publishes it; or re-run Settings →
-   Components → Tailscale after the upgrade); `cloudflared.list` stays `any`;
-   `raspberrypi.sources` stays `trixie` until the Raspberry Pi archive has
-   forky kernels; a hand-added Docker CE source stays `trixie` until Docker
-   publishes forky.
-3. `apt update && apt full-upgrade`. Keep the current version of the
-   configuration files StrataOS manages when dpkg asks (`/etc/samba/smb.conf`,
-   `/etc/mdadm/mdadm.conf`, `/etc/exports`, `/etc/nut/*`).
-4. ZFS: `zfs-dkms` is rebuilt for the new kernel by DKMS during the upgrade;
-   check `dkms status` shows it built for the new kernel **before rebooting**.
-   Do not run `zpool upgrade` until you are sure you will not go back.
-5. `apt install --reinstall strataos` to run its postinst again (Windows
-   discovery switches to wsdd when wsdd2 is gone, samba-ad-dc stays masked),
-   then reboot.
-6. After the reboot: Dashboard and Storage (arrays, pools mounted), Shares
-   reachable, Settings → Components (re-run an installer that reports a
-   missing tool).
+1. **Pre-checks** (refused when one fails): 3 GB free on `/`, 2 GB in `/var`,
+   200 MB in `/boot` when separate; no job running, no other apt run, no
+   half-installed package, the pending Debian 13 updates installed; held
+   packages, third-party sources without forky, LDAP (sssd), Raspberry Pi and
+   ZFS are reported; a node of a multi-node Ceph cluster is refused (see the
+   risks below).
+2. **Restore point** (`before-dist-upgrade`, when the system supports them).
+3. **APT sources**: every `trixie*` suite of the Debian archive (`*.debian.org`)
+   becomes `forky*`; a vendor repository (or another mirror) moves only when
+   it publishes `dists/forky/`, else it stays on `trixie` and is reported
+   (Docker CE today); the Raspberry Pi archive stays on `trixie` (no forky
+   kernels yet); `strataos.sources` (suite `stable`) and the beta channel are
+   not touched. The previous files are copied to
+   `/var/lib/strata/dist-upgrade/sources-<date>/` and put back if the
+   download fails.
+4. `apt-get update`, `apt-get full-upgrade --download-only`, then
+   `apt-get full-upgrade` with `--force-confold --force-confdef` (the
+   configuration files StrataOS manages are kept), in the `strata-apt`
+   systemd unit so that a restart of the StrataOS service does not stop it
+   (the job resumes after it).
+5. `apt-get install --reinstall strataos` (postinst: Windows discovery
+   switches to wsdd when wsdd2 is gone).
+6. ZFS: the module must be in `/lib/modules/<new kernel>/updates/dkms`
+   (DKMS builds it during the upgrade; `dkms autoinstall` is tried once).
+   Otherwise the restart is not offered.
+7. "Restart now"; after the restart StrataOS checks the release, the kernel,
+   `dpkg --audit`, failed units, every volume mounted and the ZFS pools, and
+   notifies the result.
 
-What StrataOS should do itself during a dist-upgrade, when one is offered from
-the interface later: refuse while a job, backup or scrub runs; take a restore
-point first; rewrite the Debian sources with the new codename and the vendor
-sources with the codename they support (the `SuiteCandidates` logic); keep the
-managed configuration files (`--force-confold`); check the DKMS build of ZFS
-for the new kernel before allowing a reboot; reinstall strataos; notify.
+`vm/distupgrade-test.sh` runs this on a trixie VM (testing override on).
+Result of 14 November 2026 (cloud image, Btrfs data volume, a shared folder,
+no ZFS): upgraded in about 5 minutes, restart into kernel
+7.2.15, volume mounted, Samba serving the share, StrataOS answering. One
+unit fails after the restart on forky, `xfs_healer@-.service` (xfsprogs 7
+starts its healer for a root file system that is not XFS): harmless, reported
+by the post-checks as a warning. The cloud images name their mirrors through
+`mirror+file:///etc/apt/mirrors/*.list`: the upgrade reads the list to
+recognise the Debian archive.
+Not done by the upgrade: `zpool upgrade` (never, so that going back stays
+possible), Ceph clusters, the installer ISO.
 
 ### Risks
 

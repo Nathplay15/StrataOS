@@ -68,7 +68,7 @@ func TestACLAndIAM(t *testing.T) {
 
 func TestUnitFile(t *testing.T) {
 	u := UnitFile(Options{Port: 7380, Domain: "s3.nas.example", CertFile: "/c.pem", KeyFile: "/k.pem", CertID: "abc"})
-	for _, want := range []string{"--port :7380", "--cert /c.pem --key /k.pem", "--virtual-domain s3.nas.example", "posix --bucketlinks --chuid --chgid --sidecar " + MetaDir + " " + BucketsDir, "EnvironmentFile=" + EnvFile, "--iam-cache-disable", "# Certificate: abc"} {
+	for _, want := range []string{"--port :7380", "--cert /c.pem --key /k.pem", "--virtual-domain s3.nas.example", "posix --bucketlinks --chuid --chgid --sidecar " + MetaDir + " --versioning-dir " + VersionsDir + " " + BucketsDir, "EnvironmentFile=" + EnvFile, "--iam-cache-disable", "# Certificate: abc"} {
 		if !strings.Contains(u, want) {
 			t.Errorf("unit lacks %q", want)
 		}

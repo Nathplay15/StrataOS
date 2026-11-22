@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Badge, Button, Card, ErrorBox, Input, Notice, PageHeader, Select, Spinner } from "../../components/ui";
 import { srv, tr } from "../../lib/i18n";
+import { GPUCard } from "./GPU";
 
 type Point = { temp: number; pwm: number };
 type PWM = { id: string; chip: string; label: string; value: number; enable: number; rpm: number; controllable: boolean };
@@ -59,7 +60,7 @@ export default function Hardware() {
   const save = useAction(() => api.put("/api/hardware/fans", { profile, cpuCurve: cpu, diskCurve: disk }), { success: tr("Fan settings applied") });
   const led = useAction((v: { name: string; mode: string }) => api.put(`/api/hardware/leds/${encodeURIComponent(v.name)}`, { mode: v.mode }), { success: tr("LED updated") });
 
-  const header = <PageHeader title={tr("Hardware")} subtitle={tr("Fans, temperatures and front-panel lights")} icon={<Fan size={20} />} />;
+  const header = <PageHeader title={tr("Hardware")} subtitle={tr("Fans, temperatures, graphics and front-panel lights")} icon={<Fan size={20} />} />;
   if (isLoading || !data || profile === null) return <div>{header}<ErrorBox error={error} /><Spinner /></div>;
   const canDrive = data.pwms.some((p) => p.controllable);
   const hint = profiles().find((p) => p.id === profile)?.hint;
@@ -130,6 +131,8 @@ export default function Hardware() {
             </div>
           )}
         </Card>
+
+        <GPUCard />
 
         <Card className="@3xl:col-span-2" title={<span className="flex items-center gap-2"><Lightbulb size={16} />{tr("Front-panel lights")}</span>}>
           {data.leds.length === 0 ? <div className="text-muted text-[13px]">{tr("Not supported on this hardware: the kernel exposes no LED.")}</div> : (

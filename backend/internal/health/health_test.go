@@ -341,3 +341,35 @@ func TestAdviseDatastores(t *testing.T) {
 		t.Fatalf("unverified: %+v", it)
 	}
 }
+
+func TestAdviseSystemDisk(t *testing.T) {
+	find := func(f Facts) *store.AdvisorItem {
+		for _, it := range Advise(f, nil) {
+			if it.ID == "system-disk" {
+				return &it
+			}
+		}
+		return nil
+	}
+	cases := []struct {
+		fact *SystemDiskFact
+		sev  string
+	}{
+		{nil, ""},
+		{&SystemDiskFact{Mirrored: true}, ""},
+		{&SystemDiskFact{}, "low"},
+		{&SystemDiskFact{Weak: []string{"12 reallocated sector(s)"}}, "medium"},
+		{&SystemDiskFact{Failing: true}, "high"},
+		{&SystemDiskFact{Mirrored: true, Degraded: true}, "high"},
+		{&SystemDiskFact{Mirrored: true, Weak: []string{"x"}}, ""},
+	}
+	for i, c := range cases {
+		it := find(Facts{SystemDisk: c.fact, Now: time.Now()})
+		switch {
+		case c.sev == "" && it != nil:
+			t.Errorf("%d: unexpected item %+v", i, it)
+		case c.sev != "" && (it == nil || it.Severity != c.sev || it.Link != "/storage/disks#system-disk"):
+			t.Errorf("%d: got %+v, want %s", i, it, c.sev)
+		}
+	}
+}

@@ -1,0 +1,30 @@
+Trying display: drm
+vainfo: VA-API version: 1.22 (libva 2.22.0)
+vainfo: Driver version: Intel iHD driver for Intel(R) Gen Graphics - 25.2.3 ()
+vainfo: Supported profile and entrypoints
+      VAProfileNone                   :	VAEntrypointVideoProc
+      VAProfileNone                   :	VAEntrypointStats
+      VAProfileMPEG2Simple            :	VAEntrypointVLD
+      VAProfileMPEG2Main              :	VAEntrypointVLD
+      VAProfileH264Main               :	VAEntrypointVLD
+      VAProfileH264Main               :	VAEntrypointEncSliceLP
+      VAProfileH264High               :	VAEntrypointVLD
+      VAProfileH264High               :	VAEntrypointEncSliceLP
+      VAProfileJPEGBaseline           :	VAEntrypointVLD
+      VAProfileJPEGBaseline           :	VAEntrypointEncPicture
+      VAProfileH264ConstrainedBaseline:	VAEntrypointVLD
+      VAProfileH264ConstrainedBaseline:	VAEntrypointEncSliceLP
+      VAProfileVP8Version0_3          :	VAEntrypointVLD
+      VAProfileHEVCMain               :	VAEntrypointVLD
+      VAProfileHEVCMain               :	VAEntrypointEncSliceLP
+      VAProfileHEVCMain10             :	VAEntrypointVLD
+      VAProfileHEVCMain10             :	VAEntrypointEncSliceLP
+      VAProfileVP9Profile0            :	VAEntrypointVLD
+      VAProfileVP9Profile0            :	VAEntrypointEncSliceLP
+      VAProfileVP9Profile1            :	VAEntrypointVLD
+      VAProfileVP9Profile2            :	VAEntrypointVLD
+      VAProfileVP9Profile2            :	VAEntrypointEncSliceLP
+      VAProfileHEVCMain422_10         :	VAEntrypointVLD
+      VAProfileHEVCMain444            :	VAEntrypointVLD
+      VAProfileHEVCSccMain            :	VAEntrypointVLD
+      VAProfileAV1Profile0            :	VAEntrypointVLD

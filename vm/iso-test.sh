@@ -7,11 +7,22 @@
 #   vm/iso-test.sh key <keys...>           type keys (QEMU sendkey names, e.g. ret down)
 #   vm/iso-test.sh stop
 #
+#   vm/iso-test.sh boot                    start the installed system again (no CD)
+#
 # The web interface of the installed system is forwarded to http://localhost:7071
 # and SSH to port 2223 (the regular test VM keeps 7070/2222).
+# Settings (environment): ISO_STATE (state folder), ISO_WEB_PORT, ISO_SSH_PORT,
+# ISO_SYS_DISKS (2: two system disks, for the mirror entry), ISO_DISK_SIZE
+# (16G), ISO_DETACH ("sys2 1": disks left out by boot; "sys" = the first
+# system disk), ISO_MEM (4096), ISO_DATA1 (a qcow2 image used as data disk 1),
+# ISO_BOOT_FROM=sys2 (the firmware starts the second system disk first, as
+# a user would pick it in the boot menu).
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
-STATE="$DIR/state-iso"
+STATE=${ISO_STATE:-$DIR/state-iso}
+WEB=${ISO_WEB_PORT:-7071}
+SSHP=${ISO_SSH_PORT:-2223}
+SYS2=$([ "${ISO_SYS_DISKS:-1}" = 2 ] && echo 1 || echo 0)
 MON="$STATE/monitor.sock"
 PID="$STATE/qemu.pid"
 
@@ -49,28 +60,64 @@ PY
     for k in "$@"; do mon "sendkey $k"; sleep 0.2; done
     exit 0 ;;
   stop)
-    [ -f "$PID" ] && kill "$(cat "$PID")" 2>/dev/null || true
+    # A clean shutdown first: killing QEMU right away loses what the guest
+    # had not written yet (Btrfs commits every 30 s).
+    if [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
+      echo system_powerdown | socat - "UNIX-CONNECT:$MON" >/dev/null 2>&1 || true
+      for _ in $(seq 1 60); do kill -0 "$(cat "$PID")" 2>/dev/null || exit 0; sleep 1; done
+      kill "$(cat "$PID")" 2>/dev/null || true
+    fi
     exit 0 ;;
 esac
+
+detached() { case " ${ISO_DETACH:-} " in *" $1 "*) return 0 ;; esac; return 1; }
+# x86 machine: system disk(s) and data disks on AHCI, the CD on the last port.
+x86_args() {
+  local b1="" b2=""
+  if [ "${ISO_BOOT_FROM:-}" = sys2 ]; then b1=,bootindex=1 b2=,bootindex=0; fi
+  args=(-name strataos-iso -machine q35,accel=kvm -cpu host -smp 4 -m "${ISO_MEM:-4096}" -device ahci,id=ahci0
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$WEB-:7070,hostfwd=tcp:127.0.0.1:$SSHP-:22" -device virtio-net-pci,netdev=n0
+    -display none -vga std -serial "file:$STATE/console.log"
+    -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
+  detached sys || args+=(-drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2"
+    -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1$b1")
+  # The data disks come after the second system disk, even when it is left out.
+  [ -f "$STATE/system2.qcow2" ] && SYS2=1
+  if [ -f "$STATE/system2.qcow2" ] && ! detached sys2; then
+    args+=(-drive "file=$STATE/system2.qcow2,if=none,id=sys2,format=qcow2" -device "ide-hd,drive=sys2,bus=ahci0.1,serial=STRATA-SYS-2,model=StrataVirtual SSD 2,rotation_rate=1$b2")
+  fi
+  local i
+  for i in $(ls "$STATE" | sed -n 's/^data\([0-9]*\)\.qcow2$/\1/p' | sort -n); do
+    detached "$i" && continue
+    args+=(-drive "file=$STATE/data$i.qcow2,if=none,id=d$i,format=qcow2" -device "ide-hd,drive=d$i,bus=ahci0.$((i + SYS2)),serial=STRATA-DATA-$i,model=StrataVirtual HDD $i")
+  done
+  if [ "$(cat "$STATE/mode" 2>/dev/null)" = uefi ]; then
+    args+=(-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd -drive "if=pflash,format=raw,file=$STATE/vars.fd")
+  fi
+}
+
+if [ "${1:-}" = boot ]; then
+  [ -f "$STATE/system.qcow2" ] || { echo "nothing installed in $STATE"; exit 1; }
+  [ -f "$PID" ] && kill "$(cat "$PID")" 2>/dev/null && sleep 2 || true
+  x86_args
+  qemu-system-x86_64 "${args[@]}"
+  exit 0
+fi
 
 ISO=$(realpath "${1:?usage: iso-test.sh <strataos.iso> [extra-disks] [uefi]}")
 EXTRA=${2:-0}
 MODE=${3:-bios}
 [ -f "$PID" ] && kill "$(cat "$PID")" 2>/dev/null || true
 rm -rf "$STATE"; mkdir -p "$STATE"
-qemu-img create -q -f qcow2 "$STATE/system.qcow2" 16G
-args=(-name strataos-iso -machine q35,accel=kvm -cpu host -smp 4 -m 4096
-  -drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2" -device ahci,id=ahci0
-  -device "ide-hd,drive=sys,bus=ahci0.0,serial=STRATA-SYS,model=StrataVirtual SSD,rotation_rate=1"
-  -drive "file=$ISO,media=cdrom,if=none,id=cd" -device "ide-cd,drive=cd,bus=ahci0.5"
-  -boot order=c,once=d
-  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:7071-:7070,hostfwd=tcp:127.0.0.1:2223-:22" -device virtio-net-pci,netdev=n0
-  -display none -vga std -serial "file:$STATE/console.log"
-  -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
+echo "$MODE" > "$STATE/mode"
+qemu-img create -q -f qcow2 "$STATE/system.qcow2" "${ISO_DISK_SIZE:-16G}"
+[ "$SYS2" = 1 ] && qemu-img create -q -f qcow2 "$STATE/system2.qcow2" "${ISO_DISK_SIZE:-16G}"
 for i in $(seq 1 "$EXTRA"); do
-  qemu-img create -q -f qcow2 "$STATE/data$i.qcow2" 10G
-  args+=(-drive "file=$STATE/data$i.qcow2,if=none,id=d$i,format=qcow2" -device "ide-hd,drive=d$i,bus=ahci0.$i,serial=STRATA-DATA-$i,model=StrataVirtual HDD $i")
+  if [ "$i" = 1 ] && [ -n "${ISO_DATA1:-}" ]; then cp "$ISO_DATA1" "$STATE/data1.qcow2"; else qemu-img create -q -f qcow2 "$STATE/data$i.qcow2" 10G; fi
 done
+[ "$MODE" = uefi ] && cp /usr/share/OVMF/OVMF_VARS_4M.fd "$STATE/vars.fd"
+x86_args
+args+=(-drive "file=$ISO,media=cdrom,if=none,id=cd" -device "ide-cd,drive=cd,bus=ahci0.5" -boot order=c,once=d)
 if [ "$MODE" = arm64 ]; then
   Q=${QEMU_ARM_DIR:-$HOME/.local/opt/qemu-arm}
   QEMU=$(command -v qemu-system-aarch64 || echo "$Q/usr/bin/qemu-system-aarch64")
@@ -85,24 +132,21 @@ if [ "$MODE" = arm64 ]; then
     -device virtio-scsi-pci,id=scsi0
     -drive "file=$STATE/system.qcow2,if=none,id=sys,format=qcow2" -device "scsi-hd,drive=sys,bus=scsi0.0,serial=STRATA-SYS,rotation_rate=1,bootindex=0"
     -drive "file=$ISO,media=cdrom,if=none,id=cd" -device "scsi-cd,drive=cd,bus=scsi0.0,bootindex=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:7071-:7070,hostfwd=tcp:127.0.0.1:2223-:22" -device virtio-net-pci,netdev=n0
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$WEB-:7070,hostfwd=tcp:127.0.0.1:$SSHP-:22" -device virtio-net-pci,netdev=n0
     -device virtio-gpu-pci -display none -serial "file:$STATE/console.log"
     -monitor "unix:$MON,server,nowait" -pidfile "$PID" -daemonize)
   for i in $(seq 1 "$EXTRA"); do
     args+=(-drive "file=$STATE/data$i.qcow2,if=none,id=d$i,format=qcow2" -device "scsi-hd,drive=d$i,bus=scsi0.0,serial=STRATA-DATA-$i")
   done
   "$QEMU" "${args[@]}"
-elif [ "$MODE" = uefi ]; then
-  cp /usr/share/OVMF/OVMF_VARS_4M.fd "$STATE/vars.fd"
-  args+=(-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd -drive "if=pflash,format=raw,file=$STATE/vars.fd")
 fi
 [ "$MODE" = arm64 ] || qemu-system-x86_64 "${args[@]}"
 echo "installing from $(basename "$ISO") ($MODE, $EXTRA extra disk(s)); screen: vm/iso-test.sh screenshot"
 start=$SECONDS
-until curl -sf -m 3 http://localhost:7071/api/setup >/dev/null; do
+until curl -sf -m 3 "http://localhost:$WEB/api/setup" >/dev/null; do
   sleep 15
   kill -0 "$(cat "$PID")" 2>/dev/null || { echo "VM stopped"; exit 1; }
   [ $((SECONDS - start)) -lt $([ "$MODE" = arm64 ] && echo 14400 || echo 3600) ] || { echo "timeout"; exit 1; }
 done
-echo "StrataOS answers on http://localhost:7071 after $(( (SECONDS - start) / 60 )) min"
-curl -s http://localhost:7071/api/setup; echo
+echo "StrataOS answers on http://localhost:$WEB after $(( (SECONDS - start) / 60 )) min"
+curl -s "http://localhost:$WEB/api/setup"; echo

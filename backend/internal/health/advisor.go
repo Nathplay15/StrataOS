@@ -58,6 +58,11 @@ type Facts struct {
 
 	FailingDisks []string
 	WeakDisks    []string
+	// DoomedDisks: the disks whose counters grow on their own, with their
+	// doubling forecast in days ("~N"). The smallest forecast warns first.
+	DoomedDisks []string
+	// SystemDisk: redundancy and health of the system disk (nil: unknown).
+	SystemDisk *SystemDiskFact
 
 	NTP *bool // automatic time synchronization (nil: unknown)
 
@@ -71,6 +76,14 @@ type Facts struct {
 	UnsafeClones []string
 
 	Now time.Time
+}
+
+// SystemDiskFact is the state of the disk(s) of the operating system.
+type SystemDiskFact struct {
+	Mirrored bool     // on mdadm RAID 1
+	Degraded bool     // a disk of the mirror is missing or failed
+	Failing  bool     // a system disk fails its SMART health check
+	Weak     []string // SMART warnings of the system disk(s)
 }
 
 // DatastoreFact is a backup repository.
@@ -243,6 +256,27 @@ func Advise(f Facts, ignored []string) []store.AdvisorItem {
 	if len(f.WeakDisks) > 0 {
 		add("disk-weak", "medium", sub("Disks showing signs of wear: {0}", list(f.WeakDisks)),
 			"Their SMART counters (reallocated sectors, errors, wear) are not zero. Watch the trend in Disks → SMART → History and plan their replacement.", "", "/storage/disks")
+	}
+	if len(f.DoomedDisks) > 0 {
+		add("disk-forecast", "medium", sub("Disks likely to fail: {0}", list(f.DoomedDisks)),
+			"Their counters (reallocated sectors, unreadable sectors) grow on their own: dead sectors never heal. Disks → SMART → History shows the prediction; replace the disk with the shortest time left and check that the backups still restore.", "", "/storage/disks")
+	}
+	if sd := f.SystemDisk; sd != nil {
+		const link = "/storage/disks#system-disk"
+		switch {
+		case sd.Mirrored && sd.Degraded:
+			add("system-disk", "high", "The system mirror is degraded",
+				"The operating system runs from one disk only: if it fails too, the NAS no longer starts. Replace the missing or failed disk (Storage → Disks → System disk).", "", link)
+		case sd.Failing && !sd.Mirrored:
+			add("system-disk", "high", "The system disk is failing and has no mirror",
+				"The NAS stops starting the day this disk dies. Move the system to a new disk now (Storage → Disks → System disk), and export a system backup.", "", link)
+		case len(sd.Weak) > 0 && !sd.Mirrored:
+			add("system-disk", "medium", sub("The system disk shows signs of wear and has no mirror ({0})", list(sd.Weak)),
+				"Plan its replacement: mirror it onto a second disk, or move the system to a new disk (Storage → Disks → System disk).", "", link)
+		case !sd.Mirrored:
+			add("system-disk", "low", "The system disk has no redundancy",
+				"If it fails, the NAS no longer starts until the system is reinstalled (the data volumes are not affected). Mirror it onto a second disk, or at least keep a system backup and a configuration export (Storage → Disks → System disk).", "", link)
+		}
 	}
 	if f.NTP != nil && !*f.NTP {
 		add("ntp", "low", "Time synchronization is off",

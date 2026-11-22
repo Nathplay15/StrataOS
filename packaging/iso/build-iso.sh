@@ -29,7 +29,7 @@ esac
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/strata"
-cp packaging/iso/install.sh "$DEB" "$STAGE/strata/"
+cp packaging/iso/install.sh packaging/iso/mirror-disks.sh packaging/iso/mirror.templates packaging/iso/restore.sh "$DEB" "$STAGE/strata/"
 # Random root password, never stored: only its hash goes in the preseed.
 ROOT_HASH=$(head -c 32 /dev/urandom | base64 | openssl passwd -6 -stdin)
 sed -e "s|@ROOT_HASH@|$ROOT_HASH|" -e "s|@LANGUAGE@|$LANGUAGE|" -e "s|@COUNTRY@|$COUNTRY|" -e "s|@LOCALE@|$LOCALE|" \
@@ -48,13 +48,45 @@ if [ "$ARCH" = arm64 ]; then
   sed -i -e 's|^d-i debian-installer/language string .*|d-i debian-installer/language string en|' "$STAGE/strata/preseed.cfg"
   LANGUAGE=en
 fi
-BOOT="auto=true priority=critical preseed/file=/cdrom/strata/preseed.cfg language=$LANGUAGE country=$COUNTRY locale=$LOCALE keymap=$KEYMAP"
-echo "$BOOT" > "$STAGE/bootargs"
+# "System on two disks (mirror)": mdadm RAID 1 on two disks chosen at the
+# start of the partitioning (mirror-disks.sh); "Restore a system backup":
+# the regular installation, then the backup is put back (restore.sh).
+sed -e '/^d-i partman-auto\/method /d; /^d-i partman-auto\/choose_recipe /d' \
+  -e 's|^### Partitioning: .*|### Partitioning: RAID 1 on the two disks chosen by mirror-disks.sh (EFI or BIOS\n### boot partition, swap and system on each disk).|' \
+  -e 's|^d-i partman-efi/non_efi_system boolean true|&\nd-i partman/early_command string sh /cdrom/strata/mirror-disks.sh\nd-i partman-partitioning/default_label string gpt\nd-i partman-md/confirm boolean true\nd-i partman-md/confirm_nooverwrite boolean true\nd-i partman-auto-raid/recipe_confirm boolean true\nd-i mdadm/boot_degraded boolean true|' \
+  "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-mirror.cfg"
+# "System on the data disks": the same, on two disks or more, a 20 GB system
+# part on each and the rest left for data (install.sh makes the partition).
+sed -e 's|mirror-disks.sh$|mirror-disks.sh datadisks\nd-i partman-basicfilesystems/no_mount_point boolean false\nd-i partman-basicfilesystems/no_filesystem boolean false|' -e 's|in-target bash /root/strataos/install.sh|touch /target/root/strataos/datadisks; &|' \
+  -e 's|^### Partitioning: RAID 1 on the two disks chosen by mirror-disks.sh|### Partitioning: RAID 1 on the data disks chosen by mirror-disks.sh datadisks|' \
+  "$STAGE/strata/preseed-mirror.cfg" > "$STAGE/strata/preseed-datadisks.cfg"
+sed -e 's|in-target bash /root/strataos/install.sh|&; sh /cdrom/strata/restore.sh|' "$STAGE/strata/preseed.cfg" > "$STAGE/strata/preseed-restore.cfg"
+grep -q mirror-disks.sh "$STAGE/strata/preseed-mirror.cfg" && grep -q restore.sh "$STAGE/strata/preseed-restore.cfg" && grep -q 'mirror-disks.sh datadisks' "$STAGE/strata/preseed-datadisks.cfg" && grep -q 'touch /target/root/strataos/datadisks' "$STAGE/strata/preseed-datadisks.cfg"
+# Test images only: ISO_TEST_SSH_KEY lets the test scripts in as root with
+# that public key; ISO_TEST_DEFAULT=mirror|datadisks|restore starts that entry by
+# default; ISO_TEST_BOOTARGS are added to the kernel command line (e.g.
+# strata_mirror_disks=sda,sdb answers the question of the mirror entry).
+if [ -n "${ISO_TEST_SSH_KEY:-}" ]; then
+  key=$(cat "$ISO_TEST_SSH_KEY")
+  for f in "$STAGE"/strata/preseed*.cfg; do
+    sed -i "s|in-target bash /root/strataos/install.sh|mkdir -p /target/root/.ssh; echo '$key' > /target/root/.ssh/authorized_keys; &|" "$f"
+  done
+fi
+args="auto=true priority=critical language=$LANGUAGE country=$COUNTRY locale=$LOCALE keymap=$KEYMAP ${ISO_TEST_BOOTARGS:-}"
+{
+  echo "install|Install StrataOS $VERSION|preseed/file=/cdrom/strata/preseed.cfg $args"
+  echo "mirror|Install StrataOS $VERSION - system on two disks (mirror)|preseed/file=/cdrom/strata/preseed-mirror.cfg $args"
+  echo "datadisks|Install StrataOS $VERSION - system on the data disks|preseed/file=/cdrom/strata/preseed-datadisks.cfg $args"
+  echo "restore|Restore a StrataOS system backup|preseed/file=/cdrom/strata/preseed-restore.cfg $args"
+} > "$STAGE/entries"
+DEFAULT=${ISO_TEST_DEFAULT:-install}
+grep -q "^$DEFAULT|" "$STAGE/entries" || { echo "unknown ISO_TEST_DEFAULT $DEFAULT"; exit 1; }
+[ "$DEFAULT" = install ] || OUT=${OUT%.iso}-$DEFAULT-test.iso
 
-docker run --rm -v "$PWD:/w" -v "$STAGE:/stage" -w /w -e VERSION="$VERSION" -e SRC="$SRC" -e OUT="$OUT" -e ARCH="$ARCH" -e KDIR="$KDIR" \
-  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" debian:trixie bash -euo pipefail -c '
+docker run --rm -v "$PWD:/w" -v "$STAGE:/stage" -w /w -e VERSION="$VERSION" -e SRC="$SRC" -e OUT="$OUT" -e ARCH="$ARCH" -e KDIR="$KDIR" -e DEFAULT="$DEFAULT" \
+  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" debian:trixie bash -euo pipefail ${ISO_DEBUG:+-x} -c '
   apt-get update -qq >/dev/null && apt-get install -y -qq xorriso >/dev/null
-  BOOT=$(cat /stage/bootargs)
+  BOOT=$(grep "^$DEFAULT|" /stage/entries | cut -d"|" -f3)
   x() { xorriso -osirrox on -indev "$SRC" -extract "$1" "/stage/$2" 2>/dev/null; chmod u+w "/stage/$2"; }
   x /boot/grub/grub.cfg grub.cfg
   maps=()
@@ -68,12 +100,22 @@ docker run --rm -v "$PWD:/w" -v "$STAGE:/stage" -w /w -e VERSION="$VERSION" -e S
   sed -i "/^default installgui/d; /menu default/d" /stage/gtk.cfg
   sed -i "s/^timeout 300/timeout 100/; s|^ontimeout .*|ontimeout /install.amd/vmlinuz vga=788 initrd=/install.amd/initrd.gz ${BOOT} --- quiet|; s/^menu autoboot .*/menu autoboot Installing StrataOS in # second{,s}... (press a key to choose)/" /stage/spkgtk.cfg
   sed -i "s/^include gtk.cfg/include strata.cfg\ninclude gtk.cfg/; s/Debian GNU\/Linux installer menu/StrataOS ${VERSION} (Debian 13)/" /stage/menu.cfg
-  printf "label strata\n\tmenu label ^Install StrataOS %s\n\tmenu default\n\tkernel /install.amd/vmlinuz\n\tappend vga=788 initrd=/install.amd/initrd.gz %s --- quiet\n" "$VERSION" "$BOOT" > /stage/strata.cfg
+  : > /stage/strata.cfg
+  while IFS="|" read -r id label args; do
+    printf "label strata-%s\n\tmenu label %s\n" "$id" "$label" >> /stage/strata.cfg
+    [ "$id" = "$DEFAULT" ] && printf "\tmenu default\n" >> /stage/strata.cfg
+    printf "\tkernel /install.amd/vmlinuz\n\tappend vga=788 initrd=/install.amd/initrd.gz %s --- quiet\n" "$args" >> /stage/strata.cfg
+  done < /stage/entries
   maps=(-map /stage/menu.cfg /isolinux/menu.cfg -map /stage/strata.cfg /isolinux/strata.cfg -map /stage/gtk.cfg /isolinux/gtk.cfg -map /stage/spkgtk.cfg /isolinux/spkgtk.cfg)
   fi
 
-  # UEFI (GRUB): same entry, default, 5 s.
-  entry="set default=0\nset timeout=5\nmenuentry \"Install StrataOS ${VERSION}\" {\n    set background_color=black\n    linux    /${KDIR}/vmlinuz vga=788 ${BOOT} --- quiet\n    initrd   /${KDIR}/initrd.gz\n}"
+  # UEFI (GRUB): same entries, the default one first, 5 s.
+  entry="set default=0\nset timeout=5"
+  while IFS="|" read -r id label args; do
+    e="menuentry \"$label\" {\n    set background_color=black\n    linux    /${KDIR}/vmlinuz vga=788 $args --- quiet\n    initrd   /${KDIR}/initrd.gz\n}"
+    if [ "$id" = "$DEFAULT" ]; then entry="$entry\n$e"; else rest="${rest:-}\n$e"; fi
+  done < /stage/entries
+  entry="$entry${rest:-}"
   awk -v e="$entry" "!done && /^menuentry/ {gsub(/\\\\n/, \"\n\", e); print e; done=1} {print}" /stage/grub.cfg > /stage/grub.new
   grep -q "Install StrataOS" /stage/grub.new
 

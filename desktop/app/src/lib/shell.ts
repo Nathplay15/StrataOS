@@ -46,7 +46,7 @@ export async function openWeb(account: string, path = "/", title = "StrataOS") {
 
 type Bridge = { go: (page: PageId, params?: Record<string, string>) => void; pair: (link: string) => void };
 
-type Action = { kind: "shareLink"; path: string } | { kind: "openOnNas"; path: string } | { kind: "deepLink"; url: string };
+type Action = { kind: "shareLink"; path: string } | { kind: "openOnNas"; path: string } | { kind: "pin"; path: string; pinned: boolean } | { kind: "deepLink"; url: string };
 
 export function useShellBridge(b: Bridge) {
   const { state, setAccountId } = useApp();
@@ -102,6 +102,11 @@ export function useShellBridge(b: Bridge) {
     try {
       if (a.kind === "deepLink") {
         b.pair(a.url);
+        return;
+      }
+      if (a.kind === "pin") {
+        // Files on demand (Linux menus): keep on this device / free up space.
+        await agent.post("/v1/ondemand/pin", { path: a.path, pinned: a.pinned });
         return;
       }
       const r = await agent.post<{ account: string; remote: string; dir: boolean }>("/v1/resolve", { path: a.path });

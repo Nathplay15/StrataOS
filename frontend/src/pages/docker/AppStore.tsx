@@ -10,6 +10,8 @@ import { Badge, Button, Card, ErrorBox, Field, Health, Input, Modal, Notice, Pag
 import { DockerGuard } from "./Containers";
 import { tr } from "../../lib/i18n";
 import { AppUninstallModal } from "../../components/Uninstall";
+import { AppSSOButton } from "../../components/AppSSO";
+import { AppGPUButton } from "../system/GPU";
 import { UpdateBadge, UpdatesBar, useApplyUpdate, useDockerUpdates } from "./updates";
 import { CommunityCards, CommunityInstallModal, CommunityUpdateModal, SourcesModal, useCommunity, type CommunityApp, type CommunityInstalled } from "./Community";
 
@@ -217,7 +219,7 @@ export default function AppStore() {
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
-                    {inst ? actions(inst, a.name, a.webPort ? port : undefined, <AppLink to="/docker/stacks"><Button size="sm" variant="ghost">{tr("Manage")}</Button></AppLink>)
+                    {inst ? actions(inst, a.name, a.webPort ? port : undefined, <><AppSSOButton stack={inst} /><AppGPUButton stack={inst} /><AppLink to="/docker/stacks"><Button size="sm" variant="ghost">{tr("Manage")}</Button></AppLink></>)
                       : <Button size="sm" variant="primary" onClick={() => setInstall(a)}>{tr("Install")}</Button>}
                   </div>
                 </Card>

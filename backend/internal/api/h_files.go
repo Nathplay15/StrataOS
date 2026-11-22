@@ -437,8 +437,12 @@ func (s *Server) fileRoutes() {
 	s.userRaw("GET /api/files/download", func(w http.ResponseWriter, r *http.Request) {
 		t, err := s.locate(r, r.URL.Query().Get("path"))
 		if err != nil || !t.acc.read || t.acc.ancestor {
-			writeErr(w, firstErr(err, errForbidden))
-			return
+			// A photo of an album shared with me is sent on its own: no
+			// folder list, no read on anything else.
+			if !(err == nil && t.acc.ancestor && s.sharedWithMe(r, t.abs)) {
+				writeErr(w, firstErr(err, errForbidden))
+				return
+			}
 		}
 		s.serveTarget(w, r, t, nil)
 	})

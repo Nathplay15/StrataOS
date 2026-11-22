@@ -194,3 +194,6 @@ func LocalSecretFile() (string, error) {
 	}
 	return p, writeSecret(p, key)
 }
+
+// Args are the arguments that point the ceph and rbd tools to the cluster.
+func (c Conn) Args(a ...string) []string { return c.args(a...) }

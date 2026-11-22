@@ -56,6 +56,7 @@ const PhotosPage = lazy(() => import("./pages/Photos"));
 const SurveillancePage = lazy(() => import("./pages/Surveillance"));
 const LinksPage = lazy(() => import("./pages/Links"));
 const ActivityPage = lazy(() => import("./pages/Activity"));
+const MePage = lazy(() => import("./pages/Me"));
 const EnergyPage = lazy(() => import("./pages/system/Energy"));
 const HardwarePage = lazy(() => import("./pages/system/Hardware"));
 const GuardPage = lazy(() => import("./pages/system/Guard"));
@@ -64,6 +65,8 @@ const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
 const AssistantPage = lazy(() => import("./pages/Assistant"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
+const SingleSignOn = lazy(() => import("./pages/system/SingleSignOn"));
+const SSOFlow = lazy(() => import("./pages/SSOFlow").then((m) => ({ default: m.SSOFlow })));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -99,6 +102,8 @@ function Root() {
   if (setup.error) return <div className="p-10 text-center text-danger">{tr("Unable to reach the StrataOS server.")}</div>;
   const hostname = setup.data?.hostname ?? "NAS";
   if (setup.data?.needed && !me) return <Setup hostname={hostname} onDone={(m) => { setMe(m); qc.invalidateQueries(); }} />;
+  // An app signing in with the NAS (sso.go): its own page, signed in or not.
+  if (location.pathname.startsWith("/sso/")) return <Suspense fallback={<Splash label={tr("Connecting to the NAS…")} />}><SSOFlow hostname={hostname} me={me} onLogin={setMe} /></Suspense>;
   if (!me) return <Login hostname={hostname} onLogin={(m) => { setMe(m); qc.invalidateQueries(); }} />;
   if (desktop) {
     return (
@@ -131,6 +136,7 @@ function Root() {
             <Route path="photos" element={<PhotosPage me={me} />} />
             <Route path="links" element={<LinksPage me={me} />} />
             <Route path="activity" element={<ActivityPage />} />
+            <Route path="me" element={<MePage me={me} />} />
             <Route path="media" element={<MediaPage me={me} />} />
             <Route path="vpn" element={<MyVpnPage />} />
             <Route path="shares" element={A(<Shares />)} />
@@ -165,6 +171,7 @@ function Root() {
             <Route path="system/antivirus" element={A(<AntivirusPage />)} />
             <Route path="system/ha" element={A(<HAPage />)} />
             <Route path="system/remote" element={A(<RemotePage />)} />
+            <Route path="system/sso" element={A(<SingleSignOn />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

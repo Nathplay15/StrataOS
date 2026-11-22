@@ -206,6 +206,7 @@ func (s *Server) authRoutes() {
 	s.userRaw("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(cookieName); err == nil {
 			s.sessions.delete(c.Value)
+			s.ssoEndSession(c.Value)
 		}
 		s.setCookie(w, r, "", -time.Second)
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

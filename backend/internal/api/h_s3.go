@@ -182,6 +182,12 @@ func (s *Server) applyS3() error {
 		}
 	}
 
+	var vErr error
+	s.store.Read(func(st *store.State) { vErr = s3VersionLinks(st) })
+	if vErr != nil {
+		return vErr
+	}
+
 	// The service itself: restarted when its unit or root credentials change.
 	o := s3gw.Options{Port: s3Port(c), Domain: c.Domain}
 	if s.certs != nil {
@@ -214,14 +220,15 @@ func (s *Server) applyS3() error {
 		if _, err := sys.Run("systemctl", "enable", s3gw.Unit); err != nil {
 			return err
 		}
-		_, err := sys.Run("systemctl", "restart", s3gw.Unit)
-		return err
+		if _, err := sys.Run("systemctl", "restart", s3gw.Unit); err != nil {
+			return err
+		}
+	} else if _, err := sys.Run("systemctl", "is-active", "--quiet", s3gw.Unit); err != nil {
+		if _, err = sys.Run("systemctl", "start", s3gw.Unit); err != nil {
+			return err
+		}
 	}
-	if _, err := sys.Run("systemctl", "is-active", "--quiet", s3gw.Unit); err != nil {
-		_, err = sys.Run("systemctl", "start", s3gw.Unit)
-		return err
-	}
-	return nil
+	return s3SyncProtection(c, o.CertFile != "")
 }
 
 // s3Changed re-applies the service after a change of shares, users or
@@ -278,6 +285,14 @@ type s3BucketView struct {
 	Issue  string `json:"issue,omitempty"`
 	Quota  bool   `json:"readOnly,omitempty"`
 	Access int    `json:"keys"` // keys with access (admin view)
+	// Versioning and object lock (admin view).
+	Versioning string `json:"versioning,omitempty"`
+	Lock       bool   `json:"lock,omitempty"`
+	LockMode   string `json:"lockMode,omitempty"`
+	LockDays   int    `json:"lockDays,omitempty"`
+	// Writable: some users may change the shared folder over SMB, NFS or
+	// Files, around the lock.
+	Writable bool `json:"writable,omitempty"`
 }
 
 type s3KeyView struct {
@@ -297,13 +312,19 @@ func (s *Server) s3Routes() {
 			c = st.S3
 			grants := s3Grants(st, accounts.UserGroups)
 			for _, b := range c.Buckets {
-				v := s3BucketView{Name: b.Name, Share: b.Share, Access: len(grants[b.Name])}
+				v := s3BucketView{Name: b.Name, Share: b.Share, Access: len(grants[b.Name]), Versioning: b.Versioning, Lock: b.Lock, LockMode: b.LockMode, LockDays: b.LockDays}
 				if sh := st.Share(b.Share); sh == nil {
 					v.Issue = "shared folder deleted"
 				} else if sh.Encrypted {
 					v.Issue = "encrypted shared folders cannot be exposed"
 				} else {
 					v.Path, v.Quota = sh.Path, sh.ReadOnly()
+					for _, u := range st.Users {
+						if !u.Disabled && sh.Writable(sharePerm(sh, u.Username, accounts.UserGroups(u.Username))) {
+							v.Writable = true
+							break
+						}
+					}
 				}
 				buckets = append(buckets, v)
 			}
@@ -328,6 +349,7 @@ func (s *Server) s3Routes() {
 			Port    int              `json:"port"`
 			Domain  string           `json:"domain"`
 			Buckets []store.S3Bucket `json:"buckets"`
+			Confirm bool             `json:"confirm"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -360,6 +382,15 @@ func (s *Server) s3Routes() {
 		}
 		seenName, seenShare := map[string]bool{}, map[string]bool{}
 		err := s.store.Update(func(st *store.State) error {
+			kept := map[string]bool{}
+			for _, b := range req.Buckets {
+				kept[b.Share] = true
+			}
+			for _, b := range st.S3.Buckets {
+				if b.Lock && !kept[b.Share] && !req.Confirm {
+					return badRequest("the bucket " + b.Name + " has object lock: confirm to stop exposing it (its files and versions stay on the NAS)")
+				}
+			}
 			for i, b := range req.Buckets {
 				b.Name = strings.TrimSpace(b.Name)
 				if b.Name == "" {
@@ -378,6 +409,15 @@ func (s *Server) s3Routes() {
 					return badRequest("bucket name used twice: " + b.Name)
 				case seenShare[b.Share]:
 					return badRequest("shared folder exposed twice: " + b.Share)
+				}
+				var prev *store.S3Bucket
+				for j := range st.S3.Buckets {
+					if st.S3.Buckets[j].Share == b.Share {
+						prev = &st.S3.Buckets[j]
+					}
+				}
+				if err := s3BucketRules(prev, &b); err != nil {
+					return err
 				}
 				seenName[b.Name], seenShare[b.Share] = true, true
 				req.Buckets[i] = b
