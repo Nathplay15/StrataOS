@@ -52,3 +52,38 @@ Done in 0.13.0 (ticked).
 - **Video surveillance.** Motion detection on cameras, with a notification and a picture.
 - **Family mode.** Child accounts, parental control of the apps they can open, and simple quotas.
 - **Desktop app redesign**, in the style of the new Android app.
+
+## 0.15
+
+### Files, photos and media
+
+- **Time Machine in the file browser.** The ZFS snapshots of a share are browsable as read-only folders ("this folder yesterday at 4 am"), and a file or the whole folder is restored in two clicks.
+- **File versions.** A modified file on a share keeps its last versions, with a restorable history beside the file.
+- **Souvenirs.** "A year ago today" and automatic monthly recaps in the photo gallery.
+- **Duplicates and near-duplicates.** Duplicate or similar photos (same scene, bursts) are detected and cleaned up in a review screen.
+- **Migration assistant.** Import data from another NAS (SMB or rsync) or from a cloud (Google Photos, Dropbox) with a guided assistant.
+
+### Notifications and mobile
+
+- **Web push notifications.** The PWA receives notifications on the lock screen (camera events, disk alerts, finished backups, assistant reports) through web push in the existing service worker; no app store involved.
+- **Automatic photo upload in the PWA.** New photos of the phone are sent to a chosen shared folder, with a pause and a rule per folder.
+- **Widgets and shortcuts.** Free space, RAID state and last backup on the app icon badge; long-press shortcuts to Files, Photos and the Assistant.
+
+### Video surveillance
+
+- **Event clips.** A clip is recorded around each motion event (a few seconds before and after), with automatic pruning.
+- **Detection zones and filtering.** The zones that matter are drawn in the picture and the rest of the frame is ignored; a light local model tells people and vehicles from trees and shadows.
+- **Camera timeline and live view.** Every event sits on a per-camera timeline, and the live stream (HLS) is watched from the interface.
+- **Clips in push notifications.** A motion notification carries the clip, not only a picture.
+
+### Assistant
+
+- **Scheduled AI reports.** "Every Monday, summarize the NAS health, the new photos and the failed backups": the assistant runs on a schedule and sends its report as a notification or an email.
+- **Questions about your documents.** The assistant answers about the indexed documents and cites the files it read, with clickable references.
+- **Scheduled actions in plain language.** "Stop the test VM every evening at 11 pm" creates a routine, confirmed in the interface like any modifying action.
+
+### Sign-in and security
+
+- **Passkeys and two-factor sign-in.** Passkeys (WebAuthn) on the sign-in, one-time codes as a fallback, recovery codes, and every app of the SSO benefits from it.
+- **WireGuard server and dynamic DNS.** Reach the NAS from outside without exposing a port: a built-in WireGuard server with a QR code to scan, and integrated dynamic DNS for the certificate.
+- **Security journal.** Successful and failed sign-ins per user, an alert on a sign-in from a new device, one page to review everything.
