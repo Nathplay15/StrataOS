@@ -2640,6 +2640,8 @@ export const serverTexts: [string, string][] = [
   ["l'assistant n'est pas configuré : réglez-le dans les Paramètres", "the assistant is not configured: set it up in Settings"],
   ["URL de l'assistant invalide", "invalid assistant URL"],
   ["l'endpoint de l'assistant est injoignable", "the assistant endpoint is unreachable"],
+  ["l'endpoint de l'assistant est injoignable : {0}", "the assistant endpoint is unreachable: {0}"],
+  ["l'endpoint de l'assistant met trop de temps à répondre (le modèle se charge peut-être ?)", "the assistant endpoint is too slow to answer (is the model still loading?)"],
   ["conversation invalide", "invalid conversation"],
   ["l'endpoint de l'assistant n'a pas renvoyé de réponse", "the assistant endpoint returned no answer"],
   ["l'endpoint de l'assistant a répondu {0} avec un corps invalide", "the assistant endpoint answered {0} with an invalid body"],

@@ -2470,6 +2470,8 @@
  "l'endpoint de l'assistant a répondu {0} : {1}": "Het assistent-endpoint antwoordde {0}: {1}",
  "l'endpoint de l'assistant a répondu {0} avec un corps invalide": "Het assistent-endpoint antwoordde {0} met een ongeldige inhoud",
  "l'endpoint de l'assistant est injoignable": "Het assistent-endpoint is niet bereikbaar",
+ "l'endpoint de l'assistant est injoignable : {0}": "Het assistent-endpoint is niet bereikbaar: {0}",
+ "l'endpoint de l'assistant met trop de temps à répondre (le modèle se charge peut-être ?)": "Het assistent-endpoint doet er te lang over om te antwoorden (wordt het model nog geladen?)",
  "l'endpoint de l'assistant n'a pas renvoyé de réponse": "Het assistent-endpoint gaf geen antwoord",
  "l'enregistrement n'a pas de vidéo": "de opname bevat geen video",
  "l'entrée de démarrage UEFI du nouveau disque n'a pas été créée": "het UEFI-opstartitem van de nieuwe schijf is niet aangemaakt",
