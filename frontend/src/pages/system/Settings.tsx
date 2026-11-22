@@ -158,6 +158,18 @@ export default function SettingsPage() {
   const setTime = useAction(() => api.put("/api/system/time", { timezone: zone, ntp: true }), { success: tr("Time zone updated") });
   const install = useAction((c: string) => api.post(`/api/system/components/${c}/install`));
   const [uninstall, setUninstall] = useState("");
+  // ChatGPT account sign-in, in two steps: 1. open the sign-in page (the
+  // browser lands on a localhost address of the machine it runs on), 2. paste
+  // that address back, the NAS makes the exchange itself.
+  const [callback, setCallback] = useState("");
+  const gptOpen = useAction(() => api.post<{ url: string }>("/api/assistant/chatgpt/start"), {
+    onDone: (r) => window.open(r.url, "_blank", "noopener"),
+  });
+  const gptFinish = useAction(() => api.post<{ email: string }>("/api/assistant/chatgpt/finish", { url: callback }), {
+    success: tr("ChatGPT account connected"),
+    onDone: () => setCallback(""),
+  });
+  const gptDisconnect = useAction(() => api.post("/api/assistant/chatgpt/disconnect"), { success: tr("ChatGPT account disconnected") });
   const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report", { period: (s && reportPeriod(s)) || "weekly" }), { success: (r) => r.warning ?? tr("Report sent") });
   // Opened from the security advisor: /system/settings#settings-2fa.
   useEffect(() => { if (location.hash.length > 1) revealElement(location.hash.slice(1)); }, []);
@@ -241,14 +253,46 @@ export default function SettingsPage() {
         <MetricsCard enabled={!!data?.metricsToken} />
         <Card id="settings-assistant" title={<span className="flex items-center gap-2"><Bot size={16} /> {" "}{tr("Assistant (AI)")}</span>} className="@4xl:col-span-2">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>
-              <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
+            <Field label={tr("Provider")}>
+              <Select value={s.assistantProvider === "chatgpt" ? "chatgpt" : ""} onChange={(e) => set("assistantProvider", e.target.value)}>
+                <option value="">{tr("API endpoint (OpenAI-compatible)")}</option>
+                <option value="chatgpt">{tr("ChatGPT account")}</option>
+              </Select>
             </Field>
-            <Field label={tr("API key")} hint={tr("Only cloud APIs need a key. Leave empty with a local model.")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
-            <Field label={tr("Model")} hint={tr("e.g. mistral-small-latest")}><Input className="mono" value={s.assistantModel ?? ""} onChange={(e) => set("assistantModel", e.target.value)} /></Field>
+            <Field label={tr("Model")} hint={s.assistantProvider === "chatgpt" ? tr("e.g. gpt-5.1-codex-max, also changeable in the assistant") : tr("e.g. mistral-small-latest")}>
+              <Input className="mono" value={s.assistantModel ?? ""} onChange={(e) => set("assistantModel", e.target.value)} />
+            </Field>
+            {s.assistantProvider === "chatgpt" ? (
+              <div className="sm:col-span-2">
+                {data?.chatgptEmail ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="min-w-0 flex-1"><Notice tone="info">{data.chatgptExpires ? tr("Connected to ChatGPT as {0} until {1}", data.chatgptEmail, new Date(data.chatgptExpires).toLocaleDateString(locale)) : tr("Connected to ChatGPT as {0}", data.chatgptEmail)}</Notice></div>
+                    <Button loading={gptDisconnect.isPending} onClick={() => gptDisconnect.mutate()}>{tr("Disconnect")}</Button>
+                  </div>
+                ) : (
+                  <Notice tone="warn">{tr("No ChatGPT account is connected. Open the sign-in page, sign in, then paste here the address the browser lands on.")}</Notice>
+                )}
+                <Field className="mt-3" label={tr("Callback address")} hint={tr("The browser lands on http://localhost:1455/auth/callback?… on the machine where you signed in.")}>
+                  <Input className="mono" value={callback} onChange={(e) => setCallback(e.target.value)} placeholder="http://localhost:1455/auth/callback?code=…" />
+                </Field>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button loading={gptOpen.isPending} onClick={() => gptOpen.mutate()}>{tr("Open the sign-in page")}</Button>
+                  <Button variant="primary" loading={gptFinish.isPending} onClick={() => gptFinish.mutate()}>{tr("Finish the sign-in")}</Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>
+                  <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
+                </Field>
+                <Field label={tr("API key")} className="sm:col-span-2" hint={tr("Only cloud APIs need a key. Leave empty with a local model.")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
+              </>
+            )}
           </div>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.")}</p>
-          <LocalModels current={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: "", assistantModel: name })} />
+          {s.assistantProvider !== "chatgpt" && (
+            <LocalModels current={s.assistantModel} key={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: "", assistantModel: name })} />
+          )}
           <p className="mt-3 text-[12.5px] text-muted">{tr("Local models need no key. The model can also be switched directly from the assistant page.")}</p>
           <div className="mt-3 flex justify-end">
             <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>

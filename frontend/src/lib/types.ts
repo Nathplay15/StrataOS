@@ -460,10 +460,16 @@ export interface Settings {
   quietHours?: QuietHours;
   smbMinProtocol: string;
   trashDays: number;
-  /** Conversational assistant: OpenAI-compatible endpoint (base URL), key and model. */
+  /** Conversational assistant: OpenAI-compatible endpoint (base URL), key and
+   * model, or a connected ChatGPT account (the tokens are never returned: the
+   * settings answer carries only the masked values and the account email). */
   assistantUrl?: string;
   assistantKey?: string;
   assistantModel?: string;
+  /** "" (endpoint) | "chatgpt". */
+  assistantProvider?: string;
+  chatgptEmail?: string;
+  chatgptExpires?: string;
 }
 
 export interface ScheduleRun {

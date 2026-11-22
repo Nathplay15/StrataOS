@@ -69,6 +69,11 @@ type Server struct {
 	// assistantConf holds the armed confirmations of the conversational
 	// assistant (h_assistant.go); zero value usable (arm lazy-inits the map).
 	assistantConf mcpConfirmations
+	// chatgptWaits holds the pending ChatGPT account sign-ins (h_assistant_chatgpt.go):
+	// the PKCE verifier of every started sign-in, keyed by its state, until it
+	// is pasted back or expires.
+	chatgptMu    sync.Mutex
+	chatgptWaits map[string]chatgptWait
 	// mcpConf holds the write requests of MCP clients waiting for a
 	// person's approval (h_mcp.go).
 	mcpConf mcpConfirmations
@@ -367,6 +372,7 @@ func (s *Server) routes() {
 	s.openapiRoutes()
 	s.mcpRoutes()
 	s.assistantRoutes()
+	s.chatgptRoutes()
 	s.assistantModelRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()
