@@ -61,7 +61,22 @@ Done in 0.13.0 (ticked).
 - **File versions.** A modified file on a share keeps its last versions, with a restorable history beside the file.
 - **Souvenirs.** "A year ago today" and automatic monthly recaps in the photo gallery.
 - **Duplicates and near-duplicates.** Duplicate or similar photos (same scene, bursts) are detected and cleaned up in a review screen.
+- **Light photo editor.** Rotate, crop and fix the light of a picture in the gallery, without leaving the NAS.
+- **Built-in text editor.** Markdown and plain text files are edited right in the file browser, with a preview.
+- **Transcriptions and subtitles.** Voice notes and videos passing through a local speech-to-text model become searchable text and subtitle tracks.
+- **Advanced share links.** A password, an expiry date and a download limit can be set on every share link.
 - **Migration assistant.** Import data from another NAS (SMB or rsync) or from a cloud (Google Photos, Dropbox) with a guided assistant.
+
+### Accounts, phones and calendars
+
+- **CalDAV and CardDAV.** The calendars and address books of the accounts sync natively with iPhone, Android and Thunderbird, without another server to maintain.
+- **Phone backup.** The Android app syncs the folders of the phone (photos, messaging media) to a chosen share, skipping what is already there.
+
+### Cinema
+
+- **Cinema app.** The films and series of the NAS get a real media center: the library fetches posters, synopses, actors and ratings by itself, and everything is watched directly in the desktop interface, the PWA and the mobile app, with the playback position following the viewer from one screen to the next.
+- **Subtitles fetched and generated.** The subtitles of a film or an episode are found automatically; a missing track is generated from the audio by the local speech-to-text model.
+- **HDMI out.** Plugged to a TV, the NAS shows a full-screen menu driven with the arrows of any remote: films, series, photos and every media of the NAS, in the same graphic style as the apps.
 
 ### Notifications and mobile
 
@@ -81,9 +96,22 @@ Done in 0.13.0 (ticked).
 - **Scheduled AI reports.** "Every Monday, summarize the NAS health, the new photos and the failed backups": the assistant runs on a schedule and sends its report as a notification or an email.
 - **Questions about your documents.** The assistant answers about the indexed documents and cites the files it read, with clickable references.
 - **Scheduled actions in plain language.** "Stop the test VM every evening at 11 pm" creates a routine, confirmed in the interface like any modifying action.
+- **Sign in with an AI account.** The assistant can be connected with an account instead of a pasted API key (Mistral, DeepSeek, Kimi, OpenAI/Codex, Claude where the provider allows it): the NAS runs the sign-in flow, refreshes the token itself, and no long-lived key is stored.
 
 ### Sign-in and security
 
 - **Passkeys and two-factor sign-in.** Passkeys (WebAuthn) on the sign-in, one-time codes as a fallback, recovery codes, and every app of the SSO benefits from it.
 - **WireGuard server and dynamic DNS.** Reach the NAS from outside without exposing a port: a built-in WireGuard server with a QR code to scan, and integrated dynamic DNS for the certificate.
 - **Security journal.** Successful and failed sign-ins per user, an alert on a sign-in from a new device, one page to review everything.
+
+### Apps
+
+- **App updates with rollback.** Installed Docker apps update themselves in the maintenance window, and go back to the previous image when the app does not come back up.
+- **App health.** A container that crashes repeatedly raises a StrataOS alert, with its recent logs at hand.
+
+### Supervision and energy
+
+- **Monthly report.** A generated letter: disk usage over the month, new photos and albums, failed backups, apps updated.
+- **User quotas in the interface.** Each person sees the space left to them on their page, and an alert comes before the quota is reached.
+- **Watched NAS fleet.** The fleet dashboard also shows the NAS devices that are not part of a cluster (simple checks, no management).
+- **Night energy plan.** Disks spin down on a schedule and the consumption is followed when the hardware reports it.
