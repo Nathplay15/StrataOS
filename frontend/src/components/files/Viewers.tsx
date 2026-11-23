@@ -2,14 +2,14 @@
 // documents converted to PDF by the NAS, the end of large logs.
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Archive, FileText, Folder, Hash, RefreshCw } from "lucide-react";
+import { Archive, FileText, Folder, Hash, History, RefreshCw } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import type { FileEntry } from "../../lib/types";
-import { bytes, dateTime } from "../../lib/format";
+import { ago, bytes, dateTime } from "../../lib/format";
 import { tr } from "../../lib/i18n";
 import { useAction } from "../../lib/hooks";
 import { fileExt } from "../../lib/filetypes";
-import { Badge, Button, Checkbox, ErrorBox, Input, Notice, Spinner } from "../ui";
+import { Badge, Button, Checkbox, ErrorBox, Input, Notice, Spinner, useUI } from "../ui";
 import { Toolbar, ViewerCard, download, fetchBytes, tabFor, usePanel, useViewerCaps } from "./common";
 
 const PdfViewer = lazy(() => import("./PdfViewer"));
@@ -23,6 +23,35 @@ interface Info {
 export const useFileInfo = (path: string, modTime: string) => useQuery({ queryKey: ["file-info", path, modTime], queryFn: () => api.get<Info>(`/api/files/info${q({ path })}`), retry: false });
 
 /* ---------- Details ---------- */
+
+interface FileVersion { snapshot: string; time: string; size: number; mtime: string }
+
+/** The versions of a file kept by the volume snapshots, restorable (roadmap 0.15). */
+function FileVersions({ path, writable }: { path: string; writable?: boolean }) {
+  const { confirm } = useUI();
+  const vs = useQuery({ queryKey: ["file-versions", path], queryFn: () => api.get<FileVersion[]>(`/api/files/versions${q({ path })}`), retry: false });
+  const restore = useAction((snapshot: string) => api.post("/api/files/restore-version", { path, snapshot }), { success: tr("Version restored") });
+  if (vs.isLoading) return <Spinner />;
+  const list = vs.data ?? [];
+  if (!list.length) return null;
+  return (
+    <div className="pt-4">
+      <div className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted/80"><History size={13} />{tr("Versions (snapshots)")}</div>
+      <div className="divide-y divide-border rounded-xl border border-border">
+        {list.map((v) => (
+          <div key={v.snapshot} className="flex items-center gap-3 px-3 py-2 text-[12.5px]">
+            <span className="min-w-0 flex-1 truncate" title={v.snapshot}>{dateTime(v.time)} <span className="text-muted">({ago(v.time)})</span></span>
+            <span className="text-muted">{bytes(v.size)}</span>
+            {writable && <Button size="sm" variant="ghost" loading={restore.isPending && restore.variables === v.snapshot} onClick={async () => {
+              if (!(await confirm({ title: tr("Restore this version?"), text: tr("The current file is replaced; a snapshot is taken first."), danger: true, confirm: tr("Restore") }))) return;
+              restore.mutate(v.snapshot);
+            }}>{tr("Restore")}</Button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function Details({ entry, note }: { entry: FileEntry; note?: string }) {
   const { office, onOpen } = usePanel();
@@ -50,6 +79,7 @@ export function Details({ entry, note }: { entry: FileEntry; note?: string }) {
           <dt className="text-muted">SHA-256</dt>
           <dd>{hash ? <span className="mono text-[11.5px] break-all select-all">{hash}</span> : <Button size="sm" variant="ghost" icon={<Hash size={13} />} loading={sum.isPending} onClick={() => sum.mutate()}>{tr("Compute")}</Button>}</dd>
         </dl>
+        {!entry.dir && <FileVersions path={entry.path} writable={i?.writable} />}
         <div className="flex flex-wrap gap-2 pt-2">
           <Button variant="primary" onClick={() => download(entry.path)}>{tr("Download")}</Button>
           {canOffice && <Button onClick={() => onOpen(tabFor(entry, "office"))}>{tr("Open in OnlyOffice")}</Button>}

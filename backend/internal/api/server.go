@@ -299,6 +299,7 @@ func (s *Server) routes() {
 	s.dockerRoutes()
 	s.customAppRoutes()
 	s.fileRoutes()
+	s.fileVersionsRoutes()
 	s.recycleRoutes()
 	s.fulltextRoutes()
 	s.editorRoutes()
