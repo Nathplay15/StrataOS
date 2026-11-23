@@ -75,6 +75,15 @@ func fakeOSSubs(t *testing.T) (lastQuery func() url.Values) {
 			}})
 			return
 		}
+		if r.URL.Query().Get("imdb_id") == "777" {
+			// A malicious language: must never become a path component.
+			json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{
+				{"attributes": map[string]any{"language": "../../etc", "rating": 5.0, "download_count": 5,
+					"files":           []map[string]any{{"file_id": 444, "file_name": "evil.srt"}},
+					"feature_details": map[string]any{"hearing_impaired": false}}},
+			}})
+			return
+		}
 		if r.URL.Query().Get("moviehash") != "" {
 			json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{
 				{"attributes": map[string]any{"language": "en", "rating": 3.0, "download_count": 10,
@@ -148,6 +157,18 @@ func TestSubtitlesFetchRoute(t *testing.T) {
 	}
 	if _, err := os.Stat("/srv/strata/main/movie.en.srt"); err != nil {
 		t.Errorf("en srt not written: %v", err)
+	}
+
+	// Malicious language from the API: sanitized, nothing written outside the folder.
+	_ = cinema.SaveState(statePath, cinema.State{Items: []cinema.Item{{Path: "/srv/strata/main/other.mkv", IMDB: "tt777"}}})
+	if w := admin.req("POST", "/api/files/subtitles/fetch", map[string]string{"path": "/srv/strata/main/other.mkv"}); w.Code != 200 || !strings.Contains(w.Body.String(), `"lang":"etc"`) {
+		t.Fatalf("malicious lang: %d %s", w.Code, w.Body.String())
+	}
+	if _, err := os.Stat("/srv/strata/main/other.etc.srt"); err != nil {
+		t.Errorf("sanitized srt not written: %v", err)
+	}
+	if _, err := os.Stat("/srv/strata/etc.srt"); err == nil {
+		t.Error("path traversal: a file was written outside the share")
 	}
 
 	// No result at all: 404 (other.mkv has IMDb tt999, unknown to the API).

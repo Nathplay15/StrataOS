@@ -414,8 +414,15 @@ func (s *Server) newProxy(target *url.URL) *httputil.ReverseProxy {
 	tr.Proxy = nil // never through the environment's proxy
 	tr.DialContext = (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second, Control: localOnly}).DialContext
 	if target.Scheme == "https" {
-		// Local services mostly use self-signed certificates.
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		// Loopback is the NAS itself, whose services mostly use self-signed
+		// certificates: its certificate is not verified. Any other target
+		// (a LAN app) is verified against the system roots.
+		host := target.Hostname()
+		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() || host == "localhost" {
+			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
+		} else {
+			tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
 	}
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {

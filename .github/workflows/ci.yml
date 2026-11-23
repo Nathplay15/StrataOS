@@ -94,6 +94,11 @@ jobs:
           node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json --check
           node scripts/docs-site.mjs ../build/site
 
+      - name: Frontend dependency audit (npm)
+        run: |
+          cd frontend
+          npm audit --audit-level=high
+
       - name: Shell scripts
         run: for f in vm/*.sh vm/e2e.d/*.sh packaging/*.sh packaging/*/*.sh; do bash -n "$f" || exit 1; done
 

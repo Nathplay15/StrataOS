@@ -2,12 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"strataos/internal/netguard"
 	"strataos/internal/store"
 )
 
@@ -41,6 +44,9 @@ func TestTelegram(t *testing.T) {
 }
 
 func TestNtfy(t *testing.T) {
+	oldClient := notifyClient
+	notifyClient = func(store.TLSTrust, time.Duration) *http.Client { return &http.Client{Timeout: 5 * time.Second} }
+	t.Cleanup(func() { notifyClient = oldClient })
 	var title, body, auth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		title, auth = r.Header.Get("Title"), r.Header.Get("Authorization")
@@ -56,5 +62,21 @@ func TestNtfy(t *testing.T) {
 	}
 	if sendNtfy(srv.URL, "", store.TLSTrust{}, "x", "y") == nil {
 		t.Error("URL without topic accepted")
+	}
+}
+
+// The webhook/ntfy client never reaches the NAS itself or loopback (SSRF),
+// even with the LAN allowance for self-hosted targets.
+func TestNotifyHTTPClientRefusesLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("secret")) }))
+	defer srv.Close()
+	cl := notifyHTTPClient(store.TLSTrust{}, 5*time.Second)
+	resp, err := cl.Post(srv.URL, "application/json", strings.NewReader("{}"))
+	if err == nil {
+		resp.Body.Close()
+		t.Fatal("loopback webhook reached")
+	}
+	if !errors.Is(err, netguard.ErrBlocked) {
+		t.Fatalf("want ErrBlocked, got %v", err)
 	}
 }

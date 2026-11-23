@@ -9,6 +9,7 @@ package netguard
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -67,12 +68,25 @@ var ownAddrs = func() []netip.Addr {
 
 // Blocked reports whether ip must not be reached.
 func Blocked(ip netip.Addr) bool {
+	return blocked(ip, false)
+}
+
+// BlockedLAN is Blocked without the private ranges: for a target an
+// administrator chose themselves (a webhook, a ntfy address), a server on
+// the LAN is legitimate, but the NAS itself, loopback and link-local (cloud
+// metadata) never are.
+func BlockedLAN(ip netip.Addr) bool {
+	return blocked(ip, true)
+}
+
+func blocked(ip netip.Addr, allowPrivate bool) bool {
 	if !ip.IsValid() {
 		return true
 	}
 	ip = ip.Unmap()
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() ||
+		(!allowPrivate && ip.IsPrivate()) {
 		return true
 	}
 	for _, p := range blockedPrefixes {
@@ -90,11 +104,15 @@ func Blocked(ip netip.Addr) bool {
 
 // control runs on every connection attempt, with the address being dialed.
 func control(network, address string, _ syscall.RawConn) error {
+	return controlFor(address, false)
+}
+
+func controlFor(address string, allowPrivate bool) error {
 	ap, err := netip.ParseAddrPort(address)
 	if err != nil {
 		return ErrBlocked
 	}
-	if Blocked(ap.Addr()) {
+	if blocked(ap.Addr(), allowPrivate) {
 		return fmt.Errorf("%w (%s)", ErrBlocked, ap.Addr())
 	}
 	return nil
@@ -105,6 +123,14 @@ func Dialer(timeout time.Duration) *net.Dialer {
 	return &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second, Control: control}
 }
 
+// DialerLAN is Dialer but keeps private LAN addresses reachable (admin-chosen
+// targets such as a self-hosted webhook or ntfy).
+func DialerLAN(timeout time.Duration) *net.Dialer {
+	return &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
+		return controlFor(address, true)
+	}}
+}
+
 // Options of a guarded client.
 type Options struct {
 	Timeout time.Duration
@@ -112,12 +138,22 @@ type Options struct {
 	HTTPSOnly bool
 	// MaxRedirects followed (0: 3).
 	MaxRedirects int
+	// AllowPrivate keeps private LAN addresses reachable (a target an
+	// administrator chose, like a self-hosted webhook or ntfy). The NAS
+	// itself, loopback and link-local (cloud metadata) stay refused.
+	AllowPrivate bool
 }
 
 // CheckURL refuses a URL that is not http(s) (https only with httpsOnly),
 // has no host or carries credentials. The address itself is checked when
-// connecting.
+// connecting. With allowPrivate, a literal private LAN address is accepted
+// (admin-chosen target); the NAS itself and loopback stay refused either way.
 func CheckURL(u *url.URL, httpsOnly bool) error {
+	return CheckURLLAN(u, httpsOnly, false)
+}
+
+// CheckURLLAN is CheckURL with the private-LAN allowance of BlockedLAN.
+func CheckURLLAN(u *url.URL, httpsOnly, allowPrivate bool) error {
 	if u == nil || (u.Scheme != "https" && (httpsOnly || u.Scheme != "http")) {
 		if httpsOnly {
 			return errors.New("only https addresses are allowed")
@@ -127,7 +163,7 @@ func CheckURL(u *url.URL, httpsOnly bool) error {
 	if u.Hostname() == "" || u.User != nil {
 		return errors.New("invalid address")
 	}
-	if ip, err := netip.ParseAddr(u.Hostname()); err == nil && Blocked(ip) {
+	if ip, err := netip.ParseAddr(u.Hostname()); err == nil && blocked(ip, allowPrivate) {
 		return ErrBlocked
 	}
 	return nil
@@ -135,20 +171,32 @@ func CheckURL(u *url.URL, httpsOnly bool) error {
 
 // Client returns an HTTP client that only reaches public addresses.
 func Client(o Options) *http.Client {
+	return ClientTLS(o, nil)
+}
+
+// ClientTLS is Client with a TLS configuration of its own (e.g. tlstrust for
+// a self-signed server). o.AllowPrivate applies as in BlockedLAN.
+func ClientTLS(o Options, tlsCfg *tls.Config) *http.Client {
 	if o.Timeout == 0 {
 		o.Timeout = 30 * time.Second
 	}
 	if o.MaxRedirects == 0 {
 		o.MaxRedirects = 3
 	}
+	dialer := Dialer(10 * time.Second)
+	if o.AllowPrivate {
+		dialer = DialerLAN(10 * time.Second)
+	}
 	tr := &http.Transport{
 		Proxy:                 nil,
-		DialContext:           Dialer(10 * time.Second).DialContext,
+		DialContext:           dialer.DialContext,
+		TLSClientConfig:       tlsCfg,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: o.Timeout,
 		MaxIdleConns:          4,
 		IdleConnTimeout:       30 * time.Second,
 		ForceAttemptHTTP2:     true,
+		DisableKeepAlives:     tlsCfg != nil,
 	}
 	return &http.Client{
 		Timeout:   o.Timeout,
@@ -157,7 +205,7 @@ func Client(o Options) *http.Client {
 			if len(via) > o.MaxRedirects {
 				return errors.New("too many redirects")
 			}
-			return CheckURL(req.URL, o.HTTPSOnly)
+			return CheckURLLAN(req.URL, o.HTTPSOnly, o.AllowPrivate)
 		},
 	}
 }
