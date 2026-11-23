@@ -125,6 +125,18 @@ func TestHDMIRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { c.CloseNow() })
+	// The handshake returns before the handler registers the client in the
+	// hub: wait for the registration so the broadcast below is not lost.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		hdmiRemoteHub.mu.Lock()
+		n := len(hdmiRemoteHub.clients)
+		hdmiRemoteHub.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	tokA := s.sessions.create("admin", "admin", "127.0.0.1", time.Hour)
 	post := func(body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "/api/hdmi/remote/key", strings.NewReader(body))
