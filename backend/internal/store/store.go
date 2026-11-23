@@ -446,11 +446,14 @@ type HASecondary struct {
 	LastResult string            `json:"lastResult"`
 }
 
-// Fleet: the NAS this one watches (Members) and those allowed to watch it
-// (Managers, read-only access by token).
+// Fleet: the NAS this one watches (Members in the cluster, Watched outside
+// it, read-only) and those allowed to watch it (Managers, by token).
 type Fleet struct {
 	Members  []FleetMember  `json:"members,omitempty"`
 	Managers []FleetManager `json:"managers,omitempty"`
+	// Watched: NAS outside the cluster, watched read-only (summary only, no
+	// management), with a console token given by their "Authorized access".
+	Watched []FleetWatched `json:"watched,omitempty"`
 	// Updates: the grouped updates this console ran (newest last).
 	Updates []FleetUpdateRun `json:"updates,omitempty"`
 	// Transfers: VMs and containers copied or moved between NAS through

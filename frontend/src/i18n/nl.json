@@ -5430,5 +5430,13 @@
  "At most {0} zones": "Maximaal {0} zones",
  "Zone {0}": "Zone {0}",
  "Test the connection to see the picture and draw the zones.": "Test de verbinding om de afbeelding te zien en de zones te tekenen.",
- "{0} zones": "{0} zones"
+ "{0} zones": "{0} zones",
+ "Watched NAS (outside the cluster)": "Bewaakte NAS (buiten het cluster)",
+ "These NAS are not part of the cluster: the console only reads their status, it cannot update them or copy their virtual machines.": "Deze NAS maken geen deel uit van het cluster: de console leest alleen hun status, kan ze niet bijwerken en geen virtuele machines kopiëren.",
+ "Watch a NAS (read-only)": "NAS bewaken (alleen lezen)",
+ "Watched NAS added": "Bewaakte NAS toegevoegd",
+ "Watched NAS removed": "Bewaakte NAS verwijderd",
+ "Remove {0} from the watched list?": "{0} uit de bewakingslijst verwijderen?",
+ "This NAS is no longer watched from here.": "Deze NAS wordt vanaf hier niet meer bewaakt.",
+ "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Nog geen bewaakte NAS: open op de andere NAS de Multi-NAS-console en toon een autorisatiecode, bewaak deze dan hier zonder lid te worden van het cluster."
 }

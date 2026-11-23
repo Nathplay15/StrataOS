@@ -158,6 +158,7 @@ func New(c Config) *Server {
 	go s.nvrLoop()
 	go s.fleetResume()
 	go s.fleetHealthLoop()
+	go s.watchedLoop()
 	go s.xferJanitor()
 	go s.autoUpdateLoop()
 	go s.consoleLoop()

@@ -2,6 +2,21 @@ package store
 
 import "time"
 
+// FleetWatched is a NAS outside the cluster that this console watches
+// read-only: it only reads its status summary, never manages it.
+type FleetWatched struct {
+	ID    string    `json:"id"`
+	Name  string    `json:"name"`
+	Host  string    `json:"host"`
+	Cert  string    `json:"cert"` // SHA-256 of its certificate, pinned at pairing
+	Token string    `json:"token,omitempty"`
+	Added time.Time `json:"added"`
+	// Last check, kept in the store so it survives restarts.
+	LastSeen  time.Time      `json:"lastSeen,omitzero"`
+	LastError string         `json:"lastError,omitempty"`
+	Summary   map[string]any `json:"summary,omitempty"`
+}
+
 // FleetUpdateRun is a grouped update started from the Multi-NAS console.
 type FleetUpdateRun struct {
 	ID       string     `json:"id"`

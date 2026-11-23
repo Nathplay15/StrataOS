@@ -5430,5 +5430,13 @@
  "At most {0} zones": "Al massimo {0} zone",
  "Zone {0}": "Zona {0}",
  "Test the connection to see the picture and draw the zones.": "Prova la connessione per vedere l'immagine e disegnare le zone.",
- "{0} zones": "{0} zone"
+ "{0} zones": "{0} zone",
+ "Watched NAS (outside the cluster)": "NAS sorvegliati (fuori dal cluster)",
+ "These NAS are not part of the cluster: the console only reads their status, it cannot update them or copy their virtual machines.": "Questi NAS non fanno parte del cluster: la console ne legge solo lo stato, non può aggiornarli né copiare le loro macchine virtuali.",
+ "Watch a NAS (read-only)": "Sorveglia un NAS (sola lettura)",
+ "Watched NAS added": "NAS sorvegliato aggiunto",
+ "Watched NAS removed": "NAS sorvegliato rimosso",
+ "Remove {0} from the watched list?": "Rimuovere {0} dall'elenco sorvegliato?",
+ "This NAS is no longer watched from here.": "Questo NAS non è più sorvegliato da qui.",
+ "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Nessun NAS sorvegliato: sull'altro NAS apri la Console multi-NAS e mostra un codice di autorizzazione, poi sorveglia qui senza unirlo al cluster."
 }
