@@ -1,6 +1,9 @@
 package store
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // Media holds the settings of the Media app: the DLNA server and the music
 // server (OwnTone) folders (by share name: they follow renamed and deleted
@@ -8,6 +11,17 @@ import "slices"
 type Media struct {
 	DLNA  DLNAServer  `json:"dlna,omitzero"`
 	Music MusicServer `json:"music,omitzero"`
+	// Positions: where each account stopped watching a video (user → file
+	// path → position), so "continue watching" follows the viewer from one
+	// screen to the next. A finished video (95% seen) has no position.
+	Positions map[string]map[string]PlayPos `json:"positions,omitempty"`
+}
+
+// PlayPos is the playback position of one video for one account.
+type PlayPos struct {
+	At       float64   `json:"at"`  // seconds
+	Duration float64   `json:"dur"` // seconds
+	Updated  time.Time `json:"upd"`
 }
 
 // DLNAServer is the ReadyMedia (minidlna) server.

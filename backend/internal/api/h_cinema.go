@@ -72,13 +72,56 @@ func (s *Server) cinemaRoutes() {
 		if items == nil {
 			items = []cinema.Item{}
 		}
+		pos := map[string]store.PlayPos{}
+		s.store.Read(func(st *store.State) {
+			for p, v := range st.Media.Positions[userOf(r)] {
+				pos[p] = v
+			}
+		})
 		return struct {
-			KeySet  bool          `json:"keySet"`
-			Running bool          `json:"running"`
-			Checked time.Time     `json:"checked,omitzero"`
-			Scanned int           `json:"scanned"`
-			Items   []cinema.Item `json:"items"`
-		}{cinema.LoadKey(keyPath) != "", st.Running, st.Checked, st.Scanned, items}, nil
+			KeySet    bool                     `json:"keySet"`
+			Running   bool                     `json:"running"`
+			Checked   time.Time                `json:"checked,omitzero"`
+			Scanned   int                      `json:"scanned"`
+			Items     []cinema.Item            `json:"items"`
+			Positions map[string]store.PlayPos `json:"positions"`
+		}{cinema.LoadKey(keyPath) != "", st.Running, st.Checked, st.Scanned, items, pos}, nil
+	})
+
+	// PUT /api/cinema/position records where the signed-in account stopped
+	// a video; a video seen past 95% counts as finished and loses its entry.
+	s.user("PUT /api/cinema/position", func(r *http.Request) (any, error) {
+		var req struct {
+			Path     string  `json:"path"`
+			At       float64 `json:"at"`
+			Duration float64 `json:"duration"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if req.Path == "" || len(req.Path) > 4096 || req.Duration <= 0 || req.At < 0 || req.At > req.Duration*1.5 {
+			return nil, badRequest("invalid position")
+		}
+		u := userOf(r)
+		return nil, s.store.Update(func(st *store.State) error {
+			if st.Media.Positions == nil {
+				st.Media.Positions = map[string]map[string]store.PlayPos{}
+			}
+			m := st.Media.Positions[u]
+			if m == nil {
+				m = map[string]store.PlayPos{}
+				st.Media.Positions[u] = m
+			}
+			if req.At >= req.Duration*0.95 {
+				delete(m, req.Path) // finished
+			} else {
+				m[req.Path] = store.PlayPos{At: req.At, Duration: req.Duration, Updated: time.Now()}
+			}
+			if len(m) == 0 {
+				delete(st.Media.Positions, u)
+			}
+			return nil
+		})
 	})
 
 	s.admin("PUT /api/cinema/settings", func(r *http.Request) (any, error) {

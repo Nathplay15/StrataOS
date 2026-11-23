@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clapperboard, KeyRound, Play, RefreshCw, Search, Star } from "lucide-react";
 import { api, q } from "../../lib/api";
@@ -12,7 +12,7 @@ export type CinemaItem = {
   path: string; title: string; year?: number; kind: string; season?: number; episode?: number; size: number;
   tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[];
 };
-type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[] };
+type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }> };
 type Work = { path?: string; title: string; year?: number; kind: string; items: CinemaItem[]; tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[] };
 
 const epLabel = (i: CinemaItem) => `S${String(i.season ?? 0).padStart(2, "0")}E${String(i.episode ?? 0).padStart(2, "0")}`;
@@ -48,7 +48,8 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const saveKey = useAction(() => api.put("/api/cinema/settings", { tmdbKey: key }), { success: tr("Key saved"), onDone: () => { setKey(""); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const [filter, setFilter] = useState("");
   const [sel, setSel] = useState<Work | null>(null);
-  const [play, setPlay] = useState<CinemaItem | null>(null);
+  const [play, setPlay] = useState<{ item: CinemaItem; start: number } | null>(null);
+  const lastSave = useRef(0);
 
   const d = lib.data;
   const items = d?.items ?? [];
@@ -64,6 +65,12 @@ export function CinemaTab({ admin }: { admin: boolean }) {
     }
   }
   const series: Work[] = [...seriesMap.entries()].map(([title, eps]) => ({ ...eps[0], title, items: eps }));
+  // Continue watching: the videos this account stopped, newest first.
+  const cw = Object.entries(d?.positions ?? {})
+    .map(([path, pos]) => ({ item: items.find((i) => i.path === path), pos }))
+    .filter((x): x is { item: CinemaItem; pos: { at: number; dur: number; upd: string } } => !!x.item)
+    .sort((a, b) => (b.pos.upd ?? "").localeCompare(a.pos.upd ?? ""))
+    .slice(0, 12);
 
   return (
     <div className="space-y-4">
@@ -96,6 +103,32 @@ export function CinemaTab({ admin }: { admin: boolean }) {
         <Card><Empty icon={<Clapperboard />} title={tr("Video library")} text={tr("No video found on the shares: add videos to a shared folder, then scan.")} /></Card>
       ) : (
         <>
+          {!!cw.length && (
+            <div>
+              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Continue watching")}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                {cw.map(({ item, pos }) => {
+                  const w: Work = item.kind === "episode"
+                    ? { ...item, title: item.title, items: seriesMap.get(item.title) ?? [item] }
+                    : { ...item, items: [item] };
+                  const pct = Math.min(100, Math.round((pos.at / Math.max(1, pos.dur)) * 100));
+                  return (
+                    <button key={item.path} onClick={() => setPlay({ item, start: pos.at })} className="group overflow-hidden rounded-xl border border-line bg-panel text-left transition hover:border-accent/50">
+                      <div className="relative">
+                        <Poster w={w} className="aspect-video w-full object-cover" />
+                        <span className="absolute inset-x-0 bottom-0 h-1 bg-black/50"><span className="block h-full bg-accent" style={{ width: `${pct}%` }} /></span>
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100"><Play size={28} className="text-white" /></span>
+                      </div>
+                      <div className="space-y-0.5 p-3">
+                        <div className="truncate text-[13px] font-medium">{item.title}{item.kind === "episode" ? ` · ${epLabel(item)}` : ""}</div>
+                        <div className="text-[11.5px] text-muted">{tr("Resume")} · {pct}%</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {!!movies.length && (
             <div>
               <div className="mb-2 text-[13px] font-medium text-muted">{tr("Movies")}</div>
@@ -128,20 +161,36 @@ export function CinemaTab({ admin }: { admin: boolean }) {
                   {sel.items.map((e) => (
                     <div key={e.path} className="flex items-center justify-between gap-2 rounded-lg bg-panel-2 px-3 py-2 text-[12.5px]">
                       <span className="mono">{epLabel(e)}<span className="ml-2 text-muted">{bytes(e.size)}</span></span>
-                      <Button size="sm" variant="ghost" icon={<Play size={13} />} onClick={() => setPlay(e)}>{tr("Play")}</Button>
+                      <Button size="sm" variant="ghost" icon={<Play size={13} />} onClick={() => setPlay({ item: e, start: 0 })}>{tr("Play")}</Button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div><Button variant="primary" icon={<Play size={14} />} onClick={() => setPlay(sel.items[0])}>{tr("Play")}</Button></div>
+                <div><Button variant="primary" icon={<Play size={14} />} onClick={() => setPlay({ item: sel.items[0], start: 0 })}>{tr("Play")}</Button></div>
               )}
             </div>
           </div>
         )}
       </Modal>
 
-      <Modal open={!!play} wide onClose={() => setPlay(null)} title={play ? `${play.title}${play.kind === "episode" ? ` · ${epLabel(play)}` : ""}` : ""}>
-        {play && <video key={play.path} controls autoPlay className="w-full rounded-lg bg-black" src={`/api/files/play${q({ path: play.path, ...caps })}`} />}
+      <Modal open={!!play} wide onClose={() => setPlay(null)} title={play ? `${play.item.title}${play.item.kind === "episode" ? ` · ${epLabel(play.item)}` : ""}` : ""}>
+        {play && (
+          <video key={play.item.path} controls autoPlay className="w-full rounded-lg bg-black"
+            src={`/api/files/play${q({ path: play.item.path, start: play.start || undefined, ...caps })}`}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              const now = Date.now();
+              if (now - lastSave.current > 5000) {
+                lastSave.current = now;
+                api.put("/api/cinema/position", { path: play.item.path, at: Math.floor(v.currentTime), duration: v.duration || 0 }).catch(() => {});
+              }
+            }}
+            onEnded={(e) => {
+              const v = e.currentTarget;
+              api.put("/api/cinema/position", { path: play.item.path, at: v.duration || 0, duration: v.duration || 0 }).catch(() => {});
+              qc.invalidateQueries({ queryKey: ["cinema"] });
+            }} />
+        )}
       </Modal>
     </div>
   );
