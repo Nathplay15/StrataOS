@@ -8,6 +8,7 @@ import type { Me, Share } from "../lib/types";
 import { bytes, dateTime } from "../lib/format";
 import { Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Modal, Notice, PageHeader, Spinner, useUI } from "../components/ui";
 import { ShareLinkModal } from "../components/ShareLinkModal";
+import { PwaPhotoUpload } from "../components/PwaPhotoUpload";
 import { CastButton } from "../components/Cast";
 import { locale, tr } from "../lib/i18n";
 import { tagLabel, tagOf } from "../lib/photoTags";
@@ -350,6 +351,7 @@ export default function Photos({ me }: { me: Me }) {
     <div>
       {header}
       {tabs}
+      {tab === "all" && !album && !filter && !memory && !qText && <PwaPhotoUpload />}
       <ErrorBox error={error} />
       {tab === "albums" && !album && !filter && <AlbumsView onOpen={(a) => setAlbum(a)} />}
       {tab === "all" && !album && !filter && !memory && !qText && <>{smart.data && <SmartProgress s={smart.data} />}<Memories onOpen={setMemory} /></>}
