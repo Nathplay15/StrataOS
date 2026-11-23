@@ -301,6 +301,7 @@ func (s *Server) routes() {
 	s.customAppRoutes()
 	s.fileRoutes()
 	s.fileVersionsRoutes()
+	s.migrateRoutes()
 	s.recycleRoutes()
 	s.fulltextRoutes()
 	s.editorRoutes()

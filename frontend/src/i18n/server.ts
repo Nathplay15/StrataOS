@@ -201,6 +201,8 @@ export const serverTexts: [string, string][] = [
   // Monthly report
   ["Rapport mensuel de {0}", "Monthly report of {0}"],
   ["Rapport IA de {0}", "AI report of {0}"],
+  ["Copie depuis {0} vers {1}…", "Copying from {0} to {1}…"],
+  ["Import terminé : {0} fichiers, {1} octets", "Import finished: {0} files, {1} bytes"],
   ["Interrogation de l'assistant ({0})…", "Asking the assistant ({0})…"],
   ["Rapport envoyé en notification ({0} caractères)", "Report sent as a notification ({0} characters)"],
   ["Stockage", "Storage"],

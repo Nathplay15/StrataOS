@@ -42,6 +42,7 @@ const SettingsPage = lazy(() => import("./pages/system/Settings"));
 const Schedules = lazy(() => import("./pages/system/Schedules"));
 const Routines = lazy(() => import("./pages/system/Routines"));
 const Backups = lazy(() => import("./pages/system/Backups"));
+const Migration = lazy(() => import("./pages/system/Migration"));
 const UPSPage = lazy(() => import("./pages/system/UPS"));
 const VirtualMachines = lazy(() => import("./pages/vms/VirtualMachines"));
 const CloudSync = lazy(() => import("./pages/system/CloudSync"));
@@ -155,6 +156,7 @@ function Root() {
             <Route path="system/schedules" element={A(<Schedules />)} />
             <Route path="system/routines" element={A(<Routines />)} />
             <Route path="backup" element={A(<Backups />)} />
+            <Route path="migration" element={A(<Migration />)} />
             <Route path="system/ups" element={A(<UPSPage />)} />
             <Route path="system/energy" element={A(<EnergyPage />)} />
             <Route path="system/hardware" element={A(<HardwarePage />)} />

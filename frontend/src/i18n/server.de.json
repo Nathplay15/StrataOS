@@ -1598,6 +1598,8 @@
  "Rapport hebdomadaire de {0}": "Wochenbericht von {0}",
  "Rapport mensuel de {0}": "Monatsbericht für {0}",
  "Rapport IA de {0}": "KI-Bericht von {0}",
+ "Copie depuis {0} vers {1}…": "Kopiere von {0} nach {1}…",
+ "Import terminé : {0} fichiers, {1} octets": "Import abgeschlossen: {0} Dateien, {1} Bytes",
  "Interrogation de l'assistant ({0})…": "Assistent wird gefragt ({0})…",
  "Rapport envoyé en notification ({0} caractères)": "Bericht als Benachrichtigung gesendet ({0} Zeichen)",
  "Raspberry Pi : son archive de noyaux reste sur la version actuelle tant qu'elle ne publie pas de noyaux pour la nouvelle": "Raspberry Pi: Sein Kernel-Archiv bleibt auf dem aktuellen Release, bis es Kernel für das neue veröffentlicht",

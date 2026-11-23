@@ -1598,6 +1598,8 @@
  "Rapport hebdomadaire de {0}": "{0} 的每周报告",
  "Rapport mensuel de {0}": "{0} 月度报告",
  "Rapport IA de {0}": "{0} 的 AI 报告",
+ "Copie depuis {0} vers {1}…": "正在从 {0} 复制到 {1}…",
+ "Import terminé : {0} fichiers, {1} octets": "导入完成：{0} 个文件，{1} 字节",
  "Interrogation de l'assistant ({0})…": "正在询问助手（{0}）…",
  "Rapport envoyé en notification ({0} caractères)": "报告已作为通知发送（{0} 个字符）",
  "Raspberry Pi : son archive de noyaux reste sur la version actuelle tant qu'elle ne publie pas de noyaux pour la nouvelle": "Raspberry Pi：其内核存档会保持在当前版本，直到为新版本发布内核",

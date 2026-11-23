@@ -526,6 +526,36 @@ export interface ScheduleTarget {
   subvolumes?: string[];
 }
 
+export interface MigrationRun {
+  started: string;
+  duration: number;
+  status: "success" | "failed" | "stopped";
+  message: string;
+  manual?: boolean;
+  files?: number;
+  bytes?: number;
+}
+
+export interface Migration {
+  id: string;
+  name: string;
+  kind: "smb" | "nfs" | "rsync";
+  host: string;
+  share: string;
+  path?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  dest: string;
+  delete?: boolean;
+  cron?: string;
+  enabled: boolean;
+  createdAt: string;
+  history: MigrationRun[];
+  running?: boolean;
+  nextRun?: string;
+}
+
 export interface RoutineAction {
   kind: "notify" | "webhook" | "snapshot" | "backup" | "vm" | "lxc" | "docker" | "app-update";
   message?: string;

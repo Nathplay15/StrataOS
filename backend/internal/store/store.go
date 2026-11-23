@@ -743,34 +743,36 @@ type Protection struct {
 
 type State struct {
 	// Schema is the layout version of the state file (0 before StrataOS 0.5).
-	Schema    int             `json:"schema,omitempty"`
-	Users     []*User         `json:"users"`
-	Shares    []*Share        `json:"shares"`
-	Volumes   []*Volume       `json:"volumes"`
-	Schedules []*Schedule     `json:"schedules"`
-	Backups   []*BackupTask   `json:"backups"`
-	Clouds    []*CloudSync    `json:"cloudSyncs"`
-	Files     FileServices    `json:"fileServices"`
-	Directory Directory       `json:"directory"`
-	HA        HA              `json:"ha"`
-	Ransom    Ransomware      `json:"ransomware"`
-	VPN       VPN             `json:"vpn"`
-	Photos    Photos          `json:"photos"`
-	DDNS      DDNS            `json:"ddns"`
-	Links     []*ShareLink    `json:"links,omitempty"`
-	Energy    Energy          `json:"energy"`
-	Guard     Guard           `json:"guard"`
-	Vaults    []*Vault        `json:"vaults,omitempty"`
-	Fleet     Fleet           `json:"fleet"`
-	Remote    Remote          `json:"remote,omitzero"`
-	ISCSI     ISCSI           `json:"iscsi"`
-	BurnIns   []*BurnInReport `json:"burnIns,omitempty"`
-	Hardware  Hardware        `json:"hardware"`
-	VMs       VMSettings      `json:"vmSettings"`
-	Office    Office          `json:"office"`
-	Media     Media           `json:"media,omitzero"`
-	NVR       NVR             `json:"nvr,omitzero"`
-	Console   Console         `json:"console,omitzero"` // appliance screen on the local display
+	Schema    int           `json:"schema,omitempty"`
+	Users     []*User       `json:"users"`
+	Shares    []*Share      `json:"shares"`
+	Volumes   []*Volume     `json:"volumes"`
+	Schedules []*Schedule   `json:"schedules"`
+	Backups   []*BackupTask `json:"backups"`
+	// Migrations: imports from another NAS into a share (store/migration.go).
+	Migrations []*Migration    `json:"migrations,omitempty"`
+	Clouds     []*CloudSync    `json:"cloudSyncs"`
+	Files      FileServices    `json:"fileServices"`
+	Directory  Directory       `json:"directory"`
+	HA         HA              `json:"ha"`
+	Ransom     Ransomware      `json:"ransomware"`
+	VPN        VPN             `json:"vpn"`
+	Photos     Photos          `json:"photos"`
+	DDNS       DDNS            `json:"ddns"`
+	Links      []*ShareLink    `json:"links,omitempty"`
+	Energy     Energy          `json:"energy"`
+	Guard      Guard           `json:"guard"`
+	Vaults     []*Vault        `json:"vaults,omitempty"`
+	Fleet      Fleet           `json:"fleet"`
+	Remote     Remote          `json:"remote,omitzero"`
+	ISCSI      ISCSI           `json:"iscsi"`
+	BurnIns    []*BurnInReport `json:"burnIns,omitempty"`
+	Hardware   Hardware        `json:"hardware"`
+	VMs        VMSettings      `json:"vmSettings"`
+	Office     Office          `json:"office"`
+	Media      Media           `json:"media,omitzero"`
+	NVR        NVR             `json:"nvr,omitzero"`
+	Console    Console         `json:"console,omitzero"` // appliance screen on the local display
 	// TwoFactor: two-factor authentication required for administrators (store/access.go).
 	TwoFactor TwoFactorPolicy `json:"twoFactor,omitzero"`
 	Mobile    Mobile          `json:"mobile,omitzero"`
