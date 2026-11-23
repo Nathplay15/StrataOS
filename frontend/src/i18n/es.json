@@ -5468,5 +5468,12 @@
  "White": "Blanco",
  "Yellow": "Amarillo",
  "Cyan": "Cian",
- "Green": "Verde"
+ "Green": "Verde",
+ "Night mode": "Modo nocturno",
+ "Night mode saved": "Modo nocturno guardado",
+ "From (hour)": "Desde (hora)",
+ "To (hour)": "Hasta (hora)",
+ "Maximum volume (%)": "Volumen máximo (%)",
+ "Brightness (%)": "Brillo (%)",
+ "Limits the brightness and the volume of the players during these hours.": "Limita el brillo y el volumen de los reproductores durante estas horas."
 }

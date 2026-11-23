@@ -113,6 +113,18 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [sub, setSub] = useState<number | null>(null);
+  // Night mode (evening): caps the volume and dims the picture.
+  const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
+  const nightOn = (() => {
+    const n = night.data;
+    if (!n?.enabled || n.from === n.to) return false;
+    const h = now.getHours();
+    return n.from < n.to ? h >= n.from && h < n.to : h >= n.from || h < n.to;
+  })();
+  const volCap = nightOn ? Math.min(1, (night.data?.maxVolume ?? 30) / 100) : 1;
+  useEffect(() => { if (nightOn && volume > volCap) setVolume(volCap); }, [nightOn, volCap, volume]);
   // Subtitle look (size, color, outline), kept per browser.
   const [subStyle, setSubStyle] = useState<{ size: number; color: string; outline: boolean }>(() => {
     try {
@@ -152,6 +164,7 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
     <>
       <Toolbar entry={entry}>
         <Badge tone="accent">{what}</Badge>
+        {nightOn && <Badge tone="neutral">{tr("Night mode")}</Badge>}
         {audios.length > 1 && (
           <Select value={audio ?? ""} onChange={(e) => { setAudio(e.target.value === "" ? undefined : +e.target.value); }} className="!h-8 max-w-[180px] text-[12.5px]" aria-label={tr("Audio track")}>
             <option value="">{tr("Default audio")}</option>
@@ -193,7 +206,8 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
           <El key={src} ref={ref} src={src} autoPlay preload="auto" playsInline
             onTimeUpdate={(e) => { setCurrent(e.currentTarget.currentTime); setPos(key, offset + e.currentTarget.currentTime); }}
             onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => void onError()}
-            className={cx(plan.audioOnly ? "hidden" : "max-h-full max-w-full", sub !== null && "cuebox")}>
+            className={cx(plan.audioOnly ? "hidden" : "max-h-full max-w-full", sub !== null && "cuebox")}
+            style={nightOn && !plan.audioOnly ? { filter: `brightness(${Math.max(0.2, (night.data?.brightness ?? 80) / 100)})` } : undefined}>
             {subURL && <track key={subURL} kind="subtitles" src={subURL} default label={tr("Subtitles")} />}
           </El>
         </div>
@@ -207,7 +221,7 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
             onKeyUp={() => { if (drag !== null) { seek(drag); setDrag(null); } }} />
           <span className="mono w-14 text-muted">{duration ? clock(duration) : "—"}</span>
           <Button size="sm" variant="ghost" icon={muted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />} title={tr("Mute")} onClick={() => setMuted(!muted)} />
-          <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} aria-label={tr("Volume")} className="w-20 accent-[var(--accent)] max-sm:hidden" onChange={(e) => { setVolume(+e.target.value); setMuted(false); }} />
+          <input type="range" min={0} max={volCap} step={0.05} value={muted ? 0 : Math.min(volume, volCap)} aria-label={tr("Volume")} className="w-20 accent-[var(--accent)] max-sm:hidden" onChange={(e) => { setVolume(+e.target.value); setMuted(false); }} />
         </div>
       </div>
       {error instanceof ApiError && error.status === 503 && <Notice tone="warn">{srv(error.message)}</Notice>}

@@ -5468,5 +5468,12 @@
  "White": "白色",
  "Yellow": "黄色",
  "Cyan": "青色",
- "Green": "绿色"
+ "Green": "绿色",
+ "Night mode": "夜间模式",
+ "Night mode saved": "夜间模式已保存",
+ "From (hour)": "起始（小时）",
+ "To (hour)": "结束（小时）",
+ "Maximum volume (%)": "最大音量 (%)",
+ "Brightness (%)": "亮度 (%)",
+ "Limits the brightness and the volume of the players during these hours.": "在这些时段限制播放器的亮度和音量。"
 }

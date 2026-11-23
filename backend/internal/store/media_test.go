@@ -3,6 +3,7 @@ package store
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestMediaFollowShare(t *testing.T) {
@@ -47,5 +48,26 @@ func TestMediaFollowShare(t *testing.T) {
 	}
 	if d, mu = m.UsesShare("Media"); !d || !mu {
 		t.Errorf("UsesShare(Media) = %v %v", d, mu)
+	}
+}
+
+func TestNightModeActive(t *testing.T) {
+	clock := func(h int) time.Time { return time.Date(2026, 11, 23, h, 30, 0, 0, time.Local) }
+	n := NightMode{Enabled: true, From: 22, To: 6} // wraps past midnight
+	for h := 0; h < 24; h++ {
+		want := h >= 22 || h < 6
+		if got := n.Active(clock(h)); got != want {
+			t.Errorf("22-06 at %dh: %v, want %v", h, got, want)
+		}
+	}
+	day := NightMode{Enabled: true, From: 12, To: 18}
+	if !day.Active(clock(12)) || day.Active(clock(18)) || day.Active(clock(11)) || !day.Active(clock(17)) {
+		t.Error("12-18 wrong")
+	}
+	if (NightMode{Enabled: false, From: 22, To: 6}).Active(clock(23)) {
+		t.Error("disabled must be inactive")
+	}
+	if (NightMode{Enabled: true, From: 8, To: 8}).Active(clock(8)) {
+		t.Error("From == To must be inactive")
 	}
 }

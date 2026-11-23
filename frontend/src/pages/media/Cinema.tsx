@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clapperboard, KeyRound, Play, RefreshCw, Search, Star } from "lucide-react";
+import { Clapperboard, KeyRound, Moon, Play, RefreshCw, Search, Star } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, bytes } from "../../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Spinner } from "../../components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Spinner, Switch } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import { caps } from "../../components/files/MediaPlayer";
 
@@ -48,6 +48,9 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const [key, setKey] = useState("");
   const saveKey = useAction(() => api.put("/api/cinema/settings", { tmdbKey: key }), { success: tr("Key saved"), onDone: () => { setKey(""); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const [filter, setFilter] = useState("");
+  const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
+  const [nightForm, setNightForm] = useState<{ enabled: boolean; from: string; to: string; maxVolume: string; brightness: string } | null>(null);
+  const saveNight = useAction(() => api.put("/api/media/night", { enabled: !!nightForm?.enabled, from: parseInt(nightForm?.from ?? "22") || 0, to: parseInt(nightForm?.to ?? "6") || 0, maxVolume: parseInt(nightForm?.maxVolume ?? "30") || 30, brightness: parseInt(nightForm?.brightness ?? "80") || 80 }), { success: tr("Night mode saved"), onDone: () => { setNightForm(null); qc.invalidateQueries({ queryKey: ["media-night"] }); } });
   const [sel, setSel] = useState<Work | null>(null);
   const [play, setPlay] = useState<{ item: CinemaItem; start: number } | null>(null);
   const lastSave = useRef(0);
@@ -99,6 +102,27 @@ export function CinemaTab({ admin }: { admin: boolean }) {
         {d && <div className="mt-2 text-[12px] text-muted">{tr("Scanned {0} videos", d.scanned)}{d.checked && ` · ${tr("Last scan {0}", ago(d.checked))}`}</div>}
         <ErrorBox error={lib.error || scan.error} />
       </Card>
+
+      {admin && (
+        <Card title={<span className="flex items-center gap-2"><Moon size={16} />{tr("Night mode")}</span>}
+          actions={nightForm ? <Button size="sm" variant="primary" loading={saveNight.isPending} onClick={() => saveNight.mutate()}>{tr("Save")}</Button> : <Button size="sm" variant="ghost" onClick={() => setNightForm({ enabled: !!night.data?.enabled, from: String(night.data?.from ?? 22), to: String(night.data?.to ?? 6), maxVolume: String(night.data?.maxVolume ?? 30), brightness: String(night.data?.brightness ?? 80) })}>{tr("Edit")}</Button>}>
+          <p className="text-muted text-[12.5px]">{tr("Limits the brightness and the volume of the players during these hours.")}</p>
+          {nightForm ? (
+            <div className="mt-3 space-y-3">
+              <Switch checked={nightForm.enabled} onChange={(v) => setNightForm({ ...nightForm, enabled: v })} label={tr("Enabled")} />
+              <div className="flex flex-wrap items-end gap-3">
+                <Field label={tr("From (hour)")}><Input className="w-20" type="number" min={0} max={23} value={nightForm.from} onChange={(e) => setNightForm({ ...nightForm, from: e.target.value })} /></Field>
+                <Field label={tr("To (hour)")}><Input className="w-20" type="number" min={0} max={23} value={nightForm.to} onChange={(e) => setNightForm({ ...nightForm, to: e.target.value })} /></Field>
+                <Field label={tr("Maximum volume (%)")}><Input className="w-24" type="number" min={1} max={100} value={nightForm.maxVolume} onChange={(e) => setNightForm({ ...nightForm, maxVolume: e.target.value })} /></Field>
+                <Field label={tr("Brightness (%)")}><Input className="w-24" type="number" min={20} max={100} value={nightForm.brightness} onChange={(e) => setNightForm({ ...nightForm, brightness: e.target.value })} /></Field>
+              </div>
+              <ErrorBox error={saveNight.error} />
+            </div>
+          ) : night.data?.enabled ? (
+            <div className="mt-2 text-[12.5px] text-muted">{night.data.from}:00 – {night.data.to}:00 · {tr("Maximum volume (%)")} {night.data.maxVolume} · {tr("Brightness (%)")} {night.data.brightness}</div>
+          ) : null}
+        </Card>
+      )}
 
       {admin && !d?.keySet && (
         <Card title={<span className="flex items-center gap-2"><KeyRound size={16} />{tr("TMDB API key")}</span>}>

@@ -15,6 +15,30 @@ type Media struct {
 	// path → position), so "continue watching" follows the viewer from one
 	// screen to the next. A finished video (95% seen) has no position.
 	Positions map[string]map[string]PlayPos `json:"positions,omitempty"`
+	// Night: limits brightness and volume during the evening hours.
+	Night NightMode `json:"night,omitzero"`
+}
+
+// NightMode limits the players late in the evening (roadmap 0.15, cinema
+// polish): from From to To (local hours, From > To wraps past midnight).
+type NightMode struct {
+	Enabled    bool `json:"enabled,omitempty"`
+	From       int  `json:"from,omitempty"`       // hour 0-23
+	To         int  `json:"to,omitempty"`         // hour 0-23
+	MaxVolume  int  `json:"maxVolume,omitempty"`  // percent
+	Brightness int  `json:"brightness,omitempty"` // percent of the picture
+}
+
+// Active reports whether the night mode applies at t (local time).
+func (n NightMode) Active(t time.Time) bool {
+	if !n.Enabled || n.From == n.To {
+		return false
+	}
+	h := t.Hour()
+	if n.From < n.To {
+		return h >= n.From && h < n.To
+	}
+	return h >= n.From || h < n.To // wraps past midnight
 }
 
 // PlayPos is the playback position of one video for one account.

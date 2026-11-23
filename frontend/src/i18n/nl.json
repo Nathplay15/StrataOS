@@ -5468,5 +5468,12 @@
  "White": "Wit",
  "Yellow": "Geel",
  "Cyan": "Cyaan",
- "Green": "Groen"
+ "Green": "Groen",
+ "Night mode": "Nachtmodus",
+ "Night mode saved": "Nachtmodus opgeslagen",
+ "From (hour)": "Van (uur)",
+ "To (hour)": "Tot (uur)",
+ "Maximum volume (%)": "Maximaal volume (%)",
+ "Brightness (%)": "Helderheid (%)",
+ "Limits the brightness and the volume of the players during these hours.": "Beperkt de helderheid en het volume van de spelers tijdens deze uren."
 }

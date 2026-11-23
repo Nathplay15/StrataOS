@@ -5468,5 +5468,12 @@
  "White": "Blanc",
  "Yellow": "Jaune",
  "Cyan": "Cyan",
- "Green": "Vert"
+ "Green": "Vert",
+ "Night mode": "Mode nuit",
+ "Night mode saved": "Mode nuit enregistré",
+ "From (hour)": "De (heure)",
+ "To (hour)": "À (heure)",
+ "Maximum volume (%)": "Volume maximal (%)",
+ "Brightness (%)": "Luminosité (%)",
+ "Limits the brightness and the volume of the players during these hours.": "Limite la luminosité et le volume des lecteurs pendant ces heures."
 }
