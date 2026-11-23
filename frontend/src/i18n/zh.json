@@ -2805,6 +2805,7 @@
  "On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.": "在另一台 NAS 上打开多 NAS 控制台并显示授权码，然后在此处点击“添加 NAS”。",
  "On the other StrataOS: Remote access → Sites → Add a site (with the networks of this NAS), then StrataOS code.": "在另一台 StrataOS 上：远程访问 → 站点 → 添加站点（填入此 NAS 的网络），然后选择 StrataOS 代码。",
  "On this day": "历史上的今天",
+ "Monthly recaps": "每月回顾",
  "On top of the memory": "在内存之外额外增加",
  "On your router, forward the UDP port of the VPN (51820 by default) to the NAS.": "请在路由器上将 VPN 的 UDP 端口（默认 51820）转发到 NAS。",
  "On {0}. It counts as off-site only if you keep it elsewhere and bring it back for the backups.": "位于 {0}。只有当您将其存放在别处并在备份时带回来，才算异地副本。",

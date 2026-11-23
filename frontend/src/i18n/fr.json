@@ -2805,6 +2805,7 @@
  "On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.": "Sur l'autre NAS, ouvrez Console multi-NAS et affichez un code d'autorisation, puis cliquez sur « Ajouter un NAS » ici.",
  "On the other StrataOS: Remote access → Sites → Add a site (with the networks of this NAS), then StrataOS code.": "Sur l'autre StrataOS : Accès à distance → Sites → Ajouter un site (avec les réseaux de ce NAS), puis Code StrataOS.",
  "On this day": "Ce jour-là",
+ "Monthly recaps": "Recaps mensuels",
  "On top of the memory": "En plus de la mémoire",
  "On your router, forward the UDP port of the VPN (51820 by default) to the NAS.": "Sur votre routeur, redirigez le port UDP du VPN (51820 par défaut) vers le NAS.",
  "On {0}. It counts as off-site only if you keep it elsewhere and bring it back for the backups.": "Sur {0}. Elle ne compte comme hors site que si vous la conservez ailleurs et la rapportez pour les sauvegardes.",

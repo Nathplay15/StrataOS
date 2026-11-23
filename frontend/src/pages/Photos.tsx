@@ -12,7 +12,7 @@ import { PwaPhotoUpload } from "../components/PwaPhotoUpload";
 import { CastButton } from "../components/Cast";
 import { locale, tr } from "../lib/i18n";
 import { tagLabel, tagOf } from "../lib/photoTags";
-import { Memories, PeopleView, PersonTools, PlacesView, SmartProgress, SmartSettings, ThingsView, placeLabel, useSmart, type Filter, type Memory, type Person } from "./photos/Smart";
+import { Memories, PeopleView, PersonTools, PlacesView, Recaps, SmartProgress, SmartSettings, ThingsView, placeLabel, useSmart, type Filter, type Memory, type Person, type Recap } from "./photos/Smart";
 
 type Item = { path: string; date: number; mtime: number; size: number; video?: boolean };
 type Album = { id: string; name: string; count: number; cover?: string; created: string; shared: boolean; from?: string; with?: string[] };
@@ -227,6 +227,7 @@ export default function Photos({ me }: { me: Me }) {
   const [filter, setFilter] = useState<Filter | null>(null);
   const [person, setPerson] = useState<Person | null>(null);
   const [memory, setMemory] = useState<Memory | null>(null);
+  const [recap, setRecap] = useState<Recap | null>(null);
   const smart = useSmart();
   const [smartSettings, setSmartSettings] = useState(false);
   const smartSearch = !!smart.data?.objects && !album && !filter;
@@ -234,14 +235,14 @@ export default function Photos({ me }: { me: Me }) {
   const [qText, setQText] = useState("");
   useEffect(() => { const t = setTimeout(() => setQText(search.trim()), 350); return () => clearTimeout(t); }, [search]);
   const [limit, setLimit] = useState(PAGE);
-  const showGrid = tab === "all" || !!album || !!filter || !!memory;
-  const searching = smartSearch && !!qText && tab === "all" && !memory;
+  const showGrid = tab === "all" || !!album || !!filter || !!memory || !!recap;
+  const searching = smartSearch && !!qText && tab === "all" && !memory && !recap;
   const fq = filter ? { [filter.kind]: filter.id } : {};
   const timeline = useQuery({
     queryKey: ["photos", limit, album?.id ?? "", album || filter ? "" : qText, filter?.kind ?? "", filter?.id ?? ""],
     queryFn: () => api.get<Page>(`/api/photos${q({ offset: 0, limit, album: album?.id, q: album || filter ? undefined : qText, ...fq })}`),
     refetchInterval: (d) => (d.state.data?.running ? 4000 : 60000),
-    enabled: showGrid && !searching && !memory,
+    enabled: showGrid && !searching && !memory && !recap,
   });
   // Search by description, tags and names (smart features on): best first.
   const found = useQuery({
@@ -251,10 +252,12 @@ export default function Photos({ me }: { me: Me }) {
   });
   const data: Page | undefined = memory
     ? { installed: true, total: memory.items.length, items: memory.items, running: false, updated: "" }
-    : searching
+    : recap
+      ? { installed: true, total: recap.items.length, items: recap.items, running: false, updated: "" }
+      : searching
       ? found.data && { installed: true, total: found.data.items.length, items: found.data.items, running: false, updated: "", folders: timeline.data?.folders }
       : timeline.data;
-  const isLoading = memory ? false : searching ? found.isLoading : timeline.isLoading;
+  const isLoading = memory || recap ? false : searching ? found.isLoading : timeline.isLoading;
   const error = searching ? found.error : timeline.error;
   const install = useAction(() => api.post("/api/system/components/photos/install"));
   const reindex = useAction(() => api.post("/api/photos/reindex"));
@@ -271,8 +274,8 @@ export default function Photos({ me }: { me: Me }) {
   const items = useMemo(() => data?.items ?? [], [data]);
   const more = data && items.length < data.total;
 
-  useEffect(() => { setSelected(null); setLimit(PAGE); }, [tab, album?.id, qText, filter?.id, memory?.year]);
-  const back = () => { setFilter(null); setPerson(null); setMemory(null); };
+  useEffect(() => { setSelected(null); setLimit(PAGE); }, [tab, album?.id, qText, filter?.id, memory?.year, recap ? `${recap.year}-${recap.month}` : ""]);
+  const back = () => { setFilter(null); setPerson(null); setMemory(null); setRecap(null); };
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !more) return;
@@ -295,7 +298,7 @@ export default function Photos({ me }: { me: Me }) {
   const onIndex = useCallback((i: number) => setOpen(i), []);
   const toggle = (p: string) => setSelected((s) => (s ? (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]) : [p]));
 
-  const title = album ? album.name : memory ? (memory.yearsAgo === 1 ? tr("1 year ago") : tr("{0} years ago", memory.yearsAgo)) : filter ? filter.label : tr("Photos");
+  const title = album ? album.name : memory ? (memory.yearsAgo === 1 ? tr("1 year ago") : tr("{0} years ago", memory.yearsAgo)) : recap ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(recap.year, recap.month - 1, 1)) : filter ? filter.label : tr("Photos");
   const header = <PageHeader title={title} subtitle={data && showGrid ? tr("{0} photos and videos", data.total) : undefined} icon={<Images size={20} />} actions={<>
     {album && <>
       <Button size="sm" icon={<ArrowLeft size={14} />} onClick={() => setAlbum(null)}>{tr("Albums")}</Button>
@@ -351,10 +354,10 @@ export default function Photos({ me }: { me: Me }) {
     <div>
       {header}
       {tabs}
-      {tab === "all" && !album && !filter && !memory && !qText && <PwaPhotoUpload />}
+      {tab === "all" && !album && !filter && !memory && !recap && !qText && <PwaPhotoUpload />}
       <ErrorBox error={error} />
       {tab === "albums" && !album && !filter && <AlbumsView onOpen={(a) => setAlbum(a)} />}
-      {tab === "all" && !album && !filter && !memory && !qText && <>{smart.data && <SmartProgress s={smart.data} />}<Memories onOpen={setMemory} /></>}
+      {tab === "all" && !album && !filter && !memory && !recap && !qText && <>{smart.data && <SmartProgress s={smart.data} />}<Memories onOpen={setMemory} /><Recaps onOpen={setRecap} /></>}
       {tab === "dupes" && !album && !filter && <DuplicatesView />}
       {showGrid && data && <>
         {!album && admin && data.folders?.length === 0 && <Card><Empty icon={<Images />} title={tr("No photo folders")} text={tr("Choose the shared folders that contain your photos.")} action={<Button variant="primary" onClick={() => setFolders(true)}>{tr("Choose folders")}</Button>} /></Card>}

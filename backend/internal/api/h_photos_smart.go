@@ -724,6 +724,20 @@ func (s *Server) smartRoutes() {
 		return photos.Memories(photos.Default.List(func(p string) bool { return under(roots, p) }), time.Now()), nil
 	})
 
+	// Monthly recaps: one card per past month with a spread of its photos.
+	s.user("GET /api/photos/recaps", func(r *http.Request) (any, error) {
+		limit := qInt(r, "limit", 12)
+		if limit < 1 || limit > 36 {
+			limit = 12
+		}
+		roots := s.readableRoots(r)
+		recaps := photos.Recaps(photos.Default.List(func(p string) bool { return under(roots, p) }), time.Now(), 24)
+		if len(recaps) > limit {
+			recaps = recaps[:limit]
+		}
+		return recaps, nil
+	})
+
 	// Search by description (CLIP), tags and file names; best first.
 	s.user("GET /api/photos/search", func(r *http.Request) (any, error) {
 		q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))

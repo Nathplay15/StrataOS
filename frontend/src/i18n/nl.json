@@ -2805,6 +2805,7 @@
  "On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.": "Open op het andere NAS de Multi-NAS-console en toon een autorisatiecode; klik daarna hier op « NAS toevoegen ».",
  "On the other StrataOS: Remote access → Sites → Add a site (with the networks of this NAS), then StrataOS code.": "Op de andere StrataOS: Externe toegang → Sites → Een site toevoegen (met de netwerken van deze NAS) en daarna StrataOS-code.",
  "On this day": "Op deze dag",
+ "Monthly recaps": "Maandelijkse herinneringen",
  "On top of the memory": "Bovenop het geheugen",
  "On your router, forward the UDP port of the VPN (51820 by default) to the NAS.": "Stuur op uw router de UDP-poort van de VPN (standaard 51820) door naar de NAS.",
  "On {0}. It counts as off-site only if you keep it elsewhere and bring it back for the backups.": "Op {0}. Telt alleen als off-site als u de schijf elders bewaart en voor de back-ups terugbrengt.",
