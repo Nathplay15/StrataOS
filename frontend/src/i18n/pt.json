@@ -5530,5 +5530,11 @@
  "TV detected: {0} ({1})": "TV detetada: {0} ({1})",
  "No TV detected": "Nenhuma TV detetada",
  "A kiosk browser (chromium or firefox) is required for the HDMI menu.": "É necessário um navegador em modo quiosque (chromium ou firefox) para o menu HDMI.",
- "No kiosk token: this page is opened by the NAS HDMI console.": "Sem token de quiosque: esta página é aberta pela consola HDMI do NAS."
+ "No kiosk token: this page is opened by the NAS HDMI console.": "Sem token de quiosque: esta página é aberta pela consola HDMI do NAS.",
+ "Filter by label": "Filtrar por etiqueta",
+ "All events": "Todos os eventos",
+ "Only people and vehicles": "Apenas pessoas e veículos",
+ "Filtered out (false positives)": "Descartados (falsos positivos)",
+ "The local model labels each event (person, vehicle…); shadows and foliage do not notify.": "O modelo local etiqueta cada evento (pessoa, veículo…); sombras e folhagem não notificam.",
+ "filtered out": "descartado"
 }

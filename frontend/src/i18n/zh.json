@@ -5530,5 +5530,11 @@
  "TV detected: {0} ({1})": "检测到电视：{0}（{1}）",
  "No TV detected": "未检测到电视",
  "A kiosk browser (chromium or firefox) is required for the HDMI menu.": "HDMI 菜单需要 kiosk 浏览器（chromium 或 firefox）。",
- "No kiosk token: this page is opened by the NAS HDMI console.": "没有 kiosk 令牌：此页面由 NAS 的 HDMI 控制台打开。"
+ "No kiosk token: this page is opened by the NAS HDMI console.": "没有 kiosk 令牌：此页面由 NAS 的 HDMI 控制台打开。",
+ "Filter by label": "按标签筛选",
+ "All events": "所有事件",
+ "Only people and vehicles": "仅人员和车辆",
+ "Filtered out (false positives)": "已过滤（误报）",
+ "The local model labels each event (person, vehicle…); shadows and foliage do not notify.": "本地模型会标注每个事件（人员、车辆……）；阴影和树叶不会触发通知。",
+ "filtered out": "已过滤"
 }
