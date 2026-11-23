@@ -5438,5 +5438,6 @@
  "Watched NAS removed": "NAS surveillé retiré",
  "Remove {0} from the watched list?": "Retirer {0} de la liste surveillée ?",
  "This NAS is no longer watched from here.": "Ce NAS n'est plus surveillé depuis ici.",
- "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Aucun NAS surveillé : sur l'autre NAS, ouvrez Console multi-NAS et affichez un code d'autorisation, puis surveillez-le ici sans rejoindre le cluster."
+ "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Aucun NAS surveillé : sur l'autre NAS, ouvrez Console multi-NAS et affichez un code d'autorisation, puis surveillez-le ici sans rejoindre le cluster.",
+ "Movement events": "Événements de mouvement"
 }

@@ -830,6 +830,15 @@ func (s *Server) nvrRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		// Optional ?day=2006-01-02: only the events of that local day.
+		var dayStart, dayEnd time.Time
+		if day := strings.TrimSpace(r.URL.Query().Get("day")); day != "" {
+			t, perr := time.ParseInLocation("2006-01-02", day, time.Local)
+			if perr != nil {
+				return nil, badRequest("invalid day (expected YYYY-MM-DD)")
+			}
+			dayStart, dayEnd = t, t.AddDate(0, 0, 1)
+		}
 		list := []clipView{}
 		if d := camFolder(n, c); d != "" {
 			if entries, err := os.ReadDir(filepath.Join(d, "clips")); err == nil {
@@ -839,6 +848,9 @@ func (s *Server) nvrRoutes() {
 					}
 					at, ok := nvr.ParseClipName(e.Name())
 					if !ok {
+						continue
+					}
+					if !dayStart.IsZero() && (at.Before(dayStart) || !at.Before(dayEnd)) {
 						continue
 					}
 					cv := clipView{Name: e.Name(), At: at}

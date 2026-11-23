@@ -5438,5 +5438,6 @@
  "Watched NAS removed": "Überwachtes NAS entfernt",
  "Remove {0} from the watched list?": "{0} aus der Überwachungsliste entfernen?",
  "This NAS is no longer watched from here.": "Dieses NAS wird von hier aus nicht mehr überwacht.",
- "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Noch keine überwachten NAS: Öffnen Sie auf dem anderen NAS die Multi-NAS-Konsole und zeigen Sie einen Autorisierungscode, dann überwachen Sie es hier, ohne dem Cluster beizutreten."
+ "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Noch keine überwachten NAS: Öffnen Sie auf dem anderen NAS die Multi-NAS-Konsole und zeigen Sie einen Autorisierungscode, dann überwachen Sie es hier, ohne dem Cluster beizutreten.",
+ "Movement events": "Bewegungsereignisse"
 }

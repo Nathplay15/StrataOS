@@ -5438,5 +5438,6 @@
  "Watched NAS removed": "已移除监看的 NAS",
  "Remove {0} from the watched list?": "将 {0} 从监看列表中移除？",
  "This NAS is no longer watched from here.": "不再从此处监看该 NAS。",
- "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "还没有被监看的 NAS：在另一台 NAS 上打开多 NAS 控制台并显示授权码，然后在此监看它，无需加入集群。"
+ "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "还没有被监看的 NAS：在另一台 NAS 上打开多 NAS 控制台并显示授权码，然后在此监看它，无需加入集群。",
+ "Movement events": "移动事件"
 }

@@ -469,19 +469,22 @@ function Recordings({ data }: { data: Data }) {
   const segs = recs.data?.segments ?? [];
   const base = `/api/nvr/cameras/${camId}/recordings`;
   const hours = useMemo(() => Array.from({ length: 25 }, (_, i) => i), []);
-  if (!cams.length) return <Card><Empty icon={<Video />} title={tr("No cameras")} /></Card>;
   const curDay = recs.data?.day ?? day;
+  const [clipPlay, setClipPlay] = useState<Clip | null>(null);
+  const dayClips = useQuery({ queryKey: ["nvr-clips-day", camId, curDay], queryFn: () => api.get<{ clips: Clip[] }>(`/api/nvr/cameras/${camId}/clips${q({ day: curDay })}`), enabled: !!camId && !!curDay && cam?.engine !== "frigate", refetchInterval: 30000 });
+  const dayClipList = dayClips.data?.clips ?? [];
+  if (!cams.length) return <Card><Empty icon={<Video />} title={tr("No cameras")} /></Card>;
   return (
     <div className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-end gap-3">
           <Field label={tr("Camera")} className="min-w-48">
-            <Select value={camId} onChange={(e) => { setCamId(e.target.value); setDay(""); setPlay(null); }}>
+            <Select value={camId} onChange={(e) => { setCamId(e.target.value); setDay(""); setPlay(null); setClipPlay(null); }}>
               {cams.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
           <Field label={tr("Day")} className="min-w-40">
-            <Select value={curDay} onChange={(e) => { setDay(e.target.value); setPlay(null); }}>
+            <Select value={curDay} onChange={(e) => { setDay(e.target.value); setPlay(null); setClipPlay(null); }}>
               {(recs.data?.days.length ? recs.data.days : [curDay]).map((d) => <option key={d} value={d}>{new Date(`${d}T12:00:00`).toLocaleDateString()}</option>)}
             </Select>
           </Field>
@@ -490,20 +493,37 @@ function Recordings({ data }: { data: Data }) {
           <div className="mt-4"><Notice>{tr("This camera is recorded by Frigate: its clips are listed below. The timeline shows what the built-in recorder recorded before.")}</Notice></div>
         )}
         <div className="mt-5">
-          <div className="relative h-9 rounded-lg border border-line bg-panel-2">
+          <div className="relative h-12 rounded-lg border border-line bg-panel-2">
             {segs.map((s) => (
-              <button key={s.name} title={`${hm(s.start)} – ${hm(s.end)}`} onClick={() => !s.open && setPlay(s)}
-                className={cx("absolute top-1 bottom-1 rounded-sm", play?.name === s.name ? "bg-accent-2" : s.open ? "bg-ok/60" : "bg-accent hover:brightness-125")}
+              <button key={s.name} title={`${hm(s.start)} – ${hm(s.end)}`} onClick={() => { if (!s.open) { setPlay(s); setClipPlay(null); } }}
+                className={cx("absolute top-4 bottom-1 rounded-sm", play?.name === s.name ? "bg-accent-2" : s.open ? "bg-ok/60" : "bg-accent hover:brightness-125")}
                 style={{ left: `${pctOfDay(new Date(s.start), curDay)}%`, width: `max(2px, ${pctOfDay(new Date(s.end), curDay) - pctOfDay(new Date(s.start), curDay)}%)` }} />
+            ))}
+            {dayClipList.map((c) => (
+              <button key={c.name} title={`${hm(c.at)} · ${tr("Movement events")}`} onClick={() => { setClipPlay(c); setPlay(null); }}
+                className={cx("absolute top-1 h-2 w-1.5 -translate-x-1/2 rounded-sm bg-red-500 hover:brightness-125", clipPlay?.name === c.name && "ring-1 ring-white")}
+                style={{ left: `${pctOfDay(new Date(c.at), curDay)}%` }} />
             ))}
           </div>
           <div className="relative mt-1 h-4 text-[10.5px] text-muted">
             {hours.filter((h) => h % 3 === 0).map((h) => <span key={h} className="absolute -translate-x-1/2" style={{ left: `${(h / 24) * 100}%` }}>{h}h</span>)}
           </div>
+          <div className="mt-1 flex items-center gap-4 text-[10.5px] text-muted">
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-3 rounded-sm bg-accent" />{tr("Recordings")}</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-1.5 rounded-sm bg-red-500" />{tr("Movement events")}</span>
+          </div>
         </div>
       </Card>
       {cam?.engine === "frigate" && <FrigateRecordings key={cam.id} cam={cam} />}
       {cam && cam.engine !== "frigate" && <EventClips key={cam.id} camId={cam.id} keepDays={data.clipKeepDays || 30} />}
+      {clipPlay && (
+        <Card title={<span>{cam?.name} · {hm(clipPlay.at)}</span>} actions={<Button size="sm" variant="ghost" onClick={() => setClipPlay(null)}>{tr("Close")}</Button>}>
+          <video key={clipPlay.name} controls autoPlay className="w-full rounded-lg bg-black" src={`/api/nvr/cameras/${camId}/clips/${encodeURIComponent(clipPlay.name)}`} />
+          <div className="mt-3">
+            <a href={`/api/nvr/cameras/${camId}/clips/${encodeURIComponent(clipPlay.name)}?download=1`}><Button size="sm" icon={<Download size={14} />}>{tr("Download the clip")}</Button></a>
+          </div>
+        </Card>
+      )}
       {play && (
         <Card title={<span>{cam?.name} · {hm(play.start)} – {hm(play.end)}</span>} actions={<Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button>}>
           <SegmentPlayer key={play.name} base={base} seg={play} />
