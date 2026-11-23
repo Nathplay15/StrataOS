@@ -5523,5 +5523,12 @@
  "Subtitles downloaded ({0}).": "字幕已下载 ({0})。",
  "Trailer": "预告片",
  "Screensaver": "屏幕保护程序",
- "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "用方向键导航（回车打开，L/R 切换书架）；手柄也可以使用（A = 确定，B = 返回，L/R = 切换书架）。"
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "用方向键导航（回车打开，L/R 切换书架）；手柄也可以使用（A = 确定，B = 返回，L/R = 切换书架）。",
+ "HDMI output (TV)": "HDMI 输出（电视）",
+ "Show the cinema menu on a TV plugged to the HDMI output": "在连接到 HDMI 输出的电视上显示影院菜单",
+ "While a screen is connected to the HDMI output, the NAS runs a full-screen menu on it (films, series, photos), driven with a keyboard, a gamepad or the arrows of a TV remote.": "当屏幕连接到 HDMI 输出时，NAS 会在其上运行全屏菜单（电影、剧集、照片），可用键盘、手柄或电视遥控器的方向键操作。",
+ "TV detected: {0} ({1})": "检测到电视：{0}（{1}）",
+ "No TV detected": "未检测到电视",
+ "A kiosk browser (chromium or firefox) is required for the HDMI menu.": "HDMI 菜单需要 kiosk 浏览器（chromium 或 firefox）。",
+ "No kiosk token: this page is opened by the NAS HDMI console.": "没有 kiosk 令牌：此页面由 NAS 的 HDMI 控制台打开。"
 }

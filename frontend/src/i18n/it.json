@@ -5523,5 +5523,12 @@
  "Subtitles downloaded ({0}).": "Sottotitoli scaricati ({0}).",
  "Trailer": "Trailer",
  "Screensaver": "Salvaschermo",
- "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Naviga con le frecce (Invio per aprire, L/R per cambiare scaffale); funziona anche un gamepad (A = ok, B = indietro, L/R = scaffali)."
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Naviga con le frecce (Invio per aprire, L/R per cambiare scaffale); funziona anche un gamepad (A = ok, B = indietro, L/R = scaffali).",
+ "HDMI output (TV)": "Uscita HDMI (TV)",
+ "Show the cinema menu on a TV plugged to the HDMI output": "Mostra il menu cinema su una TV collegata all'uscita HDMI",
+ "While a screen is connected to the HDMI output, the NAS runs a full-screen menu on it (films, series, photos), driven with a keyboard, a gamepad or the arrows of a TV remote.": "Finché uno schermo è collegato all'uscita HDMI, il NAS esegue su di esso un menu a schermo intero (film, serie, foto), comandato con tastiera, gamepad o le frecce del telecomando.",
+ "TV detected: {0} ({1})": "TV rilevata: {0} ({1})",
+ "No TV detected": "Nessuna TV rilevata",
+ "A kiosk browser (chromium or firefox) is required for the HDMI menu.": "Per il menu HDMI serve un browser in modalità kiosk (chromium o firefox).",
+ "No kiosk token: this page is opened by the NAS HDMI console.": "Nessun token kiosk: questa pagina viene aperta dalla console HDMI del NAS."
 }

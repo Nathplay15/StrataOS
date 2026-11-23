@@ -66,6 +66,7 @@ const FleetPage = lazy(() => import("./pages/Fleet"));
 const HelpPage = lazy(() => import("./pages/Help"));
 const AssistantPage = lazy(() => import("./pages/Assistant"));
 const PublicLink = lazy(() => import("./pages/PublicLink"));
+const HdmiPage = lazy(() => import("./pages/Hdmi"));
 const SingleSignOn = lazy(() => import("./pages/system/SingleSignOn"));
 const SSOFlow = lazy(() => import("./pages/SSOFlow").then((m) => ({ default: m.SSOFlow })));
 
@@ -182,8 +183,10 @@ function Root() {
   );
 }
 
-// Share links (/s/<id>) open without an account.
+// Share links (/s/<id>) open without an account; /hdmi is the kiosk page of
+// the HDMI console (token in the fragment).
 const publicLink = /^\/s\/([A-Za-z0-9_-]{10,64})\/?$/.exec(location.pathname)?.[1];
+const hdmi = location.pathname === "/hdmi";
 
 export function App() {
   return (
@@ -191,6 +194,8 @@ export function App() {
       <UIProvider>
         {publicLink ? (
           <Suspense fallback={<Spinner />}><PublicLink id={publicLink} /></Suspense>
+        ) : hdmi ? (
+          <Suspense fallback={<Spinner />}><HdmiPage /></Suspense>
         ) : (
           <BrowserRouter>
             <Root />

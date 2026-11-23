@@ -18,7 +18,7 @@ const smtpAddress = (s: Settings) => {
   return `${tls ? "smtps" : "smtp"}://${s.smtpHost.includes(":") ? `[${s.smtpHost}]` : s.smtpHost}:${port}`;
 };
 import { ComponentUninstallModal, uninstallable } from "../../components/Uninstall";
-import { ApplianceConsoleCard } from "../../components/ApplianceConsole";
+import { ApplianceConsoleCard, HDMIOutputCard } from "../../components/ApplianceConsole";
 import { AdminTwoFactorPolicy } from "../../components/AdminTwoFactorPolicy";
 import { SignInProviders } from "../../components/SignInProviders";
 import { LocalModels } from "../../components/LocalModels";
@@ -329,6 +329,7 @@ export default function SettingsPage() {
           <p className="mt-3 text-[12.5px] text-muted">{tr("NTP synchronization enabled automatically.")}</p>
         </Card>
         <ApplianceConsoleCard />
+        <HDMIOutputCard />
         <CertificatesCard />
         <ConfigBackupCard />
         <OfficeSettingsCard />

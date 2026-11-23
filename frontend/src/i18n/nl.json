@@ -5523,5 +5523,12 @@
  "Subtitles downloaded ({0}).": "Ondertitels gedownload ({0}).",
  "Trailer": "Trailer",
  "Screensaver": "Schermbeveiliging",
- "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Navigeer met de pijltjestoetsen (Enter opent, L/R wisselt van plank); een gamepad werkt ook (A = ok, B = terug, L/R = planken)."
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Navigeer met de pijltjestoetsen (Enter opent, L/R wisselt van plank); een gamepad werkt ook (A = ok, B = terug, L/R = planken).",
+ "HDMI output (TV)": "HDMI-uitgang (TV)",
+ "Show the cinema menu on a TV plugged to the HDMI output": "Toon het cinemamenu op een TV aangesloten op de HDMI-uitgang",
+ "While a screen is connected to the HDMI output, the NAS runs a full-screen menu on it (films, series, photos), driven with a keyboard, a gamepad or the arrows of a TV remote.": "Zolang er een scherm op de HDMI-uitgang is aangesloten, draait de NAS daarop een fullscreen menu (films, series, foto's), bediend met toetsenbord, gamepad of de pijlen van een TV-afstandsbediening.",
+ "TV detected: {0} ({1})": "TV gedetecteerd: {0} ({1})",
+ "No TV detected": "Geen TV gedetecteerd",
+ "A kiosk browser (chromium or firefox) is required for the HDMI menu.": "Voor het HDMI-menu is een kioskbrowser (chromium of firefox) nodig.",
+ "No kiosk token: this page is opened by the NAS HDMI console.": "Geen kiosk-token: deze pagina wordt geopend door de NAS-HDMI-console."
 }

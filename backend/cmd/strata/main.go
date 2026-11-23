@@ -19,6 +19,7 @@ import (
 	"strataos/internal/console"
 	"strataos/internal/docker"
 	"strataos/internal/ftsearch"
+	"strataos/internal/hdmi"
 	"strataos/internal/store"
 	"strataos/web"
 )
@@ -47,6 +48,15 @@ func main() {
 		_ = fs.Parse(os.Args[2:])
 		if err := console.Run(console.Options{Socket: *socket, RenderOnce: *once}); err != nil {
 			fmt.Fprintln(os.Stderr, "console:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	// strata hdmi: the cinema menu on the TV plugged to the HDMI output
+	// (strataos-hdmi.service).
+	if len(os.Args) > 1 && os.Args[1] == "hdmi" {
+		if err := hdmi.Run(env("STRATA_DATA", "/var/lib/strata")); err != nil {
+			fmt.Fprintln(os.Stderr, "hdmi:", err)
 			os.Exit(1)
 		}
 		return

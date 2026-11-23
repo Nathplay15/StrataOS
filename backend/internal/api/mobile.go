@@ -74,6 +74,10 @@ func fromDevice(r *http.Request) bool {
 func (s *Server) bearerAuth(w http.ResponseWriter, r *http.Request, next http.Handler, adminOnly bool) {
 	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	ip := clientIP(r)
+	if strings.HasPrefix(tok, hdmiTokenPrefix) {
+		s.hdmiKioskAuth(w, r, next, adminOnly, strings.TrimPrefix(tok, hdmiTokenPrefix))
+		return
+	}
 	if strings.HasPrefix(tok, apiTokenPrefix) {
 		s.apiTokenAuth(w, r, next, adminOnly, tok, ip)
 		return

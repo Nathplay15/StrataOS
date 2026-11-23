@@ -13,6 +13,7 @@ chmod 755 "$ROOT"
 install -Dm755 "$BIN" "$ROOT/usr/bin/strata"
 install -Dm644 packaging/systemd/strata.service "$ROOT/usr/lib/systemd/system/strata.service"
 install -Dm644 packaging/systemd/strata-console.service "$ROOT/usr/lib/systemd/system/strata-console.service"
+install -Dm644 packaging/systemd/strataos-hdmi.service "$ROOT/usr/lib/systemd/system/strataos-hdmi.service"
 install -Dm644 packaging/avahi/strata.service "$ROOT/etc/avahi/services/strata.service"
 # Keeps the EFI system partitions of a mirrored system disk identical (esp-sync).
 install -Dm644 packaging/apt/99strataos-esp-sync "$ROOT/etc/apt/apt.conf.d/99strataos-esp-sync"

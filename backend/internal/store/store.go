@@ -793,6 +793,7 @@ type State struct {
 	Media      Media           `json:"media,omitzero"`
 	NVR        NVR             `json:"nvr,omitzero"`
 	Console    Console         `json:"console,omitzero"` // appliance screen on the local display
+	HDMI       HDMIConsole     `json:"hdmi,omitzero"`    // cinema menu on a TV plugged to the HDMI output
 	// TwoFactor: two-factor authentication required for administrators (store/access.go).
 	TwoFactor TwoFactorPolicy `json:"twoFactor,omitzero"`
 	Mobile    Mobile          `json:"mobile,omitzero"`
