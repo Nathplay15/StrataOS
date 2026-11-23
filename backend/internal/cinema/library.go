@@ -19,7 +19,7 @@ func groupKey(it Item) string {
 }
 
 // Root is a scanned folder: Abs on disk, API as the files API spells it
-// ("share" or "share/sub"), so items carry paths the player can open.
+// (the absolute mount path), so items carry paths the player can open.
 type Root struct {
 	Abs string
 	API string
@@ -102,6 +102,7 @@ func BuildLibrary(ctx context.Context, roots []Root, cl *Client, posterDir strin
 			items[i].Genres = det.Genres
 			items[i].Cast = det.Cast
 			items[i].Collection, items[i].CollectionID = det.Collection, det.CollectionID
+			items[i].IMDB = det.IMDB
 			if items[i].Kind == "movie" && det.Title != "" {
 				items[i].Title = det.Title
 				items[i].Year = det.Year

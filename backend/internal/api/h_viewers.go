@@ -27,10 +27,13 @@ import (
 	"unicode/utf8"
 
 	"strataos/internal/archive"
+	"strataos/internal/cinema"
 	"strataos/internal/jobs"
 	"strataos/internal/mediaplay"
 	"strataos/internal/preview"
+	"strataos/internal/store"
 	"strataos/internal/stt"
+	"strataos/internal/subs"
 	"strataos/internal/sys"
 )
 
@@ -391,6 +394,80 @@ func (s *Server) viewerRoutes() {
 		text, _ := os.ReadFile(txt)
 		s.audit(r, "stt", "transcribed: "+req.Path)
 		return map[string]any{"text": string(text), "srt": true}, nil
+	})
+
+	// Fetch subtitles for a video from OpenSubtitles with the account stored
+	// in the settings: search by IMDb id (known from the cinema library) or
+	// by the file's moviehash, download the best match in the preferred
+	// languages, write <name>.<lang>.srt next to the video (a sidecar).
+	var fetchSubsMu sync.Mutex
+	s.user("POST /api/files/subtitles/fetch", func(r *http.Request) (any, error) {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		var set store.Settings
+		s.store.Read(func(st *store.State) { set = st.Settings })
+		if set.OSApiKey == "" || set.OSUser == "" || set.OSPass == "" {
+			return nil, &Error{Status: http.StatusConflict, Msg: "OpenSubtitles credentials are not configured"}
+		}
+		t, err := s.locate(r, req.Path)
+		if err != nil {
+			return nil, err
+		}
+		if !t.acc.write || t.protected() || t.rel == "." {
+			return nil, errForbidden
+		}
+		if !stt.IsMedia(filepath.Ext(t.abs)) {
+			return nil, badRequest("not a video or audio file")
+		}
+		fetchSubsMu.Lock()
+		defer fetchSubsMu.Unlock()
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+		defer cancel()
+		langs := subs.ParseLangs(set.SubLangs)
+		if langs == "" {
+			langs = "en"
+		}
+		imdb := ""
+		statePath, _, _ := s.cinemaPaths()
+		for _, it := range cinema.LoadState(statePath).Items {
+			if it.Path == t.abs && it.IMDB != "" {
+				imdb = it.IMDB
+				break
+			}
+		}
+		hash := ""
+		if imdb == "" {
+			if hash, err = subs.MovieHash(t.abs); err != nil {
+				return nil, err
+			}
+		}
+		cl := &subs.Client{APIKey: set.OSApiKey, User: set.OSUser, Password: set.OSPass}
+		results, err := cl.Search(ctx, imdb, hash, langs)
+		if err != nil {
+			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
+		}
+		best := subs.PickBest(results, langs)
+		if best < 0 {
+			return nil, &Error{Status: http.StatusNotFound, Msg: "no subtitle found for this video"}
+		}
+		data, err := cl.Download(ctx, results[best].FileID)
+		if err != nil {
+			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
+		}
+		lang := results[best].Lang
+		if len(lang) > 5 {
+			lang = lang[:5]
+		}
+		out := strings.TrimSuffix(t.abs, filepath.Ext(t.abs)) + "." + lang + ".srt"
+		if err := os.WriteFile(out, data, 0o644); err != nil {
+			return nil, err
+		}
+		s.audit(r, "subs", "fetched subtitles: "+req.Path+" ("+lang+")")
+		return map[string]any{"lang": lang, "name": filepath.Base(out)}, nil
 	})
 
 	// ---- Pictures and documents converted for the browser ----

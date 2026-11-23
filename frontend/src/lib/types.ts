@@ -484,6 +484,13 @@ export interface Settings {
   oauthClientId?: string;
   oauthEmail?: string;
   oauthExpires?: string;
+  /** OpenSubtitles account used by the "Fetch subtitles" button of the video
+   * player (the key and password come back masked). */
+  osApiKey?: string;
+  osUser?: string;
+  osPass?: string;
+  /** Preferred subtitle languages, comma separated, most preferred first. */
+  subLangs?: string;
 }
 
 export interface ScheduleRun {

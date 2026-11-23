@@ -103,7 +103,7 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 	if c.Key == "" {
 		return nil, fmt.Errorf("no TMDB API key")
 	}
-	u := fmt.Sprintf("%s/%s/%d?api_key=%s&language=en&append_to_response=credits", TMDBBase, map[string]string{"movie": "movie", "tv": "tv"}[kind], id, url.QueryEscape(c.Key))
+	u := fmt.Sprintf("%s/%s/%d?api_key=%s&language=en&append_to_response=credits,external_ids", TMDBBase, map[string]string{"movie": "movie", "tv": "tv"}[kind], id, url.QueryEscape(c.Key))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	resp, err := c.http().Do(req)
 	if err != nil {
@@ -121,7 +121,10 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 		Overview     string  `json:"overview"`
 		VoteAverage  float64 `json:"vote_average"`
 		PosterPath   string  `json:"poster_path"`
-		Collection   *struct {
+		ExternalIDs  struct {
+			IMDBID string `json:"imdb_id"`
+		} `json:"external_ids"`
+		Collection *struct {
 			ID   int    `json:"id"`
 			Name string `json:"name"`
 		} `json:"belongs_to_collection"`
@@ -143,6 +146,7 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 	if body.Collection != nil {
 		it.Collection, it.CollectionID = body.Collection.Name, body.Collection.ID
 	}
+	it.IMDB = body.ExternalIDs.IMDBID
 	if body.Title != "" {
 		it.Title = body.Title
 		it.Kind = "movie"

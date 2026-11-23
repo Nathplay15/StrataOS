@@ -37,6 +37,7 @@ type Item struct {
 	// Franchise: TMDB collection the movie belongs to ("" = none).
 	Collection   string `json:"collection,omitempty"`
 	CollectionID int    `json:"collectionId,omitempty"`
+	IMDB         string `json:"imdb,omitempty"` // IMDb id (tt…), for subtitle lookup
 }
 
 // State is the persisted library (dataDir/cinema.json).

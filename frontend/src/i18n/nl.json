@@ -5512,5 +5512,13 @@
  "Transcribing…": "Transcriberen…",
  "Transcript": "Transcript",
  "Transcript generated: the subtitles were added next to the video.": "Transcript gegenereerd: de ondertitels zijn naast de video geplaatst.",
- "Generate subtitles from the audio": "Ondertitels genereren uit de audio"
+ "Generate subtitles from the audio": "Ondertitels genereren uit de audio",
+ "Subtitles (OpenSubtitles)": "Ondertitels (OpenSubtitles)",
+ "Preferred languages": "Voorkeurstalen",
+ "Your OpenSubtitles API key (opensubtitles.com): it enables the Fetch subtitles button in the video player.": "Uw OpenSubtitles-API-sleutel (opensubtitles.com): hiermee schakelt u de knop «Ondertitels ophalen» in de videospeler in.",
+ "Comma separated language codes, most preferred first (e.g. fr,en)": "Door komma's gescheiden taalcodes, de voorkeur eerst (bijv. nl,en)",
+ "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Gebruikt door de knop «Ondertitels ophalen» in de videospeler: de beste match wordt naast de video als .srt-bestand gedownload.",
+ "Download subtitles from OpenSubtitles": "Ondertitels van OpenSubtitles downloaden",
+ "Fetch subtitles": "Ondertitels ophalen",
+ "Subtitles downloaded ({0}).": "Ondertitels gedownload ({0})."
 }

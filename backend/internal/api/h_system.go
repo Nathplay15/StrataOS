@@ -284,7 +284,7 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken, &set.ChatGPTAccess, &set.ChatGPTRefresh, &set.OAuthAccess, &set.OAuthRefresh} {
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken, &set.ChatGPTAccess, &set.ChatGPTRefresh, &set.OAuthAccess, &set.OAuthRefresh, &set.OSApiKey, &set.OSPass} {
 			if *p != "" {
 				*p = "********"
 			}
@@ -395,6 +395,12 @@ func (s *Server) systemRoutes() {
 			}
 			if req.OAuthRefresh == "********" {
 				req.OAuthRefresh = st.Settings.OAuthRefresh
+			}
+			if req.OSApiKey == "********" {
+				req.OSApiKey = st.Settings.OSApiKey
+			}
+			if req.OSPass == "********" {
+				req.OSPass = st.Settings.OSPass
 			}
 			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics
 			if req.ACMEToken == "********" {

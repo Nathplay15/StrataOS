@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Bell, Bot, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
+import { Activity, Bell, Bot, Captions, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { NotifyChannel, NotifyChannelId, NotifyLevel, Settings, SystemInfo } from "../../lib/types";
@@ -305,6 +305,19 @@ export default function SettingsPage() {
           <div className="mt-3 flex justify-end">
             <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>
           </div>
+        </Card>
+        <Card id="settings-subtitles" title={<span className="flex items-center gap-2"><Captions size={16} /> {" "}{tr("Subtitles (OpenSubtitles)")}</span>}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={tr("API key")} className="sm:col-span-2" hint={tr("Your OpenSubtitles API key (opensubtitles.com): it enables the Fetch subtitles button in the video player.")}>
+              <Input type="password" autoComplete="off" value={s.osApiKey ?? ""} onChange={(e) => set("osApiKey", e.target.value)} />
+            </Field>
+            <Field label={tr("Username")}><Input autoComplete="off" value={s.osUser ?? ""} onChange={(e) => set("osUser", e.target.value)} /></Field>
+            <Field label={tr("Password")}><Input type="password" autoComplete="off" value={s.osPass ?? ""} onChange={(e) => set("osPass", e.target.value)} /></Field>
+            <Field label={tr("Preferred languages")} className="sm:col-span-2" hint={tr("Comma separated language codes, most preferred first (e.g. fr,en)")}>
+              <Input className="mono" value={s.subLangs ?? ""} onChange={(e) => set("subLangs", e.target.value)} placeholder="fr,en" />
+            </Field>
+          </div>
+          <p className="mt-3 text-[12.5px] text-muted">{tr("Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.")}</p>
         </Card>
         <Card id="settings-time" title={<span className="flex items-center gap-2"><Clock size={16} /> {" "}{tr("Date and time")}</span>}>
           <div className="flex items-end gap-2">

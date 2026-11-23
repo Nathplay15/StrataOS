@@ -143,6 +143,7 @@ func fakeTMDB(t *testing.T) *httptest.Server {
 			"id": 603, "title": "The Matrix", "release_date": "1999-03-31", "overview": "A hacker learns the truth.",
 			"vote_average": 8.2, "poster_path": "/poster603.jpg", "runtime": 136,
 			"belongs_to_collection": map[string]any{"id": 2344, "name": "The Matrix Collection"},
+			"external_ids":          map[string]any{"imdb_id": "tt0133093"},
 			"genres":                []map[string]any{{"name": "Science Fiction"}},
 			"credits":               map[string]any{"cast": []map[string]any{{"name": "Keanu Reeves"}, {"name": "Laurence Fishburne"}}},
 		})
@@ -188,12 +189,12 @@ func TestBuildLibrary(t *testing.T) {
 	mk("got/S01E02.mkv")
 	mk("unknown thing.mkv")
 	cl := &Client{Key: "k"}
-	items := BuildLibrary(context.Background(), []Root{{Abs: root, API: "videos"}}, cl, posterDir, 6, nil)
+	items := BuildLibrary(context.Background(), []Root{{Abs: root, API: "/srv/strata/videos"}}, cl, posterDir, 6, nil)
 	if len(items) != 4 {
 		t.Fatalf("want 4 items, got %d", len(items))
 	}
 	for _, it := range items {
-		if !strings.HasPrefix(it.Path, "videos/") {
+		if !strings.HasPrefix(it.Path, "/srv/strata/videos/") {
 			t.Errorf("path not API-relative: %q", it.Path)
 		}
 	}
@@ -202,7 +203,7 @@ func TestBuildLibrary(t *testing.T) {
 		switch {
 		case it.TMDB == 603:
 			matrix++
-			if it.Title != "The Matrix" || it.Year != 1999 || it.Runtime != 136 || it.Rating != 8.2 || len(it.Genres) != 1 || len(it.Cast) != 2 || it.Collection != "The Matrix Collection" || it.CollectionID != 2344 || it.Mod.IsZero() {
+			if it.Title != "The Matrix" || it.Year != 1999 || it.Runtime != 136 || it.Rating != 8.2 || len(it.Genres) != 1 || len(it.Cast) != 2 || it.Collection != "The Matrix Collection" || it.CollectionID != 2344 || it.Mod.IsZero() || it.IMDB != "tt0133093" {
 				t.Errorf("matrix not filled: %+v", it)
 			}
 		case it.TMDB == 1399:
@@ -226,7 +227,7 @@ func TestBuildLibrary(t *testing.T) {
 		}
 	}
 	// Without a key: no match, no poster.
-	items2 := BuildLibrary(context.Background(), []Root{{Abs: root, API: "videos"}}, &Client{}, posterDir, 6, nil)
+	items2 := BuildLibrary(context.Background(), []Root{{Abs: root, API: "/srv/strata/videos"}}, &Client{}, posterDir, 6, nil)
 	for _, it := range items2 {
 		if it.TMDB != 0 {
 			t.Errorf("no key but matched: %+v", it)

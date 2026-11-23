@@ -5512,5 +5512,13 @@
  "Transcribing…": "A transcrever…",
  "Transcript": "Transcrição",
  "Transcript generated: the subtitles were added next to the video.": "Transcrição gerada: as legendas foram adicionadas junto ao vídeo.",
- "Generate subtitles from the audio": "Gerar legendas a partir do áudio"
+ "Generate subtitles from the audio": "Gerar legendas a partir do áudio",
+ "Subtitles (OpenSubtitles)": "Legendas (OpenSubtitles)",
+ "Preferred languages": "Idiomas preferidos",
+ "Your OpenSubtitles API key (opensubtitles.com): it enables the Fetch subtitles button in the video player.": "A sua chave de API do OpenSubtitles (opensubtitles.com): ativa o botão «Obter legendas» no reprodutor de vídeo.",
+ "Comma separated language codes, most preferred first (e.g. fr,en)": "Códigos de idioma separados por vírgula, o preferido primeiro (ex. pt,en)",
+ "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Usado pelo botão «Obter legendas» no reprodutor: a melhor correspondência é transferida junto ao vídeo como um ficheiro .srt.",
+ "Download subtitles from OpenSubtitles": "Transferir legendas do OpenSubtitles",
+ "Fetch subtitles": "Obter legendas",
+ "Subtitles downloaded ({0}).": "Legendas transferidas ({0})."
 }

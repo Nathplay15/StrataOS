@@ -4,7 +4,7 @@
 // timeline below is drawn by the player itself.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Captions, Mic, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
+import { Captions, Download, Mic, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import type { FileEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
@@ -122,6 +122,12 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
     success: tr("Transcript generated: the subtitles were added next to the video."),
     onDone: (r) => { setTrText(r.text); qcProbe.invalidateQueries({ queryKey: ["probe", entry.path] }); },
   });
+  // Subtitles from OpenSubtitles (account in Settings): writes <name>.<lang>.srt
+  // next to the file; the sidecar then appears in the subtitle list.
+  const fetchSubs = useAction(() => api.post<{ lang: string; name: string }>("/api/files/subtitles/fetch", { path: entry.path }), {
+    success: (r) => tr("Subtitles downloaded ({0}).", r.lang),
+    onDone: () => { qcProbe.invalidateQueries({ queryKey: ["probe", entry.path] }); },
+  });
   // Night mode (evening): caps the volume and dims the picture.
   const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
   const [now, setNow] = useState(() => new Date());
@@ -179,6 +185,9 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
             <option value="">{tr("Default audio")}</option>
             {audios.map((a) => <option key={a.index} value={a.index}>{trackName(a)}</option>)}
           </Select>
+        )}
+        {!plan.audioOnly && (
+          <Button size="sm" variant="ghost" icon={<Download size={14} />} loading={fetchSubs.isPending} title={tr("Download subtitles from OpenSubtitles")} onClick={() => fetchSubs.mutate()}>{tr("Fetch subtitles")}</Button>
         )}
         {!plan.audioOnly && probe.stt && (
           <Button size="sm" variant="ghost" icon={<Mic size={14} />} loading={transcribe.isPending} title={tr("Generate subtitles from the audio")} onClick={() => { setTrText(null); transcribe.mutate(); }}>{tr("Transcribe")}</Button>
@@ -239,6 +248,7 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
       {error instanceof ApiError && error.status === 503 && <Notice tone="warn">{srv(error.message)}</Notice>}
       {trText && <div className="border-t border-line bg-panel p-3"><div className="mb-1 text-[12px] font-medium text-muted">{tr("Transcript")}</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[12.5px]">{trText}</pre></div>}
       {transcribe.error && <div className="border-t border-line bg-panel p-3"><ErrorBox error={transcribe.error} /></div>}
+      {fetchSubs.error && <div className="border-t border-line bg-panel p-3"><ErrorBox error={fetchSubs.error} /></div>}
     </>
   );
 }

@@ -33,7 +33,8 @@ func (s *Server) cinemaShares() []cinema.Root {
 	s.store.Read(func(st *store.State) {
 		for _, sh := range st.Shares {
 			if sh.Path != "" && storage.IsMountpoint(sh.Path) {
-				out = append(out, cinema.Root{Abs: sh.Path, API: sh.Name})
+				// The files API spells paths as absolute under the mount root.
+				out = append(out, cinema.Root{Abs: sh.Path, API: sh.Path})
 			}
 		}
 	})

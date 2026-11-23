@@ -5512,5 +5512,13 @@
  "Transcribing…": "Transcription en cours…",
  "Transcript": "Transcription",
  "Transcript generated: the subtitles were added next to the video.": "Transcription générée : les sous-titres ont été ajoutés à côté de la vidéo.",
- "Generate subtitles from the audio": "Générer les sous-titres depuis l’audio"
+ "Generate subtitles from the audio": "Générer les sous-titres depuis l’audio",
+ "Subtitles (OpenSubtitles)": "Sous-titres (OpenSubtitles)",
+ "Preferred languages": "Langues préférées",
+ "Your OpenSubtitles API key (opensubtitles.com): it enables the Fetch subtitles button in the video player.": "Votre clé API OpenSubtitles (opensubtitles.com) : elle active le bouton « Récupérer les sous-titres » dans le lecteur vidéo.",
+ "Comma separated language codes, most preferred first (e.g. fr,en)": "Codes de langue séparés par des virgules, du plus au moins préféré (ex. fr,en)",
+ "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Utilisé par le bouton « Récupérer les sous-titres » du lecteur vidéo : la meilleure correspondance est téléchargée à côté de la vidéo dans un fichier .srt.",
+ "Download subtitles from OpenSubtitles": "Télécharger les sous-titres depuis OpenSubtitles",
+ "Fetch subtitles": "Récupérer les sous-titres",
+ "Subtitles downloaded ({0}).": "Sous-titres téléchargés ({0})."
 }

@@ -220,6 +220,13 @@ type Settings struct {
 	OAuthRefresh  string    `json:"oauthRefresh,omitempty"`
 	OAuthExpires  time.Time `json:"oauthExpires,omitempty"`
 	OAuthEmail    string    `json:"oauthEmail,omitempty"` // when the provider returns one
+	// OpenSubtitles credentials for fetching subtitle files automatically
+	// (masked in answers, only set by hand). SubLangs lists the preferred
+	// subtitle languages, comma separated (e.g. "fr,en").
+	OSApiKey string `json:"osApiKey,omitempty"`
+	OSUser   string `json:"osUser,omitempty"`
+	OSPass   string `json:"osPass,omitempty"`
+	SubLangs string `json:"subLangs,omitempty"`
 	// VolumeFullPct is the fill percentage above which a volume is alerted
 	// as full (dashboard and notifications); 0 keeps the default of 90.
 	VolumeFullPct int `json:"volumeFullPct,omitempty"`

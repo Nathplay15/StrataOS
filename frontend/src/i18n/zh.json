@@ -5512,5 +5512,13 @@
  "Transcribing…": "正在转录…",
  "Transcript": "转录文本",
  "Transcript generated: the subtitles were added next to the video.": "转录已生成：字幕已添加到视频旁。",
- "Generate subtitles from the audio": "从音频生成字幕"
+ "Generate subtitles from the audio": "从音频生成字幕",
+ "Subtitles (OpenSubtitles)": "字幕 (OpenSubtitles)",
+ "Preferred languages": "首选语言",
+ "Your OpenSubtitles API key (opensubtitles.com): it enables the Fetch subtitles button in the video player.": "您的 OpenSubtitles API 密钥 (opensubtitles.com)：用于启用视频播放器中的“获取字幕”按钮。",
+ "Comma separated language codes, most preferred first (e.g. fr,en)": "逗号分隔的语言代码，最优先的在前（例如 zh,en）",
+ "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "视频播放器中的“获取字幕”按钮会使用它：最佳匹配会以 .srt 文件形式下载到视频旁边。",
+ "Download subtitles from OpenSubtitles": "从 OpenSubtitles 下载字幕",
+ "Fetch subtitles": "获取字幕",
+ "Subtitles downloaded ({0}).": "字幕已下载 ({0})。"
 }
