@@ -5475,5 +5475,17 @@
  "To (hour)": "Tot (uur)",
  "Maximum volume (%)": "Maximaal volume (%)",
  "Brightness (%)": "Helderheid (%)",
- "Limits the brightness and the volume of the players during these hours.": "Beperkt de helderheid en het volume van de spelers tijdens deze uren."
+ "Limits the brightness and the volume of the players during these hours.": "Beperkt de helderheid en het volume van de spelers tijdens deze uren.",
+ "Watch together": "Samen kijken",
+ "New list": "Nieuwe lijst",
+ "List name": "Lijstnaam",
+ "List created": "Lijst aangemaakt",
+ "List saved": "Lijst opgeslagen",
+ "List deleted": "Lijst verwijderd",
+ "No list yet: create one and share it with other accounts.": "Nog geen lijst: maak er een en deel deze met andere accounts.",
+ "Members (account names, comma separated)": "Leden (accountnamen, door komma's gescheiden)",
+ "Add videos": "Video's toevoegen",
+ "{0} video(s)": "{0} video('s)",
+ "No video yet": "Nog geen video's",
+ "Weekend": "Weekend"
 }

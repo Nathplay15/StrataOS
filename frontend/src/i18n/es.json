@@ -5475,5 +5475,17 @@
  "To (hour)": "Hasta (hora)",
  "Maximum volume (%)": "Volumen máximo (%)",
  "Brightness (%)": "Brillo (%)",
- "Limits the brightness and the volume of the players during these hours.": "Limita el brillo y el volumen de los reproductores durante estas horas."
+ "Limits the brightness and the volume of the players during these hours.": "Limita el brillo y el volumen de los reproductores durante estas horas.",
+ "Watch together": "Ver juntos",
+ "New list": "Nueva lista",
+ "List name": "Nombre de la lista",
+ "List created": "Lista creada",
+ "List saved": "Lista guardada",
+ "List deleted": "Lista eliminada",
+ "No list yet: create one and share it with other accounts.": "Aún no hay listas: crea una y compártela con otras cuentas.",
+ "Members (account names, comma separated)": "Miembros (nombres de cuenta, separados por comas)",
+ "Add videos": "Añadir vídeos",
+ "{0} video(s)": "{0} vídeo(s)",
+ "No video yet": "Aún no hay vídeos",
+ "Weekend": "Fin de semana"
 }

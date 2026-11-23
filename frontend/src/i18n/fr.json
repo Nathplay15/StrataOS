@@ -5475,5 +5475,17 @@
  "To (hour)": "À (heure)",
  "Maximum volume (%)": "Volume maximal (%)",
  "Brightness (%)": "Luminosité (%)",
- "Limits the brightness and the volume of the players during these hours.": "Limite la luminosité et le volume des lecteurs pendant ces heures."
+ "Limits the brightness and the volume of the players during these hours.": "Limite la luminosité et le volume des lecteurs pendant ces heures.",
+ "Watch together": "À regarder ensemble",
+ "New list": "Nouvelle liste",
+ "List name": "Nom de la liste",
+ "List created": "Liste créée",
+ "List saved": "Liste enregistrée",
+ "List deleted": "Liste supprimée",
+ "No list yet: create one and share it with other accounts.": "Aucune liste pour l'instant : créez-en une et partagez-la avec d'autres comptes.",
+ "Members (account names, comma separated)": "Membres (noms de comptes, séparés par des virgules)",
+ "Add videos": "Ajouter des vidéos",
+ "{0} video(s)": "{0} vidéo(s)",
+ "No video yet": "Aucune vidéo pour l'instant",
+ "Weekend": "Week-end"
 }

@@ -17,6 +17,19 @@ type Media struct {
 	Positions map[string]map[string]PlayPos `json:"positions,omitempty"`
 	// Night: limits brightness and volume during the evening hours.
 	Night NightMode `json:"night,omitzero"`
+	// WatchLists are the "watch together" lists: videos shared between
+	// accounts (roadmap 0.15, cinema).
+	WatchLists []WatchList `json:"watchLists,omitempty"`
+}
+
+// WatchList is a named list of videos shared with other accounts.
+type WatchList struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Owner   string    `json:"owner"`
+	Items   []string  `json:"items"`          // video paths, as the files API spells them
+	With    []string  `json:"with,omitempty"` // accounts the list is shared with
+	Created time.Time `json:"created"`
 }
 
 // NightMode limits the players late in the evening (roadmap 0.15, cinema

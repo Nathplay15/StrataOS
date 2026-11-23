@@ -5475,5 +5475,17 @@
  "To (hour)": "结束（小时）",
  "Maximum volume (%)": "最大音量 (%)",
  "Brightness (%)": "亮度 (%)",
- "Limits the brightness and the volume of the players during these hours.": "在这些时段限制播放器的亮度和音量。"
+ "Limits the brightness and the volume of the players during these hours.": "在这些时段限制播放器的亮度和音量。",
+ "Watch together": "一起观看",
+ "New list": "新建列表",
+ "List name": "列表名称",
+ "List created": "列表已创建",
+ "List saved": "列表已保存",
+ "List deleted": "列表已删除",
+ "No list yet: create one and share it with other accounts.": "还没有列表：创建一个并与其他账户共享。",
+ "Members (account names, comma separated)": "成员（账户名，逗号分隔）",
+ "Add videos": "添加视频",
+ "{0} video(s)": "{0} 部影片",
+ "No video yet": "还没有视频",
+ "Weekend": "周末"
 }

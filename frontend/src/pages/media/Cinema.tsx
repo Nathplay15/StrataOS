@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clapperboard, KeyRound, Moon, Play, RefreshCw, Search, Star } from "lucide-react";
+import { Clapperboard, KeyRound, ListPlus, Moon, Play, RefreshCw, Search, Star, Trash2, Users } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, bytes } from "../../lib/format";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Modal, Spinner, Switch } from "../../components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Select, Spinner, Switch } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import { caps } from "../../components/files/MediaPlayer";
 
@@ -41,6 +41,57 @@ function WorkCard({ w, onClick }: { w: Work; onClick: () => void }) {
   );
 }
 
+type WatchList = { id: string; name: string; owner: string; mine: boolean; with?: string[]; created: string; items: (CinemaItem & { path: string })[] };
+
+function ListModal({ list, items, onClose, onSave, onDelete, onPlay, saving, error }: { list: WatchList | null; items: CinemaItem[]; onClose: () => void; onSave: (id: string, body: object) => void; onDelete: (id: string) => void; onPlay: (i: CinemaItem) => void; saving: boolean; error: unknown }) {
+  const [name, setName] = useState("");
+  const [withText, setWithText] = useState("");
+  const [add, setAdd] = useState("");
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (list) { setName(list.name); setWithText((list.with ?? []).join(", ")); setAdd(""); }
+  }, [list]);
+  if (!list) return null;
+  const paths = new Set(list.items.map((i) => i.path));
+  const addable = items.filter((i) => !paths.has(i.path));
+  return (
+    <Modal open wide onClose={onClose} title={list.name}
+      footer={<>
+        <Button onClick={onClose}>{tr("Cancel")}</Button>
+        {list.mine && <Button variant="danger" icon={<Trash2 size={14} />} disabled={saving} onClick={() => onDelete(list.id)}>{tr("Delete")}</Button>}
+        <Button variant="primary" loading={saving} onClick={() => onSave(list.id, { name, items: list.items.map((i) => i.path), with: withText.split(",").map((x) => x.trim()).filter(Boolean) })}>{tr("Save")}</Button>
+      </>}>
+      <div className="space-y-4">
+        <ErrorBox error={error} />
+        {list.mine && <Field label={tr("List name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>}
+        {list.mine && <Field label={tr("Members (account names, comma separated)")}><Input value={withText} onChange={(e) => setWithText(e.target.value)} placeholder="alice, bob" /></Field>}
+        {!list.mine && !!list.with?.length && <div className="text-[12px] text-muted">{tr("Shared with {0}", list.with.join(", "))}</div>}
+        <Field label={tr("Add videos")}>
+          <div className="flex gap-2">
+            <Select value={add} onChange={(e) => setAdd(e.target.value)} className="min-w-0 flex-1">
+              <option value="">{tr("Search a title…")}</option>
+              {addable.map((i) => <option key={i.path} value={i.path}>{i.title}{i.year ? ` (${i.year})` : ""}</option>)}
+            </Select>
+            <Button size="sm" disabled={!add} onClick={() => { if (add) { onSave(list.id, { items: [...list.items.map((i) => i.path), add] }); qc.invalidateQueries({ queryKey: ["cinema-lists"] }); } }}>{tr("Add")}</Button>
+          </div>
+        </Field>
+        <div className="max-h-72 space-y-1 overflow-y-auto">
+          {list.items.map((i) => (
+            <div key={i.path} className="flex items-center justify-between gap-2 rounded-lg bg-panel-2 px-3 py-2 text-[12.5px]">
+              <span className="truncate">{i.title}{i.kind === "episode" ? ` · ${epLabel(i)}` : ""}{i.year ? ` (${i.year})` : ""}</span>
+              <span className="flex shrink-0 gap-1">
+                <IconButton title={tr("Play")} onClick={() => { onPlay(i); onClose(); }}><Play size={14} /></IconButton>
+                <IconButton title={tr("Remove")} onClick={() => onSave(list.id, { items: list.items.filter((x) => x.path !== i.path).map((x) => x.path) })}><Trash2 size={14} /></IconButton>
+              </span>
+            </div>
+          ))}
+          {!list.items.length && <div className="text-[12.5px] text-muted">{tr("No video yet")}</div>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function CinemaTab({ admin }: { admin: boolean }) {
   const qc = useQueryClient();
   const lib = useQuery({ queryKey: ["cinema"], queryFn: () => api.get<CinemaData>("/api/cinema"), refetchInterval: (qq) => (qq.state.data?.running ? 5000 : 60000) });
@@ -48,6 +99,12 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const [key, setKey] = useState("");
   const saveKey = useAction(() => api.put("/api/cinema/settings", { tmdbKey: key }), { success: tr("Key saved"), onDone: () => { setKey(""); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const [filter, setFilter] = useState("");
+  const lists = useQuery({ queryKey: ["cinema-lists"], queryFn: () => api.get<WatchList[]>("/api/cinema/lists"), refetchInterval: 30000 });
+  const [listSel, setListSel] = useState<WatchList | null>(null);
+  const [newList, setNewList] = useState<string | null>("");
+  const mkList = useAction(() => api.post("/api/cinema/lists", { name: newList ?? "" }), { success: tr("List created"), onDone: () => { setNewList(""); qc.invalidateQueries({ queryKey: ["cinema-lists"] }); } });
+  const saveList = useAction((l: { id: string; body: object }) => api.put(`/api/cinema/lists/${l.id}`, l.body), { success: tr("List saved"), onDone: () => qc.invalidateQueries({ queryKey: ["cinema-lists"] }) });
+  const delList = useAction((id: string) => api.del(`/api/cinema/lists/${id}`), { success: tr("List deleted"), onDone: () => { setListSel(null); qc.invalidateQueries({ queryKey: ["cinema-lists"] }); } });
   const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
   const [nightForm, setNightForm] = useState<{ enabled: boolean; from: string; to: string; maxVolume: string; brightness: string } | null>(null);
   const saveNight = useAction(() => api.put("/api/media/night", { enabled: !!nightForm?.enabled, from: parseInt(nightForm?.from ?? "22") || 0, to: parseInt(nightForm?.to ?? "6") || 0, maxVolume: parseInt(nightForm?.maxVolume ?? "30") || 30, brightness: parseInt(nightForm?.brightness ?? "80") || 80 }), { success: tr("Night mode saved"), onDone: () => { setNightForm(null); qc.invalidateQueries({ queryKey: ["media-night"] }); } });
@@ -185,6 +242,26 @@ export function CinemaTab({ admin }: { admin: boolean }) {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{franchises.map((w) => <WorkCard key={String(w.collectionId)} w={w} onClick={() => setSel(w)} />)}</div>
             </div>
           )}
+          <div className="mt-6">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-[13px] font-medium text-muted">{tr("Watch together")}</span>
+              <Button size="sm" variant="ghost" icon={<ListPlus size={14} />} onClick={() => setNewList(" ")}>{tr("New list")}</Button>
+            </div>
+            {!lists.data?.length ? (
+              <div className="text-[12.5px] text-muted">{tr("No list yet: create one and share it with other accounts.")}</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {lists.data.map((l) => (
+                  <button key={l.id} onClick={() => setListSel(l)} className="flex items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-[12.5px] hover:border-accent/50">
+                    <span className="font-medium">{l.name}</span>
+                    <Badge>{tr("{0} video(s)", l.items.length)}</Badge>
+                    {!!l.with?.length && <span className="text-muted" title={tr("Shared with {0}", l.with.length)}><Users size={13} /></span>}
+                    {!l.mine && <Badge tone="accent">{l.owner}</Badge>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {!!movies.length && (
             <div className="mt-6">
               <div className="mb-2 text-[13px] font-medium text-muted">{tr("Movies")}</div>
@@ -228,6 +305,13 @@ export function CinemaTab({ admin }: { admin: boolean }) {
           </div>
         )}
       </Modal>
+
+      <Modal open={newList !== null} onClose={() => setNewList(null)} title={tr("New list")} footer={<><Button onClick={() => setNewList(null)}>{tr("Cancel")}</Button><Button variant="primary" loading={mkList.isPending} disabled={!(newList ?? "").trim()} onClick={() => mkList.mutate()}>{tr("Add")}</Button></>}>
+        <Field label={tr("List name")}><Input value={newList ?? ""} onChange={(e) => setNewList(e.target.value)} placeholder={tr("Weekend")} /></Field>
+        <ErrorBox error={mkList.error} />
+      </Modal>
+
+      <ListModal list={listSel} items={items} onClose={() => setListSel(null)} onSave={(id, body) => saveList.mutate({ id, body })} onDelete={(id) => delList.mutate(id)} onPlay={(i) => setPlay({ item: i, start: 0 })} saving={saveList.isPending} error={saveList.error || delList.error} />
 
       <Modal open={!!play} wide onClose={() => setPlay(null)} title={play ? `${play.item.title}${play.item.kind === "episode" ? ` · ${epLabel(play.item)}` : ""}` : ""}>
         {play && (

@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,6 +145,159 @@ func (s *Server) cinemaRoutes() {
 		}
 		s.audit(r, "cinema", "TMDB key saved")
 		return map[string]any{"keySet": key != ""}, nil
+	})
+
+	// ---- Watch-together lists (shared between accounts) ----
+	type listItemView struct {
+		Path string `json:"path"`
+		cinema.Item
+	}
+	type listView struct {
+		ID      string         `json:"id"`
+		Name    string         `json:"name"`
+		Owner   string         `json:"owner"`
+		Mine    bool           `json:"mine"`
+		With    []string       `json:"with,omitempty"`
+		Created time.Time      `json:"created"`
+		Items   []listItemView `json:"items"`
+	}
+	// listsOf returns the lists the account may see, with their items
+	// resolved against the library.
+	listsOf := func(u string) []listView {
+		st := cinema.LoadState(statePath)
+		byPath := map[string]cinema.Item{}
+		for _, it := range st.Items {
+			byPath[it.Path] = it
+		}
+		out := []listView{}
+		s.store.Read(func(st *store.State) {
+			for _, l := range st.Media.WatchLists {
+				if l.Owner != u && !slices.Contains(l.With, u) {
+					continue
+				}
+				v := listView{ID: l.ID, Name: l.Name, Owner: l.Owner, Mine: l.Owner == u, With: l.With, Created: l.Created, Items: []listItemView{}}
+				for _, p := range l.Items {
+					if it, ok := byPath[p]; ok {
+						v.Items = append(v.Items, listItemView{Path: p, Item: it})
+					}
+				}
+				out = append(out, v)
+			}
+		})
+		return out
+	}
+	// knownVideo checks a path against the library (anti-garbage entries).
+	knownVideo := func(p string) bool {
+		st := cinema.LoadState(statePath)
+		for _, it := range st.Items {
+			if it.Path == p {
+				return true
+			}
+		}
+		return false
+	}
+
+	s.user("GET /api/cinema/lists", func(r *http.Request) (any, error) {
+		return listsOf(userOf(r)), nil
+	})
+	s.user("POST /api/cinema/lists", func(r *http.Request) (any, error) {
+		var req struct {
+			Name string `json:"name"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		name := strings.TrimSpace(req.Name)
+		if name == "" || len(name) > 64 {
+			return nil, badRequest("the list name must have 1 to 64 characters")
+		}
+		u := userOf(r)
+		l := store.WatchList{ID: newLinkID()[:12], Name: name, Owner: u, Created: time.Now()}
+		return nil, s.store.Update(func(st *store.State) error {
+			if len(st.Media.WatchLists) >= 100 {
+				return badRequest("too many lists")
+			}
+			st.Media.WatchLists = append(st.Media.WatchLists, l)
+			return nil
+		})
+	})
+	s.user("PUT /api/cinema/lists/{id}", func(r *http.Request) (any, error) {
+		id := r.PathValue("id")
+		var req struct {
+			Name  *string  `json:"name"`
+			Items []string `json:"items"`
+			With  []string `json:"with"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		u := userOf(r)
+		with, err := s.usersExist(req.With)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.store.Update(func(st *store.State) error {
+			for i := range st.Media.WatchLists {
+				l := &st.Media.WatchLists[i]
+				if l.ID != id {
+					continue
+				}
+				owner := l.Owner == u
+				member := slices.Contains(l.With, u)
+				if !owner && !member {
+					return forbidden("not in this list")
+				}
+				if req.Name != nil {
+					if !owner {
+						return forbidden("only the owner renames the list")
+					}
+					name := strings.TrimSpace(*req.Name)
+					if name == "" || len(name) > 64 {
+						return badRequest("the list name must have 1 to 64 characters")
+					}
+					l.Name = name
+				}
+				if req.Items != nil {
+					if len(req.Items) > 500 {
+						return badRequest("at most 500 videos per list")
+					}
+					seen := map[string]bool{}
+					items := make([]string, 0, len(req.Items))
+					for _, p := range req.Items {
+						if p == "" || seen[p] || !knownVideo(p) {
+							continue
+						}
+						seen[p] = true
+						items = append(items, p)
+					}
+					l.Items = items
+				}
+				if req.With != nil {
+					if !owner {
+						return forbidden("only the owner shares the list")
+					}
+					l.With = with
+				}
+				return nil
+			}
+			return notFound("list not found")
+		})
+	})
+	s.user("DELETE /api/cinema/lists/{id}", func(r *http.Request) (any, error) {
+		id := r.PathValue("id")
+		u := userOf(r)
+		return nil, s.store.Update(func(st *store.State) error {
+			for i := range st.Media.WatchLists {
+				if st.Media.WatchLists[i].ID == id {
+					if st.Media.WatchLists[i].Owner != u {
+						return forbidden("only the owner deletes the list")
+					}
+					st.Media.WatchLists = slices.Delete(st.Media.WatchLists, i, i+1)
+					return nil
+				}
+			}
+			return notFound("list not found")
+		})
 	})
 
 	s.admin("POST /api/cinema/scan", func(r *http.Request) (any, error) {

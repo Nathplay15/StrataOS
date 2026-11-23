@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,5 +137,97 @@ func TestCinemaPositions(t *testing.T) {
 	}
 	if rec := do(tokA, "GET", "/api/cinema", ""); !strings.Contains(rec.Body.String(), `"positions":{}`) {
 		t.Fatalf("position not cleared: %s", rec.Body.String())
+	}
+}
+
+func TestCinemaWatchLists(t *testing.T) {
+	s := newTestServer(t)
+	s.cinemaRoutes()
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "admin", Role: "admin"}, &store.User{Username: "bob", Role: "user"})
+		return nil
+	})
+	// A library with two known videos.
+	statePath, _, _ := s.cinemaPaths()
+	if err := cinema.SaveState(statePath, cinema.State{Items: []cinema.Item{
+		{Path: "videos/m1.mkv", Title: "Movie 1", Kind: "movie"},
+		{Path: "videos/s1e1.mkv", Title: "Show", Kind: "episode", Season: 1, Episode: 1},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	tokA := s.sessions.create("admin", "admin", "127.0.0.1", time.Hour)
+	tokB := s.sessions.create("bob", "bob", "127.0.0.1", time.Hour)
+	do := func(token, method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.AddCookie(&http.Cookie{Name: cookieName, Value: token})
+		req.Header.Set("X-Strata", "1")
+		rec := httptest.NewRecorder()
+		s.mux.ServeHTTP(rec, req)
+		return rec
+	}
+	// Empty at first.
+	if rec := do(tokA, "GET", "/api/cinema/lists", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), "[]") {
+		t.Fatalf("lists: %d %s", rec.Code, rec.Body.String())
+	}
+	// Bad name.
+	if rec := do(tokA, "POST", "/api/cinema/lists", `{"name":""}`); rec.Code != 400 {
+		t.Errorf("empty name: %d", rec.Code)
+	}
+	// Create.
+	rec := do(tokA, "POST", "/api/cinema/lists", `{"name":"Weekend"}`)
+	if rec.Code != 200 {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = do(tokA, "GET", "/api/cinema/lists", "")
+	body := rec.Body.String()
+	if !strings.Contains(body, `"name":"Weekend"`) || !strings.Contains(body, `"mine":true`) {
+		t.Fatalf("created: %s", body)
+	}
+	var lists []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &lists); err != nil || len(lists) != 1 {
+		t.Fatalf("parse lists: %v %s", err, body)
+	}
+	id := lists[0].ID
+	// Bob does not see it yet.
+	if rec := do(tokB, "GET", "/api/cinema/lists", ""); strings.Contains(rec.Body.String(), "Weekend") {
+		t.Fatalf("bob sees a private list: %s", rec.Body.String())
+	}
+	// Add items: unknown paths are dropped, dupes too.
+	if rec := do(tokA, "PUT", "/api/cinema/lists/"+id, `{"items":["videos/m1.mkv","videos/s1e1.mkv","videos/m1.mkv","videos/ghost.mkv"]}`); rec.Code != 200 {
+		t.Fatalf("items: %d %s", rec.Code, rec.Body.String())
+	}
+	// Share with bob; unknown account refused.
+	if rec := do(tokA, "PUT", "/api/cinema/lists/"+id, `{"with":["nobody"]}`); rec.Code != 400 {
+		t.Errorf("unknown user: %d", rec.Code)
+	}
+	if rec := do(tokA, "PUT", "/api/cinema/lists/"+id, `{"with":["bob"]}`); rec.Code != 200 {
+		t.Fatalf("share: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = do(tokB, "GET", "/api/cinema/lists", "")
+	body = rec.Body.String()
+	if !strings.Contains(body, `"name":"Weekend"`) || !strings.Contains(body, `"mine":false`) || !strings.Contains(body, `"title":"Movie 1"`) {
+		t.Fatalf("bob list: %s", body)
+	}
+	// Bob (member) may change items, not the name nor the sharing.
+	if rec := do(tokB, "PUT", "/api/cinema/lists/"+id, `{"items":["videos/s1e1.mkv"]}`); rec.Code != 200 {
+		t.Errorf("member items: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(tokB, "PUT", "/api/cinema/lists/"+id, `{"name":"hax"}`); rec.Code != 403 {
+		t.Errorf("member rename: %d", rec.Code)
+	}
+	if rec := do(tokB, "PUT", "/api/cinema/lists/"+id, `{"with":["admin"]}`); rec.Code != 403 {
+		t.Errorf("member share: %d", rec.Code)
+	}
+	if rec := do(tokB, "DELETE", "/api/cinema/lists/"+id, ""); rec.Code != 403 {
+		t.Errorf("member delete: %d", rec.Code)
+	}
+	// Owner deletes.
+	if rec := do(tokA, "DELETE", "/api/cinema/lists/"+id, ""); rec.Code != 200 {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(tokA, "GET", "/api/cinema/lists", ""); !strings.Contains(rec.Body.String(), "[]") {
+		t.Fatalf("not deleted: %s", rec.Body.String())
 	}
 }
