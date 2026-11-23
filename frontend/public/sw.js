@@ -55,7 +55,9 @@ self.addEventListener("fetch", (e) => {
 });
 
 // Web push notifications of the NAS (the payload is the one the mobile app
-// receives: {type:"notification", subject, message, link, ...}).
+// receives: {type:"notification", subject, message, link, image?, clip?}).
+// A surveillance event carries its picture (shown on the notification) and
+// its clip: tapping the notification plays the clip.
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data.json(); } catch { d = { subject: "StrataOS", message: e.data ? e.data.text() : "" }; }
@@ -65,16 +67,19 @@ self.addEventListener("push", (e) => {
       body: d.message || "",
       icon: "/icon-192.png",
       badge: "/icon-maskable-512.png",
+      image: d.image || undefined,
       tag: "strata-" + (d.host || "") + "-" + (d.id ?? Date.now()),
       renotify: true,
-      data: { link: d.link || "/" },
+      data: { link: d.link || "/", clip: d.clip || "" },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const link = (e.notification.data && e.notification.data.link) || "/";
+  const data = e.notification.data || {};
+  // The clip of a surveillance event wins over the page link.
+  const link = data.clip || data.link || "/";
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
       for (const c of cs) {

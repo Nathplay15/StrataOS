@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cctv, Download, ExternalLink, FileCode, Pencil, Play, Plug, Plus, Scissors, Trash2, Video } from "lucide-react";
 import { api, ApiError, q } from "../lib/api";
 import { useAction } from "../lib/hooks";
@@ -18,7 +18,8 @@ type Frigate = {
   notify: boolean; notifyMinutes: number; cameras: number; running?: boolean; webPort?: string; mediaDir?: string; error?: string;
 };
 type Vol = { path: string; label: string; free: number };
-type Data = { installed: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
+type Data = { installed: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; clipPre: number; clipPost: number; clipKeepDays: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
+type Clip = { name: string; at: string; size: number };
 type Segment = { name: string; start: string; end: string; size: number; open?: boolean };
 type Recs = { days: string[]; day: string; segments: Segment[] };
 type SegInfo = { video: string; audio?: string; duration: number; mode: "native" | "remux" | "transcode"; direct: boolean };
@@ -127,7 +128,7 @@ function CameraModal({ cam, frigate, onClose }: { cam?: Camera; frigate: Frigate
           {d.engine === "" && <Checkbox checked={d.audio} onChange={(v) => up({ audio: v })} label={tr("Record the sound (converted to AAC)")} />}
           {d.engine === "" && <div>
             <Checkbox checked={d.motion} onChange={(v) => up({ motion: v })} label={tr("Detect movement and warn me")} />
-            {d.motion && <div className="ml-7 text-muted text-[12px]">{tr("A picture is kept and a notification sent each time something moves (at most every 90 seconds).")}</div>}
+            {d.motion && <div className="ml-7 text-muted text-[12px]">{tr("A picture and a short clip are kept, and a notification carrying both is sent each time something moves (at most every 90 seconds).")}</div>}
           </div>}
         </div>
       </div>
@@ -334,6 +335,50 @@ function FrigateRecordings({ cam }: { cam: Camera }) {
   );
 }
 
+// The event clips cut around each motion event of a built-in camera.
+function EventClips({ camId, keepDays }: { camId: string; keepDays: number }) {
+  const { confirm } = useUI();
+  const qc = useQueryClient();
+  const clips = useQuery({ queryKey: ["nvr-clips", camId], queryFn: () => api.get<{ clips: Clip[] }>(`/api/nvr/cameras/${camId}/clips`), refetchInterval: 30000 });
+  const [play, setPlay] = useState<string | null>(null);
+  const del = useAction((name: string) => api.del(`/api/nvr/cameras/${camId}/clips/${encodeURIComponent(name)}`), {
+    onDone: () => qc.invalidateQueries({ queryKey: ["nvr-clips", camId] }),
+  });
+  const remove = async (c: Clip) => {
+    if (!(await confirm({ title: tr("Delete {0}?", c.name), text: tr("The video of this event will be removed."), danger: true, confirm: tr("Delete") }))) return;
+    del.mutate(c.name);
+  };
+  const base = `/api/nvr/cameras/${camId}/clips`;
+  const list = clips.data?.clips ?? [];
+  return (
+    <Card title={tr("Event clips")} actions={play ? <Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button> : undefined}>
+      <div className="mb-3 text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", keepDays)}</div>
+      <ErrorBox error={clips.error || del.error} />
+      {play && <video key={play} controls autoPlay className="mb-3 w-full rounded-lg bg-black" src={`${base}/${encodeURIComponent(play)}`} />}
+      {clips.isLoading ? <Spinner /> : !list.length ? <Empty title={tr("No clip yet")} /> : (
+        <div className="max-h-80 overflow-y-auto">
+          <table className="table">
+            <thead><tr><th>{tr("Time")}</th><th>{tr("Size")}</th><th /></tr></thead>
+            <tbody>
+              {list.map((c) => (
+                <tr key={c.name} className={cx(play === c.name && "bg-panel-2")}>
+                  <td className="whitespace-nowrap">{dateTime(c.at)}</td>
+                  <td>{bytes(c.size)}</td>
+                  <td className="text-right whitespace-nowrap">
+                    <IconButton title={tr("Play")} onClick={() => setPlay(c.name)}><Play size={14} /></IconButton>
+                    <a href={`${base}/${encodeURIComponent(c.name)}?download=1`}><IconButton title={tr("Download")}><Download size={14} /></IconButton></a>
+                    <IconButton title={tr("Delete")} onClick={() => remove(c)}><Trash2 size={14} /></IconButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Recordings({ data }: { data: Data }) {
   const cams = data.cameras;
   const [camId, setCamId] = useState(cams[0]?.id ?? "");
@@ -379,6 +424,7 @@ function Recordings({ data }: { data: Data }) {
         </div>
       </Card>
       {cam?.engine === "frigate" && <FrigateRecordings key={cam.id} cam={cam} />}
+      {cam && cam.engine !== "frigate" && <EventClips key={cam.id} camId={cam.id} keepDays={data.clipKeepDays || 30} />}
       {play && (
         <Card title={<span>{cam?.name} · {hm(play.start)} – {hm(play.end)}</span>} actions={<Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button>}>
           <SegmentPlayer key={play.name} base={base} seg={play} />
@@ -479,7 +525,13 @@ function Settings({ data }: { data: Data }) {
   const [vol, setVol] = useState(initVol);
   const [sub, setSub] = useState(data.folder && initVol ? data.folder.slice(initVol.length + 1) : "surveillance");
   const [alert, setAlert] = useState(String(data.alertMinutes || 5));
-  const save = useAction(() => api.put("/api/nvr/settings", { folder: `${vol}/${sub.replace(/^\/+/, "")}`, alertMinutes: parseInt(alert) || 0, segmentSeconds: data.segmentSeconds }), { success: tr("Settings saved") });
+  const [clipPre, setClipPre] = useState(String(data.clipPre || 0));
+  const [clipPost, setClipPost] = useState(String(data.clipPost || 0));
+  const [clipKeep, setClipKeep] = useState(String(data.clipKeepDays || 0));
+  const save = useAction(() => api.put("/api/nvr/settings", {
+    folder: `${vol}/${sub.replace(/^\/+/, "")}`, alertMinutes: parseInt(alert) || 0, segmentSeconds: data.segmentSeconds,
+    clipPre: parseInt(clipPre) || 0, clipPost: parseInt(clipPost) || 0, clipKeepDays: parseInt(clipKeep) || 0,
+  }), { success: tr("Settings saved") });
   return (
     <div className="space-y-5">
       <Card title={tr("Recordings")}>
@@ -496,6 +548,12 @@ function Settings({ data }: { data: Data }) {
             </Field>
           </div>
           <Field label={tr("Alert when a camera is unreachable for (minutes)")}><Input className="w-32" type="number" min={1} value={alert} onChange={(e) => setAlert(e.target.value)} /></Field>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label={tr("Before the event (seconds)")} hint={tr("0 = 10 s")}><Input type="number" min={0} max={120} value={clipPre} onChange={(e) => setClipPre(e.target.value)} /></Field>
+            <Field label={tr("After the event (seconds)")} hint={tr("0 = 10 s")}><Input type="number" min={0} max={120} value={clipPost} onChange={(e) => setClipPost(e.target.value)} /></Field>
+            <Field label={tr("Keep the clips (days)")} hint={tr("0 = 30 days")}><Input type="number" min={0} value={clipKeep} onChange={(e) => setClipKeep(e.target.value)} /></Field>
+          </div>
+          <div className="text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", parseInt(clipKeep) || 30)}</div>
           <div className="flex justify-end"><Button variant="primary" loading={save.isPending} disabled={!vol || !sub} onClick={() => save.mutate()}>{tr("Save")}</Button></div>
         </div>
       </Card>

@@ -11,9 +11,16 @@ type NVR struct {
 	// AlertMinutes: a camera unreachable this long is notified (0 = 5).
 	AlertMinutes int `json:"alertMinutes,omitempty"`
 	// SegmentSeconds: length of the recorded files (0 = 10 minutes; API only, for tests).
-	SegmentSeconds int          `json:"segmentSeconds,omitempty"`
-	Cameras        []*Camera    `json:"cameras,omitempty"`
-	Frigate        FrigateState `json:"frigate,omitzero"`
+	SegmentSeconds int `json:"segmentSeconds,omitempty"`
+	// Event clips: around each motion event of the built-in engine, a clip is
+	// cut from the recordings (ClipPre/ClipPost seconds before/after, 0 = 10,
+	// at most 120) and kept ClipKeepDays days (0 = 30) in the "clips"
+	// subfolder of the camera.
+	ClipPre      int          `json:"clipPre,omitempty"`
+	ClipPost     int          `json:"clipPost,omitempty"`
+	ClipKeepDays int          `json:"clipKeepDays,omitempty"`
+	Cameras      []*Camera    `json:"cameras,omitempty"`
+	Frigate      FrigateState `json:"frigate,omitzero"`
 }
 
 // Camera is a network camera. The credentials are kept apart from the URLs

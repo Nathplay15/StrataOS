@@ -144,17 +144,24 @@ func (s *Server) nvrLoop() {
 	cams.mgr.OnMotion = func(id, name string, at time.Time, picture []byte) {
 		msg := fmt.Sprintf("Movement detected on camera %s at %s", name, at.Format("15:04:05"))
 		s.store.Log("warning", "nvr", "", msg)
-		s.notify("warning", "Motion detected", msg)
 		// One picture per event: the newest ones stay, the folder never grows.
+		image := ""
 		if folder, err := nvrFolder(s.nvrState().Folder); err == nil && len(picture) > 0 {
 			dir := filepath.Join(folder, id, "motion")
 			if err := os.MkdirAll(dir, 0o755); err == nil {
 				f := filepath.Join(dir, at.Format("2006-01-02_15h04m05s")+".jpg")
 				if err := os.WriteFile(f, picture, 0o600); err == nil {
 					s.nvrMotionPrune(dir, 10)
+					image = "/api/nvr/cameras/" + id + "/motion.jpg"
 				}
 			}
 		}
+		// The notification goes out once the event clip is cut (a few seconds
+		// after the event): it carries the picture and the clip.
+		go func() {
+			clip := s.nvrEventClip(id, at)
+			s.notifyMedia("warning", "Motion detected", msg, image, clip)
+		}()
 	}
 	time.Sleep(15 * time.Second)
 	for i := 0; ; i++ {
@@ -164,6 +171,7 @@ func (s *Server) nvrLoop() {
 			}
 			if i%40 == 0 {
 				s.nvrRetention()
+				s.nvrClipsPrune()
 			}
 			s.frigatePoll()
 		}
@@ -233,6 +241,68 @@ func (s *Server) nvrMotionPrune(dir string, keep int) {
 	slices.SortFunc(pics, func(a, b pic) int { return b.mod.Compare(a.mod) })
 	for _, p := range pics[keep:] {
 		_ = os.Remove(p.path)
+	}
+}
+
+// nvrEventClip cuts the clip around a motion event (a few seconds before and
+// after) into the camera's "clips" folder and returns its URL path, or "" when
+// it could not be cut (the notification then only carries the picture).
+func (s *Server) nvrEventClip(id string, at time.Time) string {
+	n := s.nvrState()
+	if !nvr.Installed() {
+		return ""
+	}
+	folder, err := nvrFolder(n.Folder)
+	if err != nil {
+		return ""
+	}
+	pre, post := n.ClipPre, n.ClipPost
+	if pre <= 0 {
+		pre = 10
+	}
+	if post <= 0 {
+		post = 10
+	}
+	pre, post = min(pre, 120), min(post, 120)
+	dir := filepath.Join(folder, id)
+	// Close the segment holding the moment before the event, let the "after"
+	// part be recorded, close it too, then cut the window from closed files.
+	cams.mgr.Roll(id)
+	time.Sleep(time.Duration(post) * time.Second)
+	cams.mgr.Roll(id)
+	time.Sleep(2 * time.Second)
+	clipsDir := filepath.Join(dir, "clips")
+	if err := os.MkdirAll(clipsDir, 0o755); err != nil {
+		return ""
+	}
+	name := at.Format(nvr.ClipLayout) + nvr.ClipExt(dir)
+	out := filepath.Join(clipsDir, name)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(pre+post+60)*time.Second)
+	defer cancel()
+	if err := nvr.CutEventClip(ctx, dir, out, at, time.Duration(pre)*time.Second, time.Duration(post)*time.Second); err != nil {
+		slog.Warn("event clip failed", "camera", id, "err", err)
+		_ = os.Remove(out)
+		return ""
+	}
+	slog.Info("event clip recorded", "camera", id, "clip", name)
+	if n := nvr.PruneClips(clipsDir, n.ClipKeepDays, 0, time.Now()); n > 0 {
+		slog.Info("old event clips deleted", "camera", id, "count", n)
+	}
+	return "/api/nvr/cameras/" + id + "/clips/" + name
+}
+
+// nvrClipsPrune deletes the expired event clips of every camera.
+func (s *Server) nvrClipsPrune() {
+	n := s.nvrState()
+	folder, err := nvrFolder(n.Folder)
+	if err != nil {
+		return
+	}
+	for _, c := range n.Cameras {
+		dir := filepath.Join(folder, c.ID, "clips")
+		if n := nvr.PruneClips(dir, n.ClipKeepDays, 0, time.Now()); n > 0 {
+			slog.Info("old event clips deleted", "camera", c.Name, "count", n)
+		}
 	}
 }
 
@@ -470,6 +540,7 @@ func (s *Server) nvrRoutes() {
 		return map[string]any{
 			"installed": nvr.Installed(), "folder": n.Folder, "folderError": folderErr,
 			"alertMinutes": max(n.AlertMinutes, 0), "segmentSeconds": n.SegmentSeconds,
+			"clipPre": n.ClipPre, "clipPost": n.ClipPost, "clipKeepDays": n.ClipKeepDays,
 			"cameras": list, "volumes": vols, "frigate": s.frigateView(r.Context(), n),
 		}, nil
 	})
@@ -478,6 +549,9 @@ func (s *Server) nvrRoutes() {
 			Folder         string `json:"folder"`
 			AlertMinutes   int    `json:"alertMinutes"`
 			SegmentSeconds int    `json:"segmentSeconds"`
+			ClipPre        int    `json:"clipPre"`
+			ClipPost       int    `json:"clipPost"`
+			ClipKeepDays   int    `json:"clipKeepDays"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
@@ -492,11 +566,20 @@ func (s *Server) nvrRoutes() {
 		if req.SegmentSeconds != 0 && (req.SegmentSeconds < 10 || req.SegmentSeconds > 3600) {
 			return nil, badRequest("the segment length must be 10 to 3600 seconds")
 		}
+		for _, v := range []int{req.ClipPre, req.ClipPost} {
+			if v != 0 && (v < 2 || v > 120) {
+				return nil, badRequest("the clip must start 2 to 120 seconds before and after the event")
+			}
+		}
+		if req.ClipKeepDays != 0 && (req.ClipKeepDays < 1 || req.ClipKeepDays > 3650) {
+			return nil, badRequest("the clips must be kept 1 to 3650 days")
+		}
 		if err := os.MkdirAll(folder, 0o755); err != nil {
 			return nil, err
 		}
 		err = s.store.Update(func(st *store.State) error {
 			st.NVR.Folder, st.NVR.AlertMinutes, st.NVR.SegmentSeconds = folder, req.AlertMinutes, req.SegmentSeconds
+			st.NVR.ClipPre, st.NVR.ClipPost, st.NVR.ClipKeepDays = req.ClipPre, req.ClipPost, req.ClipKeepDays
 			return nil
 		})
 		if err != nil {
@@ -718,6 +801,95 @@ func (s *Server) nvrRoutes() {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(img)
+	})
+
+	// ---- Event clips (cut around each motion event) ----
+	type clipView struct {
+		Name string    `json:"name"`
+		At   time.Time `json:"at"`
+		Size int64     `json:"size"`
+	}
+	s.admin("GET /api/nvr/cameras/{id}/clips", func(r *http.Request) (any, error) {
+		c, n, err := s.nvrCamera(r.PathValue("id"))
+		if err != nil {
+			return nil, err
+		}
+		list := []clipView{}
+		if d := camFolder(n, c); d != "" {
+			if entries, err := os.ReadDir(filepath.Join(d, "clips")); err == nil {
+				for _, e := range entries {
+					if e.IsDir() {
+						continue
+					}
+					at, ok := nvr.ParseClipName(e.Name())
+					if !ok {
+						continue
+					}
+					cv := clipView{Name: e.Name(), At: at}
+					if fi, err := e.Info(); err == nil {
+						cv.Size = fi.Size()
+					}
+					list = append(list, cv)
+				}
+			}
+		}
+		slices.SortFunc(list, func(a, b clipView) int { return b.At.Compare(a.At) })
+		return map[string]any{"clips": list}, nil
+	})
+	// clipPath resolves a clip name to its file (the name pattern forbids any
+	// path separator, so the join cannot escape the clips folder).
+	clipPath := func(r *http.Request) (string, *store.Camera, error) {
+		c, n, err := s.nvrCamera(r.PathValue("id"))
+		if err != nil {
+			return "", nil, err
+		}
+		name := r.PathValue("name")
+		if _, ok := nvr.ParseClipName(name); !ok {
+			return "", nil, notFound("clip not found")
+		}
+		d := camFolder(n, c)
+		if d == "" {
+			return "", nil, notFound("clip not found")
+		}
+		p := filepath.Join(d, "clips", name)
+		if fi, err := os.Stat(p); err != nil || !fi.Mode().IsRegular() {
+			return "", nil, notFound("clip not found")
+		}
+		return p, c, nil
+	}
+	s.adminRaw("GET /api/nvr/cameras/{id}/clips/{name}", func(w http.ResponseWriter, r *http.Request) {
+		p, c, err := clipPath(r)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		f, err := os.Open(p)
+		if err != nil {
+			writeErr(w, notFound("clip not found"))
+			return
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", videoType(info.Name()))
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		if r.URL.Query().Get("download") == "1" {
+			w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": c.Name + " " + info.Name()}))
+		}
+		http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+	})
+	s.admin("DELETE /api/nvr/cameras/{id}/clips/{name}", func(r *http.Request) (any, error) {
+		p, _, err := clipPath(r)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.Remove(p); err != nil {
+			return nil, notFound("clip not found")
+		}
+		return nil, nil
 	})
 
 	// ---- Recordings ----

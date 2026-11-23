@@ -392,12 +392,34 @@ func (s *Server) notify(level, subject, msg string) {
 	})
 }
 
+// notifMedia is attached to a notification for the channels that can show it:
+// the push carries the picture and the clip, and opening the notification
+// plays the clip (surveillance events).
+type notifMedia struct {
+	Image string
+	Clip  string
+}
+
+// notifyMedia is notify with a picture and a clip attached.
+func (s *Server) notifyMedia(level, subject, msg, image, clip string) {
+	s.bg.Go(func() {
+		if _, err := s.sendNotificationEx(level, subject, msg, &notifMedia{Image: image, Clip: clip}); err != nil && !errors.Is(err, errNoChannel) {
+			slog.Warn("notification failed", "err", err)
+		}
+	})
+}
+
 var errNoChannel = badRequest("no notification channel configured")
 
 // sendNotification delivers a notification and returns the channels used.
 // Level "" is an explicit send (test, monthly report): it ignores the
 // minimum levels and quiet hours, but not a disabled channel.
 func (s *Server) sendNotification(level, subject, msg string) ([]string, error) {
+	return s.sendNotificationEx(level, subject, msg, nil)
+}
+
+// sendNotificationEx is sendNotification with an optional picture/clip.
+func (s *Server) sendNotificationEx(level, subject, msg string, media *notifMedia) ([]string, error) {
 	var set store.Settings
 	var lang string
 	s.store.Read(func(st *store.State) { set, lang = st.Settings, st.MessageLang() })
@@ -440,7 +462,7 @@ func (s *Server) sendNotification(level, subject, msg string) ([]string, error) 
 			errs = append(errs, "ntfy: "+tlsHint(set.NtfyURL, set.NtfyTLS, err).Error())
 		}
 	}
-	if ok, err := s.mobileNotify(level, subject, msg, kind, use, ch.Mobile); ok { // mobile_push.go
+	if ok, err := s.mobileNotify(level, subject, msg, kind, use, ch.Mobile, media); ok { // mobile_push.go
 		sent = append(sent, "mobile")
 		if err != nil {
 			errs = append(errs, "mobile: "+err.Error())

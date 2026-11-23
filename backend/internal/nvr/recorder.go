@@ -134,6 +134,25 @@ func (m *Manager) Status(id string) Status {
 	return r.status
 }
 
+// Roll asks the recorder of a camera to close its current segment and start a
+// new one ('q' on ffmpeg's stdin, bound to a split by the segment muxer), so
+// that an event clip can be cut from closed files. Nothing happens when the
+// recorder is not running.
+func (m *Manager) Roll(id string) {
+	m.mu.Lock()
+	r := m.recs[id]
+	m.mu.Unlock()
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	w := r.stdin
+	r.mu.Unlock()
+	if w != nil {
+		go func() { _, _ = w.Write([]byte("q")) }()
+	}
+}
+
 // Recording reports whether a recorder runs for the camera.
 func (m *Manager) Recording(id string) bool {
 	m.mu.Lock()
@@ -173,6 +192,7 @@ type recorder struct {
 	mu        sync.Mutex
 	status    Status
 	proc      *os.Process
+	stdin     *io.PipeWriter // ffmpeg's commands, while it runs
 	started   time.Time
 	lastSeen  string // newest segment name and size
 	lastGrow  time.Time
@@ -233,26 +253,32 @@ func (r *recorder) once(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	args := RecordArgs(RecordOpts{Input: input, Dir: r.cfg.Dir, Ext: Ext(r.cfg.Stream), SegmentSeconds: r.cfg.SegmentSeconds, Audio: r.cfg.Audio})
+	args := RecordArgs(RecordOpts{Input: input, Dir: r.cfg.Dir, Ext: Ext(r.cfg.Stream), SegmentSeconds: r.cfg.SegmentSeconds, Audio: r.cfg.Audio, Stdin: true})
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	// SIGINT lets ffmpeg finish the current segment (an MP4 needs its index).
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
 	cmd.WaitDelay = 10 * time.Second
+	// The stdin pipe lets Roll close the current segment on demand ('q').
+	pr, pw := io.Pipe()
+	cmd.Stdin = pr
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		pw.Close()
 		return err
 	}
 	if err := cmd.Start(); err != nil {
+		pw.Close()
 		return err
 	}
 	r.mu.Lock()
 	// Growth is measured from what is on disk now (files of a previous run).
-	r.proc, r.started, r.lastGrow, r.lastSeen = cmd.Process, time.Now(), time.Now(), newest(r.cfg.Dir)
+	r.proc, r.stdin, r.started, r.lastGrow, r.lastSeen = cmd.Process, pw, time.Now(), time.Now(), newest(r.cfg.Dir)
 	r.mu.Unlock()
 	last := tail(stderr)
 	err = cmd.Wait()
+	pw.Close() // unblocks the stdin copy; exec already closed the child's end
 	r.mu.Lock()
-	r.proc = nil
+	r.proc, r.stdin = nil, nil
 	r.mu.Unlock()
 	if msg := last(); msg != "" {
 		return errors.New(msg)
