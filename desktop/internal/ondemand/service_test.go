@@ -262,7 +262,8 @@ func newService(t *testing.T, nas *fakeNAS) *Service {
 
 func waitFor(t *testing.T, what string, f func() bool) {
 	t.Helper()
-	for i := 0; i < 300; i++ {
+	// 18 s: the CI runners are shared and a FUSE operation can take seconds.
+	for i := 0; i < 900; i++ {
 		if f() {
 			return
 		}
