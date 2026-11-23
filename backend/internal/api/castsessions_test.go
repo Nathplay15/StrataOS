@@ -1,9 +1,12 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -127,7 +130,31 @@ func TestCastSessionsSurviveRestart(t *testing.T) {
 	if last != "Pause" {
 		t.Fatalf("control not sent to the renderer: %v", actions)
 	}
-	// The file no longer holds the ended session.
+	// The file no longer holds the ended session: wait for the save that
+	// follows the in-memory removal (the save is the checker's last write).
+	file := filepath.Join(s.dataDir, castFile)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		held := true
+		if b, err := os.ReadFile(file); err == nil {
+			var saved []savedCast
+			if json.Unmarshal(b, &saved) == nil {
+				held = false
+				for _, sc := range saved {
+					if sc.ID == "bbbb" {
+						held = true
+					}
+				}
+			}
+		}
+		if !held {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the saved file still holds the ended session")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	castState.Lock()
 	castState.sessions = map[string]*castSession{}
 	castState.Unlock()
