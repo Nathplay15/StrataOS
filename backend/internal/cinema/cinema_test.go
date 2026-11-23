@@ -154,6 +154,17 @@ func fakeTMDB(t *testing.T) *httptest.Server {
 			"vote_average": 8.4, "poster_path": "/poster1399.jpg", "episode_run_time": []int{60},
 		})
 	})
+	mux.HandleFunc("/movie/603/videos", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"results": []map[string]any{
+			{"key": "vimeo1", "site": "Vimeo", "type": "Trailer", "name": "ignored (not YouTube)"},
+			{"key": "yt-teaser", "site": "YouTube", "type": "Teaser", "name": "Teaser", "official": true},
+			{"key": "yt-trailer-unofficial", "site": "YouTube", "type": "Trailer", "name": "Fan trailer"},
+			{"key": "yt-trailer", "site": "YouTube", "type": "Trailer", "name": "Official trailer", "official": true},
+		}})
+	})
+	mux.HandleFunc("/tv/1399/videos", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"results": []any{}})
+	})
 	mux.HandleFunc("/img/poster603.jpg", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Write([]byte("jpeg603"))
@@ -169,6 +180,28 @@ func fakeTMDB(t *testing.T) *httptest.Server {
 	TMDBImages = srv.URL + "/img"
 	t.Cleanup(func() { TMDBBase, TMDBImages = oldBase, oldImg })
 	return srv
+}
+
+func TestTrailer(t *testing.T) {
+	fakeTMDB(t)
+	cl := &Client{Key: "k"}
+	ctx := context.Background()
+	v, err := cl.Trailer(ctx, "movie", 603)
+	if err != nil || v.Key != "yt-trailer" || v.Name != "Official trailer" {
+		t.Fatalf("trailer: %+v %v", v, err)
+	}
+	// No YouTube video: empty key, no error.
+	v, err = cl.Trailer(ctx, "tv", 1399)
+	if err != nil || v.Key != "" {
+		t.Fatalf("no video: %+v %v", v, err)
+	}
+	// Bad kind, no key.
+	if _, err := cl.Trailer(ctx, "book", 1); err == nil {
+		t.Error("bad kind should fail")
+	}
+	if _, err := (&Client{}).Trailer(ctx, "movie", 603); err == nil {
+		t.Error("no key should fail")
+	}
 }
 
 func TestBuildLibrary(t *testing.T) {

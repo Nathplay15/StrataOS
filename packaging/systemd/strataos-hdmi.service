@@ -1,0 +1,18 @@
+# The StrataOS cinema menu on a TV plugged to the HDMI output: a kiosk browser
+# kept on the connected display by "strata hdmi". Enabled and disabled by the
+# daemon (Settings -> Console screen), only useful with a display attached.
+[Unit]
+Description=StrataOS cinema menu on the HDMI output
+After=strata.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/sys/class/drm
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/strata hdmi
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

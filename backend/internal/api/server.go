@@ -370,6 +370,7 @@ func (s *Server) routes() {
 	s.cinemaRoutes()
 	s.nvrRoutes()
 	s.consoleRoutes()
+	s.hdmiRoutes()
 	s.mobileRoutes()
 	s.browserPushRoutes()
 	s.mobileUploadRoutes()

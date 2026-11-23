@@ -18,8 +18,8 @@ type Frigate = {
   notify: boolean; notifyMinutes: number; cameras: number; running?: boolean; webPort?: string; mediaDir?: string; error?: string;
 };
 type Vol = { path: string; label: string; free: number };
-type Data = { installed: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; clipPre: number; clipPost: number; clipKeepDays: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
-type Clip = { name: string; at: string; size: number };
+type Data = { installed: boolean; classifierInstalled: boolean; folder: string; folderError: string; alertMinutes: number; segmentSeconds: number; clipPre: number; clipPost: number; clipKeepDays: number; cameras: Camera[]; volumes: Vol[] | null; frigate: Frigate };
+type Clip = { name: string; at: string; size: number; label?: string; filtered?: boolean };
 type Segment = { name: string; start: string; end: string; size: number; open?: boolean };
 type Recs = { days: string[]; day: string; segments: Segment[] };
 type SegInfo = { video: string; audio?: string; duration: number; mode: "native" | "remux" | "transcode"; direct: boolean };
@@ -415,7 +415,7 @@ function FrigateRecordings({ cam }: { cam: Camera }) {
 }
 
 // The event clips cut around each motion event of a built-in camera.
-function EventClips({ camId, keepDays }: { camId: string; keepDays: number }) {
+function EventClips({ camId, keepDays, classifyOn }: { camId: string; keepDays: number; classifyOn: boolean }) {
   const { confirm } = useUI();
   const qc = useQueryClient();
   const clips = useQuery({ queryKey: ["nvr-clips", camId], queryFn: () => api.get<{ clips: Clip[] }>(`/api/nvr/cameras/${camId}/clips`), refetchInterval: 30000 });
@@ -428,20 +428,30 @@ function EventClips({ camId, keepDays }: { camId: string; keepDays: number }) {
     del.mutate(c.name);
   };
   const base = `/api/nvr/cameras/${camId}/clips`;
-  const list = clips.data?.clips ?? [];
+  const [labelFilter, setLabelFilter] = useState("");
+  const all = clips.data?.clips ?? [];
+  const list = all.filter((c) => labelFilter === "" || (labelFilter === "interesting" ? !!c.label && !c.filtered : c.filtered));
   return (
-    <Card title={tr("Event clips")} actions={play ? <Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button> : undefined}>
-      <div className="mb-3 text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", keepDays)}</div>
+    <Card title={tr("Event clips")} actions={<div className="flex items-center gap-2">
+      <Select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} className="!h-8 text-[12.5px]" aria-label={tr("Filter by label")}>
+        <option value="">{tr("All events")}</option>
+        <option value="interesting">{tr("Only people and vehicles")}</option>
+        <option value="filtered">{tr("Filtered out (false positives)")}</option>
+      </Select>
+      {play ? <Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button> : undefined}
+    </div>}>
+      <div className="mb-3 text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", keepDays)}{classifyOn ? ` ${tr("The local model labels each event (person, vehicle…); shadows and foliage do not notify.")}` : ""}</div>
       <ErrorBox error={clips.error || del.error} />
       {play && <video key={play} controls autoPlay className="mb-3 w-full rounded-lg bg-black" src={`${base}/${encodeURIComponent(play)}`} />}
       {clips.isLoading ? <Spinner /> : !list.length ? <Empty title={tr("No clip yet")} /> : (
         <div className="max-h-80 overflow-y-auto">
           <table className="table">
-            <thead><tr><th>{tr("Time")}</th><th>{tr("Size")}</th><th /></tr></thead>
+            <thead><tr><th>{tr("Time")}</th><th>{tr("Object")}</th><th>{tr("Size")}</th><th /></tr></thead>
             <tbody>
               {list.map((c) => (
-                <tr key={c.name} className={cx(play === c.name && "bg-panel-2")}>
+                <tr key={c.name} className={cx(play === c.name && "bg-panel-2", c.filtered && "opacity-60")}>
                   <td className="whitespace-nowrap">{dateTime(c.at)}</td>
+                  <td>{c.label ? <Badge tone={c.filtered ? "neutral" : "warn"}>{c.label}{c.filtered ? ` · ${tr("filtered out")}` : ""}</Badge> : null}</td>
                   <td>{bytes(c.size)}</td>
                   <td className="text-right whitespace-nowrap">
                     <IconButton title={tr("Play")} onClick={() => setPlay(c.name)}><Play size={14} /></IconButton>
@@ -500,8 +510,8 @@ function Recordings({ data }: { data: Data }) {
                 style={{ left: `${pctOfDay(new Date(s.start), curDay)}%`, width: `max(2px, ${pctOfDay(new Date(s.end), curDay) - pctOfDay(new Date(s.start), curDay)}%)` }} />
             ))}
             {dayClipList.map((c) => (
-              <button key={c.name} title={`${hm(c.at)} · ${tr("Movement events")}`} onClick={() => { setClipPlay(c); setPlay(null); }}
-                className={cx("absolute top-1 h-2 w-1.5 -translate-x-1/2 rounded-sm bg-red-500 hover:brightness-125", clipPlay?.name === c.name && "ring-1 ring-white")}
+              <button key={c.name} title={`${hm(c.at)} · ${tr("Movement events")}${c.label ? ` · ${c.label}` : ""}${c.filtered ? ` · ${tr("filtered out")}` : ""}`} onClick={() => { setClipPlay(c); setPlay(null); }}
+                className={cx("absolute top-1 h-2 w-1.5 -translate-x-1/2 rounded-sm hover:brightness-125", c.filtered ? "bg-gray-500" : "bg-red-500", clipPlay?.name === c.name && "ring-1 ring-white")}
                 style={{ left: `${pctOfDay(new Date(c.at), curDay)}%` }} />
             ))}
           </div>
@@ -515,7 +525,7 @@ function Recordings({ data }: { data: Data }) {
         </div>
       </Card>
       {cam?.engine === "frigate" && <FrigateRecordings key={cam.id} cam={cam} />}
-      {cam && cam.engine !== "frigate" && <EventClips key={cam.id} camId={cam.id} keepDays={data.clipKeepDays || 30} />}
+      {cam && cam.engine !== "frigate" && <EventClips key={cam.id} camId={cam.id} keepDays={data.clipKeepDays || 30} classifyOn={data.classifierInstalled} />}
       {clipPlay && (
         <Card title={<span>{cam?.name} · {hm(clipPlay.at)}</span>} actions={<Button size="sm" variant="ghost" onClick={() => setClipPlay(null)}>{tr("Close")}</Button>}>
           <video key={clipPlay.name} controls autoPlay className="w-full rounded-lg bg-black" src={`/api/nvr/cameras/${camId}/clips/${encodeURIComponent(clipPlay.name)}`} />

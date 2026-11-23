@@ -177,3 +177,12 @@ body {
   outline-offset: 3px;
   transition: outline-color 1.5s;
 }
+
+/* Cinema screen saver: a slow wall of posters drifting behind the clock. */
+@keyframes screensaver-drift {
+  from { transform: translate3d(0, 0, 0) scale(1.05); }
+  to { transform: translate3d(-4%, -3%, 0) scale(1.12); }
+}
+.screensaver-wall {
+  animation: screensaver-drift 90s ease-in-out infinite alternate;
+}

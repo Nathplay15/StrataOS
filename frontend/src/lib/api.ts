@@ -10,11 +10,19 @@ export class ApiError extends Error {
   }
 }
 
+// Bearer token for the kiosk page (/hdmi#token): set once from the URL
+// fragment, sent on every API call.
+let bearer: string | null = null;
+export function setBearerToken(t: string | null) { bearer = t; }
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { "X-Strata": "1" };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
   const res = await fetch(path, {
     method,
     credentials: "same-origin",
-    headers: body !== undefined ? { "Content-Type": "application/json", "X-Strata": "1" } : { "X-Strata": "1" },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();

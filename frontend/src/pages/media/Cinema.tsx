@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clapperboard, KeyRound, ListPlus, Moon, Play, RefreshCw, Search, Star, Trash2, Users } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import { ago, bytes } from "../../lib/format";
+import { ago, bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Select, Spinner, Switch } from "../../components/ui";
-import { tr } from "../../lib/i18n";
+import { locale, tr } from "../../lib/i18n";
 import { caps } from "../../components/files/MediaPlayer";
 
 export type CinemaItem = {
@@ -23,21 +23,185 @@ function Poster({ w, className }: { w: Work; className?: string }) {
   return <div className={`flex items-center justify-center bg-panel-2 text-muted ${className}`}><Clapperboard size={28} /></div>;
 }
 
-function WorkCard({ w, onClick }: { w: Work; onClick: () => void }) {
+// PosterCard: 10-foot card — big poster that zooms on hover, the YouTube
+// trailer plays over it (hover, fine pointers only), and a ring when the
+// keyboard/gamepad selection sits on it.
+function PosterCard({ w, onClick, selected, cardRef, aspect = "aspect-[2/3]", overlay, footer }: {
+  w: Work; onClick: () => void; selected?: boolean; cardRef?: (el: HTMLButtonElement | null) => void;
+  aspect?: string; overlay?: ReactNode; footer?: ReactNode;
+}) {
+  const [trailer, setTrailer] = useState<string | null>(null);
+  const known = useRef<string | null>(null); // null = not asked yet, "" = no trailer
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canHover = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches, []);
+  const kind = w.kind === "episode" ? "tv" : "movie";
+  const enter = () => {
+    if (!canHover || !w.tmdbId) return;
+    if (known.current !== null) { if (known.current) setTrailer(known.current); return; }
+    timer.current = setTimeout(() => {
+      api.get<{ key: string; name: string }>(`/api/cinema/trailer${q({ kind, id: w.tmdbId })}`)
+        .then((r) => { known.current = r.key; if (r.key) setTrailer(r.key); })
+        .catch(() => { known.current = ""; });
+    }, 700);
+  };
+  const leave = () => { if (timer.current) clearTimeout(timer.current); setTrailer(null); };
   return (
-    <button onClick={onClick} className="group overflow-hidden rounded-xl border border-line bg-panel text-left transition hover:border-accent/50">
-      <Poster w={w} className="aspect-[2/3] w-full object-cover" />
+    <button ref={cardRef} onClick={onClick} onMouseEnter={enter} onMouseLeave={leave}
+      className={cx("group relative overflow-hidden rounded-xl border bg-panel text-left transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50", selected ? "border-accent ring-2 ring-accent" : "border-line hover:border-accent/60")}>
+      <div className="relative overflow-hidden">
+        <Poster w={w} className={cx(aspect, "w-full object-cover transition duration-500 group-hover:scale-110")} />
+        {trailer && (
+          <iframe className="absolute inset-0 h-full w-full" title={tr("Trailer")}
+            src={`https://www.youtube-nocookie.com/embed/${trailer}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailer}&rel=0&playsinline=1`}
+            allow="autoplay; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" />
+        )}
+        {!trailer && <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100"><Play size={28} className="text-white" /></span>}
+        {overlay}
+      </div>
       <div className="space-y-1 p-3">
-        <div className="truncate text-[13.5px] font-medium group-hover:text-accent">{w.title}</div>
-        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted">
-          {w.year ? <span>{w.year}</span> : null}
-          {w.rating ? <span className="flex items-center gap-0.5 text-warn"><Star size={11} />{w.rating.toFixed(1)}</span> : null}
-          {w.runtime ? <span>{tr("{0} min", w.runtime)}</span> : null}
-          {w.kind === "episode" && <span>{tr("{0} episodes", w.items.length)}</span>}
-        </div>
+        {footer ?? (
+          <>
+            <div className="truncate text-[13.5px] font-medium group-hover:text-accent">{w.title}</div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted">
+              {w.year ? <span>{w.year}</span> : null}
+              {w.rating ? <span className="flex items-center gap-0.5 text-warn"><Star size={11} />{w.rating.toFixed(1)}</span> : null}
+              {w.runtime ? <span>{tr("{0} min", w.runtime)}</span> : null}
+              {w.kind === "episode" && <span>{tr("{0} episodes", w.items.length)}</span>}
+            </div>
+          </>
+        )}
         {!w.tmdbId && <Badge tone="neutral">{tr("not matched with TMDB")}</Badge>}
       </div>
     </button>
+  );
+}
+
+type ShelfRow = { key: string; works: Work[]; pick: (w: Work) => void };
+
+// Keyboard (arrows + Enter, L/R for the shelves) and gamepad (D-pad, A = ok,
+// B = back, L/R = shelves) navigation across the poster shelves.
+function useShelfNav(rows: ShelfRow[], modalOpen: boolean) {
+  const [sel, setSel] = useState<{ row: number; col: number } | null>(null);
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const refs = useRef(new Map<string, HTMLButtonElement>());
+  const register = useCallback((row: number, col: number) => (el: HTMLButtonElement | null) => {
+    const k = row + ":" + col;
+    if (el) refs.current.set(k, el); else refs.current.delete(k);
+  }, []);
+  const clampSel = (s: { row: number; col: number } | null) => {
+    const r = rowsRef.current;
+    if (!r.length) return null;
+    const row = Math.max(0, Math.min(r.length - 1, s?.row ?? 0));
+    const col = Math.max(0, Math.min(Math.max(1, r[row].works.length) - 1, s?.col ?? 0));
+    return { row, col };
+  };
+  const move = useCallback((dr: number, dc: number) => {
+    setSel((s) => clampSel({ row: (clampSel(s)?.row ?? 0) + dr, col: (clampSel(s)?.col ?? 0) + dc }));
+  }, []);
+  const moveRow = useCallback((dr: number) => move(dr, 0), [move]);
+  const activate = useCallback(() => {
+    const s = clampSel(selRef.current);
+    const row = s ? rowsRef.current[s.row] : undefined;
+    const w = s ? row?.works[s.col] : undefined;
+    if (s && row && w) row.pick(w);
+  }, []);
+  useEffect(() => {
+    if (!sel) return;
+    refs.current.get(sel.row + ":" + sel.col)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [sel]);
+  useEffect(() => {
+    if (modalOpen) return;
+    const typing = () => {
+      const ae = document.activeElement;
+      return !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || (ae as HTMLElement).isContentEditable);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (typing()) return;
+      switch (e.key) {
+        case "ArrowRight": e.preventDefault(); move(0, 1); break;
+        case "ArrowLeft": e.preventDefault(); move(0, -1); break;
+        case "ArrowDown": e.preventDefault(); move(1, 0); break;
+        case "ArrowUp": e.preventDefault(); move(-1, 0); break;
+        case "Enter": case " ": e.preventDefault(); activate(); break;
+        case "l": case "L": moveRow(1); break;
+        case "r": case "R": moveRow(-1); break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modalOpen, move, moveRow, activate]);
+  useEffect(() => {
+    let raf = 0;
+    const prev: boolean[] = [];
+    const loop = () => {
+      const gp = navigator.getGamepads?.()[0];
+      if (gp && !modalOpen) {
+        const b = gp.buttons.map((x) => x.pressed);
+        const hit = (i: number) => !!b[i] && !prev[i];
+        if (hit(15)) move(0, 1); else if (hit(14)) move(0, -1); // D-pad
+        if (hit(13)) move(1, 0); else if (hit(12)) move(-1, 0);
+        if (hit(0)) activate(); // A = ok
+        if (hit(5)) moveRow(1); else if (hit(4)) moveRow(-1); // R / L = shelves
+        prev.length = 0;
+        prev.push(...b);
+      }
+      if (gp && modalOpen) {
+        const b = gp.buttons.map((x) => x.pressed);
+        if (b[1] && !prev[1]) window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); // B = back
+        prev.length = 0;
+        prev.push(...b);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [modalOpen, move, moveRow, activate]);
+  return { sel, register };
+}
+
+function Shelf({ label, row, works, onPick, navSel, register }: {
+  label: string; row: number; works: Work[]; onPick: (w: Work) => void;
+  navSel: { row: number; col: number } | null; register: (r: number, c: number) => (el: HTMLButtonElement | null) => void;
+}) {
+  return (
+    <div className="mt-6 first:mt-0">
+      <div className="mb-2 text-[13px] font-medium text-muted">{label}</div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+        {works.map((w, ci) => <PosterCard key={w.path ?? w.title} w={w} onClick={() => onPick(w)} selected={navSel?.row === row && navSel?.col === ci} cardRef={register(row, ci)} />)}
+      </div>
+    </div>
+  );
+}
+
+// Screen saver after 5 idle minutes: a slow wall of posters with the clock.
+function Screensaver({ items, disabled }: { items: CinemaItem[]; disabled: boolean }) {
+  const [idle, setIdle] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (disabled) { setIdle(false); return; }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const events = ["mousemove", "mousedown", "keydown", "wheel", "touchstart", "pointerdown"];
+    const poke = () => { setIdle(false); clearTimeout(timer); timer = setTimeout(() => setIdle(true), 5 * 60 * 1000); };
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    poke();
+    for (const ev of events) window.addEventListener(ev, poke, { passive: true });
+    return () => { clearTimeout(timer); clearInterval(tick); for (const ev of events) window.removeEventListener(ev, poke); };
+  }, [disabled]);
+  const posters = useMemo(() => items.filter((i) => i.tmdbId), [items]);
+  if (!idle || disabled || !posters.length) return null;
+  return (
+    <div className="fixed inset-0 z-[9000] overflow-hidden bg-black" role="dialog" aria-label={tr("Screensaver")}>
+      <div className="screensaver-wall absolute -inset-[25%] grid grid-cols-4 content-start gap-3 sm:grid-cols-6" aria-hidden>
+        {posters.slice(0, 36).map((i) => <img key={i.path} src={`/api/cinema/poster/${i.tmdbId}`} alt="" loading="lazy" className="aspect-[2/3] w-full rounded-lg object-cover opacity-80" />)}
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45">
+        <div className="text-6xl font-semibold tabular-nums text-white/95 sm:text-8xl">{now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</div>
+        <div className="mt-3 text-lg capitalize text-white/75 sm:text-2xl">{now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}</div>
+      </div>
+    </div>
   );
 }
 
@@ -155,6 +319,18 @@ export function CinemaTab({ admin }: { admin: boolean }) {
     .sort((a, b) => (b.pos.upd ?? "").localeCompare(a.pos.upd ?? ""))
     .slice(0, 12);
 
+  // Shelves for the keyboard/gamepad navigation (arrows + Enter, L/R shelves).
+  const rows: ShelfRow[] = [];
+  if (cw.length) rows.push({ key: "cw", works: cw.map(({ item }) => ({ ...item, items: item.kind === "episode" ? seriesMap.get(item.title) ?? [item] : [item] })), pick: (w) => { const c = cw.find((x) => x.item.path === w.path); if (c) setPlay({ item: c.item, start: c.pos.at }); } });
+  if (added.length) rows.push({ key: "added", works: added, pick: (w) => setSel(w) });
+  if (top.length) rows.push({ key: "top", works: top, pick: (w) => setSel(w) });
+  if (franchises.length) rows.push({ key: "franchises", works: franchises, pick: (w) => setSel(w) });
+  if (movies.length) rows.push({ key: "movies", works: movies, pick: (w) => setSel(w) });
+  if (series.length) rows.push({ key: "series", works: series, pick: (w) => setSel(w) });
+  const rowOf = (key: string) => rows.findIndex((r) => r.key === key);
+  const modalOpen = !!(sel || play || listSel || newList !== null);
+  const { sel: navSel, register } = useShelfNav(rows, modalOpen);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -170,6 +346,7 @@ export function CinemaTab({ admin }: { admin: boolean }) {
           {admin && <Button icon={<RefreshCw size={14} />} loading={scan.isPending || d?.running} disabled={d?.running} onClick={() => scan.mutate()}>{d?.running ? tr("Scanning…") : tr("Scan the library")}</Button>}
         </div>
         {d && <div className="mt-2 text-[12px] text-muted">{tr("Scanned {0} videos", d.scanned)}{d.checked && ` · ${tr("Last scan {0}", ago(d.checked))}`}</div>}
+        <p className="mt-1 text-[11.5px] text-muted">{tr("Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).")}</p>
         <ErrorBox error={lib.error || scan.error} />
       </Card>
 
@@ -240,46 +417,27 @@ export function CinemaTab({ admin }: { admin: boolean }) {
             <div>
               <div className="mb-2 text-[13px] font-medium text-muted">{tr("Continue watching")}</div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-                {cw.map(({ item, pos }) => {
+                {cw.map(({ item, pos }, ci) => {
                   const w: Work = item.kind === "episode"
                     ? { ...item, title: item.title, items: seriesMap.get(item.title) ?? [item] }
                     : { ...item, items: [item] };
                   const pct = Math.min(100, Math.round((pos.at / Math.max(1, pos.dur)) * 100));
                   return (
-                    <button key={item.path} onClick={() => setPlay({ item, start: pos.at })} className="group overflow-hidden rounded-xl border border-line bg-panel text-left transition hover:border-accent/50">
-                      <div className="relative">
-                        <Poster w={w} className="aspect-video w-full object-cover" />
-                        <span className="absolute inset-x-0 bottom-0 h-1 bg-black/50"><span className="block h-full bg-accent" style={{ width: `${pct}%` }} /></span>
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100"><Play size={28} className="text-white" /></span>
-                      </div>
-                      <div className="space-y-0.5 p-3">
+                    <PosterCard key={item.path} w={w} aspect="aspect-video" onClick={() => setPlay({ item, start: pos.at })}
+                      selected={navSel?.row === rowOf("cw") && navSel?.col === ci} cardRef={register(rowOf("cw"), ci)}
+                      overlay={<span className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/50"><span className="block h-full bg-accent" style={{ width: `${pct}%` }} /></span>}
+                      footer={<>
                         <div className="truncate text-[13px] font-medium">{item.title}{item.kind === "episode" ? ` · ${epLabel(item)}` : ""}</div>
                         <div className="text-[11.5px] text-muted">{tr("Resume")} · {pct}%</div>
-                      </div>
-                    </button>
+                      </>} />
                   );
                 })}
               </div>
             </div>
           )}
-          {!!added.length && (
-            <div>
-              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Added this week")}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{added.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
-            </div>
-          )}
-          {!!top.length && (
-            <div className="mt-6">
-              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Top rated")}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{top.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
-            </div>
-          )}
-          {!!franchises.length && (
-            <div className="mt-6">
-              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Collections")}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{franchises.map((w) => <WorkCard key={String(w.collectionId)} w={w} onClick={() => setSel(w)} />)}</div>
-            </div>
-          )}
+          {!!added.length && <Shelf label={tr("Added this week")} row={rowOf("added")} works={added} onPick={(w) => setSel(w)} navSel={navSel} register={register} />}
+          {!!top.length && <Shelf label={tr("Top rated")} row={rowOf("top")} works={top} onPick={(w) => setSel(w)} navSel={navSel} register={register} />}
+          {!!franchises.length && <Shelf label={tr("Collections")} row={rowOf("franchises")} works={franchises} onPick={(w) => setSel(w)} navSel={navSel} register={register} />}
           <div className="mt-6">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="text-[13px] font-medium text-muted">{tr("Watch together")}</span>
@@ -300,20 +458,12 @@ export function CinemaTab({ admin }: { admin: boolean }) {
               </div>
             )}
           </div>
-          {!!movies.length && (
-            <div className="mt-6">
-              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Movies")}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{movies.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
-            </div>
-          )}
-          {!!series.length && (
-            <div className="mt-6">
-              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Series")}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{series.map((w) => <WorkCard key={w.title} w={w} onClick={() => setSel(w)} />)}</div>
-            </div>
-          )}
+          {!!movies.length && <Shelf label={tr("Movies")} row={rowOf("movies")} works={movies} onPick={(w) => setSel(w)} navSel={navSel} register={register} />}
+          {!!series.length && <Shelf label={tr("Series")} row={rowOf("series")} works={series} onPick={(w) => setSel(w)} navSel={navSel} register={register} />}
         </>
       )}
+
+      <Screensaver items={allItems} disabled={modalOpen} />
 
       <Modal open={!!sel} wide onClose={() => setSel(null)} title={sel ? `${sel.title}${sel.year ? ` (${sel.year})` : ""}` : ""}>
         {sel && (

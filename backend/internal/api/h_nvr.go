@@ -148,7 +148,19 @@ func (s *Server) nvrLoop() {
 	}
 	cams.mgr.OnMotion = func(id, name string, at time.Time, picture []byte) {
 		msg := fmt.Sprintf("Movement detected on camera %s at %s", name, at.Format("15:04:05"))
-		s.store.Log("warning", "nvr", "", msg)
+		// With a local classifier installed, label the event's snapshot
+		// (person, vehicle…); anything else (shadow, foliage…) is recorded
+		// but does not notify.
+		label, filtered := "", false
+		if nvr.ClassifierInstalled() && len(picture) > 0 {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			label, filtered = nvr.ClassifyMotion(ctx, picture)
+			cancel()
+			if label != "" {
+				msg += " (" + label + ")"
+			}
+		}
+		s.store.Log(map[bool]string{true: "info", false: "warning"}[filtered], "nvr", "", msg)
 		// One picture per event: the newest ones stay, the folder never grows.
 		image := ""
 		if folder, err := nvrFolder(s.nvrState().Folder); err == nil && len(picture) > 0 {
@@ -162,9 +174,13 @@ func (s *Server) nvrLoop() {
 			}
 		}
 		// The notification goes out once the event clip is cut (a few seconds
-		// after the event): it carries the picture and the clip.
+		// after the event): it carries the picture and the clip. Filtered
+		// events keep their clip on the timeline but do not notify.
 		go func() {
-			clip := s.nvrEventClip(id, at)
+			clip := s.nvrEventClip(id, at, label, filtered)
+			if filtered {
+				return
+			}
 			s.notifyMedia("warning", "Motion detected", msg, image, clip)
 		}()
 	}
@@ -249,10 +265,39 @@ func (s *Server) nvrMotionPrune(dir string, keep int) {
 	}
 }
 
+// clipLabel is the sidecar file of a clip (<name>.label), written when a
+// local classifier (nvr.ClassifyMotion) labeled the event's snapshot:
+// what the model saw, and whether the event was filtered out of the
+// notifications as a false positive (shadow, foliage…).
+type clipLabel struct {
+	Label    string `json:"label,omitempty"`
+	Filtered bool   `json:"filtered,omitempty"`
+}
+
+func writeClipLabel(clipsDir, name string, l clipLabel) {
+	if l.Label == "" && !l.Filtered {
+		return
+	}
+	if b, err := json.Marshal(l); err == nil {
+		_ = os.WriteFile(filepath.Join(clipsDir, name+".label"), b, 0o600)
+	}
+}
+
+func readClipLabel(clipsDir, name string) clipLabel {
+	b, err := os.ReadFile(filepath.Join(clipsDir, name+".label"))
+	if err != nil {
+		return clipLabel{}
+	}
+	var l clipLabel
+	_ = json.Unmarshal(b, &l)
+	return l
+}
+
 // nvrEventClip cuts the clip around a motion event (a few seconds before and
 // after) into the camera's "clips" folder and returns its URL path, or "" when
 // it could not be cut (the notification then only carries the picture).
-func (s *Server) nvrEventClip(id string, at time.Time) string {
+// label/filtered (from the local classifier) are stored as the clip's sidecar.
+func (s *Server) nvrEventClip(id string, at time.Time, label string, filtered bool) string {
 	n := s.nvrState()
 	if !nvr.Installed() {
 		return ""
@@ -289,6 +334,7 @@ func (s *Server) nvrEventClip(id string, at time.Time) string {
 		_ = os.Remove(out)
 		return ""
 	}
+	writeClipLabel(clipsDir, name, clipLabel{Label: label, Filtered: filtered})
 	slog.Info("event clip recorded", "camera", id, "clip", name)
 	if n := nvr.PruneClips(clipsDir, n.ClipKeepDays, 0, time.Now()); n > 0 {
 		slog.Info("old event clips deleted", "camera", id, "count", n)
@@ -558,6 +604,9 @@ func (s *Server) nvrRoutes() {
 			"alertMinutes": max(n.AlertMinutes, 0), "segmentSeconds": n.SegmentSeconds,
 			"clipPre": n.ClipPre, "clipPost": n.ClipPost, "clipKeepDays": n.ClipKeepDays,
 			"cameras": list, "volumes": vols, "frigate": s.frigateView(r.Context(), n),
+			// The local object classifier labels the motion events and filters
+			// the false positives out of the notifications.
+			"classifierInstalled": nvr.ClassifierInstalled(),
 		}, nil
 	})
 	s.admin("PUT /api/nvr/settings", func(r *http.Request) (any, error) {
@@ -824,6 +873,11 @@ func (s *Server) nvrRoutes() {
 		Name string    `json:"name"`
 		At   time.Time `json:"at"`
 		Size int64     `json:"size"`
+		// Label/Filtered come from the local classifier sidecar (.label): what
+		// the model saw in the event's snapshot, and whether it was filtered
+		// out of the notifications as a false positive (shadow, foliage…).
+		Label    string `json:"label,omitempty"`
+		Filtered bool   `json:"filtered,omitempty"`
 	}
 	s.admin("GET /api/nvr/cameras/{id}/clips", func(r *http.Request) (any, error) {
 		c, n, err := s.nvrCamera(r.PathValue("id"))
@@ -857,7 +911,11 @@ func (s *Server) nvrRoutes() {
 					if fi, err := e.Info(); err == nil {
 						cv.Size = fi.Size()
 					}
+					if l := readClipLabel(filepath.Join(d, "clips"), e.Name()); l.Label != "" || l.Filtered {
+						cv.Label, cv.Filtered = l.Label, l.Filtered
+					}
 					list = append(list, cv)
+
 				}
 			}
 		}
