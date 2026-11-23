@@ -39,6 +39,7 @@ type fileProps struct {
 	ModTime    time.Time `json:"modTime"`
 	Hash       string    `json:"hash,omitempty"`
 	HashError  string    `json:"hashError,omitempty"`
+	Writable   bool      `json:"writable"`
 }
 
 // maxPropsVisited caps the recursive walk of a folder's properties.
@@ -98,7 +99,7 @@ func (s *Server) filePropsRoutes() {
 		p := fileProps{
 			Name: path.Base(t.rel), Path: t.abs, Dir: info.IsDir(),
 			Mode: info.Mode().String(), Octal: fmt.Sprintf("%04o", info.Mode().Perm()),
-			ModTime: info.ModTime(),
+			ModTime: info.ModTime(), Writable: t.acc.write,
 		}
 		if t.acc.e2e == "" && info.Mode()&fs.ModeSymlink != 0 {
 			p.Link = true
