@@ -1054,6 +1054,8 @@
  "Le dossier partagé {0} a été supprimé : il ne fait plus partie de la bibliothèque musicale": "Der freigegebene Ordner {0} wurde gelöscht: Er gehört nicht mehr zur Musikbibliothek",
  "Le dossier partagé {0} a été supprimé : le serveur DLNA ne le publie plus": "Der freigegebene Ordner {0} wurde gelöscht: Der DLNA-Server veröffentlicht ihn nicht mehr",
  "Le dossier partagé {0} est de nouveau sous son quota : écriture rétablie": "Der freigegebene Ordner {0} liegt wieder unter seinem Kontingent: Schreiben wiederhergestellt",
+ "Le compte {0} a atteint son quota sur {1} ({2} Go sur {3} Go)": "Das Konto {0} hat sein Kontingent auf {1} erreicht ({2} GB von {3} GB)",
+ "Le compte {0} est à {1} % de son quota sur {2} ({3} Go sur {4} Go)": "Das Konto {0} ist bei {1} % seines Kontingents auf {2} ({3} GB von {4} GB)",
  "Le dossier partagé {0} est gelé par la protection anti-rançongiciel": "Der freigegebene Ordner {0} ist durch den Ransomware-Schutz eingefroren",
  "Le dossier partagé {0} est plein à {1} % de son quota ({2} Go sur {3} Go)": "Der freigegebene Ordner {0} hat {1} % seines Kontingents belegt ({2} GB von {3} GB)",
  "Le délai d'alerte doit aller de 1 à 1440 minutes": "Die Warnverzögerung muss 1 bis 1440 Minuten betragen",

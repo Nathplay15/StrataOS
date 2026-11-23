@@ -105,6 +105,8 @@ export const serverTexts: [string, string][] = [
   ["Le dossier partagé {0} a atteint son quota ({1} Go sur {2} Go)", "Shared folder {0} reached its quota ({1} GB of {2} GB)"],
   ["Le dossier partagé {0} est plein à {1} % de son quota ({2} Go sur {3} Go)", "Shared folder {0} is {1}% of its quota ({2} GB of {3} GB)"],
   ["Le dossier partagé {0} est de nouveau sous son quota : écriture rétablie", "Shared folder {0} is under its quota again: writing restored"],
+  ["Le compte {0} a atteint son quota sur {1} ({2} Go sur {3} Go)", "Account {0} reached its quota on {1} ({2} GB of {3} GB)"],
+  ["Le compte {0} est à {1} % de son quota sur {2} ({3} Go sur {4} Go)", "Account {0} is at {1}% of its quota on {2} ({3} GB of {4} GB)"],
   ["Retour au point de restauration {0} : redémarrage", "Back to restore point {0}: rebooting"],
   ["Point de restauration créé : {0}", "Restore point created: {0}"],
   ["Comptes absents du système (retour à un point de restauration ?) : {0}. Redéfinissez leur mot de passe dans Utilisateurs pour les recréer.", "Accounts missing from the system (back to a restore point?): {0}. Set their password again in Users to recreate them."],

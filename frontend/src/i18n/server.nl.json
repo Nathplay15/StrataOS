@@ -1054,6 +1054,8 @@
  "Le dossier partagé {0} a été supprimé : il ne fait plus partie de la bibliothèque musicale": "De gedeelde map {0} is verwijderd: hij maakt geen deel meer uit van de muziekbibliotheek",
  "Le dossier partagé {0} a été supprimé : le serveur DLNA ne le publie plus": "De gedeelde map {0} is verwijderd: de DLNA-server publiceert hem niet meer",
  "Le dossier partagé {0} est de nouveau sous son quota : écriture rétablie": "De gedeelde map {0} zit weer onder het quotum: schrijven hersteld",
+ "Le compte {0} a atteint son quota sur {1} ({2} Go sur {3} Go)": "Account {0} heeft zijn quotum op {1} bereikt ({2} GB van {3} GB)",
+ "Le compte {0} est à {1} % de son quota sur {2} ({3} Go sur {4} Go)": "Account {0} zit op {1}% van zijn quotum op {2} ({3} GB van {4} GB)",
  "Le dossier partagé {0} est gelé par la protection anti-rançongiciel": "gedeelde map {0} is bevroren door de ransomwarebeveiliging",
  "Le dossier partagé {0} est plein à {1} % de son quota ({2} Go sur {3} Go)": "De gedeelde map {0} is voor {1} % van het quotum vol ({2} GB van {3} GB)",
  "Le délai d'alerte doit aller de 1 à 1440 minutes": "de waarschuwingsvertraging moet 1 tot 1440 minuten zijn",

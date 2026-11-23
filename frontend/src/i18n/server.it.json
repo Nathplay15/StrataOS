@@ -1054,6 +1054,8 @@
  "Le dossier partagé {0} a été supprimé : il ne fait plus partie de la bibliothèque musicale": "La cartella condivisa {0} è stata eliminata: non fa più parte della libreria musicale",
  "Le dossier partagé {0} a été supprimé : le serveur DLNA ne le publie plus": "La cartella condivisa {0} è stata eliminata: il server DLNA non la pubblica più",
  "Le dossier partagé {0} est de nouveau sous son quota : écriture rétablie": "La cartella condivisa {0} è di nuovo sotto la quota: scrittura ripristinata",
+ "Le compte {0} a atteint son quota sur {1} ({2} Go sur {3} Go)": "L'account {0} ha raggiunto la sua quota su {1} ({2} GB di {3} GB)",
+ "Le compte {0} est à {1} % de son quota sur {2} ({3} Go sur {4} Go)": "L'account {0} è al {1}% della sua quota su {2} ({3} GB di {4} GB)",
  "Le dossier partagé {0} est gelé par la protection anti-rançongiciel": "la cartella condivisa {0} è congelata dalla protezione anti-ransomware",
  "Le dossier partagé {0} est plein à {1} % de son quota ({2} Go sur {3} Go)": "La cartella condivisa {0} ha usato il {1} % della quota ({2} GB su {3} GB)",
  "Le délai d'alerte doit aller de 1 à 1440 minutes": "il ritardo di avviso deve essere compreso tra 1 e 1440 minuti",

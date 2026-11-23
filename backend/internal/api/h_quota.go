@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -131,4 +132,68 @@ func (s *Server) quotaRoutes() {
 		}
 		return out, nil
 	})
+}
+
+// userQuotaReading is one account's quota on one target.
+type userQuotaReading struct {
+	user, target, name string
+	used, limit        int64
+}
+
+// userQuotaAlerts compares the readings with prev (key "user|target" -> pct)
+// and returns the alerts to send when 90 % or 100 % is crossed upwards, plus
+// the new percentages. Pure, tested.
+func userQuotaAlerts(prev map[string]float64, rs []userQuotaReading) ([]alert, map[string]float64) {
+	next := map[string]float64{}
+	var out []alert
+	for _, r := range rs {
+		if r.limit <= 0 {
+			continue
+		}
+		key := r.user + "|" + r.target
+		pct := float64(r.used) / float64(r.limit) * 100
+		next[key] = pct
+		p := prev[key]
+		switch {
+		case pct >= 100 && p < 100:
+			out = append(out, alert{Level: "error", Subject: "Quota reached", Key: "uq-full:" + key,
+				Message: fmt.Sprintf("Account %s reached its quota on %s (%.1f GB of %.1f GB)", r.user, r.name, float64(r.used)/1e9, float64(r.limit)/1e9)})
+		case pct >= 90 && p < 90:
+			out = append(out, alert{Level: "warning", Subject: "Quota almost reached", Key: "uq-90:" + key,
+				Message: fmt.Sprintf("Account %s is at %.0f%% of its quota on %s (%.1f GB of %.1f GB)", r.user, pct, r.name, float64(r.used)/1e9, float64(r.limit)/1e9)})
+		}
+	}
+	return out, next
+}
+
+// checkUserQuotas measures the per-user quotas of every account and alerts
+// when one reaches 90 % or 100 % (roadmap 0.15, "User quotas in the
+// interface"). prev carries the last percentages, so an alert is sent once.
+func (s *Server) checkUserQuotas(prev map[string]float64) map[string]float64 {
+	var users []string
+	s.store.Read(func(st *store.State) {
+		for _, u := range st.Users {
+			if !u.Disabled && u.Username != "" {
+				users = append(users, u.Username)
+			}
+		}
+	})
+	var rs []userQuotaReading
+	for _, t := range s.quotaTargets() {
+		if !t.Supported || !t.Enabled {
+			continue
+		}
+		for _, u := range users {
+			used, limit := storage.GetUserQuota(t, u)
+			if limit > 0 {
+				rs = append(rs, userQuotaReading{user: u, target: t.Target, name: t.Name, used: used, limit: limit})
+			}
+		}
+	}
+	alerts, next := userQuotaAlerts(prev, rs)
+	for _, a := range alerts {
+		s.store.Log(a.Level, "quota", "", a.Message)
+		s.notify(a.Level, a.Subject, a.Message)
+	}
+	return next
 }
