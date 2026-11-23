@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"strataos/internal/cinema"
 	"strataos/internal/store"
 )
 
@@ -72,6 +73,14 @@ func TestCinemaRoutes(t *testing.T) {
 	rec = do(tok, "POST", "/api/cinema/scan", "")
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"started":true`) {
 		t.Fatalf("scan: %d %s", rec.Code, rec.Body.String())
+	}
+	// Wait for the background scan to finish: it writes in the test's TempDir.
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if st := cinema.LoadState(filepath.Join(s.dataDir, "cinema.json")); !st.Checked.IsZero() && !st.Running {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	// Poster without data: 404.
 	if rec := do(tokUser, "GET", "/api/cinema/poster/603", ""); rec.Code != 404 {
