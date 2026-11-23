@@ -792,8 +792,11 @@ type State struct {
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`
 	// Logins: the last sign-in attempts, successful or not (store/logins.go).
-	Logins   []Login  `json:"logins,omitempty"`
-	Settings Settings `json:"settings"`
+	Logins []Login `json:"logins,omitempty"`
+	// Devices: the browser/app signatures already seen per account (sign-ins),
+	// to recognize a new device (store/logins.go).
+	Devices  map[string][]string `json:"devices,omitempty"`
+	Settings Settings            `json:"settings"`
 
 	// Updates: update channel and automatic updates.
 	Updates AutoUpdates `json:"updates,omitzero"`

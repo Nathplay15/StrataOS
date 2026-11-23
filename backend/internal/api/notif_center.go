@@ -39,7 +39,7 @@ var notifRules = []struct {
 	{subjects: []string{"Configuration backup failed"}, k: notifKind{"backup", "open", "/system/settings"}},
 	{subjects: []string{"Security advisor"}, k: notifKind{"security", "review", "/system/security"}},
 	{subjects: []string{"Ransomware suspected", "Virus detected"}, k: notifKind{"security", "open", "/system/antivirus"}},
-	{subjects: []string{"Suspicious passkey", "Recovery code generated", "Administrator account recovered", "Accounts to recreate"}, k: notifKind{"security", "open", "/users"}},
+	{subjects: []string{"Suspicious passkey", "Recovery code generated", "Administrator account recovered", "Accounts to recreate", "Sign-in from a new device"}, k: notifKind{"security", "review", "/users"}},
 	{subjects: []string{"Certificate renewal failed"}, k: notifKind{"security", "open", "/system/remote"}},
 	{subjects: []string{"VM stopped (cluster)", "VM restarted (cluster)", "Cluster VM", "NAS of the cluster down", "Container not started"}, k: notifKind{"vm", "open", "/vms"}},
 	{subjects: []string{"Camera offline", "Camera back online", "Surveillance event"}, k: notifKind{"surveillance", "open", "/surveillance"}},

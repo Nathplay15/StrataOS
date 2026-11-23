@@ -375,6 +375,8 @@
  "Clé d'accès S3 {0} de {1} révoquée": "S3-Zugriffsschlüssel {0} von {1} widerrufen",
  "Clé d'accès renommée en {0}": "Passkey in {0} umbenannt",
  "Clé d'accès suspecte": "Verdächtiger Passkey",
+ "Connexion depuis un nouvel appareil": "Anmeldung von einem neuen Gerät",
+ "Le compte {0} s'est connecté depuis un nouvel appareil ({1}, méthode {2})": "Das Konto {0} hat sich von einem neuen Gerät angemeldet ({1}, Methode {2})",
  "Clé d'accès {0} ajoutée ({1})": "Passkey {0} hinzugefügt ({1})",
  "Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)": "Passkey {0} von {1} abgelehnt: Sein Signaturzähler ist rückwärts gelaufen (geklonter Authenticator?)",
  "Clé d'accès {0} supprimée": "Passkey {0} gelöscht",

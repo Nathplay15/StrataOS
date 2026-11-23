@@ -1,11 +1,23 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"strataos/internal/store"
 )
+
+// recordLogin stores a sign-in attempt with the browser/app signature of the
+// request, and alerts the account when it succeeds from a new device.
+func (s *Server) recordLogin(r *http.Request, user string, ok bool, how string) {
+	l := s.store.Login(user, clientIP(r), r.UserAgent(), ok, how)
+	if l.OK && l.NewDevice {
+		msg := fmt.Sprintf("Account %s signed in from a new device (%s, method %s)", l.User, l.IP, l.How)
+		s.store.Log("warning", "auth", l.User, "New device sign-in from "+l.IP)
+		s.notify("warning", "Sign-in from a new device", msg)
+	}
+}
 
 // sessionRoutes: the live web sessions and the sign-in history. Every user
 // sees and ends their own sessions; administrators see every account.
@@ -57,14 +69,14 @@ func (s *Server) sessionRoutes() {
 
 	s.user("GET /api/me/logins", func(r *http.Request) (any, error) {
 		var out []store.Login
-		s.store.Read(func(st *store.State) { out = st.LoginsOf(userOf(r), 100) })
+		s.store.Read(func(st *store.State) { out = st.LoginsOf(userOf(r), 100, r.URL.Query().Get("ok") == "1") })
 		return out, nil
 	})
 
 	s.admin("GET /api/logins", func(r *http.Request) (any, error) {
 		user := r.URL.Query().Get("user")
 		var out []store.Login
-		s.store.Read(func(st *store.State) { out = st.LoginsOf(user, 200) })
+		s.store.Read(func(st *store.State) { out = st.LoginsOf(user, 200, r.URL.Query().Get("ok") == "1") })
 		return out, nil
 	})
 }

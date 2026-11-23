@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -97,30 +99,88 @@ func TestLoginHistory(t *testing.T) {
 	bob := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("bob", "", "192.0.2.2", time.Hour)}}
 	admin := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("admin", "admin", "192.0.2.1", time.Hour)}}
 
-	s.store.Login("bob", "192.0.2.2", true, "password")
-	s.store.Login("bob", "192.0.2.9", false, "password")
-	s.store.Login("admin", "192.0.2.1", true, "passkey")
+	s.store.Login("bob", "192.0.2.2", "TestBrowser/1.0", true, "password")
+	s.store.Login("bob", "192.0.2.9", "TestBrowser/2.0", false, "password")
+	s.store.Login("admin", "192.0.2.1", "TestBrowser/1.0", true, "passkey")
+	s.store.Login("bob", "192.0.2.2", "TestBrowser/1.0", true, "password")
 
 	code, list := getList(t, bob, "/api/me/logins")
-	if code != 200 || len(list) != 2 {
+	if code != 200 || len(list) != 3 {
 		t.Fatalf("bob's history: %d %v", code, list)
 	}
 	last := list[0]
-	if last["ok"] != false || last["how"] != "password" || last["ip"] != "192.0.2.9" {
+	if last["ok"] != true || last["how"] != "password" || last["ip"] != "192.0.2.2" {
 		t.Fatalf("newest first: %v", last)
+	}
+	if last["newDevice"] != nil { // omitempty: false is absent in JSON
+		t.Fatalf("same browser again: %v, want no newDevice", last)
+	}
+	if list[2]["newDevice"] != true || list[2]["ua"] != "TestBrowser/1.0" {
+		t.Fatalf("first sign-in of the browser must be newDevice: %v", list[2])
+	}
+	if list[1]["newDevice"] != nil {
+		t.Fatalf("a failed attempt is never newDevice: %v", list[1])
 	}
 
 	code, list = getList(t, admin, "/api/logins")
-	if code != 200 || len(list) != 3 {
+	if code != 200 || len(list) != 4 {
 		t.Fatalf("admin history: %d %v", code, list)
 	}
 	code, list = getList(t, admin, "/api/logins?user=bob")
-	if code != 200 || len(list) != 2 {
+	if code != 200 || len(list) != 3 {
 		t.Fatalf("admin history filtered: %d %v", code, list)
+	}
+	code, list = getList(t, admin, "/api/logins?ok=1")
+	if code != 200 || len(list) != 3 {
+		t.Fatalf("admin history ok only: %d %v", code, list)
+	}
+	for _, l := range list {
+		if l["ok"] != true {
+			t.Fatalf("ok=1 kept a failed attempt: %v", l)
+		}
 	}
 
 	// A plain user may not read the history of the others.
 	if code, _ := bob.do("GET", "/api/logins", nil); code != http.StatusForbidden {
 		t.Fatalf("bob reading all logins: %d", code)
+	}
+}
+
+func TestRecordLoginNewDevice(t *testing.T) {
+	s := authServer(t)
+	s.sessionRoutes()
+	hash, _ := hashPassword("Secret-Pass-1")
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "admin", Role: "admin", PasswordHash: hash})
+		return nil
+	})
+	login := func(ua string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]any{"username": "admin", "password": "Secret-Pass-1"})
+		r := httptest.NewRequest("POST", "https://"+testHost+"/api/login", bytes.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("User-Agent", ua)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		return w
+	}
+	for _, ua := range []string{"TestUA/1", "TestUA/1", "TestUA/2"} {
+		if w := login(ua); w.Code != http.StatusOK {
+			t.Fatalf("login %q: %d %s", ua, w.Code, w.Body.String())
+		}
+	}
+	admin := &jarClient{t: t, s: s, host: testHost, jar: map[string]string{cookieName: s.sessions.create("admin", "admin", "192.0.2.1", time.Hour)}}
+	code, list := getList(t, admin, "/api/logins")
+	if code != 200 || len(list) != 3 {
+		t.Fatalf("history: %d %v", code, list)
+	}
+	// Newest first: TestUA/2 (new), TestUA/1 (known), TestUA/1 (new, first seen).
+	if list[0]["ua"] != "TestUA/2" || list[0]["newDevice"] != true {
+		t.Fatalf("new browser must be newDevice: %v", list[0])
+	}
+	if list[1]["newDevice"] != nil {
+		t.Fatalf("same browser again must not be newDevice: %v", list[1])
+	}
+	if list[2]["newDevice"] != true || list[2]["ua"] != "TestUA/1" {
+		t.Fatalf("first browser use must be newDevice: %v", list[2])
 	}
 }

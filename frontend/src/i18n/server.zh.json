@@ -375,6 +375,8 @@
  "Clé d'accès S3 {0} de {1} révoquée": "已吊销 {1} 的 S3 访问密钥 {0}",
  "Clé d'accès renommée en {0}": "通行密钥已重命名为 {0}",
  "Clé d'accès suspecte": "可疑的通行密钥",
+ "Connexion depuis un nouvel appareil": "来自新设备的登录",
+ "Le compte {0} s'est connecté depuis un nouvel appareil ({1}, méthode {2})": "账户 {0} 已从新设备登录（{1}，方式 {2}）",
  "Clé d'accès {0} ajoutée ({1})": "已添加通行密钥 {0}（{1}）",
  "Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)": "{1} 的通行密钥 {0} 被拒绝：其签名计数器倒退（验证器被克隆？）",
  "Clé d'accès {0} supprimée": "已删除通行密钥 {0}",

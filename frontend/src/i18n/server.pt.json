@@ -375,6 +375,8 @@
  "Clé d'accès S3 {0} de {1} révoquée": "Chave de acesso S3 {0} de {1} revogada",
  "Clé d'accès renommée en {0}": "Passkey renomeada para {0}",
  "Clé d'accès suspecte": "Passkey suspeita",
+ "Connexion depuis un nouvel appareil": "Login a partir de um novo dispositivo",
+ "Le compte {0} s'est connecté depuis un nouvel appareil ({1}, méthode {2})": "A conta {0} iniciou sessão a partir de um novo dispositivo ({1}, método {2})",
  "Clé d'accès {0} ajoutée ({1})": "Passkey {0} adicionada ({1})",
  "Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)": "Passkey {0} de {1} recusada: seu contador de assinaturas retrocedeu (autenticador clonado?)",
  "Clé d'accès {0} supprimée": "Passkey {0} excluída",

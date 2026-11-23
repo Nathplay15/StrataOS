@@ -375,6 +375,8 @@
  "Clé d'accès S3 {0} de {1} révoquée": "S3-toegangssleutel {0} van {1} ingetrokken",
  "Clé d'accès renommée en {0}": "Passkey hernoemd naar {0}",
  "Clé d'accès suspecte": "Verdachte passkey",
+ "Connexion depuis un nouvel appareil": "Inloggen vanaf een nieuw apparaat",
+ "Le compte {0} s'est connecté depuis un nouvel appareil ({1}, méthode {2})": "Account {0} is vanaf een nieuw apparaat ingelogd ({1}, methode {2})",
  "Clé d'accès {0} ajoutée ({1})": "Passkey {0} toegevoegd ({1})",
  "Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)": "Passkey {0} van {1} geweigerd: de handtekeningteller liep terug (gekloonde authenticator?)",
  "Clé d'accès {0} supprimée": "Passkey {0} verwijderd",

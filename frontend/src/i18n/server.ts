@@ -1014,6 +1014,8 @@ export const serverTexts: [string, string][] = [
   ["Clés d'accès retirées pour {0}", "Passkeys removed for {0}"],
   ["Clé d'accès {0} de {1} refusée : son compteur de signatures a reculé (authentificateur cloné ?)", "Passkey {0} of {1} refused: its signature counter went backwards (cloned authenticator?)"],
   ["Clé d'accès suspecte", "Suspicious passkey"],
+  ["Connexion depuis un nouvel appareil", "Sign-in from a new device"],
+  ["Le compte {0} s'est connecté depuis un nouvel appareil ({1}, méthode {2})", "Account {0} signed in from a new device ({1}, method {2})"],
   // remote
   ["Domaine d'application {0} retiré", "App domain {0} removed"],
   ["Domaine d'application {0} enregistré", "App domain {0} saved"],
