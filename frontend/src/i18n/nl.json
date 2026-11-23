@@ -5520,5 +5520,8 @@
  "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Gebruikt door de knop «Ondertitels ophalen» in de videospeler: de beste match wordt naast de video als .srt-bestand gedownload.",
  "Download subtitles from OpenSubtitles": "Ondertitels van OpenSubtitles downloaden",
  "Fetch subtitles": "Ondertitels ophalen",
- "Subtitles downloaded ({0}).": "Ondertitels gedownload ({0})."
+ "Subtitles downloaded ({0}).": "Ondertitels gedownload ({0}).",
+ "Trailer": "Trailer",
+ "Screensaver": "Schermbeveiliging",
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Navigeer met de pijltjestoetsen (Enter opent, L/R wisselt van plank); een gamepad werkt ook (A = ok, B = terug, L/R = planken)."
 }

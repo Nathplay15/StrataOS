@@ -5520,5 +5520,8 @@
  "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Usato dal pulsante «Scarica sottotitoli» del lettore: la corrispondenza migliore viene scaricata accanto al video come file .srt.",
  "Download subtitles from OpenSubtitles": "Scarica i sottotitoli da OpenSubtitles",
  "Fetch subtitles": "Scarica sottotitoli",
- "Subtitles downloaded ({0}).": "Sottotitoli scaricati ({0})."
+ "Subtitles downloaded ({0}).": "Sottotitoli scaricati ({0}).",
+ "Trailer": "Trailer",
+ "Screensaver": "Salvaschermo",
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Naviga con le frecce (Invio per aprire, L/R per cambiare scaffale); funziona anche un gamepad (A = ok, B = indietro, L/R = scaffali)."
 }

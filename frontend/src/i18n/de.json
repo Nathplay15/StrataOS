@@ -5520,5 +5520,8 @@
  "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Wird von der Schaltfläche „Untertitel abrufen“ im Videoplayer verwendet: Die beste Übereinstimmung wird als .srt-Datei neben das Video heruntergeladen.",
  "Download subtitles from OpenSubtitles": "Untertitel von OpenSubtitles herunterladen",
  "Fetch subtitles": "Untertitel abrufen",
- "Subtitles downloaded ({0}).": "Untertitel heruntergeladen ({0})."
+ "Subtitles downloaded ({0}).": "Untertitel heruntergeladen ({0}).",
+ "Trailer": "Trailer",
+ "Screensaver": "Bildschirmschoner",
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Navigieren Sie mit den Pfeiltasten (Eingabe öffnet, L/R wechselt das Regal); ein Gamepad funktioniert auch (A = ok, B = zurück, L/R = Regale)."
 }

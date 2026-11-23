@@ -5520,5 +5520,8 @@
  "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "视频播放器中的“获取字幕”按钮会使用它：最佳匹配会以 .srt 文件形式下载到视频旁边。",
  "Download subtitles from OpenSubtitles": "从 OpenSubtitles 下载字幕",
  "Fetch subtitles": "获取字幕",
- "Subtitles downloaded ({0}).": "字幕已下载 ({0})。"
+ "Subtitles downloaded ({0}).": "字幕已下载 ({0})。",
+ "Trailer": "预告片",
+ "Screensaver": "屏幕保护程序",
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "用方向键导航（回车打开，L/R 切换书架）；手柄也可以使用（A = 确定，B = 返回，L/R = 切换书架）。"
 }

@@ -282,3 +282,60 @@ func TestCinemaProfiles(t *testing.T) {
 		t.Fatalf("not deleted: %s", rec.Body.String())
 	}
 }
+
+func TestCinemaTrailerRoute(t *testing.T) {
+	// Fake TMDB with a videos endpoint that counts its calls.
+	mux := http.NewServeMux()
+	calls := 0
+	mux.HandleFunc("/movie/603/videos", func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		json.NewEncoder(w).Encode(map[string]any{"results": []map[string]any{
+			{"key": "yt1", "site": "YouTube", "type": "Trailer", "name": "Official trailer", "official": true},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	old := cinema.TMDBBase
+	cinema.TMDBBase = srv.URL
+	t.Cleanup(func() { cinema.TMDBBase = old })
+
+	s := newTestServer(t)
+	s.cinemaRoutes()
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "admin", Role: "admin"})
+		return nil
+	})
+	tok := s.sessions.create("admin", "admin", "127.0.0.1", time.Hour)
+	do := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.AddCookie(&http.Cookie{Name: cookieName, Value: tok})
+		req.Header.Set("X-Strata", "1")
+		rec := httptest.NewRecorder()
+		s.mux.ServeHTTP(rec, req)
+		return rec
+	}
+	// No key yet: 409.
+	if rec := do("GET", "/api/cinema/trailer?kind=movie&id=603", ""); rec.Code != 409 {
+		t.Fatalf("no key: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do("PUT", "/api/cinema/settings", `{"tmdbKey":"abc"}`); rec.Code != 200 {
+		t.Fatalf("set key: %d %s", rec.Code, rec.Body.String())
+	}
+	// Bad params: 400.
+	if rec := do("GET", "/api/cinema/trailer?kind=book&id=603", ""); rec.Code != 400 {
+		t.Errorf("bad kind: %d", rec.Code)
+	}
+	if rec := do("GET", "/api/cinema/trailer?kind=movie&id=abc", ""); rec.Code != 400 {
+		t.Errorf("bad id: %d", rec.Code)
+	}
+	// Happy path, then served from the cache.
+	if rec := do("GET", "/api/cinema/trailer?kind=movie&id=603", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"key":"yt1"`) {
+		t.Fatalf("trailer: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do("GET", "/api/cinema/trailer?kind=movie&id=603", ""); rec.Code != 200 {
+		t.Fatalf("trailer again: %d %s", rec.Code, rec.Body.String())
+	}
+	if calls != 1 {
+		t.Errorf("TMDB called %d times, want 1 (cached)", calls)
+	}
+}

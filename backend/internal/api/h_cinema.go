@@ -43,6 +43,13 @@ func (s *Server) cinemaShares() []cinema.Root {
 
 var cinemaScanMu sync.Mutex
 
+// cachedTrailer is a trailer answer kept a few minutes (poster hover fires
+// often, the TMDB key is rate limited).
+type cachedTrailer struct {
+	res map[string]any
+	exp time.Time
+}
+
 // cinemaScanState loads the state, runs f on it and saves it back.
 func (s *Server) cinemaScanState(f func(*cinema.State)) {
 	statePath, _, _ := s.cinemaPaths()
@@ -360,6 +367,41 @@ func (s *Server) cinemaRoutes() {
 		}
 		go s.cinemaScan()
 		return map[string]any{"started": true}, nil
+	})
+
+	// YouTube trailer of a TMDB id, cached a few minutes: played on poster
+	// hover in the cinema page. key is "" when the record has no video.
+	var trailerMu sync.Mutex
+	trailers := map[string]cachedTrailer{}
+	s.user("GET /api/cinema/trailer", func(r *http.Request) (any, error) {
+		kind := r.URL.Query().Get("kind")
+		if kind != "movie" && kind != "tv" {
+			return nil, badRequest("invalid kind")
+		}
+		id, err := strconv.Atoi(r.URL.Query().Get("id"))
+		if err != nil || id <= 0 {
+			return nil, badRequest("invalid id")
+		}
+		key := cinema.LoadKey(keyPath)
+		if key == "" {
+			return nil, &Error{Status: http.StatusConflict, Msg: "no TMDB API key"}
+		}
+		ck := kind + ":" + strconv.Itoa(id)
+		trailerMu.Lock()
+		c, ok := trailers[ck]
+		trailerMu.Unlock()
+		if ok && time.Now().Before(c.exp) {
+			return c.res, nil
+		}
+		v, err := (&cinema.Client{Key: key}).Trailer(r.Context(), kind, id)
+		if err != nil {
+			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
+		}
+		res := map[string]any{"key": v.Key, "name": v.Name}
+		trailerMu.Lock()
+		trailers[ck] = cachedTrailer{res: res, exp: time.Now().Add(10 * time.Minute)}
+		trailerMu.Unlock()
+		return res, nil
 	})
 
 	// Poster of a TMDB id, served from the local cache (filled by the scan).

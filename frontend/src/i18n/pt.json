@@ -5520,5 +5520,8 @@
  "Used by the Fetch subtitles button in the video player: the best match is downloaded next to the video as a .srt file.": "Usado pelo botão «Obter legendas» no reprodutor: a melhor correspondência é transferida junto ao vídeo como um ficheiro .srt.",
  "Download subtitles from OpenSubtitles": "Transferir legendas do OpenSubtitles",
  "Fetch subtitles": "Obter legendas",
- "Subtitles downloaded ({0}).": "Legendas transferidas ({0})."
+ "Subtitles downloaded ({0}).": "Legendas transferidas ({0}).",
+ "Trailer": "Trailer",
+ "Screensaver": "Protetor de ecrã",
+ "Navigate with the arrow keys (Enter to open, L/R for the shelves); a gamepad works too (A = ok, B = back, L/R = shelves).": "Navegue com as setas (Enter abre, L/R muda de prateleira); um comando também funciona (A = ok, B = voltar, L/R = prateleiras)."
 }
