@@ -21,7 +21,9 @@ interface LoginEntry {
   time: string;
   user: string;
   ip: string;
+  ua?: string;
   ok: boolean;
+  newDevice?: boolean;
   how: string;
 }
 
@@ -102,15 +104,16 @@ export function SessionsModal({ open, onClose, me }: { open: boolean; onClose: (
           {history.isLoading ? <Spinner /> : !history.data?.length ? <Empty icon={<History />} title={tr("No sign-in recorded yet")} /> : (
             <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-border">
               <table className="table">
-                <thead><tr><th>{tr("When")}</th>{admin && <th>{tr("User")}</th>}<th>{tr("Address")}</th><th>{tr("Method")}</th><th>{tr("Result")}</th></tr></thead>
+                <thead><tr><th>{tr("When")}</th>{admin && <th>{tr("User")}</th>}<th>{tr("Address")}</th><th>{tr("Device")}</th><th>{tr("Method")}</th><th>{tr("Result")}</th></tr></thead>
                 <tbody>
                   {history.data.map((l, i) => (
                     <tr key={i}>
                       <td className="whitespace-nowrap text-[12.5px]">{dateTime(l.time)} <span className="text-muted text-[11px]">({ago(l.time)})</span></td>
                       {admin && <td className="text-[12.5px]">{l.user}</td>}
                       <td className="mono text-[12px]">{l.ip}</td>
+                      <td className="max-w-52 truncate text-[12px] text-muted" title={l.ua}>{l.ua ?? "—"}</td>
                       <td className="text-[12.5px]">{howLabel[l.how] ?? l.how}</td>
-                      <td>{l.ok ? <Badge tone="ok"><CheckCircle2 size={12} /> {tr("Signed in")}</Badge> : <Badge tone="danger"><XCircle size={12} /> {tr("Refused")}</Badge>}</td>
+                      <td className="flex flex-wrap items-center gap-1">{l.ok ? <Badge tone="ok"><CheckCircle2 size={12} /> {tr("Signed in")}</Badge> : <Badge tone="danger"><XCircle size={12} /> {tr("Refused")}</Badge>}{l.newDevice && <Badge tone="warn">{tr("New device")}</Badge>}</td>
                     </tr>
                   ))}
                 </tbody>

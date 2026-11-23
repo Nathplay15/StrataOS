@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/net/webdav"
 
 	"strataos/internal/accounts"
+	"strataos/internal/davcal"
 	"strataos/internal/store"
 )
 
@@ -160,6 +162,24 @@ func (s *Server) davRoutes() {
 		}
 		h.ServeHTTP(w, r)
 	}))
+
+	// CalDAV / CardDAV: the accounts' calendars and address books
+	// (roadmap 0.15), same Basic auth and same ports as WebDAV.
+	cal := &davcal.Handler{Dir: filepath.Join(s.dataDir, "dav"), Auth: func(w http.ResponseWriter, r *http.Request) (string, bool) {
+		u, ok := s.davAuth(w, r, cache)
+		return u.Username, ok
+	}}
+	for _, p := range []string{"/caldav/", "/carddav/", "/principals/"} {
+		s.mux.Handle(p, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var on bool
+			s.store.Read(func(st *store.State) { on = st.Files.CalDAV })
+			if !on {
+				http.NotFound(w, r)
+				return
+			}
+			cal.ServeHTTP(w, r)
+		}))
+	}
 }
 
 type davFS struct {

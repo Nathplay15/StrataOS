@@ -90,8 +90,10 @@ func (s *Server) checkShareQuotas() {
 
 func (s *Server) shareQuotaLoop() {
 	time.Sleep(3 * time.Minute)
+	userQuotaPrev := map[string]float64{}
 	for {
 		s.checkShareQuotas()
+		userQuotaPrev = s.checkUserQuotas(userQuotaPrev)
 		time.Sleep(30 * time.Minute)
 	}
 }

@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const Socket = "/var/run/docker.sock"
+var Socket = "/var/run/docker.sock"
 
 type Client struct {
 	http   *http.Client

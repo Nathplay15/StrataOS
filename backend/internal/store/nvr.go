@@ -11,9 +11,16 @@ type NVR struct {
 	// AlertMinutes: a camera unreachable this long is notified (0 = 5).
 	AlertMinutes int `json:"alertMinutes,omitempty"`
 	// SegmentSeconds: length of the recorded files (0 = 10 minutes; API only, for tests).
-	SegmentSeconds int          `json:"segmentSeconds,omitempty"`
-	Cameras        []*Camera    `json:"cameras,omitempty"`
-	Frigate        FrigateState `json:"frigate,omitzero"`
+	SegmentSeconds int `json:"segmentSeconds,omitempty"`
+	// Event clips: around each motion event of the built-in engine, a clip is
+	// cut from the recordings (ClipPre/ClipPost seconds before/after, 0 = 10,
+	// at most 120) and kept ClipKeepDays days (0 = 30) in the "clips"
+	// subfolder of the camera.
+	ClipPre      int          `json:"clipPre,omitempty"`
+	ClipPost     int          `json:"clipPost,omitempty"`
+	ClipKeepDays int          `json:"clipKeepDays,omitempty"`
+	Cameras      []*Camera    `json:"cameras,omitempty"`
+	Frigate      FrigateState `json:"frigate,omitzero"`
 }
 
 // Camera is a network camera. The credentials are kept apart from the URLs
@@ -31,7 +38,11 @@ type Camera struct {
 	// Motion turns on movement detection (built-in engine): one notification
 	// with a picture per event, at most every 90 s.
 	Motion bool `json:"motion,omitempty"`
-	Audio  bool `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
+	// Zones limits the detection to rectangles of the picture, as JSON
+	// ([{"x":0.1,"y":0.2,"w":0.5,"h":0.6}], fractions of the size); empty =
+	// the whole picture (roadmap 0.15, detection zones).
+	Zones string `json:"zones,omitempty"`
+	Audio bool   `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
 	// Retention: days kept and total size in GB (0 = no limit).
 	KeepDays  int       `json:"keepDays,omitempty"`
 	MaxGB     float64   `json:"maxGb,omitempty"`

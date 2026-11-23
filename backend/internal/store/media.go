@@ -1,6 +1,9 @@
 package store
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // Media holds the settings of the Media app: the DLNA server and the music
 // server (OwnTone) folders (by share name: they follow renamed and deleted
@@ -8,6 +11,66 @@ import "slices"
 type Media struct {
 	DLNA  DLNAServer  `json:"dlna,omitzero"`
 	Music MusicServer `json:"music,omitzero"`
+	// Positions: where each account stopped watching a video (user → file
+	// path → position), so "continue watching" follows the viewer from one
+	// screen to the next. A finished video (95% seen) has no position.
+	Positions map[string]map[string]PlayPos `json:"positions,omitempty"`
+	// Night: limits brightness and volume during the evening hours.
+	Night NightMode `json:"night,omitzero"`
+	// WatchLists are the "watch together" lists: videos shared between
+	// accounts (roadmap 0.15, cinema).
+	WatchLists []WatchList `json:"watchLists,omitempty"`
+	// Profiles are the family profiles (roadmap 0.15, cinema): a name and a
+	// maximum TMDB rating; the library filtered by one hides what rates
+	// higher (a kid-only shelf).
+	Profiles []MediaProfile `json:"profiles,omitempty"`
+}
+
+// MediaProfile is a family profile: content rated above MaxRating is hidden
+// (0 = no limit).
+type MediaProfile struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	MaxRating float64 `json:"maxRating,omitempty"`
+}
+
+// WatchList is a named list of videos shared with other accounts.
+type WatchList struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Owner   string    `json:"owner"`
+	Items   []string  `json:"items"`          // video paths, as the files API spells them
+	With    []string  `json:"with,omitempty"` // accounts the list is shared with
+	Created time.Time `json:"created"`
+}
+
+// NightMode limits the players late in the evening (roadmap 0.15, cinema
+// polish): from From to To (local hours, From > To wraps past midnight).
+type NightMode struct {
+	Enabled    bool `json:"enabled,omitempty"`
+	From       int  `json:"from,omitempty"`       // hour 0-23
+	To         int  `json:"to,omitempty"`         // hour 0-23
+	MaxVolume  int  `json:"maxVolume,omitempty"`  // percent
+	Brightness int  `json:"brightness,omitempty"` // percent of the picture
+}
+
+// Active reports whether the night mode applies at t (local time).
+func (n NightMode) Active(t time.Time) bool {
+	if !n.Enabled || n.From == n.To {
+		return false
+	}
+	h := t.Hour()
+	if n.From < n.To {
+		return h >= n.From && h < n.To
+	}
+	return h >= n.From || h < n.To // wraps past midnight
+}
+
+// PlayPos is the playback position of one video for one account.
+type PlayPos struct {
+	At       float64   `json:"at"`  // seconds
+	Duration float64   `json:"dur"` // seconds
+	Updated  time.Time `json:"upd"`
 }
 
 // DLNAServer is the ReadyMedia (minidlna) server.

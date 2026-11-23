@@ -210,6 +210,23 @@ type Settings struct {
 	ChatGPTAccount    string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header
 	ChatGPTEmail      string    `json:"chatgptEmail,omitempty"`
 	ChatGPTExpires    time.Time `json:"chatgptExpires,omitempty"`
+	// OAuth account sign-in (device flow, RFC 8628) for providers with an
+	// OpenAI-compatible API: AssistantProvider is "oauth:<id>" and the
+	// short-lived access token is renewed by the NAS from the refresh token.
+	// No long-lived key is stored.
+	OAuthProvider string    `json:"oauthProvider,omitempty"` // e.g. "mistral"
+	OAuthClientID string    `json:"oauthClientId,omitempty"` // the app's client id (registered at the provider)
+	OAuthAccess   string    `json:"oauthAccess,omitempty"`
+	OAuthRefresh  string    `json:"oauthRefresh,omitempty"`
+	OAuthExpires  time.Time `json:"oauthExpires,omitempty"`
+	OAuthEmail    string    `json:"oauthEmail,omitempty"` // when the provider returns one
+	// OpenSubtitles credentials for fetching subtitle files automatically
+	// (masked in answers, only set by hand). SubLangs lists the preferred
+	// subtitle languages, comma separated (e.g. "fr,en").
+	OSApiKey string `json:"osApiKey,omitempty"`
+	OSUser   string `json:"osUser,omitempty"`
+	OSPass   string `json:"osPass,omitempty"`
+	SubLangs string `json:"subLangs,omitempty"`
 	// VolumeFullPct is the fill percentage above which a volume is alerted
 	// as full (dashboard and notifications); 0 keeps the default of 90.
 	VolumeFullPct int `json:"volumeFullPct,omitempty"`
@@ -224,7 +241,7 @@ type Settings struct {
 type Schedule struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus
+	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus | action | report
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
 	// TargetKind is zfs | btrfs | lvm | mdadm | disks; Target is a dataset, pool, volume ID,
@@ -244,7 +261,13 @@ type Schedule struct {
 	LockDays    int    `json:"lockDays,omitempty"`  // snapshots cannot be deleted for N days (immutable)
 	SmartTest   string `json:"smartTest,omitempty"` // short | long
 	// Antivirus: what to do with infected files (report | quarantine).
-	AVAction  string        `json:"avAction,omitempty"`
+	AVAction string `json:"avAction,omitempty"`
+	// Action (type "action", roadmap 0.15): start | stop | restart on a VM,
+	// an LXC container or a Docker container (TargetKind vm | lxc | docker).
+	Action string `json:"action,omitempty"`
+	// Prompt (type "report", roadmap 0.15): what the assistant writes in its
+	// scheduled report (empty = the default summary of the NAS).
+	Prompt    string        `json:"prompt,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
 	History   []ScheduleRun `json:"history"`
 }
@@ -440,11 +463,14 @@ type HASecondary struct {
 	LastResult string            `json:"lastResult"`
 }
 
-// Fleet: the NAS this one watches (Members) and those allowed to watch it
-// (Managers, read-only access by token).
+// Fleet: the NAS this one watches (Members in the cluster, Watched outside
+// it, read-only) and those allowed to watch it (Managers, by token).
 type Fleet struct {
 	Members  []FleetMember  `json:"members,omitempty"`
 	Managers []FleetManager `json:"managers,omitempty"`
+	// Watched: NAS outside the cluster, watched read-only (summary only, no
+	// management), with a console token given by their "Authorized access".
+	Watched []FleetWatched `json:"watched,omitempty"`
 	// Updates: the grouped updates this console ran (newest last).
 	Updates []FleetUpdateRun `json:"updates,omitempty"`
 	// Transfers: VMs and containers copied or moved between NAS through
@@ -526,8 +552,11 @@ type Energy struct {
 	SpindownMin int             `json:"spindownMin"` // 0 = disks never sleep
 	Governor    string          `json:"governor,omitempty"`
 	Schedule    energy.Schedule `json:"schedule"`
-	WoL         []string        `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
-	Devices     []WakeDevice    `json:"devices,omitempty"`
+	// Night: the night energy plan (0.15) — during the window, data disks
+	// spin down after Night.SpindownMin minutes.
+	Night   *energy.NightPlan `json:"night,omitempty"`
+	WoL     []string          `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
+	Devices []WakeDevice      `json:"devices,omitempty"`
 	// Rules: scheduled shutdowns, restarts and power-ons (0.12; Schedule
 	// is the 0.11 form, turned into rules when read).
 	Rules []energy.PowerRule `json:"rules,omitempty"`
@@ -672,7 +701,11 @@ type Ransomware struct {
 
 // FileServices are the optional file access protocols.
 type FileServices struct {
-	WebDAV        bool `json:"webdav"`
+	WebDAV bool `json:"webdav"`
+	// CalDAV serves the accounts' calendars at /caldav/<user>/ and their
+	// address books at /carddav/<user>/ (CardDAV), for iPhone, Android and
+	// Thunderbird (roadmap 0.15).
+	CalDAV        bool `json:"calDAV,omitempty"`
 	FTP           bool `json:"ftp"`
 	FTPRequireTLS bool `json:"ftpRequireTls"`
 	FTPPassiveMin int  `json:"ftpPassiveMin"`
@@ -730,34 +763,36 @@ type Protection struct {
 
 type State struct {
 	// Schema is the layout version of the state file (0 before StrataOS 0.5).
-	Schema    int             `json:"schema,omitempty"`
-	Users     []*User         `json:"users"`
-	Shares    []*Share        `json:"shares"`
-	Volumes   []*Volume       `json:"volumes"`
-	Schedules []*Schedule     `json:"schedules"`
-	Backups   []*BackupTask   `json:"backups"`
-	Clouds    []*CloudSync    `json:"cloudSyncs"`
-	Files     FileServices    `json:"fileServices"`
-	Directory Directory       `json:"directory"`
-	HA        HA              `json:"ha"`
-	Ransom    Ransomware      `json:"ransomware"`
-	VPN       VPN             `json:"vpn"`
-	Photos    Photos          `json:"photos"`
-	DDNS      DDNS            `json:"ddns"`
-	Links     []*ShareLink    `json:"links,omitempty"`
-	Energy    Energy          `json:"energy"`
-	Guard     Guard           `json:"guard"`
-	Vaults    []*Vault        `json:"vaults,omitempty"`
-	Fleet     Fleet           `json:"fleet"`
-	Remote    Remote          `json:"remote,omitzero"`
-	ISCSI     ISCSI           `json:"iscsi"`
-	BurnIns   []*BurnInReport `json:"burnIns,omitempty"`
-	Hardware  Hardware        `json:"hardware"`
-	VMs       VMSettings      `json:"vmSettings"`
-	Office    Office          `json:"office"`
-	Media     Media           `json:"media,omitzero"`
-	NVR       NVR             `json:"nvr,omitzero"`
-	Console   Console         `json:"console,omitzero"` // appliance screen on the local display
+	Schema    int           `json:"schema,omitempty"`
+	Users     []*User       `json:"users"`
+	Shares    []*Share      `json:"shares"`
+	Volumes   []*Volume     `json:"volumes"`
+	Schedules []*Schedule   `json:"schedules"`
+	Backups   []*BackupTask `json:"backups"`
+	// Migrations: imports from another NAS into a share (store/migration.go).
+	Migrations []*Migration    `json:"migrations,omitempty"`
+	Clouds     []*CloudSync    `json:"cloudSyncs"`
+	Files      FileServices    `json:"fileServices"`
+	Directory  Directory       `json:"directory"`
+	HA         HA              `json:"ha"`
+	Ransom     Ransomware      `json:"ransomware"`
+	VPN        VPN             `json:"vpn"`
+	Photos     Photos          `json:"photos"`
+	DDNS       DDNS            `json:"ddns"`
+	Links      []*ShareLink    `json:"links,omitempty"`
+	Energy     Energy          `json:"energy"`
+	Guard      Guard           `json:"guard"`
+	Vaults     []*Vault        `json:"vaults,omitempty"`
+	Fleet      Fleet           `json:"fleet"`
+	Remote     Remote          `json:"remote,omitzero"`
+	ISCSI      ISCSI           `json:"iscsi"`
+	BurnIns    []*BurnInReport `json:"burnIns,omitempty"`
+	Hardware   Hardware        `json:"hardware"`
+	VMs        VMSettings      `json:"vmSettings"`
+	Office     Office          `json:"office"`
+	Media      Media           `json:"media,omitzero"`
+	NVR        NVR             `json:"nvr,omitzero"`
+	Console    Console         `json:"console,omitzero"` // appliance screen on the local display
 	// TwoFactor: two-factor authentication required for administrators (store/access.go).
 	TwoFactor TwoFactorPolicy `json:"twoFactor,omitzero"`
 	Mobile    Mobile          `json:"mobile,omitzero"`
@@ -792,8 +827,11 @@ type State struct {
 	ConfigBackup ConfigBackup `json:"configBackup,omitzero"`
 	Events       []Event      `json:"events"`
 	// Logins: the last sign-in attempts, successful or not (store/logins.go).
-	Logins   []Login  `json:"logins,omitempty"`
-	Settings Settings `json:"settings"`
+	Logins []Login `json:"logins,omitempty"`
+	// Devices: the browser/app signatures already seen per account (sign-ins),
+	// to recognize a new device (store/logins.go).
+	Devices  map[string][]string `json:"devices,omitempty"`
+	Settings Settings            `json:"settings"`
 
 	// Updates: update channel and automatic updates.
 	Updates AutoUpdates `json:"updates,omitzero"`

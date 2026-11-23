@@ -64,6 +64,9 @@ func (s *Server) schedulerLoop() {
 		for _, id := range s.dueBackups(tick) {
 			s.runBackup(id, "", false)
 		}
+		for _, id := range s.dueMigrations(tick) {
+			s.runMigration(id, "", false)
+		}
 		for _, id := range s.dueClouds(tick) {
 			s.runCloud(id, "", false)
 		}

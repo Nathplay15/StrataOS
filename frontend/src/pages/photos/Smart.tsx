@@ -332,3 +332,30 @@ export function Memories({ onOpen }: { onOpen: (m: Memory) => void }) {
     </div>
   );
 }
+
+// ---- Monthly recaps ----
+
+export type Recap = { year: number; month: number; count: number; items: { path: string; date: number; mtime: number; size: number; video?: boolean }[] };
+
+/** One card per past month with a spread of its photos (roadmap 0.15, souvenirs). */
+export function Recaps({ onOpen }: { onOpen: (r: Recap) => void }) {
+  const { data } = useQuery({ queryKey: ["photo-recaps"], queryFn: () => api.get<Recap[]>("/api/photos/recaps"), staleTime: 3600000 });
+  if (!data?.length) return null;
+  const fmt = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" });
+  return (
+    <div className="mb-5">
+      <h3 className="mb-2 text-[14px] font-semibold">{tr("Monthly recaps")}</h3>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {data.map((r) => (
+          <button key={`${r.year}-${r.month}`} onClick={() => onOpen(r)} className="group relative h-40 w-32 shrink-0 overflow-hidden rounded-xl bg-panel-2 text-left">
+            <img src={thumb(r.items[0].path)} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
+            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pt-8 pb-2 text-white">
+              <span className="block truncate font-semibold text-[13.5px] first-letter:uppercase">{fmt.format(new Date(r.year, r.month - 1, 1))}</span>
+              <span className="text-[11.5px] text-white/80">{tr("{0} photos and videos", r.count)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

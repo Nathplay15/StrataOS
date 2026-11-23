@@ -3,8 +3,8 @@
 // audio and video (any codec, through the NAS), archives, file details,
 // OnlyOffice. Every panel stays mounted while its tab is open, so switching keeps the edits and the undo history.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Columns2, Eye, Folder, Maximize, Minus, Plus, RefreshCw, Save, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Columns2, Eye, Folder, Maximize, Minus, Moon, Plus, RefreshCw, RotateCcw, RotateCw, Save, Sun, SunMedium, X } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import { cx } from "../../lib/format";
 import { tr, srv, lang as uiLang } from "../../lib/i18n";
@@ -222,10 +222,23 @@ function TextPanel({ tab, setDirty, onReplace }: { tab: OpenTab; setDirty: (v: b
 
 function ImagePanel({ tab }: { tab: OpenTab }) {
   const { go } = useSiblings();
+  const { toast } = useUI();
   const [zoom, setZoom] = useState(0); // 0 = fit
   const [error, setError] = useState<unknown>(null);
+  const [stamp, setStamp] = useState(0); // bumped after an edit, to reload the picture
   const converted = imageNeedsConversion(tab.entry.name);
-  const src = converted ? `/api/files/image${q({ path: tab.entry.path, size: 2560, v: tab.entry.modTime })}` : inlineURL(tab.entry.path);
+  const src = converted ? `/api/files/image${q({ path: tab.entry.path, size: 2560, v: `${tab.entry.modTime}|${stamp}` })}` : `${inlineURL(tab.entry.path)}${stamp ? `&v=${stamp}` : ""}`;
+  const props = useQuery({ queryKey: ["file-props", tab.entry.path], queryFn: () => api.get<{ writable: boolean }>(`/api/files/properties${q({ path: tab.entry.path })}`), staleTime: 30000 });
+  const editable = !!props.data?.writable && /\.jpe?g$/i.test(tab.entry.name);
+  const edit = async (body: Record<string, unknown>) => {
+    try {
+      await api.post("/api/photos/edit", { path: tab.entry.path, ...body });
+      setStamp(Date.now());
+      toast(tr("Photo updated"));
+    } catch (e) {
+      setError(e);
+    }
+  };
   useEffect(() => { setZoom(0); setError(null); }, [src]);
   const box = useRef<HTMLDivElement>(null);
   const goRef = useRef(go);
@@ -252,6 +265,13 @@ function ImagePanel({ tab }: { tab: OpenTab }) {
   return (
     <>
       <Toolbar entry={tab.entry}>
+        {editable && <>
+          <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} title={tr("Rotate left")} onClick={() => void edit({ rotate: -90 })} />
+          <Button size="sm" variant="ghost" icon={<RotateCw size={14} />} title={tr("Rotate right")} onClick={() => void edit({ rotate: 90 })} />
+          <Button size="sm" variant="ghost" icon={<Sun size={14} />} title={tr("Auto light")} onClick={() => void edit({ autoLight: true })} />
+          <Button size="sm" variant="ghost" icon={<Moon size={14} />} title={tr("Darker")} onClick={() => void edit({ brightness: -15 })} />
+          <Button size="sm" variant="ghost" icon={<SunMedium size={14} />} title={tr("Brighter")} onClick={() => void edit({ brightness: 15 })} />
+        </>}
         {converted && <Badge>{tr("Converted")}</Badge>}
         <Button size="sm" variant="ghost" icon={<Minus size={14} />} title={tr("Zoom out")} onClick={() => setZoom(Math.max(0.1, (zoom || 1) / 1.25))} />
         <span className="w-12 text-center text-[12px] text-muted">{zoom ? `${Math.round(zoom * 100)} %` : tr("Fit")}</span>

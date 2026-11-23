@@ -54,6 +54,8 @@ func (s *Server) applyEnergy() []string {
 	if disks := rotatingDisks(); len(disks) > 0 && sys.Has("hdparm") {
 		if err := energy.SetSpindown(diskPaths(disks), c.SpindownMin); err != nil {
 			problems = append(problems, err.Error())
+		} else {
+			appliedSpindown = c.SpindownMin
 		}
 	}
 	if c.Governor != "" {
@@ -83,6 +85,34 @@ func (s *Server) applyEnergy() []string {
 }
 
 var wakeArmed time.Time
+
+// appliedSpindown is the spin-down delay currently set on the data disks.
+var appliedSpindown = -1
+
+// applyNightSpindown applies the night plan's spin-down during its window,
+// the global spindownMin outside (roadmap 0.15, "Night energy plan"). Only
+// awake disks are touched: hdparm -S would wake a sleeping one.
+func (s *Server) applyNightSpindown(c store.Energy, now time.Time) {
+	want := c.SpindownMin
+	if c.Night != nil && c.Night.Active(now) && c.Night.SpindownMin > 0 {
+		want = c.Night.SpindownMin
+	}
+	if want == appliedSpindown || !sys.Has("hdparm") {
+		return
+	}
+	var devs []string
+	for _, d := range rotatingDisks() {
+		if energy.DiskState(d.Path) != "standby" {
+			devs = append(devs, d.Path)
+		}
+	}
+	if len(devs) > 0 {
+		if err := energy.SetSpindown(devs, want); err != nil {
+			return
+		}
+	}
+	appliedSpindown = want
+}
 
 // armWake keeps the clock's wake alarm on the next scheduled power-on, so
 // that the NAS also comes back after a shutdown by hand.
@@ -182,6 +212,7 @@ func (s *Server) energyLoop() {
 		c := s.energyConfig()
 		s.armWake(c)
 		now := time.Now()
+		s.applyNightSpindown(c, now)
 		due, rule := energy.NextAction(c.Rules, last)
 		if !pending.IsZero() {
 			due, rule = pending, pendingRule
@@ -248,6 +279,21 @@ func (s *Server) energyLoop() {
 }
 
 func (s *Server) energyRoutes() {
+	// Consumption history (hwmon), when the hardware reports it (roadmap 0.15).
+	s.admin("GET /api/energy/power", func(r *http.Request) (any, error) {
+		now := energy.PowerNow()
+		if now <= 0 { // fallback: the UPS
+			if uc := s.upsConfig(); uc.Mode != "off" && ups.Installed() {
+				if v, err := ups.Status(uc); err == nil {
+					if f, err := strconv.ParseFloat(v["ups.realpower"], 64); err == nil && f > 0 {
+						now = f
+					}
+				}
+			}
+		}
+		return map[string]any{"now": now, "history": s.hist.Power()}, nil
+	})
+
 	s.admin("GET /api/energy", func(r *http.Request) (any, error) {
 		c := s.energyConfig()
 		if c.Rules == nil {
@@ -301,6 +347,7 @@ func (s *Server) energyRoutes() {
 		}
 		out["wolPersisted"] = persisted
 		out["timezone"] = now.Location().String()
+		out["nightActive"] = c.Night != nil && c.Night.Active(now)
 		// Power drawn, when an UPS reports it.
 		if uc := s.upsConfig(); uc.Mode != "off" && ups.Installed() {
 			if v, err := ups.Status(uc); err == nil {
@@ -340,6 +387,11 @@ func (s *Server) energyRoutes() {
 		}
 		if err := req.Schedule.Validate(); err != nil {
 			return nil, badRequest(err.Error())
+		}
+		if req.Night != nil {
+			if err := req.Night.Validate(); err != nil {
+				return nil, badRequest("night plan: " + err.Error())
+			}
 		}
 		slices.Sort(req.Schedule.Days)
 		req.Schedule.Days = slices.Compact(req.Schedule.Days)

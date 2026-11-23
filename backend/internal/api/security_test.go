@@ -103,3 +103,10 @@ func TestJobsHiddenFromOtherUsers(t *testing.T) {
 		t.Errorf("admin cannot read the job: %d %s", code, body)
 	}
 }
+
+// Every route group registers without a panic: a duplicated pattern crashes
+// the daemon at startup, which the unit tests (one group at a time) miss.
+func TestAllRoutesRegister(t *testing.T) {
+	s := newTestServer(t)
+	s.routes()
+}

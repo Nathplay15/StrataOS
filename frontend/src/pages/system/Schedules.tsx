@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, ArchiveRestore, Bug, CalendarClock, Camera, GitCompare, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, ArchiveRestore, Bot, Bug, CalendarClock, Camera, GitCompare, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
@@ -19,6 +19,8 @@ const typeInfo = {
   smart: { label: tr("SMART test"), icon: <Activity size={15} />, tone: "warn" as const },
   appupdate: { label: tr("App updates"), icon: <AppWindow size={15} />, tone: "accent" as const },
   antivirus: { label: tr("Antivirus scan"), icon: <Bug size={15} />, tone: "danger" as const },
+  action: { label: tr("Action"), icon: <Play size={15} />, tone: "accent" as const },
+  report: { label: tr("AI report"), icon: <Bot size={15} />, tone: "accent" as const },
 };
 
 const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -132,6 +134,13 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   const stackOptions: ScheduleTarget[] = [{ kind: "stacks", value: "all", label: tr("All running applications") }, ...(stacks.data ?? []).map((x) => ({ kind: "stacks" as const, value: x.name, label: x.name }))];
   const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<{ name: string; path: string }[]>("/api/shares"), enabled: s.type === "antivirus" });
   const pathOptions: ScheduleTarget[] = [{ kind: "path", value: "all", label: tr("All storage") }, ...(shares.data ?? []).map((x) => ({ kind: "path" as const, value: x.path, label: tr("Share {0}", x.name) }))];
+  // Action targets: the VMs, LXC containers and Docker containers of the NAS.
+  const vms = useQuery({ queryKey: ["vms"], queryFn: () => api.get<{ name: string }[]>("/api/vms"), enabled: s.type === "action" && s.targetKind === "vm" });
+  const lxcs = useQuery({ queryKey: ["lxc"], queryFn: () => api.get<{ name: string }[]>("/api/lxc"), enabled: s.type === "action" && s.targetKind === "lxc" });
+  const containers = useQuery({ queryKey: ["docker-containers"], queryFn: () => api.get<{ Names: string[]; Id: string }[]>("/api/docker/containers"), enabled: s.type === "action" && s.targetKind === "docker" });
+  const actionOptions: string[] = s.targetKind === "vm" ? (vms.data ?? []).map((v) => v.name)
+    : s.targetKind === "lxc" ? (lxcs.data ?? []).map((x) => x.name)
+    : (containers.data ?? []).map((c) => c.Names[0]?.replace(/^\//, "") ?? c.Id.slice(0, 12));
   const options = s.type === "snapshot" ? targets.snapshot : s.type === "scrub" ? targets.scrub : s.type === "appupdate" ? stackOptions : s.type === "antivirus" ? pathOptions : [];
   const current = options.find((o) => o.kind === s.targetKind && o.value === s.target);
   const selectedDisks = s.target === "all" ? [] : s.target.split(/[\s,]+/).filter(Boolean);
@@ -140,17 +149,22 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   useEffect(() => {
     if (s.type === "smart") {
       if (s.targetKind !== "disks") set({ targetKind: "disks", target: "all" });
+    } else if (s.type === "report") {
+      if (s.target !== "" || s.targetKind !== "zfs") set({ targetKind: "zfs", target: "" });
+    } else if (s.type === "action") {
+      if (!["vm", "lxc", "docker"].includes(s.targetKind)) set({ targetKind: "vm" as Schedule["targetKind"] });
+      if (!actionOptions.includes(s.target) && actionOptions[0]) set({ target: actionOptions[0] });
     } else if (!options.some((o) => o.kind === s.targetKind && o.value === s.target) && options[0]) {
       set({ targetKind: options[0].kind, target: options[0].value, subvolume: "" });
     }
-  }, [s.type]);
+  }, [s.type, s.targetKind, actionOptions.join(",")]);
 
   // Suggest a name until the user types one.
   useEffect(() => {
     if (named) return;
-    const what = s.type === "smart" ? (s.smartTest === "long" ? "long" : "court") : current?.label ?? "";
+    const what = s.type === "smart" ? (s.smartTest === "long" ? "long" : "court") : s.type === "action" ? `${s.action ?? "stop"} ${s.target}` : s.type === "report" ? "" : current?.label ?? "";
     set({ name: `${typeInfo[s.type].label} ${what}`.trim() });
-  }, [s.type, s.target, s.smartTest, named]);
+  }, [s.type, s.target, s.smartTest, s.action, named]);
 
   const payload = { ...s, cron: toCron(plan) };
   const save = useAction(() => (editing ? api.put(`/api/schedules/${s.id}`, payload) : api.post("/api/schedules", payload)), { success: editing ? tr("Task updated") : tr("Task created"), onDone: onClose });
@@ -158,7 +172,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   return (
     <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", s.name) : tr("New scheduled task")} wide footer={<>
       <Button onClick={onClose}>{tr("Cancel")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && s.type !== "report" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-4">
@@ -167,7 +181,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS, Btrfs or LVM thin, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine") }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS, Btrfs or LVM thin, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine"), action: tr("Start, stop or restart a VM or a container"), report: tr("The assistant writes a report, sent as a notification") }[t]}</div>
               </div>
             </button>
           ))}
@@ -175,7 +189,34 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
 
         <Field label={tr("Name")}><Input value={s.name} onChange={(e) => { setNamed(true); set({ name: e.target.value }); }} /></Field>
 
-        {s.type !== "smart" ? (
+        {s.type === "report" ? (
+          <Field label={tr("Instructions for the assistant")} hint={tr("Empty: a default summary of the NAS (health, events, backups, new photos).")}>
+            <textarea className="input h-24 w-full text-[12.5px]" value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} placeholder={tr("Every Monday: summarize the NAS health, the new photos and the failed backups…")} />
+          </Field>
+        ) : s.type === "action" ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label={tr("Action")}>
+              <Select value={s.action ?? "stop"} onChange={(e) => set({ action: e.target.value as "start" | "stop" | "restart" })}>
+                <option value="start">{tr("Start")}</option>
+                <option value="stop">{tr("Stop")}</option>
+                <option value="restart">{tr("Restart")}</option>
+              </Select>
+            </Field>
+            <Field label={tr("On")}>
+              <Select value={s.targetKind} onChange={(e) => { set({ targetKind: e.target.value as Schedule["targetKind"], target: "" }); }}>
+                <option value="vm">{tr("A virtual machine")}</option>
+                <option value="lxc">{tr("An LXC container")}</option>
+                <option value="docker">{tr("A Docker container")}</option>
+              </Select>
+            </Field>
+            <Field label={tr("Target")}>
+              <Select value={s.target} onChange={(e) => set({ target: e.target.value })}>
+                {actionOptions.length === 0 && <option value="">{tr("None found")}</option>}
+                {actionOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </Select>
+            </Field>
+          </div>
+        ) : s.type !== "smart" ? (
           options.length === 0 ? (
             <Notice tone="warn">{s.type === "snapshot" ? tr("No ZFS dataset or Btrfs volume: snapshots require one of the two.") : s.type === "appupdate" ? tr("No application installed.") : tr("No RAID array, ZFS pool or Btrfs volume to check.")}</Notice>
           ) : (
@@ -390,6 +431,7 @@ function SnapshotDiff({ s, snaps }: { s: Schedule; snaps: Snap[] }) {
 }
 
 function targetLabel(s: Schedule, targets?: Targets) {
+  if (s.type === "report") return s.prompt ? (s.prompt.length > 48 ? s.prompt.slice(0, 48) + "…" : s.prompt) : tr("Default summary");
   if (s.type === "smart") return s.target === "all" ? tr("All disks") : s.target;
   if (s.type === "appupdate") return s.target === "all" ? tr("All running applications") : s.target;
   if (s.type === "antivirus") return s.target === "all" ? tr("All storage") : s.target;

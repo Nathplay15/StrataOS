@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, User, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp, KeySquare,
+  Activity, AppWindow, BatteryCharging, Bot, CalendarClock, DatabaseBackup, LayoutGrid, Boxes, ChevronDown, Container, Cpu, Database, FileText, FolderOpen, HardDrive, HardDriveUpload, Layers, LayoutDashboard, ListChecks, History, LogOut, Menu, Moon, Network, Package, Power, RefreshCcw, ScrollText, Server, Settings, Share2, ShieldCheck, SquareTerminal, Sun, Users, User, X, Loader2, CheckCircle2, XCircle, CircleStop, KeyRound, Monitor, CloudCog, FolderInput, FolderTree, BookUser, ServerCog, Waypoints, Images, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, Copy, Fan, FingerprintPattern, Clapperboard, Cctv, Smartphone, TabletSmartphone, Palette, Film, Workflow, TrendingUp, KeySquare,
 } from "lucide-react";
 import logo from "../logo.svg";
 import { setUIMode } from "../desktop/mode";
@@ -50,6 +50,7 @@ const nav: { title: string; items: NavItem[] }[] = [
       { to: "/storage/media", label: tr("Video compression"), icon: <Film size={17} />, admin: true },
       { to: "/backup", label: tr("Backup"), icon: <DatabaseBackup size={17} />, admin: true },
       { to: "/cloudsync", label: tr("Cloud sync"), icon: <CloudCog size={17} />, admin: true },
+      { to: "/migration", label: tr("Migration"), icon: <FolderInput size={17} />, admin: true },
     ],
   },
   {

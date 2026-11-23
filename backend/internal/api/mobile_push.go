@@ -36,6 +36,9 @@ type mobileEvent struct {
 	Kind   string `json:"kind,omitempty"`
 	Action string `json:"action,omitempty"`
 	Link   string `json:"link,omitempty"`
+	// Picture and clip of a surveillance event, shown/carried by push.
+	Image string `json:"image,omitempty"`
+	Clip  string `json:"clip,omitempty"`
 }
 
 const maxMobileEvents = 200
@@ -66,13 +69,18 @@ func (s *Server) feedLoadLocked() {
 
 // mobileFeedAdd records a notification for the app.
 func (s *Server) mobileFeedAdd(level, subject, msg string, k notifKind) mobileEvent {
+	return s.mobileFeedAddM(level, subject, msg, k, "", "")
+}
+
+// mobileFeedAddM is mobileFeedAdd with an optional picture and clip.
+func (s *Server) mobileFeedAddM(level, subject, msg string, k notifKind, image, clip string) mobileEvent {
 	feed.mu.Lock()
 	defer feed.mu.Unlock()
 	s.feedLoadLocked()
 	if level == "" {
 		level = "info"
 	}
-	e := mobileEvent{ID: feed.Next, Time: time.Now(), Level: level, Subject: subject, Message: msg, Kind: k.Kind, Action: k.Action, Link: k.Link}
+	e := mobileEvent{ID: feed.Next, Time: time.Now(), Level: level, Subject: subject, Message: msg, Kind: k.Kind, Action: k.Action, Link: k.Link, Image: image, Clip: clip}
 	feed.Next++
 	feed.Events = append(feed.Events, e)
 	if len(feed.Events) > maxMobileEvents {
@@ -181,8 +189,15 @@ var pushClient = &http.Client{
 // pushPayload is what the app receives (and decrypts when keys are set).
 func pushPayload(host string, e mobileEvent) []byte {
 	body := func(e mobileEvent) map[string]any {
-		return map[string]any{"type": "notification", "host": host, "id": e.ID, "level": e.Level, "subject": e.Subject,
+		m := map[string]any{"type": "notification", "host": host, "id": e.ID, "level": e.Level, "subject": e.Subject,
 			"message": e.Message, "time": e.Time.Unix(), "kind": e.Kind, "action": e.Action, "link": e.Link}
+		if e.Image != "" {
+			m["image"] = e.Image
+		}
+		if e.Clip != "" {
+			m["clip"] = e.Clip
+		}
+		return m
 	}
 	b, _ := json.Marshal(body(e))
 	if len(b) > webpush.MaxPlaintext {
@@ -270,8 +285,13 @@ func (s *Server) pushMobile(targets []pushTarget, e mobileEvent) error {
 // mobileNotify is called by sendNotification: the event always goes to the
 // feed; use reports whether the mobile channel sends it (level, quiet hours).
 // Paired administrator phones make the channel configured, push or not.
-func (s *Server) mobileNotify(level, subject, msg string, k notifKind, use func(store.NotifyChannel) bool, ch store.NotifyChannel) (sent bool, err error) {
-	e := s.mobileFeedAdd(level, subject, msg, k)
+// media (picture/clip of a surveillance event) is carried by the push.
+func (s *Server) mobileNotify(level, subject, msg string, k notifKind, use func(store.NotifyChannel) bool, ch store.NotifyChannel, media *notifMedia) (sent bool, err error) {
+	image, clip := "", ""
+	if media != nil {
+		image, clip = media.Image, media.Clip
+	}
+	e := s.mobileFeedAddM(level, subject, msg, k, image, clip)
 	targets, devices := s.mobilePushTargets()
 	if devices == 0 || !use(ch) {
 		return false, nil

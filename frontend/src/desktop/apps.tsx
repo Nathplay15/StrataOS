@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type ReactNode } from "react";
 import {
-  Bot, Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone, KeySquare,
+  Bot, Activity, AppWindow, BookUser, ServerCog, ShieldCheck, CloudCog, FolderInput, FolderTree, BatteryCharging, DatabaseBackup, Boxes, CalendarClock, Container, Cpu, Database, FileText, FolderOpen, HardDrive, Layers, LayoutDashboard, Monitor as MonitorIcon, Network, Workflow, Package, RefreshCcw, Server, Settings, Share2, SlidersHorizontal, SquareTerminal, Users, Waypoints, Images as PhotosIcon, HardDriveUpload, Link2, Leaf, ShieldBan, LifeBuoy, PieChart, TrendingUp, Copy, Fan, Clapperboard, Cctv, Smartphone, KeySquare,
 } from "lucide-react";
 import type { Me } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -37,6 +37,7 @@ const SettingsPage = lazy(() => import("../pages/system/Settings"));
 const Schedules = lazy(() => import("../pages/system/Schedules"));
 const Routines = lazy(() => import("../pages/system/Routines"));
 const Backups = lazy(() => import("../pages/system/Backups"));
+const Migration = lazy(() => import("../pages/system/Migration"));
 const UPSPage = lazy(() => import("../pages/system/UPS"));
 const EnergyPage = lazy(() => import("../pages/system/Energy"));
 const HardwarePage = lazy(() => import("../pages/system/Hardware"));
@@ -130,6 +131,7 @@ export const APPS: AppDef[] = [
     ],
   },
   { id: "backup", title: tr("Backup"), icon: DatabaseBackup, colors: ["#14b8a6", "#0d9488"], admin: true, size: [1040, 720], component: page(Backups), path: "/backup" },
+  { id: "migration", title: tr("Migration"), icon: FolderInput, colors: ["#6366f1", "#4f46e5"], admin: true, size: [1040, 720], component: page(Migration), path: "/migration" },
   { id: "cloudsync", title: tr("Cloud sync"), icon: CloudCog, colors: ["#38bdf8", "#0ea5e9"], admin: true, size: [1040, 720], component: page(CloudSync), path: "/cloudsync" },
   { id: "appcenter", title: tr("App Center"), icon: AppWindow, colors: ["#ec4899", "#f43f5e"], admin: true, size: [1120, 760], component: page(AppStore), path: "/apps" },
   {

@@ -37,6 +37,7 @@ func (s *Server) dockerGet(r *http.Request, path string, q url.Values) (any, err
 }
 
 func (s *Server) dockerRoutes() {
+	s.dockerHealthRoutes()
 	s.admin("GET /api/docker/info", func(r *http.Request) (any, error) {
 		if !docker.Available() {
 			return map[string]any{"available": false}, nil

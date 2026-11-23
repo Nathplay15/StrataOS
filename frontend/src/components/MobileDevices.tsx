@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
-import { Bell, Check, Edit3, Laptop, QrCode, Smartphone, Trash2, X } from "lucide-react";
+import { Bell, Check, Edit3, Globe, Laptop, QrCode, Smartphone, Trash2, X } from "lucide-react";
 import { api } from "../lib/api";
 import { dateTime } from "../lib/format";
 import { tr } from "../lib/i18n";
 import { Badge, Button, ErrorBox, Input, Modal, Notice, Spinner, useUI } from "./ui";
+import { BrowserPush } from "./BrowserPush";
 import { DesktopApp } from "./DesktopApp";
 
 interface Device {
@@ -13,7 +14,7 @@ interface Device {
   name: string;
   model: string;
   app?: string;
-  kind: "android" | "desktop";
+  kind: "android" | "desktop" | "browser";
   os?: string;
   createdAt: string;
   lastSeen?: string;
@@ -75,7 +76,9 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
   const revoke = async (d: Device) => {
     const text = d.kind === "desktop"
       ? tr("The sync app on this computer is signed out at once and stops synchronizing (its files stay on the computer). Pair it again to use it.")
-      : tr("The app on this phone is signed out at once and stops backing up. Pair it again to use it.");
+      : d.kind === "browser"
+        ? tr("Web push notifications of this browser are disabled.")
+        : tr("The app on this phone is signed out at once and stops backing up. Pair it again to use it.");
     if (!(await confirm({ title: tr("Revoke {0}?", d.name), text, danger: true, confirm: tr("Revoke") }))) return;
     run(async () => {
       await api.del(`/api/me/devices/${d.id}`);
@@ -90,11 +93,12 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
         <p className="text-[13.5px]">{tr("The StrataOS app for Android browses your files, backs up the photos and videos of your phone and shows the NAS alerts.")}{" "}
           <a className="text-accent hover:underline" href={releases} target="_blank" rel="noreferrer">{tr("Download the app (APK)")}</a>
         </p>
+        <BrowserPush />
         {list.isLoading || !devices ? <Spinner /> : devices.length === 0 ? <p className="text-muted text-[13px]">{tr("No phone or computer paired yet.")}</p> : (
           <div className="divide-y divide-border rounded-xl border border-border">
             {devices.map((d) => (
               <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-                {d.kind === "desktop" ? <Laptop size={18} className="text-accent" /> : <Smartphone size={18} className="text-accent" />}
+                {d.kind === "desktop" ? <Laptop size={18} className="text-accent" /> : d.kind === "browser" ? <Globe size={18} className="text-accent" /> : <Smartphone size={18} className="text-accent" />}
                 <div className="min-w-0 flex-1">
                   {edit?.id === d.id ? (
                     <div className="flex items-center gap-1">
@@ -107,7 +111,7 @@ export function MobileDevicesModal({ open, onClose }: { open: boolean; onClose: 
                       <span className="truncate">{d.name}</span>
                       {d.model && d.model !== d.name && <span className="text-muted text-[12px] font-normal">{d.model}</span>}
                       {d.os && <span className="text-muted text-[12px] font-normal">{d.os}</span>}
-                      {d.kind === "desktop" ? <Badge tone="accent">{tr("Sync app")}</Badge> : d.push ? <Badge tone={d.pushError ? "warn" : "ok"}>{tr("Push")}</Badge> : <Badge>{tr("No push")}</Badge>}
+                      {d.kind === "desktop" ? <Badge tone="accent">{tr("Sync app")}</Badge> : d.kind === "browser" ? <Badge tone="accent">{tr("Web app")}</Badge> : d.push ? <Badge tone={d.pushError ? "warn" : "ok"}>{tr("Push")}</Badge> : <Badge>{tr("No push")}</Badge>}
                     </div>
                   )}
                   <div className="text-muted text-[12px]">

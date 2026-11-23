@@ -299,6 +299,16 @@ export interface Container {
   Mounts: { Type: string; Source: string; Destination: string; RW: boolean }[];
 }
 
+export interface ContainerHealth {
+  id: string;
+  name: string;
+  status: string;
+  restartCount: number;
+  startedAt: string;
+  reason: string;
+  lastLogs: string;
+}
+
 export interface ContainerStats {
   cpuPercent: number;
   memUsage: number;
@@ -466,10 +476,21 @@ export interface Settings {
   assistantUrl?: string;
   assistantKey?: string;
   assistantModel?: string;
-  /** "" (endpoint) | "chatgpt". */
+  /** "" (endpoint) | "chatgpt" | "oauth:<id>" (account sign-in, device flow). */
   assistantProvider?: string;
   chatgptEmail?: string;
   chatgptExpires?: string;
+  oauthProvider?: string;
+  oauthClientId?: string;
+  oauthEmail?: string;
+  oauthExpires?: string;
+  /** OpenSubtitles account used by the "Fetch subtitles" button of the video
+   * player (the key and password come back masked). */
+  osApiKey?: string;
+  osUser?: string;
+  osPass?: string;
+  /** Preferred subtitle languages, comma separated, most preferred first. */
+  subLangs?: string;
 }
 
 export interface ScheduleRun {
@@ -483,11 +504,14 @@ export interface ScheduleRun {
 export interface Schedule {
   id: string;
   name: string;
-  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus";
+  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus" | "action" | "report";
   avAction?: "report" | "quarantine";
+  action?: "start" | "stop" | "restart";
+  /** Type "report": what the assistant summarizes in its scheduled report. */
+  prompt?: string;
   cron: string;
   enabled: boolean;
-  targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path";
+  targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path" | "vm" | "lxc" | "docker";
   target: string;
   subvolume?: string;
   recursive?: boolean;
@@ -511,6 +535,36 @@ export interface ScheduleTarget {
   value: string;
   label: string;
   subvolumes?: string[];
+}
+
+export interface MigrationRun {
+  started: string;
+  duration: number;
+  status: "success" | "failed" | "stopped";
+  message: string;
+  manual?: boolean;
+  files?: number;
+  bytes?: number;
+}
+
+export interface Migration {
+  id: string;
+  name: string;
+  kind: "smb" | "nfs" | "rsync";
+  host: string;
+  share: string;
+  path?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  dest: string;
+  delete?: boolean;
+  cron?: string;
+  enabled: boolean;
+  createdAt: string;
+  history: MigrationRun[];
+  running?: boolean;
+  nextRun?: string;
 }
 
 export interface RoutineAction {

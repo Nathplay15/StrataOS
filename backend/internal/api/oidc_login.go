@@ -445,7 +445,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		s.limiter.reset(ip)
 		s.setCookie(w, r, s.sessions.add(&session{User: u.Username, Role: u.Role, Expires: time.Now().Add(ttl), Created: time.Now(), IP: ip, MFA: mfa}), ttl)
-		s.store.Login(u.Username, ip, true, "oidc")
+		s.recordLogin(r, u.Username, true, "oidc")
 		how := "Signed in with " + p.Name
 		if mfa != "" {
 			how += " (second factor checked by the provider)"

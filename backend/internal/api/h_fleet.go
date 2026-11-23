@@ -64,10 +64,50 @@ func (s *Server) fleetSummary() map[string]any {
 	return ov
 }
 
+// validFleetHost trims and checks a NAS address typed in the console.
+func validFleetHost(host string) (string, error) {
+	host = strings.TrimSpace(host)
+	if host == "" || strings.ContainsAny(host, "/ @?#") {
+		return "", badRequest("invalid address")
+	}
+	return host, nil
+}
+
+// fleetJoin exchanges a single-use pairing code with a NAS: it returns the
+// name that NAS gave itself, the console token it handed over, and its
+// pinned certificate fingerprint.
+func fleetJoin(ctx context.Context, host, code string) (name, token, cert string, err error) {
+	fp, err := ha.CertFingerprint(ctx, host)
+	if err != nil {
+		return "", "", "", badRequest(err.Error())
+	}
+	me, _ := hostname()
+	body, _ := json.Marshal(map[string]string{"code": code, "name": me})
+	hreq, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+bracketHost(host)+":7443/api/fleet-join", strings.NewReader(string(body)))
+	hreq.Header.Set("Content-Type", "application/json")
+	hreq.Header.Set("X-Strata", "1")
+	resp, err := (&http.Client{Transport: backup.PinnedTransport(fp)}).Do(hreq)
+	if err != nil {
+		return "", "", "", badRequest(err.Error())
+	}
+	defer resp.Body.Close()
+	var res struct {
+		Token string `json:"token"`
+		Name  string `json:"name"`
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&res)
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", badRequest(firstNonEmpty(res.Error, resp.Status))
+	}
+	return res.Name, res.Token, fp, nil
+}
+
 func (s *Server) fleetRoutes() {
 	// ---- On a watched NAS ----
 	s.fleetPeerRoutes()
 	s.fleetUpdateRoutes()
+	s.fleetWatchedRoutes()
 	s.admin("POST /api/fleet/code", func(r *http.Request) (any, error) {
 		code := pairingCode()
 		fleetCodes.Lock()
@@ -209,36 +249,17 @@ func (s *Server) fleetRoutes() {
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		host := strings.TrimSpace(req.Host)
-		if host == "" || strings.ContainsAny(host, "/ @?#") {
-			return nil, badRequest("invalid address")
+		host, err := validFleetHost(req.Host)
+		if err != nil {
+			return nil, err
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		fp, err := ha.CertFingerprint(ctx, host)
+		name, token, fp, err := fleetJoin(ctx, host, req.Code)
 		if err != nil {
-			return nil, badRequest(err.Error())
+			return nil, err
 		}
-		me, _ := hostname()
-		body, _ := json.Marshal(map[string]string{"code": req.Code, "name": me})
-		hreq, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+bracketHost(host)+":7443/api/fleet-join", strings.NewReader(string(body)))
-		hreq.Header.Set("Content-Type", "application/json")
-		hreq.Header.Set("X-Strata", "1")
-		resp, err := (&http.Client{Transport: backup.PinnedTransport(fp)}).Do(hreq)
-		if err != nil {
-			return nil, badRequest(err.Error())
-		}
-		defer resp.Body.Close()
-		var res struct {
-			Token string `json:"token"`
-			Name  string `json:"name"`
-			Error string `json:"error"`
-		}
-		_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&res)
-		if resp.StatusCode != http.StatusOK {
-			return nil, badRequest(firstNonEmpty(res.Error, resp.Status))
-		}
-		m := store.FleetMember{ID: newLinkID()[:12], Name: res.Name, Host: host, Cert: fp, Token: res.Token, Added: time.Now()}
+		m := store.FleetMember{ID: newLinkID()[:12], Name: name, Host: host, Cert: fp, Token: token, Added: time.Now()}
 		err = s.store.Update(func(st *store.State) error {
 			if len(st.Fleet.Members) >= 200 {
 				return badRequest("too many NAS")

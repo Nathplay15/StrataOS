@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, FolderTree, Globe, KeyRound, Plug, Server } from "lucide-react";
+import { Calendar, Copy, FolderTree, Globe, KeyRound, Plug, Server } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Button, Card, ErrorBox, Field, IconButton, Input, Notice, PageHeader, Spinner, Switch, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import { S3Service } from "../../components/S3Service";
 
-type Config = { webdav: boolean; ftp: boolean; ftpRequireTls: boolean; ftpPassiveMin: number; ftpPassiveMax: number; sftp: boolean };
+type Config = { webdav: boolean; calDAV?: boolean; ftp: boolean; ftpRequireTls: boolean; ftpPassiveMin: number; ftpPassiveMax: number; sftp: boolean };
 type Data = { config: Config; ftpInstalled: boolean; sftpInstalled: boolean; httpsPort: string };
 
 function Address({ value }: { value: string }) {
@@ -44,6 +44,19 @@ export default function FileServices() {
               <>
                 <Field label={tr("Address (HTTPS, recommended)")}><Address value={`https://${host}:${data.httpsPort}/dav/`} /></Field>
                 <div className="text-muted text-[12.5px]">{tr("Windows: Explorer → This PC → Map network drive. macOS: Finder → Go → Connect to Server. Accounts with two-factor authentication enabled cannot use WebDAV (the protocol does not allow entering the code).")}</div>
+              </>
+            )}
+          </div>
+        </Card>
+
+        <Card title={<span className="flex items-center gap-2"><Calendar size={16} className="text-accent" />{tr("CalDAV / CardDAV")}</span>}>
+          <div className="space-y-4">
+            <Switch checked={c.calDAV ?? false} onChange={(v) => set({ calDAV: v })} label={tr("Enable calendars and address books (CalDAV / CardDAV)")} hint={tr("Sync the calendars and contacts of the accounts natively with iPhone, Android and Thunderbird, without another server.")} />
+            {c.calDAV && (
+              <>
+                <Field label={tr("Calendar address (CalDAV)")}><Address value={`https://${host}:${data.httpsPort}/caldav/`} /></Field>
+                <Field label={tr("Address book address (CardDAV)")}><Address value={`https://${host}:${data.httpsPort}/carddav/`} /></Field>
+                <div className="text-muted text-[12.5px]">{tr("Sign in with the NAS account and its password; each account gets one calendar and one address book, named « default ». Accounts with two-factor authentication cannot use these protocols (the protocol has no field for the code).")}</div>
               </>
             )}
           </div>

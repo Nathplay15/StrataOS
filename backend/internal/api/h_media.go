@@ -533,6 +533,33 @@ func (s *Server) mediaRoutes() {
 		host, _ := hostname()
 		return map[string]any{"config": c, "status": media.GetDLNAStatus(r.Context()), "interfaces": lanInterfaces(), "hostname": host, "port": media.DLNAPort}, nil
 	})
+	// Night mode (cinema polish): the players dim and cap the volume during
+	// the evening hours; read by every account, set by an administrator.
+	s.user("GET /api/media/night", func(r *http.Request) (any, error) {
+		var n store.NightMode
+		s.store.Read(func(st *store.State) { n = st.Media.Night })
+		return n, nil
+	})
+	s.admin("PUT /api/media/night", func(r *http.Request) (any, error) {
+		var req store.NightMode
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if req.From < 0 || req.From > 23 || req.To < 0 || req.To > 23 {
+			return nil, badRequest("hours must be between 0 and 23")
+		}
+		if req.MaxVolume < 1 || req.MaxVolume > 100 {
+			req.MaxVolume = 30
+		}
+		if req.Brightness < 20 || req.Brightness > 100 {
+			req.Brightness = 80
+		}
+		return nil, s.store.Update(func(st *store.State) error {
+			st.Media.Night = req
+			return nil
+		})
+	})
+
 	s.admin("PUT /api/media/dlna", func(r *http.Request) (any, error) {
 		var req store.DLNAServer
 		if err := decode(r, &req); err != nil {

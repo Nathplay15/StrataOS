@@ -8,14 +8,16 @@ import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Notice,
 import { AppLink } from "../components/AppLink";
 import { CastNotes, ReceiverIcon, SessionPanel, useReceivers, type CastSession } from "../components/Cast";
 import { tr } from "../lib/i18n";
+import { CinemaTab } from "./media/Cinema";
 import { cx } from "../lib/format";
 
-type Tab = "dlna" | "music" | "cast";
+type Tab = "cinema" | "dlna" | "music" | "cast";
 
 export default function Media({ me }: { me: Me }) {
   const admin = me.role === "admin";
   const [tab, setTab] = useState<Tab>(admin ? "dlna" : "music");
   const tabs: { id: Tab; label: string }[] = [
+    { id: "cinema", label: tr("Video library") },
     ...(admin ? [{ id: "dlna" as Tab, label: tr("DLNA server") }] : []),
     { id: "music", label: tr("Music & speakers") },
     { id: "cast", label: tr("Cast") },
@@ -24,6 +26,7 @@ export default function Media({ me }: { me: Me }) {
     <div>
       <PageHeader title={tr("Media")} subtitle={tr("Stream videos, music and photos to the TVs and speakers of your home")} icon={<Clapperboard size={20} />} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
+      {tab === "cinema" && <CinemaTab admin={admin} />}
       {tab === "dlna" && admin && <DLNATab />}
       {tab === "music" && <MusicTab admin={admin} />}
       {tab === "cast" && <CastTab />}

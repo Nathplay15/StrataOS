@@ -3,13 +3,13 @@
 // stream that starts at a given time, so seeking restarts the stream and the
 // timeline below is drawn by the player itself.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Captions, Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Captions, Download, Mic, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import type { FileEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
 import { srv, tr } from "../../lib/i18n";
-import { Badge, Button, ErrorBox, Notice, Select, Spinner } from "../ui";
+import { Badge, Button, ErrorBox, Notice, Select, Spinner, Switch } from "../ui";
 import { Toolbar, ViewerCard, getPos, inlineURL, setPos, useViewerCaps } from "./common";
 import { useAction } from "../../lib/hooks";
 
@@ -21,6 +21,7 @@ interface Probe {
   audioTracks?: Track[];
   subtitles?: Track[];
   vaapi?: boolean;
+  stt?: boolean;
 }
 
 /** Optional codecs this browser decodes (sent to the NAS for its decision). */
@@ -113,6 +114,41 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [sub, setSub] = useState<number | null>(null);
+  // Local transcription (whisper.cpp on the NAS): writes .srt + transcript
+  // next to the file; the sidecar then appears in the subtitle list.
+  const qcProbe = useQueryClient();
+  const [trText, setTrText] = useState<string | null>(null);
+  const transcribe = useAction(() => api.post<{ text: string }>("/api/files/transcribe", { path: entry.path }), {
+    success: tr("Transcript generated: the subtitles were added next to the video."),
+    onDone: (r) => { setTrText(r.text); qcProbe.invalidateQueries({ queryKey: ["probe", entry.path] }); },
+  });
+  // Subtitles from OpenSubtitles (account in Settings): writes <name>.<lang>.srt
+  // next to the file; the sidecar then appears in the subtitle list.
+  const fetchSubs = useAction(() => api.post<{ lang: string; name: string }>("/api/files/subtitles/fetch", { path: entry.path }), {
+    success: (r) => tr("Subtitles downloaded ({0}).", r.lang),
+    onDone: () => { qcProbe.invalidateQueries({ queryKey: ["probe", entry.path] }); },
+  });
+  // Night mode (evening): caps the volume and dims the picture.
+  const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
+  const nightOn = (() => {
+    const n = night.data;
+    if (!n?.enabled || n.from === n.to) return false;
+    const h = now.getHours();
+    return n.from < n.to ? h >= n.from && h < n.to : h >= n.from || h < n.to;
+  })();
+  const volCap = nightOn ? Math.min(1, (night.data?.maxVolume ?? 30) / 100) : 1;
+  useEffect(() => { if (nightOn && volume > volCap) setVolume(volCap); }, [nightOn, volCap, volume]);
+  // Subtitle look (size, color, outline), kept per browser.
+  const [subStyle, setSubStyle] = useState<{ size: number; color: string; outline: boolean }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("strata-substyle") || "{}");
+      return { size: v.size ?? 130, color: v.color ?? "#ffffff", outline: v.outline ?? true };
+    } catch { return { size: 130, color: "#ffffff", outline: true }; }
+  });
+  const [subCfg, setSubCfg] = useState(false);
+  useEffect(() => { try { localStorage.setItem("strata-substyle", JSON.stringify(subStyle)); } catch { /* private mode */ } }, [subStyle]);
   const [error, setError] = useState<unknown>(null);
   const src = `/api/files/play${q({ path: entry.path, start: offset || undefined, audio, ...caps })}`;
   const pos = offset + current;
@@ -143,11 +179,18 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
     <>
       <Toolbar entry={entry}>
         <Badge tone="accent">{what}</Badge>
+        {nightOn && <Badge tone="neutral">{tr("Night mode")}</Badge>}
         {audios.length > 1 && (
           <Select value={audio ?? ""} onChange={(e) => { setAudio(e.target.value === "" ? undefined : +e.target.value); }} className="!h-8 max-w-[180px] text-[12.5px]" aria-label={tr("Audio track")}>
             <option value="">{tr("Default audio")}</option>
             {audios.map((a) => <option key={a.index} value={a.index}>{trackName(a)}</option>)}
           </Select>
+        )}
+        {!plan.audioOnly && (
+          <Button size="sm" variant="ghost" icon={<Download size={14} />} loading={fetchSubs.isPending} title={tr("Download subtitles from OpenSubtitles")} onClick={() => fetchSubs.mutate()}>{tr("Fetch subtitles")}</Button>
+        )}
+        {!plan.audioOnly && probe.stt && (
+          <Button size="sm" variant="ghost" icon={<Mic size={14} />} loading={transcribe.isPending} title={tr("Generate subtitles from the audio")} onClick={() => { setTrText(null); transcribe.mutate(); }}>{tr("Transcribe")}</Button>
         )}
         {!plan.audioOnly && subs.length > 0 && (
           <span className="flex items-center gap-1">
@@ -156,8 +199,27 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
               <option value="">{tr("No subtitles")}</option>
               {subs.map((s) => <option key={s.index} value={s.index}>{trackName(s)}</option>)}
             </Select>
+            <span className="relative">
+              <Button size="sm" variant="ghost" icon={<Settings2 size={14} />} title={tr("Settings")} aria-label={tr("Subtitle settings")} onClick={() => setSubCfg(!subCfg)} />
+              {subCfg && (
+                <div className="absolute right-0 z-10 mt-1 w-56 space-y-2 rounded-xl border border-line bg-panel p-3 shadow-lg">
+                  <div><div className="mb-1 text-[11.5px] text-muted">{tr("Subtitle size")}</div>
+                    <Select value={String(subStyle.size)} onChange={(e) => setSubStyle({ ...subStyle, size: +e.target.value })} className="!h-8 w-full text-[12.5px]">
+                      <option value="100">{tr("Small")}</option><option value="130">{tr("Medium")}</option><option value="165">{tr("Large")}</option>
+                    </Select>
+                  </div>
+                  <div><div className="mb-1 text-[11.5px] text-muted">{tr("Subtitle color")}</div>
+                    <Select value={subStyle.color} onChange={(e) => setSubStyle({ ...subStyle, color: e.target.value })} className="!h-8 w-full text-[12.5px]">
+                      <option value="#ffffff">{tr("White")}</option><option value="#ffe600">{tr("Yellow")}</option><option value="#00e5ff">{tr("Cyan")}</option><option value="#76ff03">{tr("Green")}</option>
+                    </Select>
+                  </div>
+                  <Switch checked={subStyle.outline} onChange={(v) => setSubStyle({ ...subStyle, outline: v })} label={tr("Outline")} />
+                </div>
+              )}
+            </span>
           </span>
         )}
+        {sub !== null && <style>{`video.cuebox::cue{font-size:${subStyle.size}%;color:${subStyle.color};${subStyle.outline ? "text-shadow:-1px 0 0 #000,1px 0 0 #000,0 -1px 0 #000,0 1px 0 #000,0 0 3px #000;" : ""}}`}</style>}
       </Toolbar>
       <div className="flex min-h-0 flex-1 flex-col bg-black">
         <div className={cx("flex min-h-0 flex-1 items-center justify-center", plan.audioOnly && "bg-panel-2")} onClick={toggle}>
@@ -165,7 +227,8 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
           <El key={src} ref={ref} src={src} autoPlay preload="auto" playsInline
             onTimeUpdate={(e) => { setCurrent(e.currentTarget.currentTime); setPos(key, offset + e.currentTarget.currentTime); }}
             onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => void onError()}
-            className={plan.audioOnly ? "hidden" : "max-h-full max-w-full"}>
+            className={cx(plan.audioOnly ? "hidden" : "max-h-full max-w-full", sub !== null && "cuebox")}
+            style={nightOn && !plan.audioOnly ? { filter: `brightness(${Math.max(0.2, (night.data?.brightness ?? 80) / 100)})` } : undefined}>
             {subURL && <track key={subURL} kind="subtitles" src={subURL} default label={tr("Subtitles")} />}
           </El>
         </div>
@@ -179,10 +242,13 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
             onKeyUp={() => { if (drag !== null) { seek(drag); setDrag(null); } }} />
           <span className="mono w-14 text-muted">{duration ? clock(duration) : "—"}</span>
           <Button size="sm" variant="ghost" icon={muted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />} title={tr("Mute")} onClick={() => setMuted(!muted)} />
-          <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} aria-label={tr("Volume")} className="w-20 accent-[var(--accent)] max-sm:hidden" onChange={(e) => { setVolume(+e.target.value); setMuted(false); }} />
+          <input type="range" min={0} max={volCap} step={0.05} value={muted ? 0 : Math.min(volume, volCap)} aria-label={tr("Volume")} className="w-20 accent-[var(--accent)] max-sm:hidden" onChange={(e) => { setVolume(+e.target.value); setMuted(false); }} />
         </div>
       </div>
       {error instanceof ApiError && error.status === 503 && <Notice tone="warn">{srv(error.message)}</Notice>}
+      {trText && <div className="border-t border-line bg-panel p-3"><div className="mb-1 text-[12px] font-medium text-muted">{tr("Transcript")}</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[12.5px]">{trText}</pre></div>}
+      {transcribe.error && <div className="border-t border-line bg-panel p-3"><ErrorBox error={transcribe.error} /></div>}
+      {fetchSubs.error && <div className="border-t border-line bg-panel p-3"><ErrorBox error={fetchSubs.error} /></div>}
     </>
   );
 }

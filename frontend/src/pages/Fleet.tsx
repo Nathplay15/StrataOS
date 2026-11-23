@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Copy, Download, ExternalLink, KeyRound, Network, Plus, RefreshCw, Server, Trash2, XCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle2, Copy, Download, ExternalLink, Eye, KeyRound, Network, Plus, RefreshCw, Server, Trash2, XCircle } from "lucide-react";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { ago, bytes, dateTime, pct } from "../lib/format";
@@ -16,7 +16,7 @@ type Summary = {
   backups: { ok: number; failed: number; lastFailure?: string }; containers: { running: number; total: number };
   updates?: Updates; ha?: { role: string; peers: string[] }; access?: { updates: boolean; reboot: boolean };
 };
-type Row = { id: string; name: string; host: string; online: boolean; error?: string; summary?: Summary; haWith?: string[] };
+type Row = { id: string; name: string; host: string; online: boolean; error?: string; summary?: Summary; haWith?: string[]; lastSeen?: string };
 type Manager = { id: string; name: string; created: string; lastSeen?: string; allowUpdates?: boolean; allowReboot?: boolean; allowVms?: boolean; allowNetworks?: boolean };
 type Item = { member: string; name: string; host: string; ha?: string; state: string; progress: number; from?: string; target?: string; version?: string; note?: string; error?: string };
 type Run = {
@@ -63,6 +63,7 @@ function NASCard({ r, onRemove, selected, onSelect }: { r: Row; onRemove?: () =>
           {!r.online ? <Badge tone="danger" dot>{tr("Unreachable")}</Badge> : errors ? <Badge tone="warn" dot>{tr("{0} alert(s)", errors)}</Badge> : <Badge tone="ok" dot>{tr("Healthy")}</Badge>}
         </div>
         {!r.online && <div className="mt-3 break-words text-danger text-[12.5px]">{r.error}</div>}
+        {r.lastSeen && <div className="mt-2 text-muted text-[11.5px]">{tr("Last seen {0}", ago(r.lastSeen))}</div>}
         {s && <>
           <div className="mt-3 text-muted text-[12px]">StrataOS {s.version} · {tr("running for {0} day(s)", s.uptimeDays)} · {tr("{0}/{1} container(s)", s.containers.running, s.containers.total)}</div>
           <UpdateBadges u={s.updates} />
@@ -140,14 +141,20 @@ function RunCard({ run, onCancel }: { run: Run; onCancel: () => void }) {
 
 export default function Fleet() {
   const { confirm, toast } = useUI();
+  const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({ queryKey: ["fleet"], queryFn: () => api.get<Row[]>("/api/fleet"), refetchInterval: 30000 });
+  const watched = useQuery({ queryKey: ["fleet-watched"], queryFn: () => api.get<Row[]>("/api/fleet/watched"), refetchInterval: 60000 });
   const managers = useQuery({ queryKey: ["fleet-managers"], queryFn: () => api.get<Manager[]>("/api/fleet/managers") });
   const runs = useQuery({ queryKey: ["fleet-updates"], queryFn: () => api.get<Run[]>("/api/fleet/updates"), refetchInterval: (q) => (q.state.data?.some((r) => r.status === "running") ? 3000 : 30000) });
   const [add, setAdd] = useState<{ host: string; code: string } | null>(null);
+  const [wadd, setWadd] = useState<{ host: string; code: string } | null>(null);
   const [code, setCode] = useState("");
   const [sel, setSel] = useState<string[]>([]);
   const [upd, setUpd] = useState<UpdateForm | null>(null);
   const create = useAction(() => api.post("/api/fleet", add), { success: tr("NAS added to the console"), onDone: () => setAdd(null) });
+  const watch = useAction(() => api.post("/api/fleet/watched", wadd), { success: tr("Watched NAS added"), onDone: () => { setWadd(null); qc.invalidateQueries({ queryKey: ["fleet-watched"] }); } });
+  const unwatch = useAction((id: string) => api.del(`/api/fleet/watched/${id}`), { success: tr("Watched NAS removed"), onDone: () => qc.invalidateQueries({ queryKey: ["fleet-watched"] }) });
+  const refreshWatched = useAction(() => api.post<Row[]>("/api/fleet/watched/refresh", {}), { onDone: () => qc.invalidateQueries({ queryKey: ["fleet-watched"] }) });
   const remove = useAction((id: string) => api.del(`/api/fleet/${id}`), { success: tr("NAS removed from the console") });
   const mkCode = useAction(() => api.post<{ code: string }>("/api/fleet/code"), { onDone: (r) => setCode(r.code) });
   const revoke = useAction((id: string) => api.del(`/api/fleet/managers/${id}`), { success: tr("Access removed") });
@@ -182,6 +189,22 @@ export default function Fleet() {
         </div></div>
       ))}
       {data && data.length === 1 && <div className="mt-4"><Card><Empty icon={<Network />} title={tr("Add your other NAS")} text={tr("On the other NAS, open Multi-NAS Console and display an authorization code, then click “Add a NAS” here.")} /></Card></div>}
+
+      <Card className="mt-6" title={<span className="flex items-center gap-2"><Eye size={16} />{tr("Watched NAS (outside the cluster)")}</span>}
+        actions={<>
+          {!!watched.data?.length && <Button size="sm" icon={<RefreshCw size={14} />} loading={refreshWatched.isPending} onClick={() => refreshWatched.mutate()}>{tr("Refresh")}</Button>}
+          <Button size="sm" variant="primary" icon={<Plus size={14} />} onClick={() => setWadd({ host: "", code: "" })}>{tr("Watch a NAS (read-only)")}</Button>
+        </>}>
+        <p className="mb-3 text-muted text-[12.5px]">{tr("These NAS are not part of the cluster: the console only reads their status, it cannot update them or copy their virtual machines.")}</p>
+        {!watched.data?.length ? (
+          <div className="text-muted text-[13px]">{tr("No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.")}</div>
+        ) : (
+          <div className="@container"><div className="grid gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
+            {watched.data.map((r) => <NASCard key={r.id} r={r}
+              onRemove={async () => { if (await confirm({ title: tr("Remove {0} from the watched list?", r.name), text: tr("This NAS is no longer watched from here."), danger: true })) unwatch.mutate(r.id); }} />)}
+          </div></div>
+        )}
+      </Card>
 
       {!!runs.data?.length && (
         <Card className="mt-6" title={<span className="flex items-center gap-2"><Download size={16} />{tr("Grouped updates")}</span>}>
@@ -237,6 +260,14 @@ export default function Fleet() {
           <Field label={tr("NAS address")}><Input value={add.host} onChange={(e) => setAdd({ ...add, host: e.target.value.trim() })} placeholder="192.168.1.30" /></Field>
           <Field label={tr("Authorization code")} hint={tr("Shown by the other NAS in Multi-NAS Console")}><Input className="mono uppercase" value={add.code} onChange={(e) => setAdd({ ...add, code: e.target.value })} placeholder="ABCDE-12345" /></Field>
           <ErrorBox error={create.error} />
+        </div>}
+      </Modal>
+
+      <Modal open={!!wadd} onClose={() => setWadd(null)} title={tr("Watch a NAS (read-only)")} footer={<><Button onClick={() => setWadd(null)}>{tr("Cancel")}</Button><Button variant="primary" loading={watch.isPending} disabled={!wadd?.host || !wadd.code} onClick={() => watch.mutate()}>{tr("Add")}</Button></>}>
+        {wadd && <div className="space-y-4">
+          <Field label={tr("NAS address")}><Input value={wadd.host} onChange={(e) => setWadd({ ...wadd, host: e.target.value.trim() })} placeholder="192.168.1.30" /></Field>
+          <Field label={tr("Authorization code")} hint={tr("Shown by the other NAS in Multi-NAS Console")}><Input className="mono uppercase" value={wadd.code} onChange={(e) => setWadd({ ...wadd, code: e.target.value })} placeholder="ABCDE-12345" /></Field>
+          <ErrorBox error={watch.error} />
         </div>}
       </Modal>
     </div>

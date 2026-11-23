@@ -5,11 +5,11 @@ import {
   ScrollText, Settings, ShieldCheck, Smartphone, TabletSmartphone,
 } from "lucide-react";
 import { api } from "../lib/api";
-import type { Me } from "../lib/types";
+import type { Me, UserQuota } from "../lib/types";
 import { openAccountDialog, type AccountDialog } from "../lib/intent";
 import { tr } from "../lib/i18n";
-import { cx } from "../lib/format";
-import { PageHeader } from "../components/ui";
+import { bytes, cx, pct } from "../lib/format";
+import { PageHeader, Progress } from "../components/ui";
 
 // The Me page of the phone app: who is signed in on which NAS, the account
 // and security dialogs, and the way out. The phone tab bar points here.
@@ -31,6 +31,7 @@ export default function MePage({ me }: { me: Me }) {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data: info } = useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ hostname: string; version: string }>("/api/setup"), staleTime: 60000 });
+  const quotas = useQuery({ queryKey: ["my-quotas"], queryFn: () => api.get<UserQuota[]>("/api/me/quotas"), staleTime: 60000 });
   const admin = me.role === "admin";
   const name = me.fullName || me.username;
   const initials = name.split(/[ ._-]/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
@@ -59,6 +60,13 @@ export default function MePage({ me }: { me: Me }) {
       </div>
       {group(tr("My space"), (
         <>
+          {!!quotas.data?.length && quotas.data.map((q) => (
+            <div key={q.kind + q.target} className="px-3 py-2.5">
+              <div className="mb-1.5 flex justify-between text-[13px]"><span>{tr("My space on")}{" "}{q.name}</span><span className="text-muted">{bytes(q.used)} / {bytes(q.limit)}</span></div>
+              <Progress value={pct(q.used, q.limit)} />
+              <div className="mt-1 text-[11.5px] text-muted">{tr("{0} left", bytes(Math.max(0, q.limit - q.used)))}</div>
+            </div>
+          ))}
           <button className={row} onClick={() => nav("/links")}><Link2 size={16} /> {tr("Shared links")}</button>
           <button className={row} onClick={() => nav("/activity")}><ScrollText size={16} /> {tr("My activity")}</button>
           <button className={row} onClick={() => nav("/vpn")}><Smartphone size={16} /> {tr("My VPN devices")}</button>

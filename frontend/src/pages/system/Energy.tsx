@@ -4,6 +4,7 @@ import { Cpu, HardDrive, Leaf, Moon, Plus, Power, Trash2, Zap } from "lucide-rea
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, dateTime } from "../../lib/format";
+import { AreaChart } from "../../components/charts";
 import { Badge, Button, Card, ErrorBox, Field, Input, Notice, PageHeader, Select, Spinner, Switch } from "../../components/ui";
 import { locale, tr } from "../../lib/i18n";
 
@@ -11,15 +12,17 @@ type Schedule = { enabled: boolean; days: number[]; shutdown: string; wake: stri
 type Device = { name: string; mac: string };
 type Rule = { id: string; enabled: boolean; action: "shutdown" | "restart" | "wake"; days: number[]; time: string };
 type Guard = { users?: boolean; retryMin?: number; maxMin?: number; warnMin?: number };
-type Config = { spindownMin: number; governor?: string; schedule: Schedule; wol?: string[]; devices: Device[]; rules: Rule[]; guard?: Guard };
+type Night = { enabled: boolean; from: string; to: string; spindownMin: number };
+type Config = { spindownMin: number; governor?: string; schedule: Schedule; night?: Night | null; wol?: string[]; devices: Device[]; rules: Rule[]; guard?: Guard };
 type NIC = { name: string; mac: string; supported: boolean; enabled: boolean };
 type Data = {
   config: Config; hdparm: boolean; disks: { path: string; model: string; size: number; state: string }[];
-  governor: string; governors: string[]; rtcWake: boolean; nics: NIC[] | null;
+  governor: string; governors: string[]; rtcWake: boolean; nics: NIC[] | null; nightActive?: boolean;
   nextShutdown?: string; nextWake?: string; watts?: number; upsLoad?: number;
   nextAction?: { time: string; action: Rule["action"]; rule: string }; nextPowerOn?: string; rtcAlarm?: string;
   wolPersisted?: string[]; timezone?: string;
 };
+type PowerData = { now: number; history: { t: number; watts: number }[] };
 
 const actionLabel = (a: Rule["action"]) => ({ shutdown: tr("Shut down"), restart: tr("Restart"), wake: tr("Power on") }[a]);
 
@@ -30,9 +33,10 @@ const govLabel = (g: string) => ({
 
 export default function Energy() {
   const { data, isLoading, error } = useQuery({ queryKey: ["energy"], queryFn: () => api.get<Data>("/api/energy"), refetchInterval: 10000 });
+  const power = useQuery({ queryKey: ["energy-power"], queryFn: () => api.get<PowerData>("/api/energy/power"), refetchInterval: 60000 });
   const [c, setC] = useState<Config | null>(null);
   const [dev, setDev] = useState<Device>({ name: "", mac: "" });
-  useEffect(() => { if (data && !c) setC({ ...data.config, devices: data.config.devices ?? [], rules: (data.config.rules ?? []).map((r) => ({ ...r, days: r.days ?? [] })), guard: data.config.guard ?? {}, schedule: { ...data.config.schedule, days: data.config.schedule?.days ?? [] } }); }, [data, c]);
+  useEffect(() => { if (data && !c) setC({ ...data.config, devices: data.config.devices ?? [], rules: (data.config.rules ?? []).map((r) => ({ ...r, days: r.days ?? [] })), guard: data.config.guard ?? {}, schedule: { ...data.config.schedule, days: data.config.schedule?.days ?? [] }, night: data.config.night ?? null }); }, [data, c]);
   const save = useAction(() => api.put<{ warning?: string } | null>("/api/energy", c), { success: (r) => r?.warning ?? tr("Power settings applied") });
   const standby = useAction(() => api.post<{ warning?: string } | null>("/api/energy/standby"), { success: (r) => r?.warning ?? tr("Disks spun down") });
   const wake = useAction((mac: string) => api.post("/api/energy/wake", { mac }), { success: tr("Wake packet sent") });
@@ -47,7 +51,12 @@ export default function Energy() {
   const addRule = (action: Rule["action"]) => setC({ ...c, rules: [...c.rules, { id: `r${Date.now().toString(36)}`, enabled: true, action, days: [1, 2, 3, 4, 5], time: action === "wake" ? "07:00" : "23:30" }] });
   const guard = c.guard ?? {};
   const setGuard = (g: Partial<Guard>) => setC({ ...c, guard: { ...guard, ...g } });
+  const night = c.night ?? { enabled: false, from: "22:00", to: "07:00", spindownMin: 20 };
+  const setNight = (n: Night) => setC({ ...c, night: n });
   const next = data.nextAction;
+  const pw = (power.data?.history ?? []).filter((p) => p.t >= Date.now() / 1000 - 7 * 86400);
+  const avg = pw.length ? pw.reduce((a, p) => a + p.watts, 0) / pw.length : 0;
+  const peak = pw.length ? Math.max(...pw.map((p) => p.watts)) : 0;
 
   return (
     <div>
@@ -81,6 +90,30 @@ export default function Energy() {
             )}
             <p className="text-muted text-[12px]">{tr("Periodic SMART checks do not wake disks in standby.")}</p>
           </div>
+        </Card>
+
+        <Card title={<span className="flex items-center gap-2"><Moon size={16} />{tr("Night energy plan")}</span>} actions={data.nightActive && <Badge tone="ok">{tr("Active now")}</Badge>}>
+          <div className="space-y-4">
+            <Switch checked={night.enabled} onChange={(v) => setNight({ ...night, enabled: v })} label={tr("Enable the night plan")} hint={tr("During this window, the hard disks spin down after the chosen delay; outside, the setting above applies again.")} />
+            {night.enabled && <div className="grid gap-4 sm:grid-cols-3">
+              <Field label={tr("From")}><Input type="time" value={night.from} onChange={(e) => setNight({ ...night, from: e.target.value })} /></Field>
+              <Field label={tr("To")}><Input type="time" value={night.to} onChange={(e) => setNight({ ...night, to: e.target.value })} /></Field>
+              <Field label={tr("Spin down after")}><Select value={night.spindownMin} onChange={(e) => setNight({ ...night, spindownMin: +e.target.value })}>{[5, 10, 20, 30, 60].map((m) => <option key={m} value={m}>{tr("{0} minutes", m)}</option>)}</Select></Field>
+            </div>}
+          </div>
+        </Card>
+
+        <Card title={<span className="flex items-center gap-2"><Zap size={16} />{tr("Consumption history")}</span>} actions={power.data && power.data.now > 0 && <Badge tone="accent">{tr("{0} W", Math.round(power.data.now))}</Badge>}>
+          {power.isLoading ? <Spinner /> : pw.length < 2 ? <div className="text-muted text-[13px]">{tr("No measurement yet: the NAS records its consumption every hour when the hardware reports it.")}</div> : (
+            <>
+              <AreaChart height={140} series={[{ label: tr("Consumption"), color: "var(--accent)", values: pw.map((p) => p.watts) }]} format={(v) => tr("{0} W", Math.round(v))} />
+              <div className="mt-2 flex flex-wrap gap-4 text-[12px] text-muted">
+                <span>{tr("Average")}: <b className="text-fg">{tr("{0} W", Math.round(avg))}</b></span>
+                <span>{tr("Peak")}: <b className="text-fg">{tr("{0} W", Math.round(peak))}</b></span>
+                <span>{tr("Last 7 days")}</span>
+              </div>
+            </>
+          )}
         </Card>
 
         <Card title={<span className="flex items-center gap-2"><Cpu size={16} />{tr("Processor")}</span>}>
