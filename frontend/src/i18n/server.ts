@@ -212,6 +212,11 @@ export const serverTexts: [string, string][] = [
   ["{0} conteneur(s), {1} actif(s)", "{0} container(s), {1} running"],
   ["{0} application(s) mise(s) à jour : {1}", "{0} app(s) updated: {1}"],
   ["aucune application mise à jour", "no app updated"],
+  ["Photos", "Photos"],
+  ["aucune nouvelle photo", "no new photo"],
+  ["{0} nouvelle(s) photo(s) et vidéo(s)", "{0} new photo(s) and video(s)"],
+  ["{0} nouvelle(s) photo(s) et vidéo(s), {1} nouvel(s) album(s)", "{0} new photo(s) and video(s), {1} new album(s)"],
+
   ["Mémoire : {0} utilisés sur {1}", "Memory: {0} used of {1}"],
   ["Système", "System"],
   ["{0} mise(s) à jour disponible(s)", "{0} update(s) available"],

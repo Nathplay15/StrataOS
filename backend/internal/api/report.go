@@ -17,6 +17,7 @@ import (
 	"strataos/internal/docker"
 	"strataos/internal/health"
 	"strataos/internal/i18n"
+	"strataos/internal/photos"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/system"
@@ -241,6 +242,31 @@ func (s *Server) healthReport(period string) (string, string) {
 	}
 	if len(quotaLines) > 0 {
 		b.WriteString("\nShared folder quotas\n" + strings.Join(quotaLines, "\n") + "\n")
+	}
+
+	// New photos and albums of the period (roadmap 0.15, monthly report).
+	b.WriteString("\n📷 Photos\n")
+	newPhotos := 0
+	for _, it := range photos.Default.List(func(string) bool { return true }) {
+		if it.Mtime >= since.Unix() {
+			newPhotos++
+		}
+	}
+	newAlbums := 0
+	s.store.Read(func(st *store.State) {
+		for _, a := range st.Photos.Albums {
+			if a.Created.After(since) {
+				newAlbums++
+			}
+		}
+	})
+	switch {
+	case newPhotos == 0 && newAlbums == 0:
+		b.WriteString("• no new photo\n")
+	case newAlbums == 0:
+		fmt.Fprintf(&b, "• %d new photo(s) and video(s)\n", newPhotos)
+	default:
+		fmt.Fprintf(&b, "• %d new photo(s) and video(s), %d new album(s)\n", newPhotos, newAlbums)
 	}
 
 	b.WriteString("\n📱 Applications\n")
