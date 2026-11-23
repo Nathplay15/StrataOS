@@ -5422,5 +5422,13 @@
  "Movement detection on": "移动检测已开启",
  "Assistant model updated": "助手模型已更新",
  "Local models need no key. The model can also be switched directly from the assistant page.": "本地模型无需密钥。也可以直接在助手页面切换模型。",
- "Only cloud APIs need a key. Leave empty with a local model.": "仅云端 API 需要密钥。使用本地模型时请留空。"
+ "Only cloud APIs need a key. Leave empty with a local model.": "仅云端 API 需要密钥。使用本地模型时请留空。",
+ "Detection zones": "检测区域",
+ "Draw the rectangles that matter on the picture; the rest of the frame is ignored.": "在画面上画出重要的矩形；画面其余部分会被忽略。",
+ "No zones: the whole picture is watched": "没有区域：监控整幅画面",
+ "Clear the zones": "清除区域",
+ "At most {0} zones": "最多 {0} 个区域",
+ "Zone {0}": "区域 {0}",
+ "Test the connection to see the picture and draw the zones.": "先测试连接以查看画面，然后绘制区域。",
+ "{0} zones": "{0} 个区域"
 }

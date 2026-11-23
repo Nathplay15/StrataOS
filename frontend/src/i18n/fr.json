@@ -5422,5 +5422,13 @@
  "Movement detection on": "Détection de mouvement active",
  "Assistant model updated": "Modèle de l'assistant mis à jour",
  "Local models need no key. The model can also be switched directly from the assistant page.": "Les modèles locaux n'ont pas besoin de clé. Le modèle se change aussi directement depuis la page de l'assistant.",
- "Only cloud APIs need a key. Leave empty with a local model.": "Seules les API cloud demandent une clé. Laissez vide avec un modèle local."
+ "Only cloud APIs need a key. Leave empty with a local model.": "Seules les API cloud demandent une clé. Laissez vide avec un modèle local.",
+ "Detection zones": "Zones de détection",
+ "Draw the rectangles that matter on the picture; the rest of the frame is ignored.": "Dessinez les rectangles qui comptent sur l'image ; le reste du cadre est ignoré.",
+ "No zones: the whole picture is watched": "Aucune zone : toute l'image est surveillée",
+ "Clear the zones": "Effacer les zones",
+ "At most {0} zones": "Au plus {0} zones",
+ "Zone {0}": "Zone {0}",
+ "Test the connection to see the picture and draw the zones.": "Testez la connexion pour voir l'image et dessiner les zones.",
+ "{0} zones": "{0} zones"
 }

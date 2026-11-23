@@ -123,8 +123,13 @@ func (s *Server) nvrSync() {
 			if c.SubURL != "" {
 				detect = c.SubURL // low resolution: cheaper to decode
 			}
+			zones, zerr := nvr.ParseZones(c.Zones)
+			if zerr != nil {
+				slog.Warn("camera zones ignored", "camera", c.Name, "err", zerr)
+				zones = nil
+			}
 			recs = append(recs, nvr.Recording{ID: c.ID, Name: c.Name, Stream: nvr.WithCredentials(c.URL, c.Username, c.Password), Detection: nvr.WithCredentials(detect, c.Username, c.Password),
-				Dir: filepath.Join(folder, c.ID), SegmentSeconds: n.SegmentSeconds, Audio: c.Audio, Motion: c.Motion})
+				Dir: filepath.Join(folder, c.ID), SegmentSeconds: n.SegmentSeconds, Audio: c.Audio, Motion: c.Motion, Zones: zones})
 		}
 	}
 	cams.mgr.Sync(recs)
@@ -402,6 +407,7 @@ type cameraReq struct {
 	Engine   string  `json:"engine"`
 	Audio    bool    `json:"audio"`
 	Motion   bool    `json:"motion"`
+	Zones    string  `json:"zones,omitempty"`
 	KeepDays int     `json:"keepDays"`
 	MaxGB    float64 `json:"maxGb"`
 }
@@ -457,8 +463,18 @@ func (req cameraReq) apply(c, old *store.Camera) error {
 	c.Engine, c.Audio, c.KeepDays, c.MaxGB = req.Engine, req.Audio, req.KeepDays, req.MaxGB
 	if req.Engine != "" {
 		c.Motion = false // motion detection is a built-in engine feature
+		c.Zones = ""
 	} else {
 		c.Motion = req.Motion
+		zones, err := nvr.ParseZones(req.Zones)
+		if err != nil {
+			return badRequest(err.Error())
+		}
+		if len(zones) == 0 {
+			c.Zones = ""
+		} else if b, err := json.Marshal(zones); err == nil {
+			c.Zones = string(b)
+		}
 	}
 	if req.Enabled != nil {
 		c.Enabled = *req.Enabled

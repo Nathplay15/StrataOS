@@ -38,7 +38,11 @@ type Camera struct {
 	// Motion turns on movement detection (built-in engine): one notification
 	// with a picture per event, at most every 90 s.
 	Motion bool `json:"motion,omitempty"`
-	Audio  bool `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
+	// Zones limits the detection to rectangles of the picture, as JSON
+	// ([{"x":0.1,"y":0.2,"w":0.5,"h":0.6}], fractions of the size); empty =
+	// the whole picture (roadmap 0.15, detection zones).
+	Zones string `json:"zones,omitempty"`
+	Audio bool   `json:"audio,omitempty"` // built-in recorder: keep the sound (re-encoded to AAC)
 	// Retention: days kept and total size in GB (0 = no limit).
 	KeepDays  int       `json:"keepDays,omitempty"`
 	MaxGB     float64   `json:"maxGb,omitempty"`

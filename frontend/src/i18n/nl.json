@@ -5422,5 +5422,13 @@
  "Movement detection on": "Bewegingsdetectie actief",
  "Assistant model updated": "Assistentmodel bijgewerkt",
  "Local models need no key. The model can also be switched directly from the assistant page.": "Lokale modellen hebben geen sleutel nodig. Het model kan ook direct op de assistentpagina gewisseld worden.",
- "Only cloud APIs need a key. Leave empty with a local model.": "Alleen cloud-API's hebben een sleutel nodig. Laat leeg bij een lokaal model."
+ "Only cloud APIs need a key. Leave empty with a local model.": "Alleen cloud-API's hebben een sleutel nodig. Laat leeg bij een lokaal model.",
+ "Detection zones": "Detectiezones",
+ "Draw the rectangles that matter on the picture; the rest of the frame is ignored.": "Teken de rechthoeken die ertoe doen op de afbeelding; de rest van het kader wordt genegeerd.",
+ "No zones: the whole picture is watched": "Geen zones: de hele afbeelding wordt bewaakt",
+ "Clear the zones": "Zones wissen",
+ "At most {0} zones": "Maximaal {0} zones",
+ "Zone {0}": "Zone {0}",
+ "Test the connection to see the picture and draw the zones.": "Test de verbinding om de afbeelding te zien en de zones te tekenen.",
+ "{0} zones": "{0} zones"
 }

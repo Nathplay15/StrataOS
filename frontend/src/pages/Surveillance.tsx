@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cctv, Download, ExternalLink, FileCode, Pencil, Play, Plug, Plus, Scissors, Trash2, Video } from "lucide-react";
 import { api, ApiError, q } from "../lib/api";
@@ -10,7 +10,7 @@ import { caps } from "../components/files/MediaPlayer";
 
 type Status = { state: string; since?: string; error?: string; restarts: number };
 type Camera = {
-  id: string; name: string; url: string; subUrl?: string; username?: string; password?: string; enabled: boolean; engine?: string; audio?: boolean; motion?: boolean;
+  id: string; name: string; url: string; subUrl?: string; username?: string; password?: string; enabled: boolean; engine?: string; audio?: boolean; motion?: boolean; zones?: string;
   keepDays?: number; maxGb?: number; status: Status; size: number; segments: number; oldest?: string; frigateName?: string; motionAt?: string;
 };
 type Frigate = {
@@ -44,17 +44,95 @@ function StateBadge({ s }: { s: Status }) {
 
 /* ---------- Camera dialog ---------- */
 
-type Draft = { name: string; url: string; subUrl: string; username: string; password: string; enabled: boolean; engine: string; audio: boolean; motion: boolean; keepDays: string; maxGb: string };
+type Draft = { name: string; url: string; subUrl: string; username: string; password: string; enabled: boolean; engine: string; audio: boolean; motion: boolean; zones: string; keepDays: string; maxGb: string };
 
 const draftOf = (c?: Camera): Draft => ({
   name: c?.name ?? "", url: c?.url ?? "", subUrl: c?.subUrl ?? "", username: c?.username ?? "", password: c?.password ?? "",
-  enabled: c?.enabled ?? true, engine: c?.engine ?? "", audio: c?.audio ?? false, motion: c?.motion ?? false, keepDays: String(c?.keepDays ?? 14), maxGb: c?.maxGb ? String(c.maxGb) : "",
+  enabled: c?.enabled ?? true, engine: c?.engine ?? "", audio: c?.audio ?? false, motion: c?.motion ?? false, zones: c?.zones ?? "", keepDays: String(c?.keepDays ?? 14), maxGb: c?.maxGb ? String(c.maxGb) : "",
 });
 
 const bodyOf = (d: Draft) => ({
-  name: d.name, url: d.url, subUrl: d.subUrl, username: d.username, password: d.password, enabled: d.enabled, engine: d.engine, audio: d.audio, motion: d.motion,
+  name: d.name, url: d.url, subUrl: d.subUrl, username: d.username, password: d.password, enabled: d.enabled, engine: d.engine, audio: d.audio, motion: d.motion, zones: d.zones,
   keepDays: parseInt(d.keepDays) || 0, maxGb: parseFloat(d.maxGb) || 0,
 });
+
+/* ---------- Detection zones ---------- */
+
+type ZoneRect = { x: number; y: number; w: number; h: number };
+
+const parseZones = (s: string): ZoneRect[] => {
+  try {
+    const z = JSON.parse(s || "[]");
+    return Array.isArray(z) ? z.filter((r) => r && typeof r.x === "number" && typeof r.y === "number" && typeof r.w === "number" && typeof r.h === "number") : [];
+  } catch { return []; }
+};
+
+const round4 = (v: number) => Math.round(v * 10000) / 10000;
+
+function ZoneEditor({ camId, img, value, onChange }: { camId?: string; img: string | null; value: string; onChange: (v: string) => void }) {
+  const [zones, setZones] = useState<ZoneRect[]>(() => parseZones(value));
+  const [notice, setNotice] = useState("");
+  const box = useRef<HTMLDivElement | null>(null);
+  const drag = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [cur, setCur] = useState<ZoneRect | null>(null);
+  const src = camId ? `/api/nvr/cameras/${camId}/live.jpg` : img;
+  const commit = (z: ZoneRect[]) => { setZones(z); setNotice(""); onChange(z.length ? JSON.stringify(z) : ""); };
+  const frac = (e: MouseEvent<HTMLDivElement>) => {
+    const r = box.current?.getBoundingClientRect();
+    if (!r || !r.width || !r.height) return { x: 0, y: 0 };
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
+  const norm = (d: { x0: number; y0: number; x1: number; y1: number }): ZoneRect => ({
+    x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0),
+  });
+  const endDrag = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    const r = norm(d);
+    if (r.w >= 0.02 && r.h >= 0.02) {
+      if (zones.length >= 4) setNotice(tr("At most {0} zones", 4));
+      else commit([...zones, { x: round4(r.x), y: round4(r.y), w: round4(r.w), h: round4(r.h) }]);
+    }
+    setCur(null);
+  };
+  const rectStyle = (z: ZoneRect) => ({ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` });
+  return (
+    <div className="space-y-2">
+      <div className="text-[12.5px] font-medium">{tr("Detection zones")}</div>
+      <div className="text-muted text-[12px]">{tr("Draw the rectangles that matter on the picture; the rest of the frame is ignored.")}</div>
+      {src ? (
+        <div ref={box} className="relative inline-block max-w-full select-none">
+          <img src={src} alt="" draggable={false} className="block max-h-72 max-w-full rounded-lg border border-line" />
+          <div className="absolute inset-0 cursor-crosshair rounded-lg" style={{ touchAction: "none" }}
+            onMouseDown={(e) => { if (e.button !== 0) return; const p = frac(e); drag.current = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }; setCur({ x: p.x, y: p.y, w: 0, h: 0 }); }}
+            onMouseMove={(e) => { if (!drag.current) return; const p = frac(e); drag.current.x1 = p.x; drag.current.y1 = p.y; setCur(norm(drag.current)); }}
+            onMouseUp={endDrag}
+            onMouseLeave={() => { if (drag.current) endDrag(); }}
+          >
+            {zones.map((z, i) => (
+              <div key={i} className="absolute rounded border-2 border-accent bg-accent-soft" style={rectStyle(z)} onMouseDown={(e) => e.stopPropagation()}>
+                <button type="button" title={tr("Remove")} onClick={(e) => { e.stopPropagation(); commit(zones.filter((_, j) => j !== i)); }}
+                  className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] leading-none text-white">×</button>
+              </div>
+            ))}
+            {cur && cur.w > 0 && cur.h > 0 && <div className="absolute rounded border-2 border-dashed border-accent" style={rectStyle(cur)} />}
+          </div>
+        </div>
+      ) : (
+        <div className="text-muted text-[12px]">{tr("Test the connection to see the picture and draw the zones.")}</div>
+      )}
+      {src && !zones.length && <div className="text-muted text-[12px]">{tr("No zones: the whole picture is watched")}</div>}
+      {!!zones.length && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {zones.map((_, i) => <Badge key={i} tone="accent">{tr("Zone {0}", i + 1)}</Badge>)}
+          <Button size="sm" variant="ghost" onClick={() => commit([])}>{tr("Clear the zones")}</Button>
+        </div>
+      )}
+      {notice && <div className="text-[12px] text-danger">{notice}</div>}
+    </div>
+  );
+}
 
 function CameraModal({ cam, frigate, onClose }: { cam?: Camera; frigate: Frigate; onClose: () => void }) {
   const [d, setD] = useState<Draft>(() => draftOf(cam));
@@ -129,6 +207,7 @@ function CameraModal({ cam, frigate, onClose }: { cam?: Camera; frigate: Frigate
           {d.engine === "" && <div>
             <Checkbox checked={d.motion} onChange={(v) => up({ motion: v })} label={tr("Detect movement and warn me")} />
             {d.motion && <div className="ml-7 text-muted text-[12px]">{tr("A picture and a short clip are kept, and a notification carrying both is sent each time something moves (at most every 90 seconds).")}</div>}
+            {d.motion && <div className="ml-7 mt-2"><ZoneEditor camId={cam?.id} img={img} value={d.zones} onChange={(v) => up({ zones: v })} /></div>}
           </div>}
         </div>
       </div>
@@ -162,7 +241,7 @@ function Cameras({ data }: { data: Data }) {
                   <td><StateBadge s={c.status} />{c.status.state === "offline" && c.status.error && <div className="mt-1 max-w-xs truncate text-[11.5px] text-danger" title={srv(c.status.error)}>{srv(c.status.error)}</div>}</td>
                   <td>{c.engine === "frigate" ? <Badge tone="accent">Frigate{c.frigateName ? ` · ${c.frigateName}` : ""}</Badge> : <Badge>{tr("Built-in")}</Badge>}</td>
                   <td className="whitespace-nowrap">{c.segments ? <>{bytes(c.size)}<div className="text-[11.5px] text-muted">{tr("since {0}", dateTime(c.oldest))}</div></> : "—"}</td>
-                  <td className="whitespace-nowrap text-[12.5px]">{[c.keepDays ? tr("{0} days", c.keepDays) : "", c.maxGb && c.engine !== "frigate" ? `${c.maxGb} GB` : ""].filter(Boolean).join(" · ") || tr("No limit")}{c.motion && <div className="text-[11.5px] text-accent">{c.motionAt ? tr("Movement detected at {0}", dateTime(c.motionAt)) : tr("Movement detection on")}</div>}</td>
+                  <td className="whitespace-nowrap text-[12.5px]">{[c.keepDays ? tr("{0} days", c.keepDays) : "", c.maxGb && c.engine !== "frigate" ? `${c.maxGb} GB` : ""].filter(Boolean).join(" · ") || tr("No limit")}{c.motion && <div className="text-[11.5px] text-accent">{c.motionAt ? tr("Movement detected at {0}", dateTime(c.motionAt)) : tr("Movement detection on")}{parseZones(c.zones ?? "").length > 0 && ` \u00b7 ${tr("{0} zones", parseZones(c.zones ?? "").length)}`}</div>}</td>
                   <td className="text-right whitespace-nowrap">
                     <IconButton title={tr("Edit")} onClick={() => setEdit(c)}><Pencil size={14} /></IconButton>
                     <IconButton title={tr("Delete")} onClick={() => remove(c)}><Trash2 size={14} /></IconButton>

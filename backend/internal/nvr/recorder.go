@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,8 @@ type Recording struct {
 	// decodes (sub-stream when the camera has one, otherwise the main one).
 	Motion    bool
 	Detection string
+	// Zones limits the detection to rectangles of the picture (fractions).
+	Zones []Zone
 }
 
 // Status of a camera recorder.
@@ -94,6 +97,14 @@ func WriteInput(id, name, stream string) (string, error) {
 	return p, sys.WriteFileAtomic(p, []byte(ConcatList(stream)), 0o600)
 }
 
+// sameRecording reports whether two recorder configs are equivalent.
+func sameRecording(a, b Recording) bool {
+	return a.ID == b.ID && a.Name == b.Name && a.Stream == b.Stream &&
+		a.Dir == b.Dir && a.SegmentSeconds == b.SegmentSeconds && a.Audio == b.Audio &&
+		a.Motion == b.Motion && a.Detection == b.Detection &&
+		slices.EqualFunc(a.Zones, b.Zones, func(x, y Zone) bool { return x == y })
+}
+
 // Sync starts, restarts and stops recorders so that exactly recs run.
 func (m *Manager) Sync(recs []Recording) {
 	m.mu.Lock()
@@ -103,7 +114,7 @@ func (m *Manager) Sync(recs []Recording) {
 		want[r.ID] = r
 	}
 	for id, r := range m.recs {
-		if w, ok := want[id]; !ok || w != r.cfg {
+		if w, ok := want[id]; !ok || !sameRecording(w, r.cfg) {
 			r.stop()
 			delete(m.recs, id)
 		}
