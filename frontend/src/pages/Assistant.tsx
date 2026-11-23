@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Bot, CircleCheck, CircleX, History, MessageSquarePlus, SendHorizonal, Trash2, User } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import type { LocalModel } from "../components/LocalModels";
@@ -7,8 +8,49 @@ import type { Me } from "../lib/types";
 import { Badge, Button, ErrorBox, Input, Notice, PageHeader, Select, Spinner, useUI } from "../components/ui";
 import { useAction } from "../lib/hooks";
 import { tr } from "../lib/i18n";
+import { postIntent } from "../lib/intent";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+
+// A NAS path in an assistant answer (its "Sources:" list, or a file named in
+// the text): the leading "/" must start the token, so addresses like
+// https://… are not matched.
+const nasPathRe = /(^|[\s(>])(\/[^\s"'`<>]+)/g;
+
+/** Renders an assistant message, with the NAS paths it cites as clickable
+ * references that open the file in Files. */
+function AssistantContent({ text }: { text: string }) {
+  const nav = useNavigate();
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let n = 0;
+  for (const m of text.matchAll(nasPathRe)) {
+    const raw = m[2].replace(/[.,;:]+$/, "");
+    if (raw.length < 2) continue;
+    const start = (m.index ?? 0) + m[1].length;
+    if (start > last) parts.push(text.slice(last, start));
+    last = start + m[2].length;
+    const segs = raw.slice(1).split("/");
+    const name = segs[segs.length - 1];
+    const isFile = /\.[A-Za-z0-9]{1,10}$/.test(name);
+    const dir = isFile ? (segs.length > 1 ? "/" + segs.slice(0, -1).join("/") : "/") : raw;
+    parts.push(
+      <button
+        key={n++}
+        className="break-all text-left font-medium text-accent underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        title={tr("Open in Files")}
+        onClick={() => {
+          nav("/files");
+          postIntent({ page: "files", dir, file: isFile ? { name, path: raw, dir: false, size: 0, mode: "", modTime: "", link: false } : undefined });
+        }}
+      >
+        {raw}
+      </button>
+    );
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
 
 const suggestions = ["How much free space is left?", "Are my disks healthy?", "Which containers are running?", "Any failed backups?"];
 type ArmedAction = { token: string; tool: string; summary: string; resume?: boolean };
@@ -242,7 +284,7 @@ export default function Assistant() {
                   {m.role === "user" ? <User size={14} /> : <Bot size={14} />}
                 </div>
                 <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[13.5px] ${m.role === "user" ? "rounded-tr-sm bg-accent/15" : "rounded-tl-sm bg-panel-2"}`}>
-                  {m.content}
+                  {m.role === "assistant" ? <AssistantContent text={m.content} /> : m.content}
                 </div>
               </div>
             ))}

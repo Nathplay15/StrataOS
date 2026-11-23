@@ -2808,6 +2808,7 @@
  "OnlyOffice": "OnlyOffice",
  "OnlyOffice Docs is installed from the App Center (stack {0}, port {1}): leave the addresses empty to use it.": "OnlyOffice Docs 已从应用中心安装（堆栈 {0}，端口 {1}）：地址留空即可使用它。",
  "Open": "打开",
+ "Open in Files": "在文件中打开",
  "Open Frigate": "打开 Frigate",
  "Open StrataOS": "打开 StrataOS",
  "Open as text": "以文本方式打开",
