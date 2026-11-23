@@ -678,7 +678,11 @@ type Ransomware struct {
 
 // FileServices are the optional file access protocols.
 type FileServices struct {
-	WebDAV        bool `json:"webdav"`
+	WebDAV bool `json:"webdav"`
+	// CalDAV serves the accounts' calendars at /caldav/<user>/ and their
+	// address books at /carddav/<user>/ (CardDAV), for iPhone, Android and
+	// Thunderbird (roadmap 0.15).
+	CalDAV        bool `json:"calDAV,omitempty"`
 	FTP           bool `json:"ftp"`
 	FTPRequireTLS bool `json:"ftpRequireTls"`
 	FTPPassiveMin int  `json:"ftpPassiveMin"`
