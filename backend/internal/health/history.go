@@ -93,6 +93,7 @@ type Store struct {
 	disks   map[string]*DiskHistory
 	caches  map[string][]CachePoint
 	volumes map[string][]VolumePoint
+	power   []PowerPoint
 }
 
 func NewStore(dir string) *Store {

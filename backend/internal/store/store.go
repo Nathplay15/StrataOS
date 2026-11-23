@@ -526,8 +526,11 @@ type Energy struct {
 	SpindownMin int             `json:"spindownMin"` // 0 = disks never sleep
 	Governor    string          `json:"governor,omitempty"`
 	Schedule    energy.Schedule `json:"schedule"`
-	WoL         []string        `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
-	Devices     []WakeDevice    `json:"devices,omitempty"`
+	// Night: the night energy plan (0.15) — during the window, data disks
+	// spin down after Night.SpindownMin minutes.
+	Night   *energy.NightPlan `json:"night,omitempty"`
+	WoL     []string          `json:"wol,omitempty"` // interfaces with Wake-on-LAN on
+	Devices []WakeDevice      `json:"devices,omitempty"`
 	// Rules: scheduled shutdowns, restarts and power-ons (0.12; Schedule
 	// is the 0.11 form, turned into rules when read).
 	Rules []energy.PowerRule `json:"rules,omitempty"`

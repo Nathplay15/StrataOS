@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"strataos/internal/docker"
+	"strataos/internal/energy"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 	"strataos/internal/sysdisk"
@@ -338,6 +339,9 @@ func (s *Server) healthWatcher() {
 		s.diskAlerts.Store(&weak)
 		s.recordHealthHistory(vols)
 		s.recordShareUsage(asleep)
+		if w := energy.PowerNow(); w > 0 { // consumption history, when the hardware reports it
+			s.hist.RecordPower(w, time.Now())
+		}
 		var fresh []alert
 		fresh, known = freshAlerts(known, s.alerts(raids, pools, vols))
 		for _, a := range fresh {
