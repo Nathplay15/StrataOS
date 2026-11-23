@@ -115,6 +115,22 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 				return err
 			}
 		}
+	case "action":
+		// A scheduled action on a VM, an LXC container or a Docker container
+		// (roadmap 0.15, "scheduled actions in plain language").
+		switch s.TargetKind {
+		case "vm", "lxc", "docker":
+		default:
+			return fmt.Errorf("an action targets a VM, an LXC container or a Docker container (targetKind vm, lxc or docker)")
+		}
+		switch s.Action {
+		case "start", "stop", "restart":
+		default:
+			return fmt.Errorf("unknown action %q: use start, stop or restart", s.Action)
+		}
+		if s.Target == "" || strings.ContainsAny(s.Target, " \t\n/") {
+			return fmt.Errorf("choose the VM, container or stack to act on")
+		}
 	default:
 		return fmt.Errorf("unknown task type %q", s.Type)
 	}
@@ -144,9 +160,18 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 		return appUpdate(ctx, &s, logf)
 	case "antivirus":
 		return antivirus.Scan(ctx, s.Target, s.AVAction != "report", logf)
+	case "action":
+		if ActionRunner == nil {
+			return "", fmt.Errorf("actions are not available on this NAS")
+		}
+		return ActionRunner(ctx, s.TargetKind, s.Target, s.Action, logf)
 	}
 	return "", fmt.Errorf("unknown task type %q", s.Type)
 }
+
+// ActionRunner runs a scheduled action (type "action") on a VM, an LXC
+// container or a Docker container; set by the API layer at startup.
+var ActionRunner func(ctx context.Context, kind, target, action string, logf func(string, ...any)) (string, error)
 
 // expired selects snapshots to delete. items must be sorted newest first; the newest is always kept.
 func expired[T any](items []T, created func(T) time.Time, keepCount, keepDays int, now time.Time) []T {

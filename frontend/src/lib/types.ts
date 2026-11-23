@@ -493,11 +493,12 @@ export interface ScheduleRun {
 export interface Schedule {
   id: string;
   name: string;
-  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus";
+  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus" | "action";
   avAction?: "report" | "quarantine";
+  action?: "start" | "stop" | "restart";
   cron: string;
   enabled: boolean;
-  targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path";
+  targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path" | "vm" | "lxc" | "docker";
   target: string;
   subvolume?: string;
   recursive?: boolean;

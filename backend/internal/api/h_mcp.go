@@ -15,6 +15,9 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"strataos/internal/scheduler"
+	"strataos/internal/store"
 )
 
 // This file exposes the API to AI assistants through the Model Context
@@ -148,6 +151,13 @@ func mcpCheckWrite(tool string, in mcpWriteIn) (mcpWriteIn, error) {
 	case "create_zfs_snapshot":
 		if in.Dataset == "" || in.SnapshotName == "" {
 			return in, fmt.Errorf("a dataset and a snapshot name are required")
+		}
+	case "create_schedule":
+		// Only scheduled actions are created here ("stop the test VM every
+		// evening at 11 pm"); the other task types are made in the interface.
+		sc := store.Schedule{Name: in.Name, Type: "action", Cron: in.Cron, TargetKind: in.TargetKind, Target: in.Target, Action: in.Action}
+		if err := scheduler.Validate(&sc, nil); err != nil {
+			return in, err
 		}
 	default:
 		return in, fmt.Errorf("unknown tool: %s", tool)
@@ -344,6 +354,11 @@ type mcpWriteIn struct {
 	Dataset      string `json:"dataset,omitempty"`
 	SnapshotName string `json:"snapshotName,omitempty"`
 	ConfirmToken string `json:"confirmToken,omitempty"`
+	// create_schedule
+	Name       string `json:"name,omitempty"`
+	Cron       string `json:"cron,omitempty"`
+	TargetKind string `json:"targetKind,omitempty"`
+	Target     string `json:"target,omitempty"`
 }
 
 // mcpAddWriteTools adds the tools that change the NAS. They are gated three
@@ -412,6 +427,14 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 		func(in mcpWriteIn) string { return "Create the ZFS snapshot " + in.Dataset + "@" + in.SnapshotName },
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/storage/zfs-snapshots", map[string]any{"dataset": in.Dataset, "name": in.SnapshotName})
+		})
+	gated("create_schedule", "Create a scheduled action: start, stop or restart a VM, an LXC container or a Docker container at a cron time (name, cron such as '0 23 * * *', targetKind: vm | lxc | docker, target: its name, action: start | stop | restart).",
+		func(in mcpWriteIn) string { return "Scheduled task « " + in.Name + " »: " + in.Action + " " + in.Target + " (" + in.Cron + ")" },
+		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
+			return s.mcpCall(r, http.MethodPost, "/api/schedules", map[string]any{
+				"name": in.Name, "type": "action", "cron": in.Cron, "enabled": true,
+				"targetKind": in.TargetKind, "target": in.Target, "action": in.Action,
+			})
 		})
 }
 

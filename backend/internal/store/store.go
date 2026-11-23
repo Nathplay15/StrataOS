@@ -224,7 +224,7 @@ type Settings struct {
 type Schedule struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus
+	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus | action
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
 	// TargetKind is zfs | btrfs | lvm | mdadm | disks; Target is a dataset, pool, volume ID,
@@ -244,7 +244,10 @@ type Schedule struct {
 	LockDays    int    `json:"lockDays,omitempty"`  // snapshots cannot be deleted for N days (immutable)
 	SmartTest   string `json:"smartTest,omitempty"` // short | long
 	// Antivirus: what to do with infected files (report | quarantine).
-	AVAction  string        `json:"avAction,omitempty"`
+	AVAction string `json:"avAction,omitempty"`
+	// Action (type "action", roadmap 0.15): start | stop | restart on a VM,
+	// an LXC container or a Docker container (TargetKind vm | lxc | docker).
+	Action    string        `json:"action,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
 	History   []ScheduleRun `json:"history"`
 }
