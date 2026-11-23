@@ -429,7 +429,9 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 			return s.mcpCall(r, http.MethodPost, "/api/storage/zfs-snapshots", map[string]any{"dataset": in.Dataset, "name": in.SnapshotName})
 		})
 	gated("create_schedule", "Create a scheduled action: start, stop or restart a VM, an LXC container or a Docker container at a cron time (name, cron such as '0 23 * * *', targetKind: vm | lxc | docker, target: its name, action: start | stop | restart).",
-		func(in mcpWriteIn) string { return "Scheduled task « " + in.Name + " »: " + in.Action + " " + in.Target + " (" + in.Cron + ")" },
+		func(in mcpWriteIn) string {
+			return "Scheduled task « " + in.Name + " »: " + in.Action + " " + in.Target + " (" + in.Cron + ")"
+		},
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/schedules", map[string]any{
 				"name": in.Name, "type": "action", "cron": in.Cron, "enabled": true,

@@ -17,6 +17,12 @@ export const serverTexts: [string, string][] = [
   ["Création de la VM {0}", "Creating VM {0}"],
   ["Installation de {0}", "Install {0}"],
   ["Création du conteneur {0}", "Create container {0}"],
+  ["Conteneur {0} : {1}…", "Container {0}: {1}…"],
+  ["VM {0} : {1}…", "VM {0}: {1}…"],
+  ["Conteneur {0} : démarrage…", "Container {0}: start…"],
+  ["Conteneur {0} : arrêt…", "Container {0}: stop…"],
+  ["Conteneur {0} : redémarrage…", "Container {0}: restart…"],
+
   ["Téléchargement de l'image {0}", "Pull {0}"],
   ["Création de la grappe RAID {0}", "Create RAID {0}"],
   ["Déploiement de la stack {0}", "Deploy stack {0}"],
