@@ -122,6 +122,11 @@ export const serverTexts: [string, string][] = [
   ["Maintenance terminée : ce NAS sert de nouveau l'adresse partagée", "Maintenance finished: this NAS serves the shared address again"],
   ["Le principal est de retour : retour automatique après la maintenance", "The primary is back: automatic hand back after maintenance"],
   ["Indexation des photos", "Photo indexing"],
+  // Cinema library (TMDB matches)
+  ["Échec de la recherche TMDB pour {0} : {1}", "TMDB search failed for {0}: {1}"],
+  ["Échec des détails TMDB pour {0} : {1}", "TMDB details failed for {0}: {1}"],
+  ["{0} ({1}) associé à TMDB {2} : {3}", "Matched {0} ({1}) with TMDB {2}: {3}"],
+
   ["{0} photos et vidéos, dont {1} nouvelles", "{0} photos and videos, {1} new"],
   ["{0} nouvelles photos indexées…", "{0} new photos indexed…"],
   // Labels sent by the server

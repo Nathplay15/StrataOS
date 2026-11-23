@@ -3505,5 +3505,8 @@
  "état de versionnage {0} invalide": "estado de control de versiones {0} no válido",
  "étendue modifiée {0}+{1} invalide": "extensión modificada {0}+{1} no válida",
  "étiquette introuvable dans le registre": "etiqueta no encontrada en el registro",
- "événement introuvable": "evento no encontrado"
+ "événement introuvable": "evento no encontrado",
+ "Échec de la recherche TMDB pour {0} : {1}": "Falló la búsqueda en TMDB de {0}: {1}",
+ "Échec des détails TMDB pour {0} : {1}": "Fallaron los detalles de TMDB de {0}: {1}",
+ "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) asociado a TMDB {2}: {3}"
 }

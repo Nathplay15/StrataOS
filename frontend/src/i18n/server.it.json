@@ -3505,5 +3505,8 @@
  "état de versionnage {0} invalide": "stato del versioning {0} non valido",
  "étendue modifiée {0}+{1} invalide": "extent modificato {0}+{1} non valido",
  "étiquette introuvable dans le registre": "tag non trovato nel registry",
- "événement introuvable": "evento non trovato"
+ "événement introuvable": "evento non trovato",
+ "Échec de la recherche TMDB pour {0} : {1}": "Ricerca TMDB per {0} non riuscita: {1}",
+ "Échec des détails TMDB pour {0} : {1}": "Dettagli TMDB per {0} non riusciti: {1}",
+ "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) abbinato a TMDB {2}: {3}"
 }

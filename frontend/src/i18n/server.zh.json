@@ -3505,5 +3505,8 @@
  "état de versionnage {0} invalide": "版本控制状态 {0} 无效",
  "étendue modifiée {0}+{1} invalide": "已更改的区段 {0}+{1} 无效",
  "étiquette introuvable dans le registre": "在镜像仓库中找不到该标签",
- "événement introuvable": "未找到事件"
+ "événement introuvable": "未找到事件",
+ "Échec de la recherche TMDB pour {0} : {1}": "TMDB 搜索 {0} 失败：{1}",
+ "Échec des détails TMDB pour {0} : {1}": "TMDB 详情 {0} 失败：{1}",
+ "{0} ({1}) associé à TMDB {2} : {3}": "已将 {0}（{1}）匹配到 TMDB {2}：{3}"
 }

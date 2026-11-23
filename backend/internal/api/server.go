@@ -367,6 +367,7 @@ func (s *Server) routes() {
 	s.hardwareRoutes()
 	s.gpuRoutes()
 	s.mediaRoutes()
+	s.cinemaRoutes()
 	s.nvrRoutes()
 	s.consoleRoutes()
 	s.mobileRoutes()

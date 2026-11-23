@@ -5439,5 +5439,19 @@
  "Remove {0} from the watched list?": "将 {0} 从监看列表中移除？",
  "This NAS is no longer watched from here.": "不再从此处监看该 NAS。",
  "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "还没有被监看的 NAS：在另一台 NAS 上打开多 NAS 控制台并显示授权码，然后在此监看它，无需加入集群。",
- "Movement events": "移动事件"
+ "Movement events": "移动事件",
+ "Video library": "视频库",
+ "Movies": "电影",
+ "Series": "剧集",
+ "Scan the library": "扫描媒体库",
+ "Scanning…": "正在扫描…",
+ "TMDB API key": "TMDB API 密钥",
+ "Get a free API key at themoviedb.org, then paste it here to fetch the posters, synopses and ratings automatically.": "在 themoviedb.org 获取免费 API 密钥并粘贴到此处，即可自动获取海报、简介和评分。",
+ "Key saved": "密钥已保存",
+ "No video found on the shares: add videos to a shared folder, then scan.": "在共享文件夹中未找到视频：请将视频添加到共享文件夹后再扫描。",
+ "Scanned {0} videos": "已扫描 {0} 个视频",
+ "Last scan {0}": "上次扫描 {0}",
+ "Search a title…": "搜索标题…",
+ "not matched with TMDB": "未匹配 TMDB",
+ "{0} episodes": "{0} 集"
 }

@@ -3505,5 +3505,8 @@
  "état de versionnage {0} invalide": "ungültiger Versionierungsstatus {0}",
  "étendue modifiée {0}+{1} invalide": "ungültiger geänderter Bereich {0}+{1}",
  "étiquette introuvable dans le registre": "Tag in der Registry nicht gefunden",
- "événement introuvable": "Ereignis nicht gefunden"
+ "événement introuvable": "Ereignis nicht gefunden",
+ "Échec de la recherche TMDB pour {0} : {1}": "TMDB-Suche für {0} fehlgeschlagen: {1}",
+ "Échec des détails TMDB pour {0} : {1}": "TMDB-Details für {0} fehlgeschlagen: {1}",
+ "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) mit TMDB {2} verknüpft: {3}"
 }

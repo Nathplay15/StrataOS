@@ -5439,5 +5439,19 @@
  "Remove {0} from the watched list?": "{0} uit de bewakingslijst verwijderen?",
  "This NAS is no longer watched from here.": "Deze NAS wordt vanaf hier niet meer bewaakt.",
  "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Nog geen bewaakte NAS: open op de andere NAS de Multi-NAS-console en toon een autorisatiecode, bewaak deze dan hier zonder lid te worden van het cluster.",
- "Movement events": "Bewegingsgebeurtenissen"
+ "Movement events": "Bewegingsgebeurtenissen",
+ "Video library": "Videobibliotheek",
+ "Movies": "Films",
+ "Series": "Series",
+ "Scan the library": "Bibliotheek scannen",
+ "Scanning…": "Scannen…",
+ "TMDB API key": "TMDB-API-sleutel",
+ "Get a free API key at themoviedb.org, then paste it here to fetch the posters, synopses and ratings automatically.": "Haal een gratis API-sleutel op bij themoviedb.org en plak deze hier om automatisch posters, samenvattingen en waarderingen op te halen.",
+ "Key saved": "Sleutel opgeslagen",
+ "No video found on the shares: add videos to a shared folder, then scan.": "Geen video's gevonden op de shares: voeg video's toe aan een gedeelde map en start daarna de scan.",
+ "Scanned {0} videos": "{0} video's gescand",
+ "Last scan {0}": "Laatste scan {0}",
+ "Search a title…": "Titel zoeken…",
+ "not matched with TMDB": "niet gekoppeld aan TMDB",
+ "{0} episodes": "{0} afleveringen"
 }

@@ -5439,5 +5439,19 @@
  "Remove {0} from the watched list?": "Retirer {0} de la liste surveillée ?",
  "This NAS is no longer watched from here.": "Ce NAS n'est plus surveillé depuis ici.",
  "No watched NAS: on the other NAS, open Multi-NAS Console and display an authorization code, then watch it here without joining the cluster.": "Aucun NAS surveillé : sur l'autre NAS, ouvrez Console multi-NAS et affichez un code d'autorisation, puis surveillez-le ici sans rejoindre le cluster.",
- "Movement events": "Événements de mouvement"
+ "Movement events": "Événements de mouvement",
+ "Video library": "Bibliothèque vidéo",
+ "Movies": "Films",
+ "Series": "Séries",
+ "Scan the library": "Analyser la bibliothèque",
+ "Scanning…": "Analyse en cours…",
+ "TMDB API key": "Clé API TMDB",
+ "Get a free API key at themoviedb.org, then paste it here to fetch the posters, synopses and ratings automatically.": "Obtenez une clé API gratuite sur themoviedb.org, puis collez-la ici pour récupérer automatiquement les affiches, synopsis et notes.",
+ "Key saved": "Clé enregistrée",
+ "No video found on the shares: add videos to a shared folder, then scan.": "Aucune vidéo trouvée sur les partages : ajoutez des vidéos à un dossier partagé, puis lancez l'analyse.",
+ "Scanned {0} videos": "{0} vidéos analysées",
+ "Last scan {0}": "Dernière analyse {0}",
+ "Search a title…": "Rechercher un titre…",
+ "not matched with TMDB": "non associé à TMDB",
+ "{0} episodes": "{0} épisodes"
 }
