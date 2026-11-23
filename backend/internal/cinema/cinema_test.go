@@ -142,8 +142,9 @@ func fakeTMDB(t *testing.T) *httptest.Server {
 		json.NewEncoder(w).Encode(map[string]any{
 			"id": 603, "title": "The Matrix", "release_date": "1999-03-31", "overview": "A hacker learns the truth.",
 			"vote_average": 8.2, "poster_path": "/poster603.jpg", "runtime": 136,
-			"genres":  []map[string]any{{"name": "Science Fiction"}},
-			"credits": map[string]any{"cast": []map[string]any{{"name": "Keanu Reeves"}, {"name": "Laurence Fishburne"}}},
+			"belongs_to_collection": map[string]any{"id": 2344, "name": "The Matrix Collection"},
+			"genres":                []map[string]any{{"name": "Science Fiction"}},
+			"credits":               map[string]any{"cast": []map[string]any{{"name": "Keanu Reeves"}, {"name": "Laurence Fishburne"}}},
 		})
 	})
 	mux.HandleFunc("/tv/1399", func(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +202,7 @@ func TestBuildLibrary(t *testing.T) {
 		switch {
 		case it.TMDB == 603:
 			matrix++
-			if it.Title != "The Matrix" || it.Year != 1999 || it.Runtime != 136 || it.Rating != 8.2 || len(it.Genres) != 1 || len(it.Cast) != 2 {
+			if it.Title != "The Matrix" || it.Year != 1999 || it.Runtime != 136 || it.Rating != 8.2 || len(it.Genres) != 1 || len(it.Cast) != 2 || it.Collection != "The Matrix Collection" || it.CollectionID != 2344 || it.Mod.IsZero() {
 				t.Errorf("matrix not filled: %+v", it)
 			}
 		case it.TMDB == 1399:

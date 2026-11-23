@@ -9,11 +9,12 @@ import { tr } from "../../lib/i18n";
 import { caps } from "../../components/files/MediaPlayer";
 
 export type CinemaItem = {
-  path: string; title: string; year?: number; kind: string; season?: number; episode?: number; size: number;
+  path: string; title: string; year?: number; kind: string; season?: number; episode?: number; size: number; mod?: string;
   tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[];
+  collection?: string; collectionId?: number;
 };
 type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }> };
-type Work = { path?: string; title: string; year?: number; kind: string; items: CinemaItem[]; tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[] };
+type Work = { path?: string; title: string; year?: number; kind: string; items: CinemaItem[]; mod?: string; collection?: string; collectionId?: number; tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[] };
 
 const epLabel = (i: CinemaItem) => `S${String(i.season ?? 0).padStart(2, "0")}E${String(i.episode ?? 0).padStart(2, "0")}`;
 
@@ -65,6 +66,19 @@ export function CinemaTab({ admin }: { admin: boolean }) {
     }
   }
   const series: Work[] = [...seriesMap.entries()].map(([title, eps]) => ({ ...eps[0], title, items: eps }));
+  // Auto-collections: added this week, top rated, franchises (TMDB collections).
+  const weekAgo = Date.now() - 7 * 864e5;
+  const added = movies.filter((w) => w.mod && new Date(w.mod).getTime() >= weekAgo).sort((a, b) => new Date(b.mod!).getTime() - new Date(a.mod!).getTime()).slice(0, 12);
+  const top = movies.filter((w) => (w.rating ?? 0) >= 7.5).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 12);
+  const collMap = new Map<number, Work[]>();
+  for (const w of movies) {
+    if (w.collectionId) {
+      const a = collMap.get(w.collectionId) ?? [];
+      a.push(w);
+      collMap.set(w.collectionId, a);
+    }
+  }
+  const franchises = [...collMap.entries()].filter(([, ws]) => ws.length > 1).map(([id, ws]) => ({ ...ws[0], title: ws[0].collection ?? "", kind: "collection", items: ws.map((w) => w.items[0]), collectionId: id }));
   // Continue watching: the videos this account stopped, newest first.
   const cw = Object.entries(d?.positions ?? {})
     .map(([path, pos]) => ({ item: items.find((i) => i.path === path), pos }))
@@ -129,8 +143,26 @@ export function CinemaTab({ admin }: { admin: boolean }) {
               </div>
             </div>
           )}
-          {!!movies.length && (
+          {!!added.length && (
             <div>
+              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Added this week")}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{added.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
+            </div>
+          )}
+          {!!top.length && (
+            <div className="mt-6">
+              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Top rated")}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{top.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
+            </div>
+          )}
+          {!!franchises.length && (
+            <div className="mt-6">
+              <div className="mb-2 text-[13px] font-medium text-muted">{tr("Collections")}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{franchises.map((w) => <WorkCard key={String(w.collectionId)} w={w} onClick={() => setSel(w)} />)}</div>
+            </div>
+          )}
+          {!!movies.length && (
+            <div className="mt-6">
               <div className="mb-2 text-[13px] font-medium text-muted">{tr("Movies")}</div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">{movies.map((w) => <WorkCard key={w.path} w={w} onClick={() => setSel(w)} />)}</div>
             </div>
@@ -156,11 +188,11 @@ export function CinemaTab({ admin }: { admin: boolean }) {
               </div>
               {sel.overview && <p className="text-[13px] text-[13.5px]">{sel.overview}</p>}
               {sel.cast?.length ? <div className="text-[12px] text-muted">{tr("Cast")}: {sel.cast.join(", ")}</div> : null}
-              {sel.kind === "episode" ? (
+              {sel.kind !== "movie" ? (
                 <div className="max-h-64 space-y-1 overflow-y-auto">
                   {sel.items.map((e) => (
                     <div key={e.path} className="flex items-center justify-between gap-2 rounded-lg bg-panel-2 px-3 py-2 text-[12.5px]">
-                      <span className="mono">{epLabel(e)}<span className="ml-2 text-muted">{bytes(e.size)}</span></span>
+                      <span className={sel.kind === "episode" ? "mono" : ""}>{sel.kind === "episode" ? epLabel(e) : `${e.title}${e.year ? ` (${e.year})` : ""}`}<span className="ml-2 text-muted">{bytes(e.size)}</span></span>
                       <Button size="sm" variant="ghost" icon={<Play size={13} />} onClick={() => setPlay({ item: e, start: 0 })}>{tr("Play")}</Button>
                     </div>
                   ))}

@@ -18,13 +18,14 @@ import (
 
 // Item is one video file of the library, matched (or not) with TMDB.
 type Item struct {
-	Path    string `json:"path"` // absolute path of the file
-	Title   string `json:"title"`
-	Year    int    `json:"year,omitempty"`
-	Kind    string `json:"kind"` // "movie" | "episode"
-	Season  int    `json:"season,omitempty"`
-	Episode int    `json:"episode,omitempty"`
-	Size    int64  `json:"size"`
+	Path    string    `json:"path"` // absolute path of the file
+	Title   string    `json:"title"`
+	Year    int       `json:"year,omitempty"`
+	Kind    string    `json:"kind"` // "movie" | "episode"
+	Season  int       `json:"season,omitempty"`
+	Episode int       `json:"episode,omitempty"`
+	Size    int64     `json:"size"`
+	Mod     time.Time `json:"mod,omitzero"` // last change of the file
 	// TMDB match (0 = not matched):
 	TMDB     int      `json:"tmdbId,omitempty"`
 	Poster   string   `json:"poster,omitempty"` // cached file name, served by the API
@@ -33,6 +34,9 @@ type Item struct {
 	Runtime  int      `json:"runtime,omitempty"` // minutes
 	Genres   []string `json:"genres,omitempty"`
 	Cast     []string `json:"cast,omitempty"` // actors, best known for
+	// Franchise: TMDB collection the movie belongs to ("" = none).
+	Collection   string `json:"collection,omitempty"`
+	CollectionID int    `json:"collectionId,omitempty"`
 }
 
 // State is the persisted library (dataDir/cinema.json).
@@ -164,7 +168,7 @@ func Scan(root string, maxDepth int) []Item {
 					continue
 				}
 			}
-			out = append(out, Item{Path: p, Title: title, Year: year, Kind: kind, Season: season, Episode: ep, Size: fi.Size()})
+			out = append(out, Item{Path: p, Title: title, Year: year, Kind: kind, Season: season, Episode: ep, Size: fi.Size(), Mod: fi.ModTime()})
 		}
 	}
 	walk(root, 0)

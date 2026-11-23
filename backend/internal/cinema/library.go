@@ -101,6 +101,7 @@ func BuildLibrary(ctx context.Context, roots []Root, cl *Client, posterDir strin
 			items[i].Runtime = det.Runtime
 			items[i].Genres = det.Genres
 			items[i].Cast = det.Cast
+			items[i].Collection, items[i].CollectionID = det.Collection, det.CollectionID
 			if items[i].Kind == "movie" && det.Title != "" {
 				items[i].Title = det.Title
 				items[i].Year = det.Year

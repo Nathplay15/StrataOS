@@ -114,15 +114,19 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 		return nil, fmt.Errorf("TMDB: HTTP %d", resp.StatusCode)
 	}
 	var body struct {
-		Title          string  `json:"title"`
-		Name           string  `json:"name"`
-		ReleaseDate    string  `json:"release_date"`
-		FirstAirDate   string  `json:"first_air_date"`
-		Overview       string  `json:"overview"`
-		VoteAverage    float64 `json:"vote_average"`
-		PosterPath     string  `json:"poster_path"`
-		Runtime        int     `json:"runtime"`
-		EpisodeRunTime []int   `json:"episode_run_time"`
+		Title        string  `json:"title"`
+		Name         string  `json:"name"`
+		ReleaseDate  string  `json:"release_date"`
+		FirstAirDate string  `json:"first_air_date"`
+		Overview     string  `json:"overview"`
+		VoteAverage  float64 `json:"vote_average"`
+		PosterPath   string  `json:"poster_path"`
+		Collection   *struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"belongs_to_collection"`
+		Runtime        int   `json:"runtime"`
+		EpisodeRunTime []int `json:"episode_run_time"`
 		Genres         []struct {
 			Name string `json:"name"`
 		} `json:"genres"`
@@ -136,6 +140,9 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 		return nil, err
 	}
 	it := &Item{TMDB: id, Overview: body.Overview, Rating: body.VoteAverage, Poster: strings.TrimPrefix(body.PosterPath, "/")}
+	if body.Collection != nil {
+		it.Collection, it.CollectionID = body.Collection.Name, body.Collection.ID
+	}
 	if body.Title != "" {
 		it.Title = body.Title
 		it.Kind = "movie"
