@@ -5507,5 +5507,10 @@
  "Waiting for approval…": "Wachten op goedkeuring…",
  "The sign-in code expired: get a new one.": "De aanmeldcode is verlopen: vraag een nieuwe aan.",
  "Connected to Mistral as {0}": "Verbonden met Mistral als {0}",
- "Connected to Mistral as {0} until {1}": "Verbonden met Mistral als {0} tot {1}"
+ "Connected to Mistral as {0} until {1}": "Verbonden met Mistral als {0} tot {1}",
+ "Transcribe": "Transcriberen",
+ "Transcribing…": "Transcriberen…",
+ "Transcript": "Transcript",
+ "Transcript generated: the subtitles were added next to the video.": "Transcript gegenereerd: de ondertitels zijn naast de video geplaatst.",
+ "Generate subtitles from the audio": "Ondertitels genereren uit de audio"
 }

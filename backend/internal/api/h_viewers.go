@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -29,6 +30,7 @@ import (
 	"strataos/internal/jobs"
 	"strataos/internal/mediaplay"
 	"strataos/internal/preview"
+	"strataos/internal/stt"
 	"strataos/internal/sys"
 )
 
@@ -277,8 +279,10 @@ func (s *Server) viewerRoutes() {
 			return nil, badRequest(err.Error())
 		}
 		plan = mediaplay.WithHeight(plan, mediaplay.HeightFrom(r)) // quality chosen in the mobile app
+		subs := info.Subtitles()
+		subs = append(subs, mediaplay.Sidecars(t.abs)...) // .srt/.vtt files next to the video
 		return map[string]any{"installed": true, "plan": plan, "duration": info.Duration, "format": info.Format,
-			"audioTracks": info.AudioTracks(), "subtitles": info.Subtitles(), "vaapi": mediaplay.Default.HW().VAAPI}, nil
+			"audioTracks": info.AudioTracks(), "subtitles": subs, "vaapi": mediaplay.Default.HW().VAAPI, "stt": stt.Installed()}, nil
 	})
 	s.userRaw("GET /api/files/play", func(w http.ResponseWriter, r *http.Request) {
 		t, f, _, err := s.openRead(r, r.URL.Query().Get("path"))
@@ -303,15 +307,34 @@ func (s *Server) viewerRoutes() {
 		}
 		defer f.Close()
 		idx := qInt(r, "index", -1)
-		if idx < 0 || !mediaplay.Installed() {
+		if idx < 0 {
 			writeErr(w, badRequest("invalid subtitle track"))
 			return
 		}
 		c := preview.DefaultCache
 		key := preview.Key(t.abs, fi.ModTime(), fi.Size(), "vtt-"+strconv.Itoa(idx))
 		var data []byte
-		if p, ok := c.Get(key, ".vtt"); ok {
+		if idx >= mediaplay.SidecarBase {
+			// A subtitle file next to the video: read directly, converted to
+			// WebVTT in Go when it is SubRip (no ffmpeg needed).
+			p, ok := mediaplay.SidecarPath(t.abs, idx)
+			if !ok {
+				writeErr(w, notFound("subtitle file not found"))
+				return
+			}
+			if raw, rerr := os.ReadFile(p); rerr != nil {
+				writeErr(w, notFound("subtitle file not found"))
+				return
+			} else if strings.HasSuffix(p, ".srt") {
+				data = mediaplay.SRTtoVTT(raw)
+			} else {
+				data = raw
+			}
+		} else if p, ok := c.Get(key, ".vtt"); ok {
 			data, err = os.ReadFile(p)
+		} else if !mediaplay.Installed() {
+			writeErr(w, badRequest("ffmpeg is not installed"))
+			return
 		} else if data, err = mediaplay.Subtitles(r.Context(), f, idx); err == nil {
 			if tmp, terr := os.CreateTemp(c.Dir, ".sub-*"); terr == nil {
 				_, _ = tmp.Write(data)
@@ -330,6 +353,44 @@ func (s *Server) viewerRoutes() {
 		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(mediaplay.ShiftVTT(data, start))
+	})
+
+	// Transcribe the audio of a video or voice note with the local model
+	// (whisper.cpp when installed): writes <name>.srt (picked up as a
+	// subtitle sidecar) and <name>.transcript.txt next to the file.
+	var transcribeMu sync.Mutex
+	s.user("POST /api/files/transcribe", func(r *http.Request) (any, error) {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		if !stt.Installed() {
+			return nil, &Error{Status: http.StatusConflict, Msg: "local speech-to-text is not installed (whisper.cpp + ffmpeg)"}
+		}
+		t, err := s.locate(r, req.Path)
+		if err != nil {
+			return nil, err
+		}
+		if !t.acc.write || t.protected() || t.rel == "." {
+			return nil, errForbidden
+		}
+		if !stt.IsMedia(filepath.Ext(t.abs)) {
+			return nil, badRequest("not a video or audio file")
+		}
+		transcribeMu.Lock()
+		defer transcribeMu.Unlock()
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+		defer cancel()
+		work := filepath.Join(s.dataDir, "tmp", "stt")
+		if err := stt.Transcribe(ctx, t.abs, work, ""); err != nil {
+			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
+		}
+		_, txt := stt.SidecarNames(t.abs)
+		text, _ := os.ReadFile(txt)
+		s.audit(r, "stt", "transcribed: "+req.Path)
+		return map[string]any{"text": string(text), "srt": true}, nil
 	})
 
 	// ---- Pictures and documents converted for the browser ----

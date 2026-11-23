@@ -3,8 +3,8 @@
 // stream that starts at a given time, so seeking restarts the stream and the
 // timeline below is drawn by the player itself.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Captions, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Captions, Mic, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import type { FileEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
@@ -21,6 +21,7 @@ interface Probe {
   audioTracks?: Track[];
   subtitles?: Track[];
   vaapi?: boolean;
+  stt?: boolean;
 }
 
 /** Optional codecs this browser decodes (sent to the NAS for its decision). */
@@ -113,6 +114,14 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [sub, setSub] = useState<number | null>(null);
+  // Local transcription (whisper.cpp on the NAS): writes .srt + transcript
+  // next to the file; the sidecar then appears in the subtitle list.
+  const qcProbe = useQueryClient();
+  const [trText, setTrText] = useState<string | null>(null);
+  const transcribe = useAction(() => api.post<{ text: string }>("/api/files/transcribe", { path: entry.path }), {
+    success: tr("Transcript generated: the subtitles were added next to the video."),
+    onDone: (r) => { setTrText(r.text); qcProbe.invalidateQueries({ queryKey: ["probe", entry.path] }); },
+  });
   // Night mode (evening): caps the volume and dims the picture.
   const night = useQuery({ queryKey: ["media-night"], queryFn: () => api.get<{ enabled: boolean; from: number; to: number; maxVolume: number; brightness: number }>("/api/media/night"), staleTime: 60000 });
   const [now, setNow] = useState(() => new Date());
@@ -171,6 +180,9 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
             {audios.map((a) => <option key={a.index} value={a.index}>{trackName(a)}</option>)}
           </Select>
         )}
+        {!plan.audioOnly && probe.stt && (
+          <Button size="sm" variant="ghost" icon={<Mic size={14} />} loading={transcribe.isPending} title={tr("Generate subtitles from the audio")} onClick={() => { setTrText(null); transcribe.mutate(); }}>{tr("Transcribe")}</Button>
+        )}
         {!plan.audioOnly && subs.length > 0 && (
           <span className="flex items-center gap-1">
             <Captions size={14} className="text-muted" />
@@ -225,6 +237,8 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
         </div>
       </div>
       {error instanceof ApiError && error.status === 503 && <Notice tone="warn">{srv(error.message)}</Notice>}
+      {trText && <div className="border-t border-line bg-panel p-3"><div className="mb-1 text-[12px] font-medium text-muted">{tr("Transcript")}</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[12.5px]">{trText}</pre></div>}
+      {transcribe.error && <div className="border-t border-line bg-panel p-3"><ErrorBox error={transcribe.error} /></div>}
     </>
   );
 }

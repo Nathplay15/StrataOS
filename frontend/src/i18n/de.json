@@ -5507,5 +5507,10 @@
  "Waiting for approval…": "Warte auf Genehmigung…",
  "The sign-in code expired: get a new one.": "Der Anmeldecode ist abgelaufen: fordern Sie einen neuen an.",
  "Connected to Mistral as {0}": "Mit Mistral verbunden als {0}",
- "Connected to Mistral as {0} until {1}": "Mit Mistral verbunden als {0} bis {1}"
+ "Connected to Mistral as {0} until {1}": "Mit Mistral verbunden als {0} bis {1}",
+ "Transcribe": "Transkribieren",
+ "Transcribing…": "Transkription läuft…",
+ "Transcript": "Transkript",
+ "Transcript generated: the subtitles were added next to the video.": "Transkript erstellt: die Untertitel wurden neben das Video gelegt.",
+ "Generate subtitles from the audio": "Untertitel aus dem Ton erzeugen"
 }

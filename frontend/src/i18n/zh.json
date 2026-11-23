@@ -5507,5 +5507,10 @@
  "Waiting for approval…": "等待批准…",
  "The sign-in code expired: get a new one.": "登录码已过期：请重新获取。",
  "Connected to Mistral as {0}": "已以 {0} 身份连接 Mistral",
- "Connected to Mistral as {0} until {1}": "已以 {0} 身份连接 Mistral，直至 {1}"
+ "Connected to Mistral as {0} until {1}": "已以 {0} 身份连接 Mistral，直至 {1}",
+ "Transcribe": "转录",
+ "Transcribing…": "正在转录…",
+ "Transcript": "转录文本",
+ "Transcript generated: the subtitles were added next to the video.": "转录已生成：字幕已添加到视频旁。",
+ "Generate subtitles from the audio": "从音频生成字幕"
 }
