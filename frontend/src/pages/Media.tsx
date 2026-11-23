@@ -44,7 +44,7 @@ function DLNATab() {
   const { data, error } = useQuery({ queryKey: ["media-dlna"], queryFn: () => api.get<DLNAData>("/api/media/dlna"), refetchInterval: 5000 });
   const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
   const [c, setC] = useState<DLNAConfig | null>(null);
-  useEffect(() => { if (data && !c) setC(data.config); }, [data, c]);
+  useEffect(() => { if (data && !c) setC({ ...data.config, folders: data.config.folders ?? [] }); }, [data, c]);
   const install = useAction(() => api.post("/api/system/components/dlna/install"));
   const save = useAction(() => api.put("/api/media/dlna", c), { success: tr("DLNA server saved") });
   const rescan = useAction(() => api.post("/api/media/dlna/rescan"), { success: tr("Rescan started") });
@@ -134,7 +134,7 @@ const mmss = (ms: number) => { const s = Math.floor(ms / 1000); return `${Math.f
 
 function MusicSettings({ data }: { data: MusicData }) {
   const shares = useQuery({ queryKey: ["shares"], queryFn: () => api.get<Share[]>("/api/shares") });
-  const [c, setC] = useState(data.config);
+  const [c, setC] = useState({ ...data.config, shares: data.config.shares ?? [] });
   const save = useAction(() => api.put("/api/media/music", c), { success: tr("Music settings saved") });
   return (
     <Card title={tr("Music server settings")} actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>}>

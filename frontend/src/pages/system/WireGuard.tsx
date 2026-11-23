@@ -133,7 +133,7 @@ function Devices({ data, onShow }: { data: WGData; onShow: (s: { name: string; c
   const [edit, setEdit] = useState<Form | null>(null);
   const show = useAction((id: string) => api.get<{ name: string; config: string }>(`/api/vpn/peers/${id}/config`), { onDone: (r) => onShow(r) });
   const del = useAction((id: string) => api.del(`/api/vpn/peers/${id}`), { success: tr("Device deleted") });
-  const peers = data.config.peers.filter((p) => p.kind !== "site" && (owner === "*" || (p.owner ?? "") === owner));
+  const peers = (data.config.peers ?? []).filter((p) => p.kind !== "site" && (owner === "*" || (p.owner ?? "") === owner));
   const blank: Form = { kind: "", name: "", owner: "", mode: data.config.defaultMode ?? "lan", services: [], ports: "", expires: "", disabled: false, subnets: "", endpoint: "", keepalive: 25 };
   return (
     <div className="space-y-4">
@@ -167,7 +167,7 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
   const delLink = useAction((id: string) => api.del(`/api/vpn/links/${id}`), { success: tr("Site deleted") });
   const toggleLink = useAction((l: Link) => api.put(`/api/vpn/links/${l.id}`, { disabled: !l.disabled }));
   const doImport = useAction(() => api.post("/api/vpn/links", imp), { success: tr("Site imported"), onDone: () => setImp(null) });
-  const sites = data.config.peers.filter((p) => p.kind === "site");
+  const sites = (data.config.peers ?? []).filter((p) => p.kind === "site");
   const blank: Form = { kind: "site", name: "", owner: "", mode: "lan", services: [], ports: "", expires: "", disabled: false, subnets: "", endpoint: "", keepalive: 25 };
   return (
     <div className="space-y-4">
@@ -176,7 +176,7 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
         <Button icon={<Link2 size={15} />} onClick={() => setImp({ code: "", name: "" })}>{tr("Import a StrataOS site code")}</Button>
         <Button variant="primary" icon={<Plus size={15} />} disabled={!data.config.enabled} onClick={() => setEdit(blank)}>{tr("Add a site")}</Button>
       </div>
-      {sites.length + data.config.links.length === 0 ? <Empty icon={<Building2 />} title={tr("No sites")} text={tr("Add a site, then set up its router with the generated configuration, or give its code to another StrataOS.")} /> : (
+      {sites.length + (data.config.links ?? []).length === 0 ? <Empty icon={<Building2 />} title={tr("No sites")} text={tr("Add a site, then set up its router with the generated configuration, or give its code to another StrataOS.")} /> : (
         <div className="divide-y divide-line rounded-xl border border-line">
           {sites.map((p) => (
             <PeerLine key={p.id} p={p} st={data.status[p.publicKey]} why={data.inactive[p.id]} warnDays={data.warnDays}>
@@ -186,14 +186,14 @@ function Sites({ data, onShow }: { data: WGData; onShow: (s: { name: string; con
               <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", p.name), text: tr("The tunnel to this site will be cut."), danger: true })) del.mutate(p.id); }}><Trash2 size={15} /></IconButton>
             </PeerLine>
           ))}
-          {data.config.links.map((l) => {
+          {(data.config.links ?? []).map((l) => {
             const st = data.linkStatus[l.id];
             return (
               <div key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]">
                 {l.disabled ? <Badge>{tr("Disabled")}</Badge> : <Badge tone={online(st) ? "ok" : "neutral"} dot>{online(st) ? tr("Connected") : tr("Offline")}</Badge>}
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{l.name} <span className="text-muted font-normal">· {tr("imported from another StrataOS")}</span></div>
-                  <div className="text-muted text-[12px]">{l.subnets.join(", ")} · <span className="mono">{l.address}</span>{l.endpoint ? <> · <span className="mono">{l.endpoint}</span></> : ""}{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.rx)} ↑${bytes(st.tx)}` : ""}</div>
+                  <div className="text-muted text-[12px]">{(l.subnets ?? []).join(", ")} · <span className="mono">{l.address}</span>{l.endpoint ? <> · <span className="mono">{l.endpoint}</span></> : ""}{st?.handshake ? ` · ${tr("seen {0}", ago(st.handshake * 1000))} · ↓${bytes(st.rx)} ↑${bytes(st.tx)}` : ""}</div>
                 </div>
                 <Switch aria-label={tr("Enabled")} checked={!l.disabled} onChange={() => toggleLink.mutate(l)} />
                 <IconButton title={tr("Delete")} className="hover:!text-danger" onClick={async () => { if (await confirm({ title: tr("Delete {0}?", l.name), text: tr("The tunnel to this site will be cut."), danger: true })) delLink.mutate(l.id); }}><Trash2 size={15} /></IconButton>

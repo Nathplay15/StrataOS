@@ -65,8 +65,29 @@ func cloneFW(c *firewall.Config) firewall.Config {
 		b, _ := json.Marshal(c)
 		_ = json.Unmarshal(b, &out)
 	}
+	// Every array of the config is sent to the UI, which reads them without
+	// a guard: nil slices would serialize as null and crash the page.
 	if out.Host.Rules == nil {
 		out.Host.Rules = []firewall.Rule{}
+	}
+	if out.Guests == nil {
+		out.Guests = []firewall.Guest{}
+	}
+	for i := range out.Guests {
+		if out.Guests[i].Rules == nil {
+			out.Guests[i].Rules = []firewall.Rule{}
+		}
+	}
+	if out.Groups == nil {
+		out.Groups = []firewall.Group{}
+	}
+	if out.IPSets == nil {
+		out.IPSets = []firewall.IPSet{}
+	}
+	for i := range out.IPSets {
+		if out.IPSets[i].Entries == nil {
+			out.IPSets[i].Entries = []string{}
+		}
 	}
 	return out
 }

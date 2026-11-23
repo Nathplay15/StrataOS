@@ -78,7 +78,7 @@ type DLNAServer struct {
 	Enabled   bool         `json:"enabled,omitempty"`
 	Name      string       `json:"name,omitempty"`      // shown by TVs ("" = host name)
 	Interface string       `json:"interface,omitempty"` // "" = all interfaces
-	Folders   []DLNAFolder `json:"folders,omitempty"`
+	Folders   []DLNAFolder `json:"folders"`             // always an array: the UI reads it unconditionally
 }
 
 // DLNAFolder publishes a shared folder (by name) as one kind of content.
@@ -89,7 +89,7 @@ type DLNAFolder struct {
 
 // MusicServer is the integration of the OwnTone app.
 type MusicServer struct {
-	Shares []string `json:"shares,omitempty"` // shared folders scanned for music
+	Shares []string `json:"shares"` // shared folders scanned for music; always an array (the UI reads it unconditionally)
 	// Users lets every user (not only administrators) control the music.
 	Users bool `json:"users,omitempty"`
 }
