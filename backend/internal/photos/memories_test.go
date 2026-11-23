@@ -7,7 +7,9 @@ import (
 
 func TestRecaps(t *testing.T) {
 	now := time.Date(2026, 11, 23, 12, 0, 0, 0, time.Local)
-	at := func(y int, m time.Month, d int) Item { return Item{Path: "/p", Date: time.Date(y, m, d, 10, 0, 0, 0, time.Local).Unix()} }
+	at := func(y int, m time.Month, d int) Item {
+		return Item{Path: "/p", Date: time.Date(y, m, d, 10, 0, 0, 0, time.Local).Unix()}
+	}
 	items := []Item{ // newest first, as the index keeps them
 		at(2026, 11, 20), at(2026, 11, 2), // current month: excluded
 		at(2026, 10, 31), at(2026, 10, 15), at(2026, 10, 1),
