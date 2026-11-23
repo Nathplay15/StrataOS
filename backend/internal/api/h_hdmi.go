@@ -12,7 +12,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"strataos/internal/hdmi"
 	"strataos/internal/store"
@@ -45,7 +49,79 @@ func setHDMI(on bool) error {
 	return err
 }
 
+// remoteHub broadcasts remote-control keys to the connected kiosk pages
+// (the PWA drives the menu shown on the TV).
+type remoteHub struct {
+	mu      sync.Mutex
+	clients map[*websocket.Conn]struct{}
+}
+
+func (h *remoteHub) add(c *websocket.Conn) {
+	h.mu.Lock()
+	h.clients[c] = struct{}{}
+	h.mu.Unlock()
+}
+
+func (h *remoteHub) remove(c *websocket.Conn) {
+	h.mu.Lock()
+	delete(h.clients, c)
+	h.mu.Unlock()
+}
+
+func (h *remoteHub) broadcast(key string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for c := range h.clients {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = c.Write(ctx, websocket.MessageText, []byte(key))
+		cancel()
+	}
+}
+
+var hdmiRemoteHub = &remoteHub{clients: map[*websocket.Conn]struct{}{}}
+
+// remoteKeys are the keys a remote may send to the TV menu.
+var remoteKeys = map[string]bool{"up": true, "down": true, "left": true, "right": true, "ok": true, "back": true}
+
+// hdmiRemoteWS is the kiosk page's listening channel: it signs in with the
+// kiosk token in the query string, from the loopback interface only (the
+// kiosk browser has no session cookie).
+func (s *Server) hdmiRemoteWS(w http.ResponseWriter, r *http.Request) {
+	tok := r.URL.Query().Get("t")
+	want := hdmi.Token(s.dataDir)
+	if want == "" || !net.ParseIP(clientIP(r)).IsLoopback() || subtle.ConstantTimeCompare([]byte(tok), []byte(want)) != 1 {
+		writeErr(w, errUnauthorized)
+		return
+	}
+	c, err := websocket.Accept(w, r, nil)
+	if err != nil {
+		return
+	}
+	hdmiRemoteHub.add(c)
+	defer hdmiRemoteHub.remove(c)
+	defer c.CloseNow()
+	ctx := c.CloseRead(r.Context())
+	<-ctx.Done()
+}
+
 func (s *Server) hdmiRoutes() {
+	s.record("GET /api/hdmi/remote", "public")
+	s.mux.Handle("GET /api/hdmi/remote", http.HandlerFunc(s.hdmiRemoteWS))
+	// A signed-in user (e.g. the PWA) sends one key to the TV menu.
+	s.user("POST /api/hdmi/remote/key", func(r *http.Request) (any, error) {
+		var req struct {
+			Key string `json:"key"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		key := strings.ToLower(strings.TrimSpace(req.Key))
+		if !remoteKeys[key] {
+			return nil, badRequest("invalid key")
+		}
+		hdmiRemoteHub.broadcast(key)
+		return map[string]any{"sent": true}, nil
+	})
 	s.admin("GET /api/system/hdmi", func(r *http.Request) (any, error) {
 		c := s.hdmiSettings()
 		d, ok := hdmi.Connected()

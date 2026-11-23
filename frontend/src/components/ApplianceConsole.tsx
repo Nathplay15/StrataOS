@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Monitor, Tv } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Monitor, Tv, Undo2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { tr } from "../lib/i18n";
-import { Badge, Button, Card, ErrorBox, Notice, Switch } from "./ui";
+import { Badge, Button, Card, ErrorBox, IconButton, Modal, Notice, Switch } from "./ui";
 
 interface ConsoleInfo { enabled: boolean; recovery: boolean; graphical: boolean; installed: boolean; active: boolean }
 
@@ -39,12 +39,15 @@ interface HdmiInfo { enabled: boolean; display: { connector: string; mode: strin
 export function HDMIOutputCard() {
   const info = useQuery({ queryKey: ["hdmi-settings"], queryFn: () => api.get<HdmiInfo>("/api/system/hdmi") });
   const [on, setOn] = useState(true);
+  const [remote, setRemote] = useState(false);
   useEffect(() => { if (info.data) setOn(info.data.enabled); }, [info.data]);
   const save = useAction(() => api.put("/api/system/hdmi", { enabled: on }), { success: tr("Settings saved") });
+  const sendKey = useAction((key: string) => api.post("/api/hdmi/remote/key", { key }));
   const d = info.data;
   return (
     <Card title={<span className="flex items-center gap-2"><Tv size={16} /> {tr("HDMI output (TV)")}</span>} actions={<>
       {d?.installed && (d.active ? <Badge tone="ok" dot>{tr("On")}</Badge> : <Badge>{tr("Off")}</Badge>)}
+      {d?.active && <Button size="sm" variant="ghost" onClick={() => setRemote(true)}>{tr("Remote control")}</Button>}
       <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>{tr("Save")}</Button>
     </>}>
       <div className="space-y-4">
@@ -56,6 +59,20 @@ export function HDMIOutputCard() {
         {d && !d.browser && <Notice tone="warn">{tr("A kiosk browser (chromium or firefox) is required for the HDMI menu.")}</Notice>}
         <ErrorBox error={info.error ?? save.error} />
       </div>
+      <Modal open={remote} onClose={() => setRemote(false)} title={tr("Remote control")}>
+        <p className="text-[12.5px] text-muted">{tr("Send a key to the menu shown on the TV.")}</p>
+        <div className="mx-auto mt-4 grid w-44 grid-cols-3 gap-2">
+          <span />
+          <IconButton title={tr("Up")} onClick={() => sendKey.mutate("up")}><ChevronUp size={18} /></IconButton>
+          <span />
+          <IconButton title={tr("Left")} onClick={() => sendKey.mutate("left")}><ChevronLeft size={18} /></IconButton>
+          <IconButton title={tr("OK")} onClick={() => sendKey.mutate("ok")}><Check size={18} /></IconButton>
+          <IconButton title={tr("Right")} onClick={() => sendKey.mutate("right")}><ChevronRight size={18} /></IconButton>
+          <IconButton title={tr("Back")} onClick={() => sendKey.mutate("back")}><Undo2 size={18} /></IconButton>
+          <IconButton title={tr("Down")} onClick={() => sendKey.mutate("down")}><ChevronDown size={18} /></IconButton>
+          <span />
+        </div>
+      </Modal>
     </Card>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { setBearerToken } from "../lib/api";
+import { setBearerToken, wsURL } from "../lib/api";
 import { tr } from "../lib/i18n";
 import { CinemaTab } from "./media/Cinema";
 
@@ -14,6 +14,18 @@ export default function HdmiPage() {
     setBearerToken(token || null);
     document.title = "StrataOS";
     return () => setBearerToken(null);
+  }, [token]);
+  // Remote control: keys sent from the PWA arrive on this channel and are
+  // replayed as keyboard events (the cinema navigation listens to those).
+  useEffect(() => {
+    if (!token) return;
+    const keys: Record<string, string> = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", ok: "Enter", back: "Escape" };
+    const ws = new WebSocket(`${wsURL("/api/hdmi/remote")}?t=${encodeURIComponent(token)}`);
+    ws.onmessage = (e) => {
+      const k = keys[String(e.data)];
+      if (k) window.dispatchEvent(new KeyboardEvent("keydown", { key: k }));
+    };
+    return () => ws.close();
   }, [token]);
   if (!token) {
     return (

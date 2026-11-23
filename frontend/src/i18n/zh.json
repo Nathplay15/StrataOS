@@ -5536,5 +5536,9 @@
  "Only people and vehicles": "仅人员和车辆",
  "Filtered out (false positives)": "已过滤（误报）",
  "The local model labels each event (person, vehicle…); shadows and foliage do not notify.": "本地模型会标注每个事件（人员、车辆……）；阴影和树叶不会触发通知。",
- "filtered out": "已过滤"
+ "filtered out": "已过滤",
+ "Remote control": "遥控器",
+ "Left": "左",
+ "Right": "右",
+ "Send a key to the menu shown on the TV.": "向电视上显示的菜单发送按键。"
 }

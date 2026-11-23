@@ -5536,5 +5536,9 @@
  "Only people and vehicles": "Solo personas y vehículos",
  "Filtered out (false positives)": "Descartados (falsos positivos)",
  "The local model labels each event (person, vehicle…); shadows and foliage do not notify.": "El modelo local etiqueta cada evento (persona, vehículo…); sombras y vegetación no notifican.",
- "filtered out": "descartado"
+ "filtered out": "descartado",
+ "Remote control": "Mando a distancia",
+ "Left": "Izquierda",
+ "Right": "Derecha",
+ "Send a key to the menu shown on the TV.": "Enviar una tecla al menú mostrado en la TV."
 }

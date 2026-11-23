@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"strataos/internal/hdmi"
 	"strataos/internal/store"
@@ -94,5 +97,53 @@ func TestHDMISettingsRoute(t *testing.T) {
 	s.store.Read(func(st *store.State) { c = st.HDMI })
 	if !c.Off || !c.Decided {
 		t.Errorf("setting not stored: %+v", c)
+	}
+}
+
+func TestHDMIRemote(t *testing.T) {
+	s := newTestServer(t)
+	s.hdmiRoutes()
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "admin", Role: "admin"})
+		return nil
+	})
+	tok, err := hdmi.EnsureToken(s.dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(s.mux)
+	t.Cleanup(srv.Close)
+	wsBase := "ws" + strings.TrimPrefix(srv.URL, "http")
+	ctx := context.Background()
+	// The kiosk websocket refuses a wrong token.
+	if _, _, err := websocket.Dial(ctx, wsBase+"/api/hdmi/remote?t=wrong", nil); err == nil {
+		t.Error("wrong kiosk token should be refused")
+	}
+	// With the token (loopback), the kiosk page is connected and receives keys.
+	c, _, err := websocket.Dial(ctx, wsBase+"/api/hdmi/remote?t="+tok, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.CloseNow() })
+	tokA := s.sessions.create("admin", "admin", "127.0.0.1", time.Hour)
+	post := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/api/hdmi/remote/key", strings.NewReader(body))
+		r.AddCookie(&http.Cookie{Name: cookieName, Value: tokA})
+		r.Header.Set("X-Strata", "1")
+		rec := httptest.NewRecorder()
+		s.mux.ServeHTTP(rec, r)
+		return rec
+	}
+	if rec := post(`{"key":"up"}`); rec.Code != 200 {
+		t.Fatalf("POST key: %d %s", rec.Code, rec.Body.String())
+	}
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_, data, err := c.Read(rctx)
+	if err != nil || string(data) != "up" {
+		t.Errorf("kiosk read: %q %v", data, err)
+	}
+	if rec := post(`{"key":"fire"}`); rec.Code != 400 {
+		t.Errorf("invalid key: %d", rec.Code)
 	}
 }

@@ -5536,5 +5536,9 @@
  "Only people and vehicles": "Alleen personen en voertuigen",
  "Filtered out (false positives)": "Gefilterd (valse alarmen)",
  "The local model labels each event (person, vehicle…); shadows and foliage do not notify.": "Het lokale model labelt elk event (persoon, voertuig…); schaduwen en bladeren melden niet.",
- "filtered out": "gefilterd"
+ "filtered out": "gefilterd",
+ "Remote control": "Afstandsbediening",
+ "Left": "Links",
+ "Right": "Rechts",
+ "Send a key to the menu shown on the TV.": "Stuur een toets naar het menu op de TV."
 }
