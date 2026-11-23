@@ -24,15 +24,15 @@ export const useFileInfo = (path: string, modTime: string) => useQuery({ queryKe
 
 /* ---------- Details ---------- */
 
-interface FileVersion { snapshot: string; time: string; size: number; mtime: string }
+interface FileVersion { snapshot: string; time: string; size: number; modTime: string }
 
 /** The versions of a file kept by the volume snapshots, restorable (roadmap 0.15). */
 function FileVersions({ path, writable }: { path: string; writable?: boolean }) {
   const { confirm } = useUI();
-  const vs = useQuery({ queryKey: ["file-versions", path], queryFn: () => api.get<FileVersion[]>(`/api/files/versions${q({ path })}`), retry: false });
+  const vs = useQuery({ queryKey: ["file-versions", path], queryFn: () => api.get<{ versions: FileVersion[]; writable: boolean }>(`/api/files/versions${q({ path })}`), retry: false });
   const restore = useAction((snapshot: string) => api.post("/api/files/restore-version", { path, snapshot }), { success: tr("Version restored") });
   if (vs.isLoading) return <Spinner />;
-  const list = vs.data ?? [];
+  const list = (vs.data?.versions ?? []).slice(0, 50);
   if (!list.length) return null;
   return (
     <div className="pt-4">

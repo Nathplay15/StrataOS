@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"strataos/internal/restore"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 )
@@ -45,10 +46,17 @@ func (s *Server) versionRoutes() {
 		for _, tree := range storage.SnapshotTrees(t.abs) {
 			trees[tree.Name] = tree
 		}
-		v := []storage.Version{}
-		for _, x := range storage.Versions(t.abs) {
-			if _, err := scopeIn(trees[x.Snapshot], t); err == nil {
-				v = append(v, x)
+		v := []fileVersion{}
+		if src, serr := fileVersionSource(t.abs); serr == nil {
+			if pts, perr := src.Points(r.Context()); perr == nil {
+				kept := make([]restore.Point, 0, len(pts))
+				for _, p := range pts {
+					if _, err := scopeIn(trees[p.ID], t); err != nil {
+						continue
+					}
+					kept = append(kept, p)
+				}
+				v = versionsOf(r.Context(), src, kept, t.abs)
 			}
 		}
 		return map[string]any{"versions": v, "writable": t.acc.write}, nil

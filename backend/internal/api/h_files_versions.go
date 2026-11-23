@@ -19,7 +19,7 @@ type fileVersion struct {
 	Snapshot string    `json:"snapshot"`
 	Time     time.Time `json:"time"` // when the snapshot was taken
 	Size     int64     `json:"size"`
-	Mtime    time.Time `json:"mtime"` // of the file inside the snapshot
+	Mtime    time.Time `json:"modTime"` // of the file inside the snapshot (same key as storage.Version)
 }
 
 // maxFileVersions caps the history shown beside a file.
@@ -48,25 +48,8 @@ func versionsOf(ctx context.Context, src restore.Source, points []restore.Point,
 }
 
 func (s *Server) fileVersionsRoutes() {
-	s.user("GET /api/files/versions", func(r *http.Request) (any, error) {
-		t, err := s.locate(r, r.URL.Query().Get("path"))
-		if err != nil {
-			return nil, err
-		}
-		if !t.acc.read || t.acc.ancestor {
-			return nil, errForbidden
-		}
-		src, err := fileVersionSource(t.abs)
-		if err != nil {
-			return []fileVersion{}, nil // no snapshots here: empty history, not an error
-		}
-		pts, err := src.Points(r.Context())
-		if err != nil {
-			return nil, err
-		}
-		return versionsOf(r.Context(), src, pts, t.abs), nil
-	})
-
+	// GET /api/files/versions lives in versionRoutes (h_versions.go): one
+	// handler for both the restore dialog and the file details panel.
 	s.user("POST /api/files/restore-version", func(r *http.Request) (any, error) {
 		var req struct {
 			Path     string `json:"path"`
