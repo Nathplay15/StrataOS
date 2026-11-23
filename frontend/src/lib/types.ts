@@ -476,10 +476,14 @@ export interface Settings {
   assistantUrl?: string;
   assistantKey?: string;
   assistantModel?: string;
-  /** "" (endpoint) | "chatgpt". */
+  /** "" (endpoint) | "chatgpt" | "oauth:<id>" (account sign-in, device flow). */
   assistantProvider?: string;
   chatgptEmail?: string;
   chatgptExpires?: string;
+  oauthProvider?: string;
+  oauthClientId?: string;
+  oauthEmail?: string;
+  oauthExpires?: string;
 }
 
 export interface ScheduleRun {

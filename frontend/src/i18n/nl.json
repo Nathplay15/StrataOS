@@ -5496,5 +5496,16 @@
  "Profile created": "Profiel aangemaakt",
  "Profile deleted": "Profiel verwijderd",
  "No profile yet": "Nog geen profiel",
- "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Een profiel verbergt video's met een score boven het maximum op TMDB: een rek alleen voor kinderen."
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Een profiel verbergt video's met een score boven het maximum op TMDB: een rek alleen voor kinderen.",
+ "Mistral account": "Mistral-account",
+ "Account disconnected": "Account ontkoppeld",
+ "Client ID of your app at the provider": "Client-ID van je app bij de provider",
+ "Register an app at console.mistral.ai, then paste its client ID here.": "Registreer een app op console.mistral.ai en plak hier de client-ID.",
+ "Get a sign-in code": "Aanmeldcode opvragen",
+ "Open the provider page": "Providerpagina openen",
+ "Enter this code at {0} to connect your account, then come back here: the NAS finishes the sign-in by itself.": "Voer deze code in op {0} om je account te koppelen en kom hier terug: de NAS rondt de aanmelding zelf af.",
+ "Waiting for approval…": "Wachten op goedkeuring…",
+ "The sign-in code expired: get a new one.": "De aanmeldcode is verlopen: vraag een nieuwe aan.",
+ "Connected to Mistral as {0}": "Verbonden met Mistral als {0}",
+ "Connected to Mistral as {0} until {1}": "Verbonden met Mistral als {0} tot {1}"
 }

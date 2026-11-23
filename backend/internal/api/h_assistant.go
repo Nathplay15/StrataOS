@@ -205,6 +205,15 @@ func (s *Server) assistantSettings() (store.Settings, error) {
 		}
 		return set, nil
 	}
+	if strings.HasPrefix(set.AssistantProvider, "oauth:") {
+		if set.OAuthRefresh == "" {
+			return store.Settings{}, badRequest("no account is connected")
+		}
+		if set.AssistantModel == "" {
+			return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
+		}
+		return set, nil
+	}
 	if set.AssistantURL == "" || set.AssistantModel == "" {
 		return store.Settings{}, badRequest("the assistant is not configured: set it up in Settings")
 	}
@@ -318,6 +327,13 @@ func (t *assistantTurn) send(ev assistantEvent) {
 // assistantLoop calls the model until it answers without tool calls, a tool
 // waits for the user's confirmation, or five rounds were made.
 func (s *Server) assistantLoop(ctx context.Context, t *assistantTurn) error {
+	// An "oauth:<id>" account becomes plain endpoint settings with a fresh
+	// access token as the key.
+	resolved, err := s.assistantResolve(ctx, t.set)
+	if err != nil {
+		return err
+	}
+	t.set = resolved
 	for iter := 0; iter < 5; iter++ {
 		var msg *assistantMessage
 		if t.stream {

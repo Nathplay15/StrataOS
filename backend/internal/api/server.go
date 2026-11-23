@@ -381,6 +381,7 @@ func (s *Server) routes() {
 	s.mcpRoutes()
 	s.assistantRoutes()
 	s.chatgptRoutes()
+	s.assistantOAuthRoutes()
 	s.assistantModelRoutes()
 	// Android app v2 (part A): file manager additions, container updates.
 	s.fileMoreRoutes()

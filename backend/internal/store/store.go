@@ -210,6 +210,16 @@ type Settings struct {
 	ChatGPTAccount    string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header
 	ChatGPTEmail      string    `json:"chatgptEmail,omitempty"`
 	ChatGPTExpires    time.Time `json:"chatgptExpires,omitempty"`
+	// OAuth account sign-in (device flow, RFC 8628) for providers with an
+	// OpenAI-compatible API: AssistantProvider is "oauth:<id>" and the
+	// short-lived access token is renewed by the NAS from the refresh token.
+	// No long-lived key is stored.
+	OAuthProvider string    `json:"oauthProvider,omitempty"` // e.g. "mistral"
+	OAuthClientID string    `json:"oauthClientId,omitempty"` // the app's client id (registered at the provider)
+	OAuthAccess   string    `json:"oauthAccess,omitempty"`
+	OAuthRefresh  string    `json:"oauthRefresh,omitempty"`
+	OAuthExpires  time.Time `json:"oauthExpires,omitempty"`
+	OAuthEmail    string    `json:"oauthEmail,omitempty"` // when the provider returns one
 	// VolumeFullPct is the fill percentage above which a volume is alerted
 	// as full (dashboard and notifications); 0 keeps the default of 90.
 	VolumeFullPct int `json:"volumeFullPct,omitempty"`

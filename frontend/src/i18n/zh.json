@@ -5496,5 +5496,16 @@
  "Profile created": "资料已创建",
  "Profile deleted": "资料已删除",
  "No profile yet": "还没有资料",
- "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "资料会隐藏 TMDB 评分高于其上限的影片：儿童专用书架。"
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "资料会隐藏 TMDB 评分高于其上限的影片：儿童专用书架。",
+ "Mistral account": "Mistral 账户",
+ "Account disconnected": "账户已断开",
+ "Client ID of your app at the provider": "你在提供商处注册的应用 Client ID",
+ "Register an app at console.mistral.ai, then paste its client ID here.": "在 console.mistral.ai 注册一个应用，然后将其 Client ID 粘贴到此处。",
+ "Get a sign-in code": "获取登录码",
+ "Open the provider page": "打开提供商页面",
+ "Enter this code at {0} to connect your account, then come back here: the NAS finishes the sign-in by itself.": "在 {0} 输入此代码以关联你的账户，然后回到这里：NAS 会自行完成登录。",
+ "Waiting for approval…": "等待批准…",
+ "The sign-in code expired: get a new one.": "登录码已过期：请重新获取。",
+ "Connected to Mistral as {0}": "已以 {0} 身份连接 Mistral",
+ "Connected to Mistral as {0} until {1}": "已以 {0} 身份连接 Mistral，直至 {1}"
 }

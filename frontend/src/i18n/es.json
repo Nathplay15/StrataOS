@@ -5496,5 +5496,16 @@
  "Profile created": "Perfil creado",
  "Profile deleted": "Perfil eliminado",
  "No profile yet": "Aún no hay perfiles",
- "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Un perfil oculta los vídeos con una valoración superior a su máximo en TMDB: una estantería solo para niños."
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Un perfil oculta los vídeos con una valoración superior a su máximo en TMDB: una estantería solo para niños.",
+ "Mistral account": "Cuenta de Mistral",
+ "Account disconnected": "Cuenta desconectada",
+ "Client ID of your app at the provider": "ID de cliente de tu aplicación en el proveedor",
+ "Register an app at console.mistral.ai, then paste its client ID here.": "Registra una aplicación en console.mistral.ai y pega aquí su ID de cliente.",
+ "Get a sign-in code": "Obtener un código de inicio de sesión",
+ "Open the provider page": "Abrir la página del proveedor",
+ "Enter this code at {0} to connect your account, then come back here: the NAS finishes the sign-in by itself.": "Introduce este código en {0} para conectar tu cuenta y vuelve aquí: el NAS termina el inicio de sesión por sí solo.",
+ "Waiting for approval…": "Esperando aprobación…",
+ "The sign-in code expired: get a new one.": "El código de inicio de sesión caducó: obtén uno nuevo.",
+ "Connected to Mistral as {0}": "Conectado a Mistral como {0}",
+ "Connected to Mistral as {0} until {1}": "Conectado a Mistral como {0} hasta el {1}"
 }

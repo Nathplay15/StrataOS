@@ -284,7 +284,7 @@ func (s *Server) systemRoutes() {
 	s.admin("GET /api/settings", func(r *http.Request) (any, error) {
 		var set store.Settings
 		s.store.Read(func(st *store.State) { set = st.Settings })
-		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken, &set.ChatGPTAccess, &set.ChatGPTRefresh} {
+		for _, p := range []*string{&set.SMTPPassword, &set.TelegramToken, &set.NtfyToken, &set.MetricsToken, &set.AssistantKey, &set.ACMEToken, &set.ChatGPTAccess, &set.ChatGPTRefresh, &set.OAuthAccess, &set.OAuthRefresh} {
 			if *p != "" {
 				*p = "********"
 			}
@@ -387,6 +387,14 @@ func (s *Server) systemRoutes() {
 			}
 			if req.ChatGPTRefresh == "********" {
 				req.ChatGPTRefresh = st.Settings.ChatGPTRefresh
+			}
+			// The OAuth account tokens are masked and never edited by hand:
+			// only the sign-in sets them.
+			if req.OAuthAccess == "********" {
+				req.OAuthAccess = st.Settings.OAuthAccess
+			}
+			if req.OAuthRefresh == "********" {
+				req.OAuthRefresh = st.Settings.OAuthRefresh
 			}
 			req.MetricsToken = st.Settings.MetricsToken // managed by PUT /api/metrics
 			if req.ACMEToken == "********" {

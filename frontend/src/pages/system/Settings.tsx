@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Bell, Bot, Clock, Download, Settings as Cog, Lock, Share2, Shield, Wrench } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
@@ -9,6 +9,7 @@ import { tr, locale, languages } from "../../lib/i18n";
 import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
 import { TLSTrustField } from "../../components/TLSTrust";
+import { OAuthSignIn } from "./AssistantOAuth";
 
 /** The mail server as an address for the certificate check (smtps: implicit TLS, smtp: STARTTLS). */
 const smtpAddress = (s: Settings) => {
@@ -170,6 +171,10 @@ export default function SettingsPage() {
     onDone: () => setCallback(""),
   });
   const gptDisconnect = useAction(() => api.post("/api/assistant/chatgpt/disconnect"), { success: tr("ChatGPT account disconnected") });
+  // Account sign-in by OAuth device flow (Mistral): the NAS asks the
+  // provider for a code, the admin approves it in a browser, the NAS polls.
+  const qcSettings = useQueryClient();
+  const oauthDisconnect = useAction(() => api.post("/api/assistant/oauth/disconnect"), { success: tr("Account disconnected"), onDone: () => qcSettings.invalidateQueries({ queryKey: ["settings"] }) });
   const report = useAction(() => api.post<{ report: string; warning?: string }>("/api/settings/report", { period: (s && reportPeriod(s)) || "weekly" }), { success: (r) => r.warning ?? tr("Report sent") });
   // Opened from the security advisor: /system/settings#settings-2fa.
   useEffect(() => { if (location.hash.length > 1) revealElement(location.hash.slice(1)); }, []);
@@ -254,9 +259,10 @@ export default function SettingsPage() {
         <Card id="settings-assistant" title={<span className="flex items-center gap-2"><Bot size={16} /> {" "}{tr("Assistant (AI)")}</span>} className="@4xl:col-span-2">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Provider")}>
-              <Select value={s.assistantProvider === "chatgpt" ? "chatgpt" : ""} onChange={(e) => set("assistantProvider", e.target.value)}>
+              <Select value={s.assistantProvider === "chatgpt" ? "chatgpt" : s.assistantProvider?.startsWith("oauth:") ? "oauth:mistral" : ""} onChange={(e) => set("assistantProvider", e.target.value)}>
                 <option value="">{tr("API endpoint (OpenAI-compatible)")}</option>
                 <option value="chatgpt">{tr("ChatGPT account")}</option>
+                <option value="oauth:mistral">{tr("Mistral account")}</option>
               </Select>
             </Field>
             <Field label={tr("Model")} hint={s.assistantProvider === "chatgpt" ? tr("e.g. gpt-5.1-codex-max, also changeable in the assistant") : tr("e.g. mistral-small-latest")}>
@@ -280,6 +286,8 @@ export default function SettingsPage() {
                   <Button variant="primary" loading={gptFinish.isPending} onClick={() => gptFinish.mutate()}>{tr("Finish the sign-in")}</Button>
                 </div>
               </div>
+            ) : s.assistantProvider?.startsWith("oauth:") ? (
+              <div className="sm:col-span-2"><OAuthSignIn data={data} oauthDisconnect={oauthDisconnect} /></div>
             ) : (
               <>
                 <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>
@@ -290,7 +298,7 @@ export default function SettingsPage() {
             )}
           </div>
           <p className="mt-3 text-[12.5px] text-muted">{tr("The assistant answers questions about this NAS in the interface. It only sees what the signed-in user can, and every modifying action requires an explicit confirmation.")}</p>
-          {s.assistantProvider !== "chatgpt" && (
+          {s.assistantProvider !== "chatgpt" && !s.assistantProvider?.startsWith("oauth:") && (
             <LocalModels current={s.assistantModel} key={s.assistantModel} onUse={(name) => setS({ ...s, assistantUrl: "http://127.0.0.1:11434/v1", assistantKey: "", assistantModel: name })} />
           )}
           <p className="mt-3 text-[12.5px] text-muted">{tr("Local models need no key. The model can also be switched directly from the assistant page.")}</p>
