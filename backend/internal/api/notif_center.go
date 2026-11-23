@@ -48,7 +48,7 @@ var notifRules = []struct {
 	{subjects: []string{"VPN device expiring soon"}, k: notifKind{"network", "open", "/system/remote"}},
 	{subjects: []string{"High availability failover"}, k: notifKind{"network", "open", "/system/ha"}},
 	{subjects: []string{"UPS"}, k: notifKind{"power", "open", "/system/ups"}},
-	{prefixes: []string{"Weekly report of ", "Monthly report of "}, k: notifKind{"report", "", ""}},
+	{prefixes: []string{"Weekly report of ", "Monthly report of ", "AI report of "}, k: notifKind{"report", "", ""}},
 	// Generic subjects ("Alert", "Storage"): the message tells.
 	{prefixes: []string{"RAID array "}, k: notifKind{"storage", "open", "/storage/raid"}},
 	{prefixes: []string{"ZFS pool ", "The ZFS module"}, k: notifKind{"storage", "open", "/storage/zfs"}},

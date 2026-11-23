@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AppWindow, ArchiveRestore, Bug, CalendarClock, Camera, GitCompare, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Activity, AppWindow, ArchiveRestore, Bot, Bug, CalendarClock, Camera, GitCompare, Images, CheckCircle2, Edit3, History, Play, Plus, ShieldCheck, Sparkles, Trash2, XCircle } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import type { Schedule, ScheduleTarget } from "../../lib/types";
@@ -20,6 +20,7 @@ const typeInfo = {
   appupdate: { label: tr("App updates"), icon: <AppWindow size={15} />, tone: "accent" as const },
   antivirus: { label: tr("Antivirus scan"), icon: <Bug size={15} />, tone: "danger" as const },
   action: { label: tr("Action"), icon: <Play size={15} />, tone: "accent" as const },
+  report: { label: tr("AI report"), icon: <Bot size={15} />, tone: "accent" as const },
 };
 
 const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -148,6 +149,8 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   useEffect(() => {
     if (s.type === "smart") {
       if (s.targetKind !== "disks") set({ targetKind: "disks", target: "all" });
+    } else if (s.type === "report") {
+      if (s.target !== "" || s.targetKind !== "zfs") set({ targetKind: "zfs", target: "" });
     } else if (s.type === "action") {
       if (!["vm", "lxc", "docker"].includes(s.targetKind)) set({ targetKind: "vm" as Schedule["targetKind"] });
       if (!actionOptions.includes(s.target) && actionOptions[0]) set({ target: actionOptions[0] });
@@ -159,7 +162,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   // Suggest a name until the user types one.
   useEffect(() => {
     if (named) return;
-    const what = s.type === "smart" ? (s.smartTest === "long" ? "long" : "court") : s.type === "action" ? `${s.action ?? "stop"} ${s.target}` : current?.label ?? "";
+    const what = s.type === "smart" ? (s.smartTest === "long" ? "long" : "court") : s.type === "action" ? `${s.action ?? "stop"} ${s.target}` : s.type === "report" ? "" : current?.label ?? "";
     set({ name: `${typeInfo[s.type].label} ${what}`.trim() });
   }, [s.type, s.target, s.smartTest, s.action, named]);
 
@@ -169,7 +172,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
   return (
     <Modal open onClose={onClose} title={editing ? tr("Edit \"{0}\"", s.name) : tr("New scheduled task")} wide footer={<>
       <Button onClick={onClose}>{tr("Cancel")}</Button>
-      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
+      <Button variant="primary" loading={save.isPending} disabled={!s.name || (s.type !== "smart" && s.type !== "report" && !s.target)} onClick={() => save.mutate()}>{editing ? tr("Save") : tr("Create")}</Button>
     </>}>
       <div className="space-y-5">
         <div className="@container"><div className="grid gap-2 @xl:grid-cols-2 @3xl:grid-cols-4">
@@ -178,7 +181,7 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
               {typeInfo[t].icon}
               <div>
                 <div className="font-medium text-[13px]">{typeInfo[t].label}</div>
-                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS, Btrfs or LVM thin, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine"), action: tr("Start, stop or restart a VM or a container") }[t]}</div>
+                <div className="text-muted text-[11.5px]">{{ snapshot: tr("ZFS, Btrfs or LVM thin, with retention"), scrub: tr("RAID, ZFS pool, Btrfs"), smart: tr("Disk self-test"), appupdate: tr("New Docker images, data kept"), antivirus: tr("ClamAV, with quarantine"), action: tr("Start, stop or restart a VM or a container"), report: tr("The assistant writes a report, sent as a notification") }[t]}</div>
               </div>
             </button>
           ))}
@@ -186,7 +189,11 @@ function TaskModal({ initial, targets, onClose }: { initial: Schedule | null; ta
 
         <Field label={tr("Name")}><Input value={s.name} onChange={(e) => { setNamed(true); set({ name: e.target.value }); }} /></Field>
 
-        {s.type === "action" ? (
+        {s.type === "report" ? (
+          <Field label={tr("Instructions for the assistant")} hint={tr("Empty: a default summary of the NAS (health, events, backups, new photos).")}>
+            <textarea className="input h-24 w-full text-[12.5px]" value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} placeholder={tr("Every Monday: summarize the NAS health, the new photos and the failed backups…")} />
+          </Field>
+        ) : s.type === "action" ? (
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label={tr("Action")}>
               <Select value={s.action ?? "stop"} onChange={(e) => set({ action: e.target.value as "start" | "stop" | "restart" })}>
@@ -424,6 +431,7 @@ function SnapshotDiff({ s, snaps }: { s: Schedule; snaps: Snap[] }) {
 }
 
 function targetLabel(s: Schedule, targets?: Targets) {
+  if (s.type === "report") return s.prompt ? (s.prompt.length > 48 ? s.prompt.slice(0, 48) + "…" : s.prompt) : tr("Default summary");
   if (s.type === "smart") return s.target === "all" ? tr("All disks") : s.target;
   if (s.type === "appupdate") return s.target === "all" ? tr("All running applications") : s.target;
   if (s.type === "antivirus") return s.target === "all" ? tr("All storage") : s.target;

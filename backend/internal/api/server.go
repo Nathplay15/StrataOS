@@ -128,6 +128,7 @@ func New(c Config) *Server {
 	}
 	network.Recover()
 	s.routes()
+	reportServer.Store(s)
 	go s.healthWatcher()
 	go s.dockerHealthLoop()
 	go s.schedulerLoop()

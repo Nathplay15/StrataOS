@@ -224,7 +224,7 @@ type Settings struct {
 type Schedule struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus | action
+	Type    string `json:"type"` // snapshot | scrub | smart | appupdate | antivirus | action | report
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
 	// TargetKind is zfs | btrfs | lvm | mdadm | disks; Target is a dataset, pool, volume ID,
@@ -247,7 +247,10 @@ type Schedule struct {
 	AVAction string `json:"avAction,omitempty"`
 	// Action (type "action", roadmap 0.15): start | stop | restart on a VM,
 	// an LXC container or a Docker container (TargetKind vm | lxc | docker).
-	Action    string        `json:"action,omitempty"`
+	Action string `json:"action,omitempty"`
+	// Prompt (type "report", roadmap 0.15): what the assistant writes in its
+	// scheduled report (empty = the default summary of the NAS).
+	Prompt    string        `json:"prompt,omitempty"`
 	CreatedAt time.Time     `json:"createdAt"`
 	History   []ScheduleRun `json:"history"`
 }

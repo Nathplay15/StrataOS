@@ -493,9 +493,11 @@ export interface ScheduleRun {
 export interface Schedule {
   id: string;
   name: string;
-  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus" | "action";
+  type: "snapshot" | "scrub" | "smart" | "appupdate" | "antivirus" | "action" | "report";
   avAction?: "report" | "quarantine";
   action?: "start" | "stop" | "restart";
+  /** Type "report": what the assistant summarizes in its scheduled report. */
+  prompt?: string;
   cron: string;
   enabled: boolean;
   targetKind: "zfs" | "btrfs" | "lvm" | "mdadm" | "disks" | "stacks" | "path" | "vm" | "lxc" | "docker";

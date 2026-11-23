@@ -200,6 +200,9 @@ export const serverTexts: [string, string][] = [
   ["fichier piège modifié", "trap file modified"],
   // Monthly report
   ["Rapport mensuel de {0}", "Monthly report of {0}"],
+  ["Rapport IA de {0}", "AI report of {0}"],
+  ["Interrogation de l'assistant ({0})…", "Asking the assistant ({0})…"],
+  ["Rapport envoyé en notification ({0} caractères)", "Report sent as a notification ({0} characters)"],
   ["Stockage", "Storage"],
   ["{0} : {1} utilisés sur {2} ({3} %)", "{0}: {1} used of {2} ({3}%)"],
   ["aucun volume", "no volume"],

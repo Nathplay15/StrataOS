@@ -186,10 +186,16 @@ func (s *Server) assistantChatSettings(r *http.Request, req *assistantChatReq) (
 			return store.Settings{}, badRequest("invalid conversation")
 		}
 	}
+	return s.assistantSettings()
+}
+
+// assistantSettings returns the assistant configuration, or an error when it
+// is not set up (chat endpoints and scheduled reports). A local endpoint
+// (Ollama) needs no key: only a cloud one does. A connected ChatGPT account
+// needs neither a URL nor a key.
+func (s *Server) assistantSettings() (store.Settings, error) {
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
-	// A local endpoint (Ollama) needs no key: only a cloud one does. A
-	// connected ChatGPT account needs neither a URL nor a key.
 	if set.AssistantProvider == "chatgpt" {
 		if set.ChatGPTRefresh == "" {
 			return store.Settings{}, badRequest("no ChatGPT account is connected")
@@ -294,6 +300,9 @@ type assistantTurn struct {
 	conv    []assistantMessage
 	tainted bool
 	stream  bool
+	// readonly: a scheduled report — only read tools run, nothing is armed
+	// for confirmation, the web is not opened.
+	readonly bool
 	// emit receives the events of the streamed endpoints (nil: plain).
 	emit    func(assistantEvent)
 	reply   string
@@ -360,6 +369,10 @@ func (s *Server) assistantLoop(ctx context.Context, t *assistantTurn) error {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 			name := tc.Function.Name
 			t.send(assistantEvent{Type: "status", Tool: name})
+			if t.readonly && !assistantReadTools[name] {
+				t.conv = append(t.conv, assistantMessage{Role: "tool", ToolCallID: tc.ID, Content: "Refused: a scheduled report only reads the NAS."})
+				continue
+			}
 			if assistantNeedsConfirm(name, t.tainted) {
 				a, err := s.assistantArmWeb(t.inner, name, args)
 				if err != nil {
@@ -401,6 +414,13 @@ func (s *Server) assistantLoop(ctx context.Context, t *assistantTurn) error {
 
 // assistantWebTools send something out of the NAS.
 var assistantWebTools = map[string]bool{"web_search": true, "open_url": true}
+
+// assistantReadTools only inspect the NAS; a scheduled report may use them.
+var assistantReadTools = map[string]bool{
+	"nas_status": true, "list_volumes": true, "list_disks": true, "list_docker_containers": true,
+	"list_backups": true, "recent_events": true, "list_vms": true, "list_zfs_snapshots": true,
+	"list_notifications": true, "list_files": true, "read_file": true, "search_files": true, "search_file_content": true,
+}
 
 // assistantNeedsConfirm tells whether a web tool waits for the user: always
 // for open_url (the address is where data would leave), and for web_search

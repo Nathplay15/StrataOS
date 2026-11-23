@@ -131,6 +131,13 @@ func Validate(s *store.Schedule, resolve Resolver) error {
 		if s.Target == "" || strings.ContainsAny(s.Target, " \t\n/") {
 			return fmt.Errorf("choose the VM, container or stack to act on")
 		}
+	case "report":
+		// A scheduled AI report (roadmap 0.15): the assistant writes a summary
+		// and it is sent as a notification. No target, only an optional prompt.
+		s.TargetKind, s.Target, s.Action = "", "", ""
+		if len(s.Prompt) > 2000 {
+			return fmt.Errorf("the instructions of the report must be 2000 characters at most")
+		}
 	default:
 		return fmt.Errorf("unknown task type %q", s.Type)
 	}
@@ -165,6 +172,11 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 			return "", fmt.Errorf("actions are not available on this NAS")
 		}
 		return ActionRunner(ctx, s.TargetKind, s.Target, s.Action, logf)
+	case "report":
+		if ReportRunner == nil {
+			return "", fmt.Errorf("reports are not available on this NAS")
+		}
+		return ReportRunner(ctx, s.Prompt, logf)
 	}
 	return "", fmt.Errorf("unknown task type %q", s.Type)
 }
@@ -172,6 +184,11 @@ func Execute(ctx context.Context, s store.Schedule, resolve Resolver, logf func(
 // ActionRunner runs a scheduled action (type "action") on a VM, an LXC
 // container or a Docker container; set by the API layer at startup.
 var ActionRunner func(ctx context.Context, kind, target, action string, logf func(string, ...any)) (string, error)
+
+// ReportRunner runs a scheduled AI report (type "report"): it asks the
+// assistant for prompt (or a default summary) and sends the answer; set by
+// the API layer at startup.
+var ReportRunner func(ctx context.Context, prompt string, logf func(string, ...any)) (string, error)
 
 // expired selects snapshots to delete. items must be sorted newest first; the newest is always kept.
 func expired[T any](items []T, created func(T) time.Time, keepCount, keepDays int, now time.Time) []T {

@@ -153,9 +153,12 @@ func mcpCheckWrite(tool string, in mcpWriteIn) (mcpWriteIn, error) {
 			return in, fmt.Errorf("a dataset and a snapshot name are required")
 		}
 	case "create_schedule":
-		// Only scheduled actions are created here ("stop the test VM every
-		// evening at 11 pm"); the other task types are made in the interface.
-		sc := store.Schedule{Name: in.Name, Type: "action", Cron: in.Cron, TargetKind: in.TargetKind, Target: in.Target, Action: in.Action}
+		// Scheduled actions ("stop the test VM every evening at 11 pm") and
+		// scheduled AI reports ("every Monday, summarize the NAS health…").
+		sc := store.Schedule{Name: in.Name, Type: in.Type, Cron: in.Cron, TargetKind: in.TargetKind, Target: in.Target, Action: in.Action, Prompt: in.Prompt}
+		if sc.Type == "" {
+			sc.Type = "action"
+		}
 		if err := scheduler.Validate(&sc, nil); err != nil {
 			return in, err
 		}
@@ -359,6 +362,8 @@ type mcpWriteIn struct {
 	Cron       string `json:"cron,omitempty"`
 	TargetKind string `json:"targetKind,omitempty"`
 	Target     string `json:"target,omitempty"`
+	Type       string `json:"type,omitempty"`   // "action" (default) | "report"
+	Prompt     string `json:"prompt,omitempty"` // type "report": what the assistant writes
 }
 
 // mcpAddWriteTools adds the tools that change the NAS. They are gated three
@@ -428,15 +433,23 @@ func (s *Server) mcpAddWriteTools(srv *mcp.Server) {
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
 			return s.mcpCall(r, http.MethodPost, "/api/storage/zfs-snapshots", map[string]any{"dataset": in.Dataset, "name": in.SnapshotName})
 		})
-	gated("create_schedule", "Create a scheduled action: start, stop or restart a VM, an LXC container or a Docker container at a cron time (name, cron such as '0 23 * * *', targetKind: vm | lxc | docker, target: its name, action: start | stop | restart).",
+	gated("create_schedule", "Create a scheduled task at a cron time. An action: type \"action\" with targetKind vm | lxc | docker, target (its name) and action start | stop | restart. An AI report: type \"report\" with an optional prompt (what the assistant summarizes and sends as a notification). Both need name and cron such as '0 23 * * *'.",
 		func(in mcpWriteIn) string {
+			if in.Type == "report" {
+				return "Scheduled AI report « " + in.Name + " » (" + in.Cron + ")"
+			}
 			return "Scheduled task « " + in.Name + " »: " + in.Action + " " + in.Target + " (" + in.Cron + ")"
 		},
 		func(r *http.Request, in mcpWriteIn) (*mcp.CallToolResult, any, error) {
-			return s.mcpCall(r, http.MethodPost, "/api/schedules", map[string]any{
-				"name": in.Name, "type": "action", "cron": in.Cron, "enabled": true,
-				"targetKind": in.TargetKind, "target": in.Target, "action": in.Action,
-			})
+			body := map[string]any{"name": in.Name, "cron": in.Cron, "enabled": true}
+			if in.Type == "report" {
+				body["type"] = "report"
+				body["prompt"] = in.Prompt
+			} else {
+				body["type"] = "action"
+				body["targetKind"], body["target"], body["action"] = in.TargetKind, in.Target, in.Action
+			}
+			return s.mcpCall(r, http.MethodPost, "/api/schedules", body)
 		})
 }
 
