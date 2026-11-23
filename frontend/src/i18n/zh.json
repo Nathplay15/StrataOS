@@ -5457,5 +5457,16 @@
  "Continue watching": "继续观看",
  "Added this week": "本周新增",
  "Top rated": "评分最高",
- "Collections": "系列合集"
+ "Collections": "系列合集",
+ "Subtitle settings": "字幕设置",
+ "Subtitle size": "字幕大小",
+ "Subtitle color": "字幕颜色",
+ "Outline": "描边",
+ "Small": "小",
+ "Medium": "中",
+ "Large": "大",
+ "White": "白色",
+ "Yellow": "黄色",
+ "Cyan": "青色",
+ "Green": "绿色"
 }

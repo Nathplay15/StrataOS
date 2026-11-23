@@ -5457,5 +5457,16 @@
  "Continue watching": "Continuar a ver",
  "Added this week": "Adicionados esta semana",
  "Top rated": "Melhor classificados",
- "Collections": "Coleções"
+ "Collections": "Coleções",
+ "Subtitle settings": "Definições de legendas",
+ "Subtitle size": "Tamanho das legendas",
+ "Subtitle color": "Cor das legendas",
+ "Outline": "Contorno",
+ "Small": "Pequeno",
+ "Medium": "Médio",
+ "Large": "Grande",
+ "White": "Branco",
+ "Yellow": "Amarelo",
+ "Cyan": "Ciano",
+ "Green": "Verde"
 }

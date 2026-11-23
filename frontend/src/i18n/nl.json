@@ -5457,5 +5457,16 @@
  "Continue watching": "Verder kijken",
  "Added this week": "Deze week toegevoegd",
  "Top rated": "Hoogst gewaardeerd",
- "Collections": "Collecties"
+ "Collections": "Collecties",
+ "Subtitle settings": "Ondertitelinstellingen",
+ "Subtitle size": "Ondertitelgrootte",
+ "Subtitle color": "Ondertitelkleur",
+ "Outline": "Omlijning",
+ "Small": "Klein",
+ "Medium": "Middelgroot",
+ "Large": "Groot",
+ "White": "Wit",
+ "Yellow": "Geel",
+ "Cyan": "Cyaan",
+ "Green": "Groen"
 }

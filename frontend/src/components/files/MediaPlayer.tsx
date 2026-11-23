@@ -4,12 +4,12 @@
 // timeline below is drawn by the player itself.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Captions, Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { Captions, Music, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import type { FileEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
 import { srv, tr } from "../../lib/i18n";
-import { Badge, Button, ErrorBox, Notice, Select, Spinner } from "../ui";
+import { Badge, Button, ErrorBox, Notice, Select, Spinner, Switch } from "../ui";
 import { Toolbar, ViewerCard, getPos, inlineURL, setPos, useViewerCaps } from "./common";
 import { useAction } from "../../lib/hooks";
 
@@ -113,6 +113,15 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [sub, setSub] = useState<number | null>(null);
+  // Subtitle look (size, color, outline), kept per browser.
+  const [subStyle, setSubStyle] = useState<{ size: number; color: string; outline: boolean }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("strata-substyle") || "{}");
+      return { size: v.size ?? 130, color: v.color ?? "#ffffff", outline: v.outline ?? true };
+    } catch { return { size: 130, color: "#ffffff", outline: true }; }
+  });
+  const [subCfg, setSubCfg] = useState(false);
+  useEffect(() => { try { localStorage.setItem("strata-substyle", JSON.stringify(subStyle)); } catch { /* private mode */ } }, [subStyle]);
   const [error, setError] = useState<unknown>(null);
   const src = `/api/files/play${q({ path: entry.path, start: offset || undefined, audio, ...caps })}`;
   const pos = offset + current;
@@ -156,8 +165,27 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
               <option value="">{tr("No subtitles")}</option>
               {subs.map((s) => <option key={s.index} value={s.index}>{trackName(s)}</option>)}
             </Select>
+            <span className="relative">
+              <Button size="sm" variant="ghost" icon={<Settings2 size={14} />} title={tr("Settings")} aria-label={tr("Subtitle settings")} onClick={() => setSubCfg(!subCfg)} />
+              {subCfg && (
+                <div className="absolute right-0 z-10 mt-1 w-56 space-y-2 rounded-xl border border-line bg-panel p-3 shadow-lg">
+                  <div><div className="mb-1 text-[11.5px] text-muted">{tr("Subtitle size")}</div>
+                    <Select value={String(subStyle.size)} onChange={(e) => setSubStyle({ ...subStyle, size: +e.target.value })} className="!h-8 w-full text-[12.5px]">
+                      <option value="100">{tr("Small")}</option><option value="130">{tr("Medium")}</option><option value="165">{tr("Large")}</option>
+                    </Select>
+                  </div>
+                  <div><div className="mb-1 text-[11.5px] text-muted">{tr("Subtitle color")}</div>
+                    <Select value={subStyle.color} onChange={(e) => setSubStyle({ ...subStyle, color: e.target.value })} className="!h-8 w-full text-[12.5px]">
+                      <option value="#ffffff">{tr("White")}</option><option value="#ffe600">{tr("Yellow")}</option><option value="#00e5ff">{tr("Cyan")}</option><option value="#76ff03">{tr("Green")}</option>
+                    </Select>
+                  </div>
+                  <Switch checked={subStyle.outline} onChange={(v) => setSubStyle({ ...subStyle, outline: v })} label={tr("Outline")} />
+                </div>
+              )}
+            </span>
           </span>
         )}
+        {sub !== null && <style>{`video.cuebox::cue{font-size:${subStyle.size}%;color:${subStyle.color};${subStyle.outline ? "text-shadow:-1px 0 0 #000,1px 0 0 #000,0 -1px 0 #000,0 1px 0 #000,0 0 3px #000;" : ""}}`}</style>}
       </Toolbar>
       <div className="flex min-h-0 flex-1 flex-col bg-black">
         <div className={cx("flex min-h-0 flex-1 items-center justify-center", plan.audioOnly && "bg-panel-2")} onClick={toggle}>
@@ -165,7 +193,7 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
           <El key={src} ref={ref} src={src} autoPlay preload="auto" playsInline
             onTimeUpdate={(e) => { setCurrent(e.currentTarget.currentTime); setPos(key, offset + e.currentTarget.currentTime); }}
             onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => void onError()}
-            className={plan.audioOnly ? "hidden" : "max-h-full max-w-full"}>
+            className={cx(plan.audioOnly ? "hidden" : "max-h-full max-w-full", sub !== null && "cuebox")}>
             {subURL && <track key={subURL} kind="subtitles" src={subURL} default label={tr("Subtitles")} />}
           </El>
         </div>

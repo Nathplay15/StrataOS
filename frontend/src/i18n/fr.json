@@ -5457,5 +5457,16 @@
  "Continue watching": "Continuer à regarder",
  "Added this week": "Ajoutés cette semaine",
  "Top rated": "Les mieux notés",
- "Collections": "Sagas"
+ "Collections": "Sagas",
+ "Subtitle settings": "Réglages des sous-titres",
+ "Subtitle size": "Taille des sous-titres",
+ "Subtitle color": "Couleur des sous-titres",
+ "Outline": "Contour",
+ "Small": "Petit",
+ "Medium": "Moyen",
+ "Large": "Grand",
+ "White": "Blanc",
+ "Yellow": "Jaune",
+ "Cyan": "Cyan",
+ "Green": "Vert"
 }
