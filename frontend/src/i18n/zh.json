@@ -5487,5 +5487,14 @@
  "Add videos": "添加视频",
  "{0} video(s)": "{0} 部影片",
  "No video yet": "还没有视频",
- "Weekend": "周末"
+ "Weekend": "周末",
+ "Family profiles": "家庭资料",
+ "All content": "全部内容",
+ "New profile": "新建资料",
+ "Profile name": "资料名称",
+ "Maximum rating (0 = no limit)": "最高评分（0 = 不限）",
+ "Profile created": "资料已创建",
+ "Profile deleted": "资料已删除",
+ "No profile yet": "还没有资料",
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "资料会隐藏 TMDB 评分高于其上限的影片：儿童专用书架。"
 }

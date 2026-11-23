@@ -147,6 +147,58 @@ func (s *Server) cinemaRoutes() {
 		return map[string]any{"keySet": key != ""}, nil
 	})
 
+	// ---- Family profiles (kid-only shelves) ----
+	s.user("GET /api/cinema/profiles", func(r *http.Request) (any, error) {
+		var out []store.MediaProfile
+		s.store.Read(func(st *store.State) { out = slices.Clone(st.Media.Profiles) })
+		if out == nil {
+			out = []store.MediaProfile{}
+		}
+		return out, nil
+	})
+	profileReq := func(r *http.Request) (store.MediaProfile, error) {
+		var req struct {
+			Name      string   `json:"name"`
+			MaxRating *float64 `json:"maxRating"`
+		}
+		if err := decode(r, &req); err != nil {
+			return store.MediaProfile{}, err
+		}
+		name := strings.TrimSpace(req.Name)
+		if name == "" || len(name) > 64 {
+			return store.MediaProfile{}, badRequest("the profile name must have 1 to 64 characters")
+		}
+		rating := 0.0
+		if req.MaxRating != nil {
+			rating = *req.MaxRating
+		}
+		if rating < 0 || rating > 10 {
+			return store.MediaProfile{}, badRequest("the maximum rating must be between 0 and 10")
+		}
+		return store.MediaProfile{Name: name, MaxRating: rating}, nil
+	}
+	s.admin("POST /api/cinema/profiles", func(r *http.Request) (any, error) {
+		p, err := profileReq(r)
+		if err != nil {
+			return nil, err
+		}
+		p.ID = newLinkID()[:12]
+		return nil, s.store.Update(func(st *store.State) error {
+			if len(st.Media.Profiles) >= 20 {
+				return badRequest("too many profiles")
+			}
+			st.Media.Profiles = append(st.Media.Profiles, p)
+			return nil
+		})
+	})
+	s.admin("DELETE /api/cinema/profiles/{id}", func(r *http.Request) (any, error) {
+		id := r.PathValue("id")
+		return nil, s.store.Update(func(st *store.State) error {
+			st.Media.Profiles = slices.DeleteFunc(st.Media.Profiles, func(p store.MediaProfile) bool { return p.ID == id })
+			return nil
+		})
+	})
+
 	// ---- Watch-together lists (shared between accounts) ----
 	type listItemView struct {
 		Path string `json:"path"`

@@ -99,6 +99,13 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const [key, setKey] = useState("");
   const saveKey = useAction(() => api.put("/api/cinema/settings", { tmdbKey: key }), { success: tr("Key saved"), onDone: () => { setKey(""); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const [filter, setFilter] = useState("");
+  // Family profile: the library hides what rates above the profile's cap.
+  const profiles = useQuery({ queryKey: ["cinema-profiles"], queryFn: () => api.get<{ id: string; name: string; maxRating?: number }[]>("/api/cinema/profiles"), staleTime: 60000 });
+  const [profileId, setProfileId] = useState<string | null>(() => { try { return localStorage.getItem("strata-profile"); } catch { return null; } });
+  useEffect(() => { try { if (profileId) localStorage.setItem("strata-profile", profileId); else localStorage.removeItem("strata-profile"); } catch { /* private mode */ } }, [profileId]);
+  const [newProf, setNewProf] = useState<{ name: string; maxRating: string } | null>(null);
+  const mkProf = useAction(() => api.post("/api/cinema/profiles", { name: newProf?.name ?? "", maxRating: parseFloat(newProf?.maxRating ?? "0") || 0 }), { success: tr("Profile created"), onDone: () => { setNewProf(null); qc.invalidateQueries({ queryKey: ["cinema-profiles"] }); } });
+  const delProf = useAction((id: string) => api.del(`/api/cinema/profiles/${id}`), { success: tr("Profile deleted"), onDone: () => { qc.invalidateQueries({ queryKey: ["cinema-profiles"] }); } });
   const lists = useQuery({ queryKey: ["cinema-lists"], queryFn: () => api.get<WatchList[]>("/api/cinema/lists"), refetchInterval: 30000 });
   const [listSel, setListSel] = useState<WatchList | null>(null);
   const [newList, setNewList] = useState<string | null>("");
@@ -113,7 +120,9 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const lastSave = useRef(0);
 
   const d = lib.data;
-  const items = d?.items ?? [];
+  const allItems = d?.items ?? [];
+  const prof = profiles.data?.find((p) => p.id === profileId);
+  const items = prof && (prof.maxRating ?? 0) > 0 ? allItems.filter((i) => !i.rating || i.rating <= prof.maxRating!) : allItems;
   const f = filter.trim().toLowerCase();
   const shown = items.filter((i) => !f || i.title.toLowerCase().includes(f));
   const movies: Work[] = shown.filter((i) => i.kind !== "episode").map((i) => ({ ...i, items: [i] }));
@@ -154,11 +163,40 @@ export function CinemaTab({ admin }: { admin: boolean }) {
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
             <Input className="pl-8" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={tr("Search a title…")} />
           </div>
+          <Select value={profileId ?? ""} onChange={(e) => setProfileId(e.target.value || null)} className="!h-9 w-44 text-[12.5px]" aria-label={tr("Family profiles")}>
+            <option value="">{tr("All content")}</option>
+            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.maxRating ? ` (≤ ${p.maxRating})` : ""}</option>)}
+          </Select>
           {admin && <Button icon={<RefreshCw size={14} />} loading={scan.isPending || d?.running} disabled={d?.running} onClick={() => scan.mutate()}>{d?.running ? tr("Scanning…") : tr("Scan the library")}</Button>}
         </div>
         {d && <div className="mt-2 text-[12px] text-muted">{tr("Scanned {0} videos", d.scanned)}{d.checked && ` · ${tr("Last scan {0}", ago(d.checked))}`}</div>}
         <ErrorBox error={lib.error || scan.error} />
       </Card>
+
+      {admin && (
+        <Card title={<span className="flex items-center gap-2"><Users size={16} />{tr("Family profiles")}</span>}
+          actions={<Button size="sm" variant="ghost" icon={<ListPlus size={14} />} onClick={() => setNewProf({ name: "", maxRating: "6" })}>{tr("New profile")}</Button>}>
+          <p className="text-muted text-[12.5px]">{tr("A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(profiles.data ?? []).map((p) => (
+              <span key={p.id} className="flex items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 text-[12.5px]">
+                {p.name}{p.maxRating ? ` (≤ ${p.maxRating})` : ""}
+                <IconButton title={tr("Delete")} onClick={() => { delProf.mutate(p.id); if (profileId === p.id) setProfileId(null); }}><Trash2 size={13} /></IconButton>
+              </span>
+            ))}
+            {!profiles.data?.length && !newProf && <span className="text-[12.5px] text-muted">{tr("No profile yet")}</span>}
+          </div>
+          {newProf && (
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <Field label={tr("Profile name")}><Input className="w-44" value={newProf.name} onChange={(e) => setNewProf({ ...newProf, name: e.target.value })} /></Field>
+              <Field label={tr("Maximum rating (0 = no limit)")}><Input className="w-24" type="number" min={0} max={10} step={0.5} value={newProf.maxRating} onChange={(e) => setNewProf({ ...newProf, maxRating: e.target.value })} /></Field>
+              <Button size="sm" variant="primary" loading={mkProf.isPending} disabled={!newProf.name.trim()} onClick={() => mkProf.mutate()}>{tr("Add")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setNewProf(null)}>{tr("Cancel")}</Button>
+            </div>
+          )}
+          <ErrorBox error={mkProf.error || delProf.error} />
+        </Card>
+      )}
 
       {admin && (
         <Card title={<span className="flex items-center gap-2"><Moon size={16} />{tr("Night mode")}</span>}

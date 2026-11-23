@@ -20,6 +20,18 @@ type Media struct {
 	// WatchLists are the "watch together" lists: videos shared between
 	// accounts (roadmap 0.15, cinema).
 	WatchLists []WatchList `json:"watchLists,omitempty"`
+	// Profiles are the family profiles (roadmap 0.15, cinema): a name and a
+	// maximum TMDB rating; the library filtered by one hides what rates
+	// higher (a kid-only shelf).
+	Profiles []MediaProfile `json:"profiles,omitempty"`
+}
+
+// MediaProfile is a family profile: content rated above MaxRating is hidden
+// (0 = no limit).
+type MediaProfile struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	MaxRating float64 `json:"maxRating,omitempty"`
 }
 
 // WatchList is a named list of videos shared with other accounts.

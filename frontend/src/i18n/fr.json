@@ -5487,5 +5487,14 @@
  "Add videos": "Ajouter des vidéos",
  "{0} video(s)": "{0} vidéo(s)",
  "No video yet": "Aucune vidéo pour l'instant",
- "Weekend": "Week-end"
+ "Weekend": "Week-end",
+ "Family profiles": "Profils famille",
+ "All content": "Tout le contenu",
+ "New profile": "Nouveau profil",
+ "Profile name": "Nom du profil",
+ "Maximum rating (0 = no limit)": "Note maximale (0 = sans limite)",
+ "Profile created": "Profil créé",
+ "Profile deleted": "Profil supprimé",
+ "No profile yet": "Aucun profil pour l'instant",
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Un profil masque les vidéos notées au-dessus de son maximum sur TMDB : une étagère réservée aux enfants."
 }

@@ -5487,5 +5487,14 @@
  "Add videos": "Video's toevoegen",
  "{0} video(s)": "{0} video('s)",
  "No video yet": "Nog geen video's",
- "Weekend": "Weekend"
+ "Weekend": "Weekend",
+ "Family profiles": "Gezinsprofielen",
+ "All content": "Alle content",
+ "New profile": "Nieuw profiel",
+ "Profile name": "Profielnaam",
+ "Maximum rating (0 = no limit)": "Maximale score (0 = geen limiet)",
+ "Profile created": "Profiel aangemaakt",
+ "Profile deleted": "Profiel verwijderd",
+ "No profile yet": "Nog geen profiel",
+ "A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.": "Een profiel verbergt video's met een score boven het maximum op TMDB: een rek alleen voor kinderen."
 }

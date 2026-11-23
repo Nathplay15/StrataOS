@@ -231,3 +231,54 @@ func TestCinemaWatchLists(t *testing.T) {
 		t.Fatalf("not deleted: %s", rec.Body.String())
 	}
 }
+
+func TestCinemaProfiles(t *testing.T) {
+	s := newTestServer(t)
+	s.cinemaRoutes()
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "admin", Role: "admin"}, &store.User{Username: "bob", Role: "user"})
+		return nil
+	})
+	tokA := s.sessions.create("admin", "admin", "127.0.0.1", time.Hour)
+	tokB := s.sessions.create("bob", "bob", "127.0.0.1", time.Hour)
+	do := func(token, method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.AddCookie(&http.Cookie{Name: cookieName, Value: token})
+		req.Header.Set("X-Strata", "1")
+		rec := httptest.NewRecorder()
+		s.mux.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := do(tokB, "GET", "/api/cinema/profiles", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), "[]") {
+		t.Fatalf("get: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(tokB, "POST", "/api/cinema/profiles", `{"name":"Kids"}`); rec.Code != 403 && rec.Code != 401 {
+		t.Errorf("user create: %d", rec.Code)
+	}
+	if rec := do(tokA, "POST", "/api/cinema/profiles", `{"name":"","maxRating":6}`); rec.Code != 400 {
+		t.Errorf("empty name: %d", rec.Code)
+	}
+	if rec := do(tokA, "POST", "/api/cinema/profiles", `{"name":"Kids","maxRating":11}`); rec.Code != 400 {
+		t.Errorf("rating 11: %d", rec.Code)
+	}
+	if rec := do(tokA, "POST", "/api/cinema/profiles", `{"name":"Kids","maxRating":6}`); rec.Code != 200 {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	rec := do(tokB, "GET", "/api/cinema/profiles", "")
+	body := rec.Body.String()
+	if !strings.Contains(body, `"name":"Kids"`) || !strings.Contains(body, `"maxRating":6`) {
+		t.Fatalf("saved: %s", body)
+	}
+	var profs []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &profs); err != nil || len(profs) != 1 {
+		t.Fatalf("parse: %v %s", err, body)
+	}
+	if rec := do(tokA, "DELETE", "/api/cinema/profiles/"+profs[0].ID, ""); rec.Code != 200 {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(tokB, "GET", "/api/cinema/profiles", ""); !strings.Contains(rec.Body.String(), "[]") {
+		t.Fatalf("not deleted: %s", rec.Body.String())
+	}
+}
