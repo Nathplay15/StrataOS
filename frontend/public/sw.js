@@ -53,3 +53,38 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match(e.request).then((hit) => hit ?? caches.match("/"))),
   );
 });
+
+// Web push notifications of the NAS (the payload is the one the mobile app
+// receives: {type:"notification", subject, message, link, ...}).
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data.json(); } catch { d = { subject: "StrataOS", message: e.data ? e.data.text() : "" }; }
+  if (d.type && d.type !== "notification") return;
+  e.waitUntil(
+    self.registration.showNotification(d.subject || "StrataOS", {
+      body: d.message || "",
+      icon: "/icon-192.png",
+      badge: "/icon-maskable-512.png",
+      tag: "strata-" + (d.host || "") + "-" + (d.id ?? Date.now()),
+      renotify: true,
+      data: { link: d.link || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const link = (e.notification.data && e.notification.data.link) || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
+      for (const c of cs) {
+        if ("focus" in c) {
+          c.focus();
+          if (link !== "/" && "navigate" in c) c.navigate(link);
+          return;
+        }
+      }
+      return self.clients.openWindow(link);
+    }),
+  );
+});

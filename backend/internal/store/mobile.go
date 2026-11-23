@@ -10,9 +10,11 @@ type MobileDevice struct {
 	Name  string `json:"name"`  // given by the user ("Pixel of Alice")
 	Model string `json:"model"` // reported by the app (manufacturer and model)
 	App   string `json:"app,omitempty"`
-	// Kind: "desktop" for the sync app of a computer, "" (or "android") for a
-	// phone; OS is what the client reports ("Windows 11", "macOS 15.1").
+	// Kind: "desktop" for the sync app of a computer, "browser" for the
+	// installable web app (PWA) of a browser, "" (or "android") for a phone;
+	// OS is what the client reports ("Windows 11", "macOS 15.1").
 	Kind      string    `json:"kind,omitempty"`
+	Browser   bool      `json:"browser,omitempty"` // the PWA of a browser, not a paired app
 	OS        string    `json:"os,omitempty"`
 	TokenHash string    `json:"tokenHash"`
 	CreatedAt time.Time `json:"createdAt"`

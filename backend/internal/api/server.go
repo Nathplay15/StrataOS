@@ -365,6 +365,7 @@ func (s *Server) routes() {
 	s.nvrRoutes()
 	s.consoleRoutes()
 	s.mobileRoutes()
+	s.browserPushRoutes()
 	s.mobileUploadRoutes()
 	s.syncRoutes()
 	s.marketRoutes()

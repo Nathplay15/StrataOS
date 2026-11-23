@@ -217,7 +217,7 @@ type deviceView struct {
 	Name      string    `json:"name"`
 	Model     string    `json:"model"`
 	App       string    `json:"app,omitempty"`
-	Kind      string    `json:"kind"` // "android" or "desktop"
+	Kind      string    `json:"kind"` // "android", "desktop" or "browser"
 	OS        string    `json:"os,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	LastSeen  time.Time `json:"lastSeen,omitzero"`
