@@ -299,6 +299,16 @@ export interface Container {
   Mounts: { Type: string; Source: string; Destination: string; RW: boolean }[];
 }
 
+export interface ContainerHealth {
+  id: string;
+  name: string;
+  status: string;
+  restartCount: number;
+  startedAt: string;
+  reason: string;
+  lastLogs: string;
+}
+
 export interface ContainerStats {
   cpuPercent: number;
   memUsage: number;

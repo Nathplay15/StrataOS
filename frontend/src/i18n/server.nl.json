@@ -1336,6 +1336,8 @@
  "Mises à jour automatiques simulées : {0} paquet(s) seraient mis à jour": "Automatische updates gesimuleerd: {0} pakket(ten) zouden worden bijgewerkt",
  "Mises à jour automatiques terminées : {0} paquet(s) mis à jour": "Automatische updates voltooid: {0} pakket(ten) bijgewerkt",
  "Mises à jour de conteneurs disponibles": "Containerupdates beschikbaar",
+ "Conteneur en échec répété": "Container valt herhaaldelijk uit",
+ "Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}": "Container {0} valt herhaaldelijk uit ({1}). Laatste logregels: {2}",
  "Mises à jour disponibles": "Updates beschikbaar",
  "Mises à jour trouvées : {0} de sécurité, {1} autres, StrataOS {2}": "Updates gevonden: {0} beveiliging, {1} overige, StrataOS {2}",
  "Mode de cache invalide": "Ongeldige cachemodus",

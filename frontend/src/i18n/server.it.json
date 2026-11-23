@@ -1336,6 +1336,8 @@
  "Mises à jour automatiques simulées : {0} paquet(s) seraient mis à jour": "Aggiornamenti automatici simulati: verrebbero aggiornati {0} pacchetto/i",
  "Mises à jour automatiques terminées : {0} paquet(s) mis à jour": "Aggiornamenti automatici terminati: {0} pacchetto/i aggiornato/i",
  "Mises à jour de conteneurs disponibles": "Aggiornamenti dei container disponibili",
+ "Conteneur en échec répété": "Il contenitore si blocca ripetutamente",
+ "Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}": "Il contenitore {0} si blocca ripetutamente ({1}). Ultime righe del registro: {2}",
  "Mises à jour disponibles": "Aggiornamenti disponibili",
  "Mises à jour trouvées : {0} de sécurité, {1} autres, StrataOS {2}": "Aggiornamenti trovati: {0} di sicurezza, {1} altri, StrataOS {2}",
  "Mode de cache invalide": "Modalità cache non valida",

@@ -909,6 +909,7 @@
  "Cores ({0})": "Núcleos ({0})",
  "Could not be confirmed from the NAS": "Não foi possível confirmar a partir do NAS",
  "Crashed": "Travada",
+ "Crashing": "Em loop",
  "Create": "Criar",
  "Create Ceph": "Criar Ceph",
  "Create VMs on any NAS of the cluster: they all show here.": "Crie VMs em qualquer NAS do cluster: todas aparecem aqui.",

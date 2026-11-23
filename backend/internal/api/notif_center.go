@@ -28,6 +28,7 @@ var notifRules = []struct {
 }{
 	{subjects: []string{"Updates available", "Automatic updates", "Raspberry Pi kernel"}, k: notifKind{"update", "update", "/system/updates"}},
 	{subjects: []string{"Container updates available"}, k: notifKind{"docker", "update", "/docker/containers"}},
+	{subjects: []string{"Container crashing"}, k: notifKind{"docker", "open", "/docker/containers"}},
 	{subjects: []string{"Grouped update finished", "Grouped update failed"}, k: notifKind{"update", "open", "/fleet"}},
 	{subjects: []string{"Disk getting worse", "SSD wear", "Failing disk", "Disk weakening", "Disk burn-in test passed"}, k: notifKind{"storage", "disk", "/storage/disks"}},
 	{subjects: []string{"RAID degraded", "RAID unavailable"}, k: notifKind{"storage", "open", "/storage/raid"}},

@@ -909,6 +909,7 @@
  "Cores ({0})": "Kernen ({0})",
  "Could not be confirmed from the NAS": "Kon niet vanaf de NAS worden bevestigd",
  "Crashed": "Vastgelopen",
+ "Crashing": "In lus",
  "Create": "Maken",
  "Create Ceph": "Ceph aanmaken",
  "Create VMs on any NAS of the cluster: they all show here.": "Maak VM's aan op een willekeurige NAS van het cluster: ze worden allemaal hier getoond.",

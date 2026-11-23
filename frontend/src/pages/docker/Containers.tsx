@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowUpCircle, Box, ExternalLink, FileText, Pause, Play, Plus, RotateCw, ShieldCheck, Square, SquareTerminal, Trash2, X } from "lucide-react";
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
-import type { Container, ContainerStats } from "../../lib/types";
+import type { Container, ContainerHealth, ContainerStats } from "../../lib/types";
 import { bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Health, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
 import { Terminal } from "../../components/Terminal";
@@ -188,6 +188,7 @@ export default function Containers() {
   useIntent("docker", (i) => setFilter(i.name));
   const { data, isLoading, error } = useQuery({ queryKey: ["containers"], queryFn: () => api.get<Container[]>("/api/docker/containers"), refetchInterval: 5000 });
   const stats = useQuery({ queryKey: ["container-stats"], queryFn: () => api.get<Record<string, ContainerStats>>("/api/docker/stats"), refetchInterval: 5000 });
+  const health = useQuery({ queryKey: ["docker-health"], queryFn: () => api.get<ContainerHealth[]>("/api/docker/health"), refetchInterval: 30000 });
   const act = useAction((p: { id: string; action: string }) => api.post(`/api/docker/containers/${p.id}/${p.action}`));
   const del = useAction((id: string) => api.del(`/api/docker/containers/${id}`), { success: tr("Container deleted") });
   const updates = useDockerUpdates();
@@ -213,6 +214,7 @@ export default function Containers() {
                   {list.map((c) => {
                     const st = stats.data?.[c.Id];
                     const running = c.State === "running";
+                    const bad = health.data?.find((h) => h.id === c.Id);
                     const stack = c.Labels["com.docker.compose.project"];
                     const upd = updates.data?.containers.find((u) => u.id === c.Id)?.status === "available";
                     const ports = [...new Map(c.Ports.filter((p) => p.PublicPort).map((p) => [`${p.PublicPort}/${p.Type}`, p])).values()];
@@ -223,7 +225,7 @@ export default function Containers() {
                           <div className="min-w-[180px] text-muted text-[11.5px]">{c.Status}{stack && <> {" "}{tr("· stack")}{" "}<b>{stack}</b></>}</div>
                           {upd && <div className="mt-1"><UpdateBadge /></div>}
                         </td>
-                        <td><Health value={c.State} /></td>
+                        <td className="flex items-center gap-1.5"><Health value={c.State} />{bad && <Badge tone="warn" title={`${bad.reason}\n${bad.lastLogs}`}>{tr("Crashing")}</Badge>}</td>
                         <td className="mono max-w-[260px] truncate text-muted" title={c.Image}>{c.Image}</td>
                         <td>
                           <div className="flex flex-wrap gap-1">

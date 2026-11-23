@@ -1660,6 +1660,8 @@ export const serverTexts: [string, string][] = [
   ["Mise à jour de {0}", "Updating {0}"],
   ["Mise à jour de tous les conteneurs", "Updating all containers"],
   ["Mises à jour de conteneurs disponibles", "Container updates available"],
+  ["Conteneur en échec répété", "Container crashing"],
+  ["Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}", "Container {0} crashes repeatedly ({1}). Last log lines: {2}"],
   ["Des mises à jour sont disponibles pour {0} conteneur(s) : {1}", "Updates are available for {0} container(s): {1}"],
   ["Conteneur {0} mis à jour ({1})", "Container {0} updated ({1})"],
   ["La mise à jour du conteneur {0} a échoué, version précédente restaurée : {1}", "Update of container {0} failed, previous version restored: {1}"],

@@ -1336,6 +1336,8 @@
  "Mises à jour automatiques simulées : {0} paquet(s) seraient mis à jour": "已模拟自动更新：将更新 {0} 个软件包",
  "Mises à jour automatiques terminées : {0} paquet(s) mis à jour": "自动更新已完成：已更新 {0} 个软件包",
  "Mises à jour de conteneurs disponibles": "有可用的容器更新",
+ "Conteneur en échec répété": "容器反复崩溃",
+ "Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}": "容器 {0} 反复崩溃（{1}）。最近日志行：{2}",
  "Mises à jour disponibles": "有可用更新",
  "Mises à jour trouvées : {0} de sécurité, {1} autres, StrataOS {2}": "找到更新：{0} 个安全更新，{1} 个其他更新，StrataOS {2}",
  "Mode de cache invalide": "缓存模式无效",

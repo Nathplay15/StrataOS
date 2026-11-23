@@ -909,6 +909,7 @@
  "Cores ({0})": "核心（{0}）",
  "Could not be confirmed from the NAS": "无法从 NAS 确认",
  "Crashed": "已崩溃",
+ "Crashing": "循环崩溃",
  "Create": "创建",
  "Create Ceph": "创建 Ceph",
  "Create VMs on any NAS of the cluster: they all show here.": "可在集群中的任意 NAS 上创建虚拟机：它们都会显示在这里。",

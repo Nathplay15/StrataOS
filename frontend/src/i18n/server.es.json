@@ -1336,6 +1336,8 @@
  "Mises à jour automatiques simulées : {0} paquet(s) seraient mis à jour": "Actualizaciones automáticas simuladas: se actualizarían {0} paquete(s)",
  "Mises à jour automatiques terminées : {0} paquet(s) mis à jour": "Actualizaciones automáticas terminadas: {0} paquete(s) actualizado(s)",
  "Mises à jour de conteneurs disponibles": "Actualizaciones de contenedores disponibles",
+ "Conteneur en échec répété": "El contenedor falla repetidamente",
+ "Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}": "El contenedor {0} falla repetidamente ({1}). Últimas líneas del registro: {2}",
  "Mises à jour disponibles": "Actualizaciones disponibles",
  "Mises à jour trouvées : {0} de sécurité, {1} autres, StrataOS {2}": "Actualizaciones encontradas: {0} de seguridad, {1} otras, StrataOS {2}",
  "Mode de cache invalide": "Modo de caché no válido",

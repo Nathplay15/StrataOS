@@ -1336,6 +1336,8 @@
  "Mises à jour automatiques simulées : {0} paquet(s) seraient mis à jour": "Automatische Updates simuliert: {0} Paket(e) würden aktualisiert",
  "Mises à jour automatiques terminées : {0} paquet(s) mis à jour": "Automatische Updates abgeschlossen: {0} Paket(e) aktualisiert",
  "Mises à jour de conteneurs disponibles": "Container-Updates verfügbar",
+ "Conteneur en échec répété": "Container stürzt wiederholt ab",
+ "Le conteneur {0} échoue à répétition ({1}). Dernières lignes du journal : {2}": "Container {0} stürzt wiederholt ab ({1}). Letzte Protokollzeilen: {2}",
  "Mises à jour disponibles": "Updates verfügbar",
  "Mises à jour trouvées : {0} de sécurité, {1} autres, StrataOS {2}": "Updates gefunden: {0} Sicherheit, {1} andere, StrataOS {2}",
  "Mode de cache invalide": "Ungültiger Cache-Modus",
