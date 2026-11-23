@@ -139,6 +139,22 @@ func fakeOS(t *testing.T) *httptest.Server {
 	return srv
 }
 
+func TestSanitizeLang(t *testing.T) {
+	cases := map[string]string{
+		"fr": "fr", "pt-BR": "pt-br", "eng": "eng",
+		// Path separators are stripped, so nothing can escape the folder:
+		"../../x": "x", "../../etc": "etc", "a/b\\c": "abc",
+		"":           "und",
+		"fr<script>": "frscr", // kept chars only, truncated at 5
+		"FR":         "fr",
+	}
+	for in, want := range cases {
+		if got := SanitizeLang(in); got != want {
+			t.Errorf("SanitizeLang(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestPickBest(t *testing.T) {
 	res := []SearchResult{
 		{FileID: 1, Lang: "en", Rating: 4.0, Downloads: 900, HearingImpaired: true},

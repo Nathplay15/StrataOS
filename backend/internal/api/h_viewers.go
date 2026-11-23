@@ -458,10 +458,8 @@ func (s *Server) viewerRoutes() {
 		if err != nil {
 			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
 		}
-		lang := results[best].Lang
-		if len(lang) > 5 {
-			lang = lang[:5]
-		}
+		// The language comes from the API: sanitize it, it goes in a file name.
+		lang := subs.SanitizeLang(results[best].Lang)
 		out := strings.TrimSuffix(t.abs, filepath.Ext(t.abs)) + "." + lang + ".srt"
 		if err := os.WriteFile(out, data, 0o644); err != nil {
 			return nil, err

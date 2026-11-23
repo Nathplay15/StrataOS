@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strataos/internal/accounts"
 	"strataos/internal/i18n"
+	"strataos/internal/netguard"
 	"strconv"
 	"strings"
 	"time"
@@ -439,7 +440,7 @@ func (s *Server) sendNotificationEx(level, subject, msg string, media *notifMedi
 	if set.WebhookURL != "" && use(ch.Webhook) {
 		sent = append(sent, "webhook")
 		body, _ := json.Marshal(map[string]string{"title": subject, "message": msg, "host": host, "text": subject + ": " + msg, "content": subject + ": " + msg})
-		cl := tlstrust.HTTPClient(set.WebhookTLS, 10*time.Second)
+		cl := notifyClient(set.WebhookTLS, 10*time.Second)
 		resp, err := cl.Post(set.WebhookURL, "application/json", bytes.NewReader(body))
 		if err != nil {
 			errs = append(errs, "webhook: "+tlsHint(set.WebhookURL, set.WebhookTLS, err).Error())
@@ -674,11 +675,26 @@ func telegramChats(token string) ([]map[string]any, error) {
 	return out, nil
 }
 
+// notifyHTTPClient is the client for the webhook and ntfy channels: the TLS
+// trust the administrator chose, and a guard against reaching the NAS
+// itself, loopback or cloud metadata (SSRF) — checked when connecting, so
+// DNS rebinding and redirects go through it too. A private LAN address
+// stays reachable: a self-hosted webhook or ntfy on the LAN is legitimate.
+func notifyHTTPClient(trust store.TLSTrust, timeout time.Duration) *http.Client {
+	return netguard.ClientTLS(netguard.Options{Timeout: timeout, AllowPrivate: true}, tlstrust.ClientConfig(trust, "", nil))
+}
+
+// notifyClient builds it; a variable so tests can bypass the SSRF guard
+// (their httptest servers are on loopback).
+var notifyClient = notifyHTTPClient
+
 func sendNtfy(topicURL, token string, trust store.TLSTrust, title, msg string) error {
 	u, err := url.Parse(topicURL)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(strings.Trim(u.Path, "/")) == 0 {
 		return fmt.Errorf("the ntfy address must be like https://ntfy.sh/my-topic")
 	}
+	// The SSRF guard runs in the client, when connecting (so DNS rebinding
+	// and redirects are covered too), not here.
 	req, _ := http.NewRequest("POST", topicURL, strings.NewReader(msg))
 	req.Header.Set("Title", mime.QEncoding.Encode("utf-8", title))
 	req.Header.Set("Priority", "high")
@@ -686,7 +702,7 @@ func sendNtfy(topicURL, token string, trust store.TLSTrust, title, msg string) e
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := tlstrust.HTTPClient(trust, 15*time.Second).Do(req)
+	resp, err := notifyClient(trust, 15*time.Second).Do(req)
 	if err != nil {
 		return err
 	}

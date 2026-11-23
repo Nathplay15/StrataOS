@@ -54,6 +54,7 @@ jobs:
         run: |
           cd desktop/app
           npm ci --no-audit --no-fund
+          npm audit --audit-level=high
           npx tsc -b
           node scripts/i18n-check.mjs
       - name: "Shell (Rust): format, lints, unit tests, Linux packages"

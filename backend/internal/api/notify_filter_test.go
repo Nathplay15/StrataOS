@@ -170,6 +170,9 @@ func TestProgressNotifiedOnce(t *testing.T) {
 }
 
 func TestSendNotificationFilters(t *testing.T) {
+	oldClient := notifyClient
+	notifyClient = func(store.TLSTrust, time.Duration) *http.Client { return &http.Client{Timeout: 5 * time.Second} }
+	t.Cleanup(func() { notifyClient = oldClient })
 	var mu sync.Mutex
 	var got []string
 	hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

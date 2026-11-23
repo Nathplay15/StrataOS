@@ -229,6 +229,25 @@ func MovieHash(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// SanitizeLang keeps only [a-z0-9-] (5 chars max) so a language coming from
+// the API can be used in a file name without any path component; "und" when
+// nothing usable remains.
+func SanitizeLang(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			b.WriteRune(r)
+		}
+		if b.Len() >= 5 {
+			break
+		}
+	}
+	if b.Len() == 0 {
+		return "und"
+	}
+	return b.String()
+}
+
 // LangOf extracts the language of a subtitle sidecar name ("movie.fr.srt").
 func LangOf(name string) string {
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), ".")

@@ -70,3 +70,48 @@ func TestClientRefusesInternal(t *testing.T) {
 		t.Fatal("http with https only")
 	}
 }
+
+// BlockedLAN keeps the LAN reachable (a self-hosted webhook/ntfy is
+// legitimate) but never the NAS itself, loopback or cloud metadata.
+func TestBlockedLAN(t *testing.T) {
+	for s, want := range map[string]bool{
+		"127.0.0.1": true, "::1": true, "169.254.169.254": true, "fe80::1": true,
+		"0.0.0.0": true, "224.0.0.1": true, "100.64.0.1": true,
+		"192.168.1.50": false, "10.1.2.3": false, "172.16.0.1": false, "8.8.8.8": false,
+	} {
+		if got := BlockedLAN(netip.MustParseAddr(s)); got != want {
+			t.Errorf("BlockedLAN(%s) = %v, want %v", s, got, want)
+		}
+	}
+	old := ownAddrs
+	ownAddrs = func() []netip.Addr { return []netip.Addr{netip.MustParseAddr("192.168.1.10")} }
+	defer func() { ownAddrs = old }()
+	if !BlockedLAN(netip.MustParseAddr("192.168.1.10")) {
+		t.Error("the NAS's own LAN address must stay refused")
+	}
+}
+
+// A client with AllowPrivate still refuses loopback at connect time, and
+// CheckURLLAN accepts a literal LAN address but not cloud metadata.
+func TestClientTLSAllowPrivate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("secret")) }))
+	defer srv.Close()
+	c := ClientTLS(Options{AllowPrivate: true}, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	resp, err := c.Do(req)
+	if err == nil {
+		resp.Body.Close()
+		t.Fatal("loopback must stay refused with AllowPrivate")
+	}
+	if !errors.Is(err, ErrBlocked) {
+		t.Fatalf("want ErrBlocked, got %v", err)
+	}
+	uLAN, _ := url.Parse("http://192.168.1.50:8080/topic")
+	if err := CheckURLLAN(uLAN, false, true); err != nil {
+		t.Errorf("LAN address refused: %v", err)
+	}
+	uMeta, _ := url.Parse("http://169.254.169.254/latest/meta-data")
+	if err := CheckURLLAN(uMeta, false, true); err == nil {
+		t.Error("cloud metadata must stay refused")
+	}
+}
