@@ -68,3 +68,13 @@ func TestCinemaFilteredByReadableShares(t *testing.T) {
 		t.Fatalf("list after alice's save (%d %s): %s", rec.Code, rec.Body.String(), b)
 	}
 }
+
+func TestCinemaStaleScanReset(t *testing.T) {
+	s := newTestServer(t)
+	statePath, _, _ := s.cinemaPaths()
+	_ = cinema.SaveState(statePath, cinema.State{Running: true, Scanned: 3})
+	s.cinemaRoutes()
+	if st := cinema.LoadState(statePath); st.Running || st.Scanned != 3 {
+		t.Fatalf("state after start: %+v", st)
+	}
+}

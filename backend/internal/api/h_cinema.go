@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"strataos/internal/cinema"
@@ -55,6 +56,10 @@ func (s *Server) cinemaShares() []cinema.Root {
 
 var cinemaScanMu sync.Mutex
 
+// cinemaRunning is the scan in progress of this process: the persisted
+// Running flag of a daemon that stopped mid-scan means nothing.
+var cinemaRunning atomic.Bool
+
 // cachedTrailer is a trailer answer kept a few minutes (poster hover fires
 // often, the TMDB key is rate limited).
 type cachedTrailer struct {
@@ -73,8 +78,12 @@ func (s *Server) cinemaScanState(f func(*cinema.State)) {
 // cinemaScan runs in the background: scan the shares, match TMDB, cache the
 // posters, save the library.
 func (s *Server) cinemaScan() {
-	cinemaScanMu.Lock()
+	if !cinemaScanMu.TryLock() {
+		return // one scan at a time
+	}
 	defer cinemaScanMu.Unlock()
+	cinemaRunning.Store(true)
+	defer cinemaRunning.Store(false)
 	_, keyPath, posterDir := s.cinemaPaths()
 	s.cinemaScanState(func(st *cinema.State) { st.Running = true })
 	defer s.cinemaScanState(func(st *cinema.State) { st.Running = false; st.Checked = time.Now() })
@@ -101,6 +110,10 @@ func (s *Server) cinemaItems(r *http.Request) []cinema.Item {
 
 func (s *Server) cinemaRoutes() {
 	statePath, keyPath, posterDir := s.cinemaPaths()
+	// A scan interrupted by a stop or a crash left Running set: clear it.
+	if st := cinema.LoadState(statePath); st.Running && !cinemaRunning.Load() {
+		s.cinemaScanState(func(st *cinema.State) { st.Running = false })
+	}
 
 	s.user("GET /api/cinema", func(r *http.Request) (any, error) {
 		st := cinema.LoadState(statePath)
@@ -119,7 +132,7 @@ func (s *Server) cinemaRoutes() {
 			Items     []cinema.Item            `json:"items"`
 			Positions map[string]store.PlayPos `json:"positions"`
 			Remote    bool                     `json:"remote"` // may drive the TV menu
-		}{cinema.LoadKey(keyPath) != "", st.Running, st.Checked, st.Scanned, items, pos,
+		}{cinema.LoadKey(keyPath) != "", cinemaRunning.Load(), st.Checked, st.Scanned, items, pos,
 			hdmiInstalled() && !s.hdmiSettings().Off && s.hdmiRemoteAllowed(r)}, nil
 	})
 
@@ -397,8 +410,7 @@ func (s *Server) cinemaRoutes() {
 	})
 
 	s.admin("POST /api/cinema/scan", func(r *http.Request) (any, error) {
-		st := cinema.LoadState(statePath)
-		if st.Running {
+		if cinemaRunning.Load() {
 			return map[string]any{"started": false, "running": true}, nil
 		}
 		go s.cinemaScan()
