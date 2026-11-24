@@ -140,3 +140,64 @@ Done in 0.15.1 (ticked).
 
 - [x] Media page crash right after installing the DLNA app: empty configuration arrays (DLNA folders, music shares, WireGuard links, firewall guests/groups/ipsets) were missing from the API answers; they are now always sent as empty arrays.
 - [x] Android 0.12.3 (its own release): the "My apps" launcher opened 127.0.0.1 on the phone (the NAS now sends app addresses with its own host); the NAS-vs-app version banner is removed, the two versions are independent. Desktop app: the Rust glib VariantStrIter advisory is fixed with a vendored patched copy (Tauri 2 pins gtk-rs 0.18).
+
+## 0.15.2
+
+Done in 0.15.2 (ticked): a security and reliability release after a full review of 0.12.2–0.15.1.
+
+- [x] **Security.** Every daemon read and write in a user folder goes through the share's confined root (file versions, subtitles, transcription, photo editor), the HDMI kiosk runs unprivileged and only reaches the cinema, and the cinema only shows each account the videos it may read.
+- [x] **Fixed features.** WiFi (the right configuration file, real rollback), CalDAV/CardDAV rebuilt for real clients, the cinema library, shared album downloads, subtitles by file hash, camera offline detection.
+- [x] **Local AI that answers fast.** Thinking really off for Ollama, and a light mode for small local models.
+
+## 0.16 — finish what was promised, and reliability
+
+### Quality first
+
+- [ ] **API contract tests.** Every GET answer checked against the types the web interface expects, so a missing field or an absent empty list can no longer crash a page (the 0.15.1 media page crash was one of a whole class).
+- [ ] **Full end-to-end suite reliable in CI.** The nightly run on GitHub passes as it does locally, so big releases are not tested blind.
+- [ ] **Rust dependencies watched.** `cargo audit` in the vulnerability check and Dependabot for the desktop app.
+
+### Delivered for real (announced in 0.15, not finished)
+
+- [ ] **Speech-to-text installed by StrataOS.** whisper.cpp and its model as an optional component, downloaded and checked from the interface; transcripts searchable; subtitle tracks generated.
+- [ ] **Import from a cloud.** Google Photos through a Google Takeout archive (Google's API no longer gives access to a whole library), and Dropbox, in the migration assistant.
+- [ ] **AI providers in one click.** Presets for Mistral, DeepSeek, Kimi, Claude and others: choose the provider, paste its API key, the address and the model list are filled in. (These providers offer API keys, not a sign-in for other apps.)
+- [ ] **App icon badge** for the installed web app: free space, RAID state, last backup.
+
+### TV and HDMI
+
+- [ ] **TV remote through HDMI-CEC.** The TV's own remote drives the NAS menu, and the NAS can switch the TV on and to its input.
+- [ ] **Accessories.** Bluetooth remotes, gamepads and keyboards paired from the interface.
+- [ ] **Every media on the TV.** Photos, albums and music in the TV menu, not only films and series.
+- [ ] **Screen saver extras.** Weather (configurable source), the clock, and a QR code to open the phone remote.
+
+### Network
+
+- [ ] **WiFi access point.** The NAS as a hotspot (hostapd) for connected objects, on an isolated guest network with an optional captive portal.
+- [ ] **WiFi, more.** Several saved networks with priorities, and WPA3.
+
+### Assistant
+
+- [ ] **Limits per account.** Tokens or cost per user and per month.
+- [ ] **Memory.** What the assistant learns about the NAS, visible and erasable by its owner.
+- [ ] **Local models managed in the interface.** Download, update and remove Ollama models.
+
+### Video surveillance
+
+- [ ] **Real local detection.** People and vehicles detected on the NAS with a local model installed from the interface, then alerts such as "someone at the door". Faces only after that, 100 % local.
+
+### Updates
+
+- [ ] **Beta channel in the interface.** Choose stable or beta (the APT "testing" suite already exists) from Updates, with the restore point and rollback of every update.
+
+## 0.17 — bigger bets
+
+- [ ] **Desktop app on Tauri 3**, once it is stable: newer GTK bindings, and the patched copy of glib removed.
+- [ ] **The web app at the level of the Android app** on iPhone and iPad (a native iOS app needs a paid Apple developer account).
+- [ ] **Fleet orchestration.** Routines and backups started on several NAS at once, and one report for the whole fleet.
+- [ ] **Migration from Synology DSM and TrueNAS.** Guided wizards that bring shared folders, users and permissions over.
+
+## Later
+
+- [ ] **Ceph across sites.** Erasure coding and replication between buildings.
+- [ ] **Staged rollout (canary).** Some NAS get a release first, the others once it has proven itself.
