@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"strataos/internal/accounts"
+	"strataos/internal/rootio"
 	"strataos/internal/storage"
 	"strataos/internal/store"
 )
@@ -182,6 +183,19 @@ func (t target) child(name string) target {
 // protected reports whether t is a share root, the storage root or a volume mount point.
 func (t target) protected() bool {
 	return t.rel == "." || filepath.Dir(t.abs) == storage.MountRoot || storage.IsMountpoint(t.abs)
+}
+
+// ownerFor is the owner of the files the caller creates: their account, or
+// the daemon for administrators (like chownForUser).
+func (s *Server) ownerFor(r *http.Request) rootio.Owner {
+	if isAdmin(r) {
+		return rootio.NoOwner
+	}
+	uid, gid, err := accounts.IDs(userOf(r))
+	if err != nil {
+		return rootio.NoOwner
+	}
+	return rootio.Owner{UID: uid, GID: gid}
 }
 
 func (s *Server) chownForUser(r *http.Request, rt *os.Root, rel string) {

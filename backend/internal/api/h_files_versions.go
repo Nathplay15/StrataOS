@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"strataos/internal/restore"
+	"strataos/internal/rootio"
 	"strataos/internal/storage"
 )
 
@@ -85,30 +87,28 @@ func (s *Server) fileVersionsRoutes() {
 		}
 		// A safety snapshot before overwriting, like the guided restore.
 		safetySnapshot(filepath.Dir(t.abs), func(string, ...any) {})
-		tmp := t.abs + ".strata-restore"
-		f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		rt, err := t.open()
 		if err != nil {
 			return nil, err
 		}
-		derr := src.Dump(r.Context(), req.Snapshot, t.abs, f)
-		f.Close()
-		if derr != nil {
-			_ = os.Remove(tmp)
-			return nil, derr
-		}
-		mode := os.FileMode(0o644)
-		if info, err := os.Stat(t.abs); err == nil {
-			mode = info.Mode().Perm()
-		}
-		if err := os.Chmod(tmp, mode); err != nil {
-			_ = os.Remove(tmp)
-			return nil, err
-		}
-		if err := os.Rename(tmp, t.abs); err != nil {
-			_ = os.Remove(tmp)
+		defer rt.Close()
+		if err := restoreInto(rt, t.rel, s.ownerFor(r), func(w io.Writer) error {
+			return src.Dump(r.Context(), req.Snapshot, t.abs, w)
+		}); err != nil {
 			return nil, err
 		}
 		s.audit(r, "files", "Restored "+req.Path+" from snapshot "+req.Snapshot)
 		return map[string]bool{"ok": true}, nil
 	})
+}
+
+// restoreInto replaces rel inside rt with what dump writes, through a new
+// temporary file of the root (never a planted symlink), keeping the mode and
+// owner of the file it replaces (or giving a new one to owner).
+func restoreInto(rt *os.Root, rel string, owner rootio.Owner, dump func(io.Writer) error) error {
+	cur, perm, ok := rootio.OwnerOf(rt, rel)
+	if !ok {
+		cur, perm = owner, 0o644
+	}
+	return rootio.WriteFrom(rt, rel, perm, cur, dump)
 }
