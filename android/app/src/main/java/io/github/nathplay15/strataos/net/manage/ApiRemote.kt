@@ -1,5 +1,6 @@
 package io.github.nathplay15.strataos.net.manage
 
+import io.github.nathplay15.strataos.Graph
 import io.github.nathplay15.strataos.net.Api
 
 import kotlinx.serialization.Serializable
@@ -15,11 +16,21 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 fun Api.remoteState(): RemoteState = call(get("/api/remote/domains"), RemoteState.serializer())
 
+/** Rewrites a loopback address of the NAS (127.0.0.1/localhost only works on the NAS
+ *  itself) to the host this app is connected to, so the launcher opens the app. */
+fun onServerHost(url: String): String {
+    val u = url.toHttpUrlOrNull() ?: return url
+    val h = u.host
+    if (h != "127.0.0.1" && h != "localhost" && h != "::1") return url
+    val server = Graph.prefs.server?.url?.toHttpUrlOrNull()?.host ?: return url
+    return u.newBuilder().host(server).build().toString()
+}
+
 /** The apps with a usable address: their https domain when published, their local address otherwise. */
 fun publishedApps(s: RemoteState): List<PublishedLink> = s.apps.mapNotNull { a ->
     val d = s.domains.firstOrNull { it.kind == "app" && it.app == a.stack }
     val url = d?.host?.takeIf { it.isNotEmpty() }?.let { "https://$it" } ?: a.address.takeIf { it.isNotEmpty() }
-    url?.let { PublishedLink(a.name.ifEmpty { a.stack }, it, a.icon) }
+    url?.let { PublishedLink(a.name.ifEmpty { a.stack }, onServerHost(it), a.icon) }
 }
 
 /**

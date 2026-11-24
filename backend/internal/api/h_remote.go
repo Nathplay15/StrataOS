@@ -54,6 +54,21 @@ func appTarget(stack string) (*url.URL, error) {
 	return &url.URL{Scheme: "http", Host: "127.0.0.1:" + p}, nil
 }
 
+// appExternal is the address of an app's web interface as reachable from
+// outside the NAS: the host the client used to reach the NAS, with the app's
+// published port (appTarget's 127.0.0.1 only works on the NAS itself, so the
+// mobile app's launcher would open localhost on the phone).
+func appExternal(r *http.Request, stack string) (*url.URL, error) {
+	u, err := appTarget(stack)
+	if err != nil {
+		return nil, err
+	}
+	if h := hostOnly(r.Host); h != "" {
+		u.Host = net.JoinHostPort(h, u.Port())
+	}
+	return u, nil
+}
+
 // selfAddr reports whether a target host is this machine.
 func selfAddr(host string) bool {
 	if host == "localhost" {
@@ -585,7 +600,7 @@ func (s *Server) remoteRoutes() {
 				if st.App == "" && st.Custom == nil {
 					continue
 				}
-				if u, err := appTarget(st.Name); err == nil {
+				if u, err := appExternal(r, st.Name); err == nil {
 					name, icon := st.Name, ""
 					if a := docker.FindApp(st.App); a != nil {
 						name, icon = a.Name, a.Icon

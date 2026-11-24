@@ -48,7 +48,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.nathplay15.strataos.BuildConfig
 import io.github.nathplay15.strataos.R
-import io.github.nathplay15.strataos.update.AppVersion
 import io.github.nathplay15.strataos.update.Releases
 import io.github.nathplay15.strataos.update.UpdateException
 import io.github.nathplay15.strataos.update.UpdatePrefs
@@ -185,19 +184,3 @@ fun UpdateScreen(onBack: () -> Unit) {
     }
 }
 
-/** On the NAS status: the NAS runs a newer StrataOS than this app. */
-@Composable
-fun NasNewerBanner(nasVersion: String) {
-    val nas = AppVersion.parse(nasVersion) ?: return
-    if (!Releases.isNewer(nas, Updater.installed)) return
-    val open = LocalOpenOverlay.current
-    Card(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { open("update") },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.SystemUpdate, null)
-            Text(stringResource(R.string.update_nas_newer, nas.toString(), BuildConfig.VERSION_NAME), Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}

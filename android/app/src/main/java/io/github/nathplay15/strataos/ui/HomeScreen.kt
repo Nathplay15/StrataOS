@@ -522,7 +522,6 @@ private fun NasSheet(d: HomeData?, onStatus: () -> Unit, onSettings: () -> Unit)
         Text(d?.info?.hostname ?: cfg?.hostname.orEmpty(), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 8.dp))
         Text(cfg?.url.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         d?.info?.let { Text(stringResource(R.string.status_version, it.version, formatUptime(it.uptime)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        d?.info?.let { NasNewerBanner(it.version) }
         Text(stringResource(R.string.signed_in_as, cfg?.fullName?.ifEmpty { null } ?: cfg?.username.orEmpty(), cfg?.deviceName.orEmpty()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = onSettings) { Text(stringResource(R.string.a_app_settings)) }

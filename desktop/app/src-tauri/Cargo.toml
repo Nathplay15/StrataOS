@@ -42,3 +42,9 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# glib 0.18.5 vendored with the upstream fix for the VariantStrIter soundness
+# issue (fixed in glib 0.20.0, which tauri 2 / the gtk-rs 0.18 stack cannot
+# use yet): the out-argument of g_variant_get_child is passed as &mut p.
+[patch.crates-io]
+glib = { path = "vendor/glib" }

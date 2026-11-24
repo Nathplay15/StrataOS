@@ -129,7 +129,6 @@ fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? 
                             }
                             Text(info.hostname, style = MaterialTheme.typography.headlineSmall)
                             Text(stringResource(R.string.a_version, info.version), style = MaterialTheme.typography.bodySmall)
-                            NasNewerBanner(info.version)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(if (ov.alerts.isEmpty()) Icons.Default.CheckCircle else Icons.Default.Warning, null)
                                 Text(if (ov.alerts.isEmpty()) stringResource(R.string.status_all_good) else stringResource(R.string.a_alerts_n, ov.alerts.size), Modifier.padding(start = 8.dp))
