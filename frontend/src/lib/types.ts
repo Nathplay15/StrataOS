@@ -480,6 +480,7 @@ export interface Settings {
   assistantProvider?: string;
   /** Let a thinking model (qwen3…) reason before answering; off by default. */
   assistantThink?: boolean;
+  assistantLight?: string;
   chatgptEmail?: string;
   chatgptExpires?: string;
   oauthProvider?: string;

@@ -10,7 +10,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -873,17 +876,89 @@ func isOllamaEndpoint(u string) bool {
 	return h.Port() == "11434"
 }
 
-// llmBody builds the chat/completions request. "think" is sent to Ollama
-// endpoints (thinking models like qwen3 reason for a long time on a small
-// CPU before answering, which looks like a stuck assistant) and to any
-// endpoint when the user asked for thinking; other providers would reject
-// the unknown field.
+// assistantPromptLight is the system prompt of the light mode.
+const assistantPromptLight = `You are the StrataOS assistant of this NAS. Answer briefly. Use the tools to look at the NAS before answering about it. Never claim an action was done without a tool result.`
+
+// lightTools are the tools of the light mode: reading the NAS only.
+var lightTools = map[string]bool{"nas_status": true, "list_volumes": true, "list_disks": true, "list_docker_containers": true,
+	"list_backups": true, "recent_events": true, "list_files": true, "read_file": true, "search_files": true}
+
+var modelSizeRe = regexp.MustCompile(`(?i)[:_-](\d+(?:\.\d+)?)b\b`)
+
+// assistantLight reports whether the light mode applies: set on, or
+// automatic for a local Ollama model of at most 4 billion parameters (or
+// with no size in its name and a ":latest"-less small family).
+func assistantLight(set store.Settings) bool {
+	switch set.AssistantLight {
+	case "on":
+		return true
+	case "off":
+		return false
+	}
+	if !isOllamaEndpoint(set.AssistantURL) {
+		return false
+	}
+	m := modelSizeRe.FindStringSubmatch(set.AssistantModel)
+	if m == nil {
+		return false
+	}
+	size, err := strconv.ParseFloat(m[1], 64)
+	return err == nil && size <= 4
+}
+
+func isQwen3(model string) bool {
+	return strings.HasPrefix(strings.ToLower(path.Base(model)), "qwen3")
+}
+
+// llmBody builds the chat/completions request. Thinking: Ollama's
+// OpenAI-compatible endpoint ignores "think" and takes reasoning_effort
+// ("none" really turns the reasoning off, measured with qwen3:0.6b: first
+// token 0.2-0.3 s instead of 5-8 s); qwen3 also gets its /no_think switch.
+// Other providers get neither (some refuse unknown fields). The light mode
+// swaps the system prompt and keeps the essential tools; the prompt stays
+// the same on every turn so Ollama reuses its prompt cache.
 func llmBody(set store.Settings, messages []assistantMessage, stream bool) map[string]any {
-	body := map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools(), "stream": stream}
-	if set.AssistantThink || isOllamaEndpoint(set.AssistantURL) {
-		body["think"] = set.AssistantThink
+	light := assistantLight(set)
+	ollama := isOllamaEndpoint(set.AssistantURL)
+	if len(messages) > 0 && messages[0].Role == "system" && messages[0].Content == assistantPrompt {
+		sys := assistantPrompt
+		if light {
+			sys = assistantPromptLight
+		}
+		if ollama && !set.AssistantThink && isQwen3(set.AssistantModel) {
+			sys += " /no_think"
+		}
+		messages = append([]assistantMessage{{Role: "system", Content: sys}}, messages[1:]...)
+	}
+	tools := assistantTools()
+	if light {
+		tools = slices.DeleteFunc(tools, func(t llmTool) bool { return !lightTools[t.Function.Name] })
+	}
+	body := map[string]any{"model": set.AssistantModel, "messages": messages, "tools": tools, "stream": stream}
+	if ollama && !set.AssistantThink {
+		body["reasoning_effort"] = "none"
 	}
 	return body
+}
+
+var emptyThink = regexp.MustCompile(`(?s)^\s*<think>\s*</think>\s*`)
+
+// stripThink drops an empty <think></think> some models put before the answer.
+func stripThink(s string) string { return emptyThink.ReplaceAllString(s, "") }
+
+// thinkPending reports whether a streamed answer may still turn out to start
+// with an empty think block ("<thi", "<think>\n"…).
+func thinkPending(s string) bool {
+	t := strings.TrimLeft(s, " \t\r\n")
+	if t == "" || strings.HasPrefix("<think>", t) {
+		return true
+	}
+	rest, ok := strings.CutPrefix(t, "<think>")
+	if !ok {
+		return false
+	}
+	rest = strings.TrimLeft(rest, " \t\r\n")
+	return rest == "" || strings.HasPrefix("</think>", rest)
 }
 
 // llmChat calls the configured OpenAI-compatible chat endpoint.
@@ -919,6 +994,9 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 	}
 	if resp.StatusCode/100 != 2 {
 		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d", req.URL, resp.StatusCode))
+	}
+	for i := range out.Choices {
+		out.Choices[i].Message.Content = stripThink(out.Choices[i].Message.Content)
 	}
 	return &out, nil
 }
@@ -964,6 +1042,7 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 		return nil, badRequest(fmt.Sprintf("the assistant endpoint %s answered %d%s", req.URL, resp.StatusCode, detail))
 	}
 	msg := &assistantMessage{}
+	shown := "" // what onDelta has sent
 	tools := map[int]*llmToolCall{}
 	sc := bufio.NewScanner(io.LimitReader(resp.Body, 8<<20))
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -1003,7 +1082,12 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 		}
 		if d.Content != "" {
 			msg.Content += d.Content
-			onDelta(d.Content)
+			// An empty <think></think> before the answer is never shown:
+			// hold the start back until it is known not to be one.
+			if view := stripThink(msg.Content); !thinkPending(view) && strings.HasPrefix(view, shown) && len(view) > len(shown) {
+				onDelta(view[len(shown):])
+				shown = view
+			}
 		}
 		for _, tc := range d.ToolCalls {
 			cur := tools[tc.Index]
@@ -1030,6 +1114,10 @@ func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []a
 		if tc := tools[i]; tc != nil {
 			msg.ToolCalls = append(msg.ToolCalls, *tc)
 		}
+	}
+	msg.Content = stripThink(msg.Content)
+	if strings.HasPrefix(msg.Content, shown) && len(msg.Content) > len(shown) {
+		onDelta(msg.Content[len(shown):]) // a held-back start that was not a think block
 	}
 	return msg, nil
 }

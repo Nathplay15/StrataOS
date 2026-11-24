@@ -468,42 +468,70 @@ func TestFnToolSchema(t *testing.T) {
 // qwen3 otherwise reasons for minutes on a small CPU, which looks like a
 // stuck "Réflexion…") and never to plain cloud endpoints unless asked.
 func TestAssistantThinkField(t *testing.T) {
-	b := llmBody(store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:0.6"}, nil, true)
-	if b["think"] != false {
-		t.Errorf("local ollama: think = %v, want false", b["think"])
+	// Ollama's compatible endpoint ignores "think": thinking off is
+	// reasoning_effort "none"; no provider receives "think".
+	b := llmBody(store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:8b"}, nil, true)
+	if b["reasoning_effort"] != "none" || b["think"] != nil {
+		t.Errorf("local ollama, thinking off: %v %v", b["reasoning_effort"], b["think"])
 	}
-	b = llmBody(store.Settings{AssistantURL: "http://192.168.1.10:11434/v1", AssistantModel: "m"}, nil, true)
-	if b["think"] != false {
-		t.Errorf("ollama on the LAN (default port): think = %v, want false", b["think"])
+	b = llmBody(store.Settings{AssistantURL: "http://192.168.1.10:11434/v1", AssistantModel: "m", AssistantThink: true}, nil, true)
+	if _, ok := b["reasoning_effort"]; ok {
+		t.Errorf("thinking on: %v", b["reasoning_effort"])
 	}
-	b = llmBody(store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "m"}, nil, true)
-	if _, ok := b["think"]; ok {
-		t.Errorf("cloud endpoint must not receive think, got %v", b["think"])
+	for _, think := range []bool{false, true} {
+		b = llmBody(store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "m", AssistantThink: think}, nil, true)
+		if _, ok := b["think"]; ok {
+			t.Errorf("cloud endpoint received think")
+		}
+		if _, ok := b["reasoning_effort"]; ok {
+			t.Errorf("cloud endpoint received reasoning_effort")
+		}
 	}
-	b = llmBody(store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "m", AssistantThink: true}, nil, true)
-	if b["think"] != true {
-		t.Errorf("thinking asked on a cloud endpoint: think = %v, want true", b["think"])
+	// qwen3 gets /no_think, at a stable place (end of the system prompt).
+	msgs := []assistantMessage{{Role: "system", Content: assistantPrompt}, {Role: "user", Content: "hi"}}
+	b = llmBody(store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:8b"}, msgs, true)
+	sys := b["messages"].([]assistantMessage)[0].Content
+	if !strings.HasSuffix(sys, " /no_think") || msgs[0].Content != assistantPrompt {
+		t.Errorf("system prompt: %q", sys)
 	}
+}
 
-	// End to end: a loopback endpoint (the test server) receives think:false,
-	// then think:true once thinking is enabled in the settings.
-	fl := &fakeLLM{steps: []fakeStep{{content: "ok"}}}
-	llm := httptest.NewServer(http.HandlerFunc(fl.handler))
-	defer llm.Close()
-	s, ts, tok := assistantServer(t, llm.URL, true)
-	chatOnce(t, ts.URL, tok, userMsg("hi"))
-	fl.mu.Lock()
-	got := fl.bodies[0]["think"]
-	fl.mu.Unlock()
-	if got != false {
-		t.Errorf("local endpoint request think = %v, want false", got)
+func TestAssistantLightMode(t *testing.T) {
+	msgs := []assistantMessage{{Role: "system", Content: assistantPrompt}, {Role: "user", Content: "hi"}}
+	small := store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:0.6b"}
+	b := llmBody(small, msgs, true)
+	if n := len(b["tools"].([]llmTool)); n != len(lightTools) {
+		t.Errorf("light tools: %d", n)
 	}
-	_ = s.store.Update(func(st *store.State) error { st.Settings.AssistantThink = true; return nil })
-	chatOnce(t, ts.URL, tok, userMsg("hi again"))
-	fl.mu.Lock()
-	got = fl.bodies[1]["think"]
-	fl.mu.Unlock()
-	if got != true {
-		t.Errorf("thinking enabled: request think = %v, want true", got)
+	if sys := b["messages"].([]assistantMessage)[0].Content; !strings.HasPrefix(sys, assistantPromptLight) {
+		t.Errorf("light prompt: %q", sys)
+	}
+	for _, c := range []struct {
+		set   store.Settings
+		light bool
+	}{
+		{store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "llama3.2:3b"}, true},
+		{store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:14b"}, false},
+		{store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:14b", AssistantLight: "on"}, true},
+		{store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:0.6b", AssistantLight: "off"}, false},
+		{store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "ministral-3b"}, false},
+	} {
+		if got := assistantLight(c.set); got != c.light {
+			t.Errorf("%+v: light %v", c.set, got)
+		}
+	}
+}
+
+func TestStripThink(t *testing.T) {
+	if got := stripThink("<think>\n\n</think>\n\nHello"); got != "Hello" {
+		t.Errorf("%q", got)
+	}
+	if got := stripThink("Hello <think></think>"); got != "Hello <think></think>" {
+		t.Errorf("%q", got)
+	}
+	for in, want := range map[string]bool{"<thi": true, "<think>\n": true, "<think>\n</th": true, "Hi": false, "<think>\n</think>x": false, "<b>": false} {
+		if thinkPending(in) != want {
+			t.Errorf("thinkPending(%q) != %v", in, want)
+		}
 	}
 }

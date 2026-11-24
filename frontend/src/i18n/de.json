@@ -5579,5 +5579,7 @@
  "ChatGPT account (experimental)": "ChatGPT-Konto (experimentell)",
  "Experimental: this sign-in uses the public client of OpenAI's Codex command-line tool. OpenAI may refuse or block it for other apps at any time; an API key is the supported way.": "Experimentell: Diese Anmeldung verwendet den öffentlichen Client des Codex-Kommandozeilenwerkzeugs von OpenAI. OpenAI kann ihn für andere Apps jederzeit ablehnen oder sperren; ein API-Schlüssel ist der unterstützte Weg.",
  "Mistral account (removed)": "Mistral-Konto (entfernt)",
- "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "Die Anmeldung mit einem Mistral-Konto wurde entfernt: Ihre Endpunkte konnten nicht bestätigt werden. Wählen Sie den API-Endpunkt und fügen Sie einen Mistral-API-Schlüssel ein."
+ "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "Die Anmeldung mit einem Mistral-Konto wurde entfernt: Ihre Endpunkte konnten nicht bestätigt werden. Wählen Sie den API-Endpunkt und fügen Sie einen Mistral-API-Schlüssel ein.",
+ "Light mode": "Leichter Modus",
+ "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "Eine kurze Anweisung und nur die Werkzeuge, die das NAS lesen: Ein kleines Modell auf dem NAS-Prozessor antwortet viel schneller. Automatisch: aktiv für lokale Modelle mit höchstens 4 Milliarden Parametern."
 }

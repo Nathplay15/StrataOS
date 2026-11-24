@@ -207,7 +207,11 @@ type Settings struct {
 	AssistantProvider string `json:"assistantProvider,omitempty"` // "" (endpoint) | "chatgpt"
 	// AssistantThink lets a thinking model (qwen3…) reason before answering.
 	// Off by default: on a small CPU the reasoning alone can take minutes.
-	AssistantThink bool      `json:"assistantThink"`
+	AssistantThink bool `json:"assistantThink"`
+	// AssistantLight: a short prompt and the essential tools, for small local
+	// models whose CPU spends most of the time reading the prompt.
+	// "" = automatic (small models of a local Ollama), "on", "off".
+	AssistantLight string    `json:"assistantLight,omitempty"`
 	ChatGPTAccess  string    `json:"chatgptAccess,omitempty"`
 	ChatGPTRefresh string    `json:"chatgptRefresh,omitempty"`
 	ChatGPTAccount string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header

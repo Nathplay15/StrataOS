@@ -297,6 +297,13 @@ export default function SettingsPage() {
                   <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
                 </Field>
                 <Field label={tr("API key")} className="sm:col-span-2" hint={tr("Only cloud APIs need a key. Leave empty with a local model.")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
+                <Field label={tr("Light mode")} className="sm:col-span-2" hint={tr("A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.")}>
+                  <Select value={s.assistantLight ?? ""} onChange={(e) => set("assistantLight", e.target.value)}>
+                    <option value="">{tr("Automatic")}</option>
+                    <option value="on">{tr("On")}</option>
+                    <option value="off">{tr("Off")}</option>
+                  </Select>
+                </Field>
                 <div className="sm:col-span-2">
                   <Switch checked={!!s.assistantThink} onChange={(v) => set("assistantThink", v)} label={tr("Thinking (reasoning)")} hint={tr("Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.")} />
                 </div>

@@ -368,6 +368,9 @@ func (s *Server) systemRoutes() {
 		if req.AssistantURL != "" && !strings.HasPrefix(req.AssistantURL, "http://") && !strings.HasPrefix(req.AssistantURL, "https://") {
 			return nil, badRequest("invalid assistant URL")
 		}
+		if req.AssistantLight != "" && req.AssistantLight != "on" && req.AssistantLight != "off" {
+			return nil, badRequest("invalid light mode")
+		}
 		err := s.store.Update(func(st *store.State) error {
 			if req.SMTPPassword == "********" {
 				if req.SMTPHost != st.Settings.SMTPHost && st.Settings.SMTPPassword != "" {
