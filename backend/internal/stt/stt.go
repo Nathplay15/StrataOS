@@ -25,9 +25,22 @@ var Run = func(ctx context.Context, name string, args ...string) ([]byte, error)
 	return cmd.CombinedOutput()
 }
 
-// Installed reports whether local transcription is possible (a variable so
-// tests can fake the binaries).
-var Installed = func() bool { return sys.Has("ffmpeg") && sys.Has("whisper") }
+// ModelPath is the whisper.cpp model StrataOS uses. Nothing installs it:
+// the feature stays hidden until an administrator puts whisper.cpp
+// ("whisper-cli") and this model on the NAS (see the user guide).
+var ModelPath = "/var/lib/strata/stt/ggml-base.bin"
+
+// Binary is the whisper.cpp command-line program.
+var Binary = "whisper-cli"
+
+// Installed reports whether ffmpeg, whisper.cpp and its model are present.
+var Installed = func() bool {
+	if !sys.Has("ffmpeg") || !sys.Has(Binary) {
+		return false
+	}
+	st, err := os.Stat(ModelPath)
+	return err == nil && st.Mode().IsRegular() && st.Size() > 1<<20
+}
 
 // ExtractAudioArgs builds the ffmpeg command that turns a media file into a
 // 16 kHz mono WAV for the model.
@@ -48,31 +61,34 @@ func SidecarNames(mediaPath string) (srt, txt string) {
 	return base + ".srt", base + ".transcript.txt"
 }
 
-// Transcribe extracts the audio of mediaPath and runs the model on it,
-// writing <base>.srt and <base>.transcript.txt next to the media. workDir
-// holds the temporary WAV. model is the whisper.cpp model name or path
-// ("base" by default). One call at a time is expected (the caller serializes).
-func Transcribe(ctx context.Context, mediaPath, workDir, model string) error {
+// Transcribe extracts the audio of mediaPath and transcribes it in a new
+// private folder under workDir; it returns the SubRip and text outputs. The
+// caller writes them next to the media itself (through the share's root).
+func Transcribe(ctx context.Context, mediaPath, workDir, model string) (srt, txt []byte, err error) {
 	if model == "" {
-		model = "base"
+		model = ModelPath
 	}
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return err
+	if err := os.MkdirAll(workDir, 0o700); err != nil {
+		return nil, nil, err
 	}
-	audio := filepath.Join(workDir, "audio.wav")
+	dir, err := os.MkdirTemp(workDir, "job-")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer os.RemoveAll(dir)
+	audio := filepath.Join(dir, "audio.wav")
 	if out, err := Run(ctx, "ffmpeg", ExtractAudioArgs(mediaPath, audio)...); err != nil {
-		return &Error{"audio extraction failed: " + tail(out)}
+		return nil, nil, &Error{"audio extraction failed: " + tail(out)}
 	}
-	prefix := strings.TrimSuffix(mediaPath, filepath.Ext(mediaPath))
-	if out, err := Run(ctx, "whisper", WhisperArgs(model, audio, prefix)...); err != nil {
-		return &Error{"transcription failed: " + tail(out)}
+	prefix := filepath.Join(dir, "out")
+	if out, err := Run(ctx, Binary, WhisperArgs(model, audio, prefix)...); err != nil {
+		return nil, nil, &Error{"transcription failed: " + tail(out)}
 	}
-	// whisper writes <prefix>.txt; the transcript sidecar has a distinct name.
-	_, txt := SidecarNames(mediaPath)
-	if err := os.Rename(prefix+".txt", txt); err != nil && !os.IsNotExist(err) {
-		return err
+	if srt, err = os.ReadFile(prefix + ".srt"); err != nil {
+		return nil, nil, &Error{"transcription failed: no subtitles written"}
 	}
-	return nil
+	txt, _ = os.ReadFile(prefix + ".txt")
+	return srt, txt, nil
 }
 
 var mediaExts = map[string]bool{

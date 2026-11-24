@@ -16,9 +16,9 @@ func TestArgs(t *testing.T) {
 			t.Errorf("extract args missing %q: %s", want, joined)
 		}
 	}
-	w := WhisperArgs("base", "/w/audio.wav", "/v/movie")
+	w := WhisperArgs("/m/ggml-base.bin", "/w/audio.wav", "/v/movie")
 	joined = strings.Join(w, " ")
-	for _, want := range []string{"-m base", "-f /w/audio.wav", "-osrt", "-otxt", "-of /v/movie"} {
+	for _, want := range []string{"-m /m/ggml-base.bin", "-f /w/audio.wav", "-osrt", "-otxt", "-of /v/movie"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("whisper args missing %q: %s", want, joined)
 		}
@@ -79,25 +79,27 @@ func TestTranscribe(t *testing.T) {
 		}
 		return []byte("done"), nil
 	}
-	if err := Transcribe(context.Background(), media, work, ""); err != nil {
+	// A planted link where whisper wrote before (next to the media) is never touched.
+	victim := filepath.Join(dir, "victim")
+	os.WriteFile(victim, []byte("keep"), 0o644)
+	os.Symlink(victim, filepath.Join(dir, "voice.srt"))
+	os.Symlink(victim, filepath.Join(dir, "voice.txt"))
+	srt, txt, err := Transcribe(context.Background(), media, work, "")
+	if err != nil {
 		t.Fatalf("transcribe: %v", err)
 	}
-	if len(calls) != 2 || calls[0][0] != "ffmpeg" || calls[1][0] != "whisper" {
+	if len(calls) != 2 || calls[0][0] != "ffmpeg" || calls[1][0] != Binary || calls[1][2] != ModelPath {
 		t.Fatalf("calls: %+v", calls)
 	}
-	srt, txt := SidecarNames(media)
-	if b, err := os.ReadFile(srt); err != nil || !strings.Contains(string(b), "00:00:01,000") {
-		t.Errorf("srt not written: %v", err)
+	if !strings.Contains(string(srt), "00:00:01,000") || string(txt) != "hi" {
+		t.Errorf("outputs: %q %q", srt, txt)
 	}
-	if b, err := os.ReadFile(txt); err != nil || string(b) != "hi" {
-		t.Errorf("txt not written: %v %q", err, b)
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Errorf("victim written: %q", b)
 	}
-	// Model passed through.
-	Run = func(ctx context.Context, name string, args ...string) ([]byte, error) { return []byte("ok"), nil }
-	if err := Transcribe(context.Background(), media, work, "/models/tiny.en"); err != nil {
-		t.Fatal(err)
+	if ents, _ := os.ReadDir(work); len(ents) != 0 {
+		t.Errorf("work folder not cleaned: %v", ents)
 	}
-	_ = calls
 }
 
 func TestTranscribeFailure(t *testing.T) {
@@ -109,7 +111,7 @@ func TestTranscribeFailure(t *testing.T) {
 	Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return []byte("boom: no model"), &Error{"exit 1"}
 	}
-	err := Transcribe(context.Background(), media, filepath.Join(dir, "w"), "")
+	_, _, err := Transcribe(context.Background(), media, filepath.Join(dir, "w"), "")
 	if err == nil || !strings.Contains(err.Error(), "no model") {
 		t.Errorf("error should carry the tail: %v", err)
 	}

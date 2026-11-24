@@ -49,9 +49,10 @@ func Sidecars(videoPath string) []Stream {
 	return out
 }
 
-// SidecarPath resolves a synthetic index (SidecarBase+i) back to its file,
-// recomputed from the directory listing (the index alone is not trusted).
-func SidecarPath(videoPath string, idx int) (string, bool) {
+// SidecarName resolves a synthetic index (SidecarBase+i) back to its file
+// name in the video's folder, recomputed from the directory listing (the
+// index alone is not trusted). Callers read it through the share's os.Root.
+func SidecarName(videoPath string, idx int) (string, bool) {
 	if idx < SidecarBase {
 		return "", false
 	}
@@ -60,7 +61,7 @@ func SidecarPath(videoPath string, idx int) (string, bool) {
 	if i < 0 || i >= len(subs) {
 		return "", false
 	}
-	return filepath.Join(filepath.Dir(videoPath), subs[i].Title), true
+	return subs[i].Title, true
 }
 
 var srtTimeRe = regexp.MustCompile(`(\d{2}):(\d{2}):(\d{2}),(\d{3})`)

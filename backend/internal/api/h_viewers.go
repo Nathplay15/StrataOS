@@ -31,6 +31,7 @@ import (
 	"strataos/internal/jobs"
 	"strataos/internal/mediaplay"
 	"strataos/internal/preview"
+	"strataos/internal/rootio"
 	"strataos/internal/store"
 	"strataos/internal/stt"
 	"strataos/internal/subs"
@@ -320,18 +321,9 @@ func (s *Server) viewerRoutes() {
 		if idx >= mediaplay.SidecarBase {
 			// A subtitle file next to the video: read directly, converted to
 			// WebVTT in Go when it is SubRip (no ffmpeg needed).
-			p, ok := mediaplay.SidecarPath(t.abs, idx)
-			if !ok {
-				writeErr(w, notFound("subtitle file not found"))
+			if data, err = readSidecar(t, idx); err != nil {
+				writeErr(w, err)
 				return
-			}
-			if raw, rerr := os.ReadFile(p); rerr != nil {
-				writeErr(w, notFound("subtitle file not found"))
-				return
-			} else if strings.HasSuffix(p, ".srt") {
-				data = mediaplay.SRTtoVTT(raw)
-			} else {
-				data = raw
 			}
 		} else if p, ok := c.Get(key, ".vtt"); ok {
 			data, err = os.ReadFile(p)
@@ -387,11 +379,17 @@ func (s *Server) viewerRoutes() {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 		defer cancel()
 		work := filepath.Join(s.dataDir, "tmp", "stt")
-		if err := stt.Transcribe(ctx, t.abs, work, ""); err != nil {
+		srt, text, err := stt.Transcribe(ctx, t.abs, work, "")
+		if err != nil {
 			return nil, &Error{Status: http.StatusBadGateway, Msg: err.Error()}
 		}
-		_, txt := stt.SidecarNames(t.abs)
-		text, _ := os.ReadFile(txt)
+		stem := strings.TrimSuffix(t.rel, path.Ext(t.rel))
+		if err := s.writeSidecar(r, t, stem+".srt", srt); err != nil {
+			return nil, err
+		}
+		if err := s.writeSidecar(r, t, stem+".transcript.txt", text); err != nil {
+			return nil, err
+		}
 		s.audit(r, "stt", "transcribed: "+req.Path)
 		return map[string]any{"text": string(text), "srt": true}, nil
 	})
@@ -460,12 +458,12 @@ func (s *Server) viewerRoutes() {
 		}
 		// The language comes from the API: sanitize it, it goes in a file name.
 		lang := subs.SanitizeLang(results[best].Lang)
-		out := strings.TrimSuffix(t.abs, filepath.Ext(t.abs)) + "." + lang + ".srt"
-		if err := os.WriteFile(out, data, 0o644); err != nil {
+		out := strings.TrimSuffix(t.rel, path.Ext(t.rel)) + "." + lang + ".srt"
+		if err := s.writeSidecar(r, t, out, data); err != nil {
 			return nil, err
 		}
 		s.audit(r, "subs", "fetched subtitles: "+req.Path+" ("+lang+")")
-		return map[string]any{"lang": lang, "name": filepath.Base(out)}, nil
+		return map[string]any{"lang": lang, "name": path.Base(out)}, nil
 	})
 
 	// ---- Pictures and documents converted for the browser ----
@@ -605,4 +603,46 @@ func (s *Server) viewerRoutes() {
 
 func statCtime(st *syscall.Stat_t) time.Time {
 	return time.Unix(int64(st.Ctim.Sec), int64(st.Ctim.Nsec))
+}
+
+// maxSidecar caps a subtitle file read next to a video.
+const maxSidecar = 5 << 20
+
+// writeSidecar writes a file next to the media t (rel is relative to t's
+// root) through the root, owned like the caller's other writes, never
+// through a planted symlink.
+func (s *Server) writeSidecar(r *http.Request, t target, rel string, data []byte) error {
+	rt, err := t.open()
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	owner := s.ownerFor(r)
+	if cur, _, ok := rootio.OwnerOf(rt, rel); ok {
+		owner = cur
+	}
+	return rootio.WriteFile(rt, rel, data, 0o644, owner)
+}
+
+// readSidecar reads the subtitle file idx next to the video t through the
+// share's root (a link out of the share, a device or a huge file is
+// refused), converted to WebVTT when it is SubRip.
+func readSidecar(t target, idx int) ([]byte, error) {
+	name, ok := mediaplay.SidecarName(t.abs, idx)
+	if !ok {
+		return nil, notFound("subtitle file not found")
+	}
+	rt, err := t.open()
+	if err != nil {
+		return nil, err
+	}
+	defer rt.Close()
+	raw, err := rootio.ReadFile(rt, path.Join(path.Dir(t.rel), name), maxSidecar)
+	if err != nil {
+		return nil, notFound("subtitle file not found")
+	}
+	if strings.HasSuffix(name, ".srt") {
+		return mediaplay.SRTtoVTT(raw), nil
+	}
+	return raw, nil
 }

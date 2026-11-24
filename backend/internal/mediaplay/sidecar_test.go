@@ -34,14 +34,14 @@ func TestSidecars(t *testing.T) {
 		}
 	}
 	// Roundtrip: index -> path.
-	p, ok := SidecarPath(video, SidecarBase+1)
-	if !ok || filepath.Base(p) != "Movie.2024.fr.srt" {
-		t.Errorf("SidecarPath: %q %v", p, ok)
+	p, ok := SidecarName(video, SidecarBase+1)
+	if !ok || p != "Movie.2024.fr.srt" {
+		t.Errorf("SidecarName: %q %v", p, ok)
 	}
-	if _, ok := SidecarPath(video, SidecarBase-1); ok {
+	if _, ok := SidecarName(video, SidecarBase-1); ok {
 		t.Error("container index must not resolve as sidecar")
 	}
-	if _, ok := SidecarPath(video, SidecarBase+99); ok {
+	if _, ok := SidecarName(video, SidecarBase+99); ok {
 		t.Error("out of range index must not resolve")
 	}
 	// No directory: no sidecars, no panic.
