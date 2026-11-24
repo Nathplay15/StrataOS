@@ -169,7 +169,7 @@ func (s *Server) davRoutes() {
 		u, ok := s.davAuth(w, r, cache)
 		return u.Username, ok
 	}}
-	for _, p := range []string{"/caldav/", "/carddav/", "/principals/"} {
+	for _, p := range []string{"/caldav/", "/carddav/", "/principals/", "/.well-known/caldav", "/.well-known/carddav"} {
 		s.mux.Handle(p, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var on bool
 			s.store.Read(func(st *store.State) { on = st.Files.CalDAV })
