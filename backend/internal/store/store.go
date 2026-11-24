@@ -657,7 +657,7 @@ type VPN struct {
 	ExpiryWarnDays int `json:"expiryWarnDays,omitempty"`
 	// Links are site-to-site tunnels imported from another StrataOS (this
 	// NAS connects out), Client the outgoing tunnel (store/vpn.go).
-	Links  []VPNLink `json:"links,omitempty"`
+	Links  []VPNLink `json:"links"` // always an array: the UI reads it unconditionally
 	Client VPNClient `json:"client,omitzero"`
 }
 

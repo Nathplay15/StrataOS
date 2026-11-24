@@ -80,10 +80,12 @@ type Host struct {
 
 // Config is the whole firewall (State.Firewall).
 type Config struct {
-	Host   Host    `json:"host"`
-	Guests []Guest `json:"guests,omitempty"`
-	Groups []Group `json:"groups,omitempty"`
-	IPSets []IPSet `json:"ipsets,omitempty"`
+	Host Host `json:"host"`
+	// The arrays are always serialized (even empty): the UI reads them
+	// unconditionally.
+	Guests []Guest `json:"guests"`
+	Groups []Group `json:"groups"`
+	IPSets []IPSet `json:"ipsets"`
 }
 
 // DefaultHost is the NAS firewall proposed when it is first switched on:
