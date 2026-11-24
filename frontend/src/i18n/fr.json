@@ -5573,5 +5573,7 @@
  "Age limit": "Limite d'âge",
  "Age limit: {0}": "Limite d'âge : {0}",
  "Profile saved": "Profil enregistré",
- "{0}+": "{0}+"
+ "{0}+": "{0}+",
+ "Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.": "Les étiquettes d'objets (personne, véhicule…) ne sont pas disponibles dans cette version : utilisez le moteur Frigate pour la détection d'objets.",
+ "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "Indisponible : la transcription a besoin de whisper.cpp et de son modèle sur le NAS (voir le guide)."
 }

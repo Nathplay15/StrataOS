@@ -5573,5 +5573,7 @@
  "Age limit": "年龄限制",
  "Age limit: {0}": "年龄限制：{0}",
  "Profile saved": "配置文件已保存",
- "{0}+": "{0}+"
+ "{0}+": "{0}+",
+ "Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.": "此版本不提供对象标签（人、车辆…）：请使用 Frigate 引擎进行对象检测。",
+ "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "不可用：语音转文字需要 NAS 上的 whisper.cpp 及其模型（请参阅用户指南）。"
 }

@@ -189,9 +189,11 @@ function Streamed({ entry, probe, audio, setAudio }: { entry: FileEntry; probe: 
         {!plan.audioOnly && (
           <Button size="sm" variant="ghost" icon={<Download size={14} />} loading={fetchSubs.isPending} title={tr("Download subtitles from OpenSubtitles")} onClick={() => fetchSubs.mutate()}>{tr("Fetch subtitles")}</Button>
         )}
-        {!plan.audioOnly && probe.stt && (
+        {!plan.audioOnly && (probe.stt ? (
           <Button size="sm" variant="ghost" icon={<Mic size={14} />} loading={transcribe.isPending} title={tr("Generate subtitles from the audio")} onClick={() => { setTrText(null); transcribe.mutate(); }}>{tr("Transcribe")}</Button>
-        )}
+        ) : (
+          <Button size="sm" variant="ghost" icon={<Mic size={14} />} disabled title={tr("Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).")}>{tr("Transcribe")}</Button>
+        ))}
         {!plan.audioOnly && subs.length > 0 && (
           <span className="flex items-center gap-1">
             <Captions size={14} className="text-muted" />

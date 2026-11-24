@@ -440,7 +440,7 @@ function EventClips({ camId, keepDays, classifyOn }: { camId: string; keepDays: 
       </Select>
       {play ? <Button size="sm" variant="ghost" onClick={() => setPlay(null)}>{tr("Close")}</Button> : undefined}
     </div>}>
-      <div className="mb-3 text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", keepDays)}{classifyOn ? ` ${tr("The local model labels each event (person, vehicle…); shadows and foliage do not notify.")}` : ""}</div>
+      <div className="mb-3 text-[12.5px] text-muted">{tr("A clip is cut around each movement event and kept {0} days.", keepDays)}{classifyOn ? ` ${tr("The local model labels each event (person, vehicle…); shadows and foliage do not notify.")}` : ` ${tr("Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.")}`}</div>
       <ErrorBox error={clips.error || del.error} />
       {play && <video key={play} controls autoPlay className="mb-3 w-full rounded-lg bg-black" src={`${base}/${encodeURIComponent(play)}`} />}
       {clips.isLoading ? <Spinner /> : !list.length ? <Empty title={tr("No clip yet")} /> : (

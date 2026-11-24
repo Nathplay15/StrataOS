@@ -5573,5 +5573,7 @@
  "Age limit": "Leeftijdsgrens",
  "Age limit: {0}": "Leeftijdsgrens: {0}",
  "Profile saved": "Profiel opgeslagen",
- "{0}+": "{0}+"
+ "{0}+": "{0}+",
+ "Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.": "Objectlabels (persoon, voertuig…) zijn in deze versie niet beschikbaar: gebruik de Frigate-engine voor objectdetectie.",
+ "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "Niet beschikbaar: spraak-naar-tekst heeft whisper.cpp en het bijbehorende model op de NAS nodig (zie de handleiding)."
 }
