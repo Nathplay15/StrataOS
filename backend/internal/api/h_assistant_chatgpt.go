@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"strataos/internal/store"
@@ -147,7 +148,13 @@ func (s *Server) chatgptFinish(pasted string) (store.Settings, error) {
 
 // chatgptToken returns a valid access token, renewing it from the refresh
 // token when it is missing, expired or about to (one minute of leeway).
+// chatgptRefreshMu serializes the refreshes: the refresh token rotates, so
+// two concurrent refreshes with the same one would sign the account out.
+var chatgptRefreshMu sync.Mutex
+
 func (s *Server) chatgptToken(ctx context.Context, force bool) (string, error) {
+	chatgptRefreshMu.Lock()
+	defer chatgptRefreshMu.Unlock()
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
 	if set.ChatGPTRefresh == "" {

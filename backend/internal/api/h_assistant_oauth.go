@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"strataos/internal/store"
@@ -123,7 +124,12 @@ func oauthValidClientID(id string) bool {
 
 // oauthAccessToken returns a valid access token, renewing it from the
 // refresh token when it expired (or always, when force).
+// oauthRefreshMu serializes the refreshes (rotating refresh tokens).
+var oauthRefreshMu sync.Mutex
+
 func (s *Server) oauthAccessToken(ctx context.Context, force bool) (string, error) {
+	oauthRefreshMu.Lock()
+	defer oauthRefreshMu.Unlock()
 	var set store.Settings
 	s.store.Read(func(st *store.State) { set = st.Settings })
 	if set.OAuthRefresh == "" || set.OAuthProvider == "" {

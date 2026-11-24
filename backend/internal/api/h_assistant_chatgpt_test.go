@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -322,4 +324,46 @@ func assistantPost(t *testing.T, ts *httptest.Server, tok, method, path string, 
 		t.Fatal(err)
 	}
 	return b, resp.StatusCode
+}
+
+// Concurrent refreshes with a rotating refresh token: one at a time, each
+// with the newest token (the provider refuses a reused one).
+func TestChatGPTConcurrentRefresh(t *testing.T) {
+	s := newTestServer(t)
+	var mu sync.Mutex
+	current, n := "r0", 0
+	tokens := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		defer mu.Unlock()
+		if body["refresh_token"] != current {
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"message": "refresh token reused"}})
+			return
+		}
+		n++
+		current = fmt.Sprintf("r%d", n)
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": fmt.Sprintf("a%d", n), "refresh_token": current, "expires_in": 1})
+	}))
+	defer tokens.Close()
+	old := chatgptTokenURL
+	chatgptTokenURL = tokens.URL
+	t.Cleanup(func() { chatgptTokenURL = old })
+	_ = s.store.Update(func(st *store.State) error { st.Settings.ChatGPTRefresh = "r0"; return nil })
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := s.chatgptToken(context.Background(), true); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("refresh failed: %v", err)
+	}
 }
