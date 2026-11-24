@@ -131,3 +131,29 @@ func TestExecuteAndParseStats(t *testing.T) {
 		t.Errorf("env = %v", gotEnv)
 	}
 }
+
+func TestValidateRefusesInjectionAndMirrorIntoShare(t *testing.T) {
+	base := func() store.Migration {
+		return store.Migration{Name: "old", Kind: "smb", Host: "old-nas", Share: "data", Dest: "/Archive/old"}
+	}
+	m := base()
+	m.Password = "pw\ndomain=evil"
+	if Validate(&m) == nil {
+		t.Error("newline in the password accepted")
+	}
+	m = base()
+	m.User = "bob\r\nusername=root"
+	if Validate(&m) == nil {
+		t.Error("newline in the user accepted")
+	}
+	m = base()
+	m.Delete, m.Dest = true, "/Archive"
+	if Validate(&m) == nil {
+		t.Error("--delete into a whole share accepted")
+	}
+	m = base()
+	m.Delete = true
+	if err := Validate(&m); err != nil {
+		t.Errorf("--delete into a folder: %v", err)
+	}
+}

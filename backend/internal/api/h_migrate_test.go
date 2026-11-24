@@ -69,6 +69,10 @@ func TestMigrationRoutes(t *testing.T) {
 	if kept != "secret" {
 		t.Errorf("an empty password must keep the saved one, got %q", kept)
 	}
+	// Another server: the saved password is not sent to it.
+	if rec := do("PUT", "/api/migrations/"+id, `{"name":"Old NAS 2","kind":"rsync","host":"evil.example","share":"mod","user":"rsync","password":"********","dest":"/Main/old2","enabled":true,"cron":"0 3 * * *"}`); rec.Code != 400 {
+		t.Errorf("masked password with a new host: %d %s", rec.Code, rec.Body.String())
+	}
 
 	// dueMigrations only fires enabled migrations with a matching cron.
 	due := s.dueMigrations(time.Date(2026, 11, 23, 3, 0, 0, 0, time.Local)) // Monday 03:00

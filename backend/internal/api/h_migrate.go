@@ -200,6 +200,10 @@ func (s *Server) migrateRoutes() {
 				return notFound("migration not found")
 			}
 			if m.Password == "" || m.Password == masked {
+				// The saved password only goes back to the server it was typed for.
+				if x.Password != "" && !strings.EqualFold(m.Host, x.Host) {
+					return badRequest("the source server changed: type its password again")
+				}
 				m.Password = x.Password // unchanged
 			}
 			m.ID, m.CreatedAt, m.History = x.ID, x.CreatedAt, x.History

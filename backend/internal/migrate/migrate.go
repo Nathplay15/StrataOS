@@ -71,6 +71,16 @@ func Validate(m *store.Migration) error {
 	if m.Dest == "" || !strings.HasPrefix(m.Dest, "/") || strings.Contains(m.Dest, "..") {
 		return fmt.Errorf("the destination must be /Share/folder")
 	}
+	// Credentials go to a credentials file and an environment variable: a
+	// line break would add settings of its own.
+	if strings.ContainsAny(m.User, "\r\n\x00") || strings.ContainsAny(m.Password, "\r\n\x00") {
+		return fmt.Errorf("the user name and password cannot contain line breaks")
+	}
+	// Mirroring (--delete) into a whole shared folder would erase everything
+	// else in it: only into a folder of a share.
+	if m.Delete && !strings.Contains(strings.Trim(m.Dest, "/"), "/") {
+		return fmt.Errorf("deleting what the source no longer has needs a destination folder inside the share, not the whole share")
+	}
 	return nil
 }
 
