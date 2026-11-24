@@ -5542,5 +5542,22 @@
  "Right": "Rechts",
  "Send a key to the menu shown on the TV.": "Stuur een toets naar het menu op de TV.",
  "Thinking (reasoning)": "Denken (reasoning)",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Standaard uit: op een kleine CPU kan een denkmodel (qwen3…) minuten lang redeneren voordat het antwoordt. Zet aan voor uitgebreidere antwoorden."
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Standaard uit: op een kleine CPU kan een denkmodel (qwen3…) minuten lang redeneren voordat het antwoordt. Zet aan voor uitgebreidere antwoorden.",
+ "WiFi": "WiFi",
+ "Wireless links": "Draadloze verbindingen",
+ "No wireless interface detected on this NAS.": "Geen draadloze interface gedetecteerd op deze NAS.",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "WiFi heeft de pakketten wpasupplicant en iw nodig op de NAS (apt install wpasupplicant iw).",
+ "Scan for networks": "Naar netwerken zoeken",
+ "Networks in range": "Netwerken in bereik",
+ "No network found.": "Geen netwerk gevonden.",
+ "Connected to {0}": "Verbonden met {0}",
+ "Not connected": "Niet verbonden",
+ "Signal: {0} dBm": "Signaal: {0} dBm",
+ "Forget this network": "Dit netwerk vergeten",
+ "WiFi password (WPA, 8 to 63 characters):": "WiFi-wachtwoord (WPA, 8 tot 63 tekens):",
+ "Connect to {0}": "Verbinden met {0}",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "De WiFi-wijziging wordt 2 minuten op proef toegepast, zoals elke netwerkwijziging: als de NAS onbereikbaar wordt, keert de vorige configuratie terug.",
+ "Saved on this NAS": "Opgeslagen op deze NAS",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "De opgeslagen WiFi-gegevens van {0} worden verwijderd; de link maakt geen automatische verbinding meer.",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, virtuele netwerken en NAS-naam"
 }

@@ -5542,5 +5542,22 @@
  "Right": "右",
  "Send a key to the menu shown on the TV.": "向电视上显示的菜单发送按键。",
  "Thinking (reasoning)": "思考（推理）",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "默认关闭：在性能较弱的 CPU 上，会思考的模型（如 qwen3…）可能要推理几分钟才会回答。开启可获得更详细的回答。"
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "默认关闭：在性能较弱的 CPU 上，会思考的模型（如 qwen3…）可能要推理几分钟才会回答。开启可获得更详细的回答。",
+ "WiFi": "WiFi",
+ "Wireless links": "无线链路",
+ "No wireless interface detected on this NAS.": "在此 NAS 上未检测到无线接口。",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "WiFi 需要在 NAS 上安装 wpasupplicant 和 iw 软件包（apt install wpasupplicant iw）。",
+ "Scan for networks": "扫描网络",
+ "Networks in range": "范围内的网络",
+ "No network found.": "未找到网络。",
+ "Connected to {0}": "已连接到 {0}",
+ "Not connected": "未连接",
+ "Signal: {0} dBm": "信号：{0} dBm",
+ "Forget this network": "忘记此网络",
+ "WiFi password (WPA, 8 to 63 characters):": "WiFi 密码（WPA，8 到 63 个字符）：",
+ "Connect to {0}": "连接到 {0}",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "WiFi 更改会像任何网络更改一样试运行 2 分钟：如果 NAS 无法访问，将恢复之前的配置。",
+ "Saved on this NAS": "已保存在此 NAS 上",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "将删除 {0} 保存的 WiFi 凭据；该链路将不再自动连接。",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "接口、WiFi、防火墙、虚拟网络和 NAS 名称"
 }

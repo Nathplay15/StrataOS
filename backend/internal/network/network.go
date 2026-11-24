@@ -67,6 +67,9 @@ type Config struct {
 	VLANs      []VLAN   `json:"vlans"`
 	// Virtual: virtual networks for VMs and containers (vnet.go).
 	Virtual []VNet `json:"virtual,omitempty"`
+	// WiFi: WPA authentication of the wireless links (wifi.go); the IP
+	// configuration of those links stays in Interfaces.
+	WiFi []WiFi `json:"wifi,omitempty"`
 }
 
 var (
@@ -397,7 +400,11 @@ func managedFiles() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := append(matches, InterfacesF)
+	out := matches
+	if wpa, err := filepath.Glob(filepath.Join(WPAConfDir, wpaPrefix+"*")); err == nil {
+		out = append(out, wpa...)
+	}
+	out = append(out, InterfacesF)
 	if fi, err := os.Lstat(ResolvConf); err == nil && fi.Mode().IsRegular() {
 		out = append(out, ResolvConf)
 	}
@@ -445,7 +452,8 @@ func restore() error {
 	}
 	current, _ := managedFiles()
 	for _, f := range current {
-		if !index[f] && strings.HasPrefix(filepath.Base(f), filePrefix) {
+		base := filepath.Base(f)
+		if !index[f] && (strings.HasPrefix(base, filePrefix) || strings.HasPrefix(base, wpaPrefix)) {
 			_ = os.Remove(f)
 		}
 	}
@@ -488,6 +496,9 @@ func links(c Config) []string {
 			set[l] = true
 		}
 	}
+	for _, w := range c.WiFi {
+		set[w.Name] = true
+	}
 	out := make([]string, 0, len(set))
 	for k := range set {
 		out = append(out, k)
@@ -511,6 +522,11 @@ func Apply(next, prev Config, timeout time.Duration) (*Pending, error) {
 	if err := os.MkdirAll(StateDir, 0o700); err != nil {
 		return nil, err
 	}
+	for _, w := range next.WiFi {
+		if w.Enabled && !sys.Has("wpa_supplicant") {
+			return nil, fmt.Errorf("wpa_supplicant is not installed: apt install wpasupplicant to use WiFi")
+		}
+	}
 	if err := snapshot(); err != nil {
 		return nil, fmt.Errorf("rollback point: %w", err)
 	}
@@ -533,7 +549,7 @@ func Apply(next, prev Config, timeout time.Duration) (*Pending, error) {
 	// and the browser must receive its confirmation token first.
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
-		activate(p.Links, mgr)
+		activate(p.Links, mgr, wifiLinks(next))
 		mu.Lock()
 		if pending == p {
 			p.ReadyAt = time.Now().Add(settle)
@@ -573,6 +589,9 @@ func write(c Config, mgr string) error {
 		if err := sys.WriteFileAtomic(filepath.Join(NetworkdDir, name), []byte(content), 0o644); err != nil {
 			return err
 		}
+	}
+	if err := writeWPA(c); err != nil {
+		return err
 	}
 	// Changed tunnels are created again at the reload (see changedTunnels).
 	for _, l := range changedTunnels(before, files) {
@@ -654,8 +673,9 @@ func releaseFromIfupdown(names []string) error {
 	return sys.WriteFileAtomic(InterfacesF, []byte(strings.Join(out, "\n")), 0o644)
 }
 
-// activate reloads networkd and reconfigures the links involved.
-func activate(names []string, mgr string) {
+// activate reloads networkd, reconfigures the links involved and (re)starts
+// wpa_supplicant on the wireless links that got credentials.
+func activate(names []string, mgr string, wifi []string) {
 	_, _ = sys.Run("systemctl", "enable", "--now", "systemd-networkd.service")
 	// Links that are no longer bonds/VLANs must disappear before reconfiguration.
 	for _, n := range names {
@@ -669,6 +689,11 @@ func activate(names []string, mgr string) {
 	for _, n := range names {
 		if _, err := os.Stat(filepath.Join("/sys/class/net", n)); err == nil {
 			_, _ = sys.Run("networkctl", "reconfigure", n)
+		}
+	}
+	for _, n := range wifi {
+		if _, err := os.Stat(filepath.Join(WPAConfDir, wpaPrefix+n+".conf")); err == nil {
+			_, _ = sys.Run("systemctl", "enable", "--now", "wpa_supplicant@"+n+".service")
 		}
 	}
 	if mgr == "ifupdown" {
@@ -709,12 +734,19 @@ func Rollback(reason string) error {
 		}
 	}
 	var names []string
+	var wifi []string
 	if pending != nil {
 		names = pending.Links
+		if pending.Config != nil {
+			wifi = wifiLinks(*pending.Config)
+		}
 	} else if b, err := os.ReadFile(pendingPath()); err == nil {
 		var p Pending
 		_ = json.Unmarshal(b, &p)
 		names = p.Links
+		if p.Config != nil {
+			wifi = wifiLinks(*p.Config)
+		}
 	}
 	if timer != nil {
 		timer.Stop()
@@ -724,7 +756,7 @@ func Rollback(reason string) error {
 	}
 	pending = nil
 	_ = os.Remove(pendingPath())
-	activate(names, Manager())
+	activate(names, Manager(), wifi)
 	if OnRollback != nil {
 		OnRollback(reason)
 	}

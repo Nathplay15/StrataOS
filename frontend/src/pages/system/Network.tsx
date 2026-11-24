@@ -7,16 +7,19 @@ import { Badge, Button, Card, Checkbox, ErrorBox, Field, IconButton, Input, Moda
 import { tr, locale } from "../../lib/i18n";
 import { FirewallTab } from "./firewall/FirewallTab";
 import { VirtualNetworksTab } from "./firewall/VirtualNetworks";
+import { WiFiTab } from "./WiFiTab";
 import { DiagnosticsCard } from "../../components/NetworkDiagnostics";
 
 type Link = { name: string; mac: string; state: string; mtu: number; addresses: string[]; speed: number; kind: string };
 type Status = { interfaces: Link[]; gateway: string; dns: string[]; hostname: string };
-type IP = { mode: "dhcp" | "static" | "none"; addresses?: string[]; gateway?: string; dns?: string[]; mtu?: number };
-type Iface = IP & { name: string };
-type Bond = IP & { name: string; bondMode: string; members: string[] };
-type Bridge = IP & { name: string; members: string[]; stp: boolean };
-type VLAN = IP & { parent: string; id: number };
-type Config = { interfaces: Iface[]; bonds: Bond[]; bridges: Bridge[]; vlans: VLAN[] };
+export type IP = { mode: "dhcp" | "static" | "none"; addresses?: string[]; gateway?: string; dns?: string[]; mtu?: number };
+export type Iface = IP & { name: string };
+export type Bond = IP & { name: string; bondMode: string; members: string[] };
+export type Bridge = IP & { name: string; members: string[]; stp: boolean };
+export type VLAN = IP & { parent: string; id: number };
+/** WPA credentials of one wireless link (the PSK is masked in answers). */
+export type WiFiCfg = { name: string; ssid?: string; psk?: string; hidden?: boolean; enabled?: boolean };
+export type Config = { interfaces: Iface[]; bonds: Bond[]; bridges: Bridge[]; vlans: VLAN[]; wifi?: WiFiCfg[] };
 export type Pending = { deadline: string; links: string[]; token?: string };
 type Net = { status: Status; manager: string; config: Config; pending: Pending | null };
 
@@ -119,11 +122,11 @@ export function TrialModal({ pending, newURLs, onClose, onConfirmed, confirmPath
   );
 }
 
-type NetTab = "interfaces" | "firewall" | "vnets";
+type NetTab = "interfaces" | "firewall" | "vnets" | "wifi";
 
-/** Tab of the Network page, kept in the address (#firewall, #vnets). */
+/** Tab of the Network page, kept in the address (#firewall, #vnets, #wifi). */
 function useNetTab(): [NetTab, (t: NetTab) => void] {
-  const fromHash = (): NetTab => (location.hash === "#firewall" ? "firewall" : location.hash === "#vnets" ? "vnets" : "interfaces");
+  const fromHash = (): NetTab => (location.hash === "#firewall" ? "firewall" : location.hash === "#vnets" ? "vnets" : location.hash === "#wifi" ? "wifi" : "interfaces");
   const [tab, setTab] = useState<NetTab>(fromHash);
   useEffect(() => {
     const f = () => setTab(fromHash());
@@ -134,7 +137,7 @@ function useNetTab(): [NetTab, (t: NetTab) => void] {
 }
 
 function NetTabs({ tab, setTab }: { tab: NetTab; setTab: (t: NetTab) => void }) {
-  return <Tabs tabs={[{ id: "interfaces", label: tr("Interfaces") }, { id: "firewall", label: tr("Firewall") }, { id: "vnets", label: tr("Virtual networks") }]} value={tab} onChange={setTab} />;
+  return <Tabs tabs={[{ id: "interfaces", label: tr("Interfaces") }, { id: "wifi", label: tr("WiFi") }, { id: "firewall", label: tr("Firewall") }, { id: "vnets", label: tr("Virtual networks") }]} value={tab} onChange={setTab} />;
 }
 
 export default function NetworkPage() {
@@ -142,9 +145,9 @@ export default function NetworkPage() {
   if (tab !== "interfaces") {
     return (
       <div>
-        <PageHeader title={tr("Network")} subtitle={tr("Interfaces, firewall, virtual networks and NAS name")} icon={<NetIcon size={20} />} />
+        <PageHeader title={tr("Network")} subtitle={tr("Interfaces, WiFi, firewall, virtual networks and NAS name")} icon={<NetIcon size={20} />} />
         <NetTabs tab={tab} setTab={setTab} />
-        {tab === "firewall" ? <FirewallTab /> : <VirtualNetworksTab />}
+        {tab === "firewall" ? <FirewallTab /> : tab === "vnets" ? <VirtualNetworksTab /> : <WiFiTab />}
       </div>
     );
   }

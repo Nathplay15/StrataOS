@@ -5542,5 +5542,22 @@
  "Right": "Droite",
  "Send a key to the menu shown on the TV.": "Envoyer une touche au menu affiché sur la TV.",
  "Thinking (reasoning)": "Réflexion (raisonnement)",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Désactivée par défaut : sur un petit CPU, un modèle à réflexion (qwen3…) peut raisonner pendant des minutes avant de répondre. Activez-la pour des réponses plus détaillées."
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Désactivée par défaut : sur un petit CPU, un modèle à réflexion (qwen3…) peut raisonner pendant des minutes avant de répondre. Activez-la pour des réponses plus détaillées.",
+ "WiFi": "WiFi",
+ "Wireless links": "Liens sans fil",
+ "No wireless interface detected on this NAS.": "Aucune interface sans fil détectée sur ce NAS.",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "Le WiFi nécessite les paquets wpasupplicant et iw sur le NAS (apt install wpasupplicant iw).",
+ "Scan for networks": "Rechercher des réseaux",
+ "Networks in range": "Réseaux à portée",
+ "No network found.": "Aucun réseau trouvé.",
+ "Connected to {0}": "Connecté à {0}",
+ "Not connected": "Non connecté",
+ "Signal: {0} dBm": "Signal : {0} dBm",
+ "Forget this network": "Oublier ce réseau",
+ "WiFi password (WPA, 8 to 63 characters):": "Mot de passe WiFi (WPA, 8 à 63 caractères) :",
+ "Connect to {0}": "Se connecter à {0}",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "Le changement WiFi est appliqué à l'essai pendant 2 minutes, comme tout changement réseau : si le NAS devient injoignable, la configuration précédente revient.",
+ "Saved on this NAS": "Enregistré sur ce NAS",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "Les identifiants WiFi enregistrés de {0} sont supprimés ; le lien ne se connectera plus automatiquement.",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, pare-feu, réseaux virtuels et nom du NAS"
 }

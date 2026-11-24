@@ -5542,5 +5542,22 @@
  "Right": "Rechts",
  "Send a key to the menu shown on the TV.": "Eine Taste an das auf dem Fernseher angezeigte Menü senden.",
  "Thinking (reasoning)": "Denken (Reasoning)",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Standardmäßig aus: Bei einer kleinen CPU kann ein Denkmodell (qwen3…) Minuten lang nachdenken, bevor es antwortet. Einschalten für ausführlichere Antworten."
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Standardmäßig aus: Bei einer kleinen CPU kann ein Denkmodell (qwen3…) Minuten lang nachdenken, bevor es antwortet. Einschalten für ausführlichere Antworten.",
+ "WiFi": "WLAN",
+ "Wireless links": "Drahtlose Verbindungen",
+ "No wireless interface detected on this NAS.": "Auf diesem NAS wurde keine WLAN-Schnittstelle erkannt.",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "WLAN benötigt die Pakete wpasupplicant und iw auf dem NAS (apt install wpasupplicant iw).",
+ "Scan for networks": "Nach Netzwerken suchen",
+ "Networks in range": "Netzwerke in Reichweite",
+ "No network found.": "Kein Netzwerk gefunden.",
+ "Connected to {0}": "Verbunden mit {0}",
+ "Not connected": "Nicht verbunden",
+ "Signal: {0} dBm": "Signal: {0} dBm",
+ "Forget this network": "Dieses Netzwerk vergessen",
+ "WiFi password (WPA, 8 to 63 characters):": "WLAN-Passwort (WPA, 8 bis 63 Zeichen):",
+ "Connect to {0}": "Mit {0} verbinden",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "Die WLAN-Änderung wird wie jede Netzwerkänderung 2 Minuten lang auf Probe angewendet: wird das NAS unerreichbar, kommt die vorherige Konfiguration zurück.",
+ "Saved on this NAS": "Auf diesem NAS gespeichert",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "Die gespeicherten WLAN-Zugangsdaten von {0} werden entfernt; die Verbindung stellt sich nicht mehr automatisch her.",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Schnittstellen, WLAN, Firewall, virtuelle Netzwerke und NAS-Name"
 }

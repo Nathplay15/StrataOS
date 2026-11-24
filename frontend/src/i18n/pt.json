@@ -5542,5 +5542,22 @@
  "Right": "Direita",
  "Send a key to the menu shown on the TV.": "Enviar uma tecla para o menu exibido na TV.",
  "Thinking (reasoning)": "Raciocínio (thinking)",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Desativado por padrão: em uma CPU pequena, um modelo que pensa (qwen3…) pode levar minutos para responder. Ative para respostas mais detalhadas."
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Desativado por padrão: em uma CPU pequena, um modelo que pensa (qwen3…) pode levar minutos para responder. Ative para respostas mais detalhadas.",
+ "WiFi": "WiFi",
+ "Wireless links": "Ligações sem fio",
+ "No wireless interface detected on this NAS.": "Nenhuma interface sem fio detectada neste NAS.",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "O WiFi precisa dos pacotes wpasupplicant e iw no NAS (apt install wpasupplicant iw).",
+ "Scan for networks": "Procurar redes",
+ "Networks in range": "Redes ao alcance",
+ "No network found.": "Nenhuma rede encontrada.",
+ "Connected to {0}": "Conectado a {0}",
+ "Not connected": "Não conectado",
+ "Signal: {0} dBm": "Sinal: {0} dBm",
+ "Forget this network": "Esquecer esta rede",
+ "WiFi password (WPA, 8 to 63 characters):": "Senha WiFi (WPA, 8 a 63 caracteres):",
+ "Connect to {0}": "Conectar a {0}",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "A alteração WiFi é aplicada em caráter de teste por 2 minutos, como qualquer alteração de rede: se o NAS ficar inacessível, a configuração anterior volta.",
+ "Saved on this NAS": "Salvo neste NAS",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "As credenciais WiFi salvas de {0} são removidas; o link não se conectará mais automaticamente.",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, redes virtuais e nome do NAS"
 }

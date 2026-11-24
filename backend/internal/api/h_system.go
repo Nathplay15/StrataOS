@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strataos/internal/antivirus"
 	"strataos/internal/ceph"
 	"strataos/internal/directory"
@@ -151,6 +152,12 @@ func (s *Server) systemRoutes() {
 		s.store.Read(func(st *store.State) { cfg = st.Network })
 		if cfg == nil {
 			cfg = &network.Config{Interfaces: []network.Iface{}, Bonds: []network.Bond{}, VLANs: []network.VLAN{}}
+		} else {
+			// A copy: the WiFi passwords are secrets and are masked here.
+			cp := *cfg
+			cp.WiFi = slices.Clone(cfg.WiFi)
+			maskWiFi(&cp)
+			cfg = &cp
 		}
 		return map[string]any{"status": system.GetNetwork(), "manager": network.Manager(), "config": cfg, "pending": network.Current()}, nil
 	})
@@ -168,6 +175,11 @@ func (s *Server) systemRoutes() {
 		if err := network.Validate(&req.Config, physical); err != nil {
 			return nil, badRequest(err.Error())
 		}
+		if err := network.ValidateWiFi(&req.Config, network.Wireless()); err != nil {
+			return nil, badRequest(err.Error())
+		}
+		// A masked WiFi password means "keep the saved one".
+		restoreMaskedWiFiPSK(&req.Config, prev)
 		timeout := time.Duration(req.Timeout) * time.Second
 		if timeout < 30*time.Second || timeout > 10*time.Minute {
 			timeout = 120 * time.Second
