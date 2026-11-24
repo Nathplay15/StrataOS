@@ -57,6 +57,9 @@ func TestCheckContainersHealth(t *testing.T) {
 	s := newTestServer(t)
 	s.docker = docker.New()
 
+	// Seen 20 minutes ago with no restart: 7 since then.
+	containerRestarts = &docker.RestartTracker{}
+	containerRestarts.Restarts("abc123", 0, time.Now().Add(-20*time.Minute))
 	alerted := map[string]int{}
 	s.checkContainersHealth(alerted)
 	if alerted["abc123"] != 7 {
@@ -66,12 +69,12 @@ func TestCheckContainersHealth(t *testing.T) {
 	s.store.Read(func(st *store.State) { events = st.Events })
 	found := false
 	for _, e := range events {
-		if e.Category == "docker" && strings.Contains(e.Message, "Container jellyfin crashes repeatedly (7 restarts in the last hour)") && strings.Contains(e.Message, "boom") {
+		if e.Category == "docker" && strings.Contains(e.Message, "Container jellyfin crashes repeatedly (7 restarts in the last hour)") && !strings.Contains(e.Message, "boom") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("no docker crash alert with the last logs, events: %+v", events)
+		t.Fatalf("no docker crash alert (without the log lines), events: %+v", events)
 	}
 
 	// Same crash episode: no new alert.
@@ -92,7 +95,8 @@ func TestCheckContainersHealth(t *testing.T) {
 		t.Fatalf("new episode must alert: %+v", events[len(events)-1])
 	}
 
-	// Healthy again (last start over an hour ago): the episode is forgotten.
+	// Healthy again (no restart over the last hour): the episode is forgotten.
+	containerRestarts = &docker.RestartTracker{}
 	old := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339Nano)
 	fakeDocker(t, `{"Name":"/jellyfin","State":{"Status":"running","RestartCount":9,"StartedAt":"`+old+`","Health":{"Status":"healthy"}}}`, nil)
 	s.docker = docker.New()
