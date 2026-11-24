@@ -249,6 +249,10 @@ Unit tests: `go test ./internal/network ./internal/api` (bridge plan, prefs and 
 
 Tests: `go test ./internal/netguard ./internal/api -run 'Assistant|MCP|Token|IsAdmin|Internal|Confirmations'`.
 
+## Files of users written by the daemon (0.15.2)
+
+Any file the daemon reads or writes in a shared folder goes through the share's `os.Root` (`target.open()`), never a path: `internal/rootio` reads regular files with a size cap (`ReadFile`, `OpenRegular`) and writes through a new `O_EXCL` temporary file renamed in the root, with mode and owner set through the handle (`WriteFrom`, `WriteFile`, `OwnerOf`). Used by the file-version restore, subtitle sidecars, transcriptions, the photo editor and the moviehash; `uploadKeep` (automatic uploads, `?keep=1`) links a temporary file under a free name and never replaces. Each such path has a unit test that plants a symlink; `vm/e2e.d/99c-fixes-0152.sh` repeats it on a VM.
+
 ## Certificates (0.12.1)
 
 - `proxy.CertStore.Obtain` orders every name of the certificate (`acme.DomainIDs(host, extra...)`) and authorizes each one; a wildcard authorization always uses DNS-01 (refused without a DNS solver). `HTTPClient` and `Propagation` exist for tests. `TestObtainOrdersEveryName` checks the order against a fake ACME server; `TestObtainWildcardPebble` runs the whole exchange against Pebble when `STRATA_PEBBLE` (folder with `pebble` and `pebble-challtestsrv`) and `STRATA_PEBBLE_SRC` (pebble's module folder, for its test certificates) are set — see the comment in `proxy/acme_test.go`.

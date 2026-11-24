@@ -163,7 +163,7 @@ func TestRecordLoginNewDevice(t *testing.T) {
 		s.ServeHTTP(w, r)
 		return w
 	}
-	for _, ua := range []string{"TestUA/1", "TestUA/1", "TestUA/2"} {
+	for _, ua := range []string{"TestUA/1", "TestUA/1", "OtherUA/2"} {
 		if w := login(ua); w.Code != http.StatusOK {
 			t.Fatalf("login %q: %d %s", ua, w.Code, w.Body.String())
 		}
@@ -173,8 +173,8 @@ func TestRecordLoginNewDevice(t *testing.T) {
 	if code != 200 || len(list) != 3 {
 		t.Fatalf("history: %d %v", code, list)
 	}
-	// Newest first: TestUA/2 (new), TestUA/1 (known), TestUA/1 (new, first seen).
-	if list[0]["ua"] != "TestUA/2" || list[0]["newDevice"] != true {
+	// Newest first: OtherUA/2 (new), TestUA/1 (known), TestUA/1 (new, first seen).
+	if list[0]["ua"] != "OtherUA/2" || list[0]["newDevice"] != true {
 		t.Fatalf("new browser must be newDevice: %v", list[0])
 	}
 	if list[1]["newDevice"] != nil {

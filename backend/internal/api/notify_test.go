@@ -65,18 +65,20 @@ func TestNtfy(t *testing.T) {
 	}
 }
 
-// The webhook/ntfy client never reaches the NAS itself or loopback (SSRF),
-// even with the LAN allowance for self-hosted targets.
-func TestNotifyHTTPClientRefusesLoopback(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("secret")) }))
+// The webhook/ntfy client (addresses set by administrators) reaches an app
+// of the NAS itself (loopback), as before 0.15, but never link-local
+// addresses (cloud metadata).
+func TestNotifyHTTPClientTargets(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) }))
 	defer srv.Close()
 	cl := notifyHTTPClient(store.TLSTrust{}, 5*time.Second)
 	resp, err := cl.Post(srv.URL, "application/json", strings.NewReader("{}"))
-	if err == nil {
-		resp.Body.Close()
-		t.Fatal("loopback webhook reached")
+	if err != nil {
+		t.Fatalf("loopback webhook refused: %v", err)
 	}
+	resp.Body.Close()
+	_, err = cl.Post("http://169.254.169.254/latest/meta-data", "application/json", strings.NewReader("{}"))
 	if !errors.Is(err, netguard.ErrBlocked) {
-		t.Fatalf("want ErrBlocked, got %v", err)
+		t.Fatalf("metadata address: want ErrBlocked, got %v", err)
 	}
 }
