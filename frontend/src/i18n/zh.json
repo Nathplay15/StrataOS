@@ -5575,5 +5575,9 @@
  "Profile saved": "配置文件已保存",
  "{0}+": "{0}+",
  "Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.": "此版本不提供对象标签（人、车辆…）：请使用 Frigate 引擎进行对象检测。",
- "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "不可用：语音转文字需要 NAS 上的 whisper.cpp 及其模型（请参阅用户指南）。"
+ "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "不可用：语音转文字需要 NAS 上的 whisper.cpp 及其模型（请参阅用户指南）。",
+ "ChatGPT account (experimental)": "ChatGPT 账户（实验性）",
+ "Experimental: this sign-in uses the public client of OpenAI's Codex command-line tool. OpenAI may refuse or block it for other apps at any time; an API key is the supported way.": "实验性：此登录使用 OpenAI Codex 命令行工具的公共客户端。OpenAI 可能随时拒绝或阻止其他应用使用它；API 密钥才是受支持的方式。",
+ "Mistral account (removed)": "Mistral 账户（已移除）",
+ "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "已移除 Mistral 账户登录：无法确认其端点。请选择 API 端点并粘贴 Mistral API 密钥。"
 }

@@ -9,7 +9,6 @@ import { tr, locale, languages } from "../../lib/i18n";
 import { ConfigBackupCard } from "./ConfigBackup";
 import { OfficeSettingsCard } from "../../components/OfficeSettings";
 import { TLSTrustField } from "../../components/TLSTrust";
-import { OAuthSignIn } from "./AssistantOAuth";
 
 /** The mail server as an address for the certificate check (smtps: implicit TLS, smtp: STARTTLS). */
 const smtpAddress = (s: Settings) => {
@@ -259,10 +258,10 @@ export default function SettingsPage() {
         <Card id="settings-assistant" title={<span className="flex items-center gap-2"><Bot size={16} /> {" "}{tr("Assistant (AI)")}</span>} className="@4xl:col-span-2">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr("Provider")}>
-              <Select value={s.assistantProvider === "chatgpt" ? "chatgpt" : s.assistantProvider?.startsWith("oauth:") ? "oauth:mistral" : ""} onChange={(e) => set("assistantProvider", e.target.value)}>
+              <Select value={s.assistantProvider === "chatgpt" ? "chatgpt" : s.assistantProvider?.startsWith("oauth:") ? "oauth" : ""} onChange={(e) => set("assistantProvider", e.target.value)}>
                 <option value="">{tr("API endpoint (OpenAI-compatible)")}</option>
-                <option value="chatgpt">{tr("ChatGPT account")}</option>
-                <option value="oauth:mistral">{tr("Mistral account")}</option>
+                <option value="chatgpt">{tr("ChatGPT account (experimental)")}</option>
+                {s.assistantProvider?.startsWith("oauth:") && <option value="oauth" disabled>{tr("Mistral account (removed)")}</option>}
               </Select>
             </Field>
             <Field label={tr("Model")} hint={s.assistantProvider === "chatgpt" ? tr("e.g. gpt-5.1-codex-max, also changeable in the assistant") : tr("e.g. mistral-small-latest")}>
@@ -270,6 +269,7 @@ export default function SettingsPage() {
             </Field>
             {s.assistantProvider === "chatgpt" ? (
               <div className="sm:col-span-2">
+                <div className="mb-3"><Notice tone="warn">{tr("Experimental: this sign-in uses the public client of OpenAI's Codex command-line tool. OpenAI may refuse or block it for other apps at any time; an API key is the supported way.")}</Notice></div>
                 {data?.chatgptEmail ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="min-w-0 flex-1"><Notice tone="info">{data.chatgptExpires ? tr("Connected to ChatGPT as {0} until {1}", data.chatgptEmail, new Date(data.chatgptExpires).toLocaleDateString(locale)) : tr("Connected to ChatGPT as {0}", data.chatgptEmail)}</Notice></div>
@@ -287,7 +287,10 @@ export default function SettingsPage() {
                 </div>
               </div>
             ) : s.assistantProvider?.startsWith("oauth:") ? (
-              <div className="sm:col-span-2"><OAuthSignIn data={data} oauthDisconnect={oauthDisconnect} /></div>
+              <div className="sm:col-span-2 space-y-3">
+                <Notice tone="warn">{tr("The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.")}</Notice>
+                <Button loading={oauthDisconnect.isPending} onClick={() => { oauthDisconnect.mutate(); set("assistantProvider", ""); }}>{tr("Disconnect")}</Button>
+              </div>
             ) : (
               <>
                 <Field label={tr("API endpoint (OpenAI-compatible)")} className="sm:col-span-2" hint={tr("Base URL of a chat/completions endpoint, e.g. https://api.mistral.ai/v1")}>

@@ -5575,5 +5575,9 @@
  "Profile saved": "Profil gespeichert",
  "{0}+": "ab {0}",
  "Object labels (person, vehicle…) are not available in this version: use the Frigate engine for object detection.": "Objektkennzeichnungen (Person, Fahrzeug…) sind in dieser Version nicht verfügbar: Verwenden Sie die Frigate-Engine für die Objekterkennung.",
- "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "Nicht verfügbar: Die Spracherkennung benötigt whisper.cpp und sein Modell auf dem NAS (siehe Benutzerhandbuch)."
+ "Not available: speech-to-text needs whisper.cpp and its model on the NAS (see the user guide).": "Nicht verfügbar: Die Spracherkennung benötigt whisper.cpp und sein Modell auf dem NAS (siehe Benutzerhandbuch).",
+ "ChatGPT account (experimental)": "ChatGPT-Konto (experimentell)",
+ "Experimental: this sign-in uses the public client of OpenAI's Codex command-line tool. OpenAI may refuse or block it for other apps at any time; an API key is the supported way.": "Experimentell: Diese Anmeldung verwendet den öffentlichen Client des Codex-Kommandozeilenwerkzeugs von OpenAI. OpenAI kann ihn für andere Apps jederzeit ablehnen oder sperren; ein API-Schlüssel ist der unterstützte Weg.",
+ "Mistral account (removed)": "Mistral-Konto (entfernt)",
+ "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "Die Anmeldung mit einem Mistral-Konto wurde entfernt: Ihre Endpunkte konnten nicht bestätigt werden. Wählen Sie den API-Endpunkt und fügen Sie einen Mistral-API-Schlüssel ein."
 }

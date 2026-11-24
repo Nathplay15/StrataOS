@@ -36,17 +36,10 @@ type oauthProvider struct {
 	DefaultModel string
 }
 
-var oauthProviders = map[string]*oauthProvider{
-	"mistral": {
-		ID:           "mistral",
-		Name:         "Mistral (La Plateforme)",
-		DeviceURL:    "https://auth.mistral.ai/oauth/device/authorize",
-		TokenURL:     "https://auth.mistral.ai/oauth/token",
-		APIBase:      "https://api.mistral.ai/v1",
-		Scope:        "openid profile email",
-		DefaultModel: "mistral-small-latest",
-	},
-}
+// oauthProviders: none is offered. The Mistral device sign-in of 0.15.0
+// used endpoints that could not be confirmed and was removed in 0.15.2
+// (API keys work); the flow stays for a provider that documents one.
+var oauthProviders = map[string]*oauthProvider{}
 
 // oauthFormPost posts a form to one provider endpoint and decodes the JSON
 // answer into out. A non-2xx status is returned as *oauthError when the body
