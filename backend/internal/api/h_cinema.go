@@ -85,15 +85,26 @@ func (s *Server) cinemaScan() {
 	s.cinemaScanState(func(st *cinema.State) { st.Scanned = len(items); st.Items = items })
 }
 
+// cinemaItems are the videos of the library the caller may see: those of
+// the shares it can read.
+func (s *Server) cinemaItems(r *http.Request) []cinema.Item {
+	statePath, _, _ := s.cinemaPaths()
+	roots := s.readableRoots(r)
+	out := []cinema.Item{}
+	for _, it := range cinema.LoadState(statePath).Items {
+		if under(roots, it.Path) {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
 func (s *Server) cinemaRoutes() {
 	statePath, keyPath, posterDir := s.cinemaPaths()
 
 	s.user("GET /api/cinema", func(r *http.Request) (any, error) {
 		st := cinema.LoadState(statePath)
-		items := st.Items
-		if items == nil {
-			items = []cinema.Item{}
-		}
+		items := s.cinemaItems(r)
 		pos := map[string]store.PlayPos{}
 		s.store.Read(func(st *store.State) {
 			for p, v := range st.Media.Positions[userOf(r)] {
@@ -237,10 +248,10 @@ func (s *Server) cinemaRoutes() {
 	}
 	// listsOf returns the lists the account may see, with their items
 	// resolved against the library.
-	listsOf := func(u string) []listView {
-		st := cinema.LoadState(statePath)
+	listsOf := func(r *http.Request) []listView {
+		u := userOf(r)
 		byPath := map[string]cinema.Item{}
-		for _, it := range st.Items {
+		for _, it := range s.cinemaItems(r) {
 			byPath[it.Path] = it
 		}
 		out := []listView{}
@@ -260,19 +271,19 @@ func (s *Server) cinemaRoutes() {
 		})
 		return out
 	}
-	// knownVideo checks a path against the library (anti-garbage entries).
-	knownVideo := func(p string) bool {
-		st := cinema.LoadState(statePath)
-		for _, it := range st.Items {
-			if it.Path == p {
-				return true
-			}
+	// visibleVideos is the part of the library the caller may see (list
+	// entries are checked against it: no garbage, no probing of other
+	// shares). Computed outside of store locks.
+	visibleVideos := func(r *http.Request) map[string]bool {
+		out := map[string]bool{}
+		for _, it := range s.cinemaItems(r) {
+			out[it.Path] = true
 		}
-		return false
+		return out
 	}
 
 	s.user("GET /api/cinema/lists", func(r *http.Request) (any, error) {
-		return listsOf(userOf(r)), nil
+		return listsOf(r), nil
 	})
 	s.user("POST /api/cinema/lists", func(r *http.Request) (any, error) {
 		var req struct {
@@ -310,6 +321,7 @@ func (s *Server) cinemaRoutes() {
 		if err != nil {
 			return nil, err
 		}
+		visible := visibleVideos(r)
 		return nil, s.store.Update(func(st *store.State) error {
 			for i := range st.Media.WatchLists {
 				l := &st.Media.WatchLists[i]
@@ -337,12 +349,22 @@ func (s *Server) cinemaRoutes() {
 					}
 					seen := map[string]bool{}
 					items := make([]string, 0, len(req.Items))
+					// Entries this account cannot see (added by another member) stay.
+					for _, p := range l.Items {
+						if !visible[p] && !seen[p] {
+							seen[p] = true
+							items = append(items, p)
+						}
+					}
 					for _, p := range req.Items {
-						if p == "" || seen[p] || !knownVideo(p) {
+						if p == "" || seen[p] || !visible[p] {
 							continue
 						}
 						seen[p] = true
 						items = append(items, p)
+					}
+					if len(items) > 500 {
+						return badRequest("at most 500 videos per list")
 					}
 					l.Items = items
 				}
@@ -428,9 +450,8 @@ func (s *Server) cinemaRoutes() {
 		p := filepath.Join(posterDir, cinema.PosterFile(id))
 		if _, err := os.Stat(p); err != nil {
 			// Not cached yet: fetch it now when the library knows its path.
-			st := cinema.LoadState(statePath)
 			var poster string
-			for _, it := range st.Items {
+			for _, it := range s.cinemaItems(r) {
 				if it.TMDB == id {
 					poster = it.Poster
 					break
