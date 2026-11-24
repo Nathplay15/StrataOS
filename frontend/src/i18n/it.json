@@ -5542,5 +5542,22 @@
  "Right": "Destra",
  "Send a key to the menu shown on the TV.": "Invia un tasto al menu mostrato sulla TV.",
  "Thinking (reasoning)": "Ragionamento (thinking)",
- "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Disattivato di default: su una CPU piccola, un modello pensante (qwen3…) può ragionare per minuti prima di rispondere. Attivalo per risposte più dettagliate."
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Disattivato di default: su una CPU piccola, un modello pensante (qwen3…) può ragionare per minuti prima di rispondere. Attivalo per risposte più dettagliate.",
+ "WiFi": "WiFi",
+ "Wireless links": "Collegamenti wireless",
+ "No wireless interface detected on this NAS.": "Nessuna interfaccia wireless rilevata su questo NAS.",
+ "WiFi needs the wpasupplicant and iw packages on the NAS (apt install wpasupplicant iw).": "Il WiFi richiede i pacchetti wpasupplicant e iw sul NAS (apt install wpasupplicant iw).",
+ "Scan for networks": "Cerca reti",
+ "Networks in range": "Reti a portata",
+ "No network found.": "Nessuna rete trovata.",
+ "Connected to {0}": "Connesso a {0}",
+ "Not connected": "Non connesso",
+ "Signal: {0} dBm": "Segnale: {0} dBm",
+ "Forget this network": "Dimentica questa rete",
+ "WiFi password (WPA, 8 to 63 characters):": "Password WiFi (WPA, da 8 a 63 caratteri):",
+ "Connect to {0}": "Connetti a {0}",
+ "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "La modifica WiFi viene applicata in prova per 2 minuti, come ogni modifica di rete: se il NAS diventa irraggiungibile, torna la configurazione precedente.",
+ "Saved on this NAS": "Salvato su questo NAS",
+ "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "Le credenziali WiFi salvate di {0} vengono rimosse; il collegamento non si connetterà più automaticamente.",
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfacce, WiFi, firewall, reti virtuali e nome del NAS"
 }

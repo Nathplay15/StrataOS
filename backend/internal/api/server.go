@@ -288,6 +288,7 @@ func (s *Server) audit(r *http.Request, category, msg string) {
 func (s *Server) routes() {
 	s.authRoutes()
 	s.systemRoutes()
+	s.wifiRoutes()
 	s.storageRoutes()
 	s.userRoutes()
 	s.desktopRoutes()
