@@ -463,3 +463,47 @@ func TestFnToolSchema(t *testing.T) {
 		t.Errorf("required args missing, got %s", b)
 	}
 }
+
+// "think" is sent to Ollama endpoints (default false: a thinking model like
+// qwen3 otherwise reasons for minutes on a small CPU, which looks like a
+// stuck "Réflexion…") and never to plain cloud endpoints unless asked.
+func TestAssistantThinkField(t *testing.T) {
+	b := llmBody(store.Settings{AssistantURL: "http://127.0.0.1:11434/v1", AssistantModel: "qwen3:0.6"}, nil, true)
+	if b["think"] != false {
+		t.Errorf("local ollama: think = %v, want false", b["think"])
+	}
+	b = llmBody(store.Settings{AssistantURL: "http://192.168.1.10:11434/v1", AssistantModel: "m"}, nil, true)
+	if b["think"] != false {
+		t.Errorf("ollama on the LAN (default port): think = %v, want false", b["think"])
+	}
+	b = llmBody(store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "m"}, nil, true)
+	if _, ok := b["think"]; ok {
+		t.Errorf("cloud endpoint must not receive think, got %v", b["think"])
+	}
+	b = llmBody(store.Settings{AssistantURL: "https://api.mistral.ai/v1", AssistantModel: "m", AssistantThink: true}, nil, true)
+	if b["think"] != true {
+		t.Errorf("thinking asked on a cloud endpoint: think = %v, want true", b["think"])
+	}
+
+	// End to end: a loopback endpoint (the test server) receives think:false,
+	// then think:true once thinking is enabled in the settings.
+	fl := &fakeLLM{steps: []fakeStep{{content: "ok"}}}
+	llm := httptest.NewServer(http.HandlerFunc(fl.handler))
+	defer llm.Close()
+	s, ts, tok := assistantServer(t, llm.URL, true)
+	chatOnce(t, ts.URL, tok, userMsg("hi"))
+	fl.mu.Lock()
+	got := fl.bodies[0]["think"]
+	fl.mu.Unlock()
+	if got != false {
+		t.Errorf("local endpoint request think = %v, want false", got)
+	}
+	_ = s.store.Update(func(st *store.State) error { st.Settings.AssistantThink = true; return nil })
+	chatOnce(t, ts.URL, tok, userMsg("hi again"))
+	fl.mu.Lock()
+	got = fl.bodies[1]["think"]
+	fl.mu.Unlock()
+	if got != true {
+		t.Errorf("thinking enabled: request think = %v, want true", got)
+	}
+}

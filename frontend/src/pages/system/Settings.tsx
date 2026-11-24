@@ -294,6 +294,9 @@ export default function SettingsPage() {
                   <Input className="mono" value={s.assistantUrl ?? ""} onChange={(e) => set("assistantUrl", e.target.value)} placeholder="https://api.mistral.ai/v1" />
                 </Field>
                 <Field label={tr("API key")} className="sm:col-span-2" hint={tr("Only cloud APIs need a key. Leave empty with a local model.")}><Input type="password" autoComplete="off" value={s.assistantKey ?? ""} onChange={(e) => set("assistantKey", e.target.value)} /></Field>
+                <div className="sm:col-span-2">
+                  <Switch checked={!!s.assistantThink} onChange={(v) => set("assistantThink", v)} label={tr("Thinking (reasoning)")} hint={tr("Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.")} />
+                </div>
               </>
             )}
           </div>

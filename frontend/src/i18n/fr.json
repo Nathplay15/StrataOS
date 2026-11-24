@@ -5540,5 +5540,7 @@
  "Remote control": "Télécommande",
  "Left": "Gauche",
  "Right": "Droite",
- "Send a key to the menu shown on the TV.": "Envoyer une touche au menu affiché sur la TV."
+ "Send a key to the menu shown on the TV.": "Envoyer une touche au menu affiché sur la TV.",
+ "Thinking (reasoning)": "Réflexion (raisonnement)",
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Désactivée par défaut : sur un petit CPU, un modèle à réflexion (qwen3…) peut raisonner pendant des minutes avant de répondre. Activez-la pour des réponses plus détaillées."
 }

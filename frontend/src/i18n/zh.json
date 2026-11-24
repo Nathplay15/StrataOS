@@ -5540,5 +5540,7 @@
  "Remote control": "遥控器",
  "Left": "左",
  "Right": "右",
- "Send a key to the menu shown on the TV.": "向电视上显示的菜单发送按键。"
+ "Send a key to the menu shown on the TV.": "向电视上显示的菜单发送按键。",
+ "Thinking (reasoning)": "思考（推理）",
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "默认关闭：在性能较弱的 CPU 上，会思考的模型（如 qwen3…）可能要推理几分钟才会回答。开启可获得更详细的回答。"
 }
