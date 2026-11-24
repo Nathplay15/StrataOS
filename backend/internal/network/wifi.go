@@ -2,6 +2,8 @@ package network
 
 import (
 	"context"
+	"crypto/pbkdf2"
+	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -27,9 +29,14 @@ type WiFi struct {
 
 var (
 	// WPAConfDir holds the wpa_supplicant configurations written by StrataOS
-	// (variable so tests can point it elsewhere).
+	// (variable so tests can point it elsewhere). Debian's
+	// wpa_supplicant@<link>.service reads wpa_supplicant-<link>.conf there.
 	WPAConfDir = "/etc/wpa_supplicant"
-	wpaPrefix  = "strata-"
+	wpaPrefix  = "wpa_supplicant-"
+	// wpaOldPrefix: the files of 0.15.0–0.15.1, which nothing read.
+	wpaOldPrefix = "strata-"
+	// wpaMarker starts every file StrataOS writes: only those are removed.
+	wpaMarker = "# Managed by StrataOS\n"
 	// SysNetDir is where the kernel lists the links (variable for tests).
 	SysNetDir = "/sys/class/net"
 )
@@ -114,31 +121,49 @@ func ValidateWiFi(c *Config, wireless []string) error {
 }
 
 // wpaValue renders a wpa_supplicant string value: quoted when safe, hexadecimal
-// otherwise, so a name or password can never inject configuration lines.
+// otherwise, so a name can never inject configuration lines.
 func wpaValue(s string) string {
 	for i := 0; i < len(s); i++ {
-		if s[i] == '"' || s[i] == '\\' {
+		if s[i] == '"' || s[i] == '\\' || s[i] < 0x20 || s[i] == 0x7f {
 			return hex.EncodeToString([]byte(s))
 		}
 	}
 	return `"` + s + `"`
 }
 
+// wpaPSK is the 256-bit key of a WPA passphrase for an SSID (IEEE 802.11i:
+// PBKDF2-HMAC-SHA1, 4096 rounds, the SSID as salt), as wpa_passphrase
+// computes it. Written as 64 hexadecimal digits, it needs no quoting and a
+// passphrase of any content (quotes, backslashes, 32 characters…) is exact.
+func wpaPSK(passphrase, ssid string) string {
+	k, err := pbkdf2.Key(sha1.New, passphrase, []byte(ssid), 4096, 32)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(k)
+}
+
+func isRawKey(psk string) bool {
+	if len(psk) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(psk)
+	return err == nil
+}
+
 // wpaConf renders the wpa_supplicant configuration of one wireless link.
 func wpaConf(w WiFi) string {
 	var b strings.Builder
-	b.WriteString("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n\nnetwork={\n")
+	b.WriteString(wpaMarker)
+	b.WriteString("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n\nnetwork={\n")
 	fmt.Fprintf(&b, "\tssid=%s\n", wpaValue(w.SSID))
-	if w.PSK == "" {
+	switch {
+	case w.PSK == "":
 		b.WriteString("\tkey_mgmt=NONE\n")
-	} else if len(w.PSK) == 64 {
-		if _, err := hex.DecodeString(w.PSK); err == nil {
-			fmt.Fprintf(&b, "\tpsk=%s\n", w.PSK) // raw key: unquoted hex
-		} else {
-			fmt.Fprintf(&b, "\tpsk=%s\n", wpaValue(w.PSK))
-		}
-	} else {
-		fmt.Fprintf(&b, "\tpsk=%s\n", wpaValue(w.PSK))
+	case isRawKey(w.PSK):
+		fmt.Fprintf(&b, "\tpsk=%s\n", strings.ToLower(w.PSK)) // raw key: unquoted hex
+	default:
+		fmt.Fprintf(&b, "\tpsk=%s\n", wpaPSK(w.PSK, w.SSID))
 	}
 	if w.Hidden {
 		b.WriteString("\tscan_ssid=1\n")
@@ -147,9 +172,22 @@ func wpaConf(w WiFi) string {
 	return b.String()
 }
 
+// ours reports whether a wpa_supplicant file was written by StrataOS.
+func ours(path string) bool {
+	if strings.HasPrefix(filepath.Base(path), wpaOldPrefix) {
+		return true
+	}
+	b, err := os.ReadFile(path)
+	return err == nil && strings.HasPrefix(string(b), wpaMarker)
+}
+
+// wpaFile is the configuration file of a wireless link.
+func wpaFile(link string) string { return filepath.Join(WPAConfDir, wpaPrefix+link+".conf") }
+
 // writeWPA (re)writes the wpa_supplicant configurations of the enabled wireless
-// links and removes the ones of the disabled ones. With no WiFi configured and
-// no leftover configuration, it does not even create the directory.
+// links and removes the ones (written by StrataOS) of the disabled ones. With
+// no WiFi configured and no leftover configuration, it does not even create
+// the directory.
 func writeWPA(c Config) error {
 	enabled := map[string]bool{}
 	for _, w := range c.WiFi {
@@ -157,29 +195,67 @@ func writeWPA(c Config) error {
 			enabled[w.Name] = true
 		}
 	}
-	old, _ := filepath.Glob(filepath.Join(WPAConfDir, wpaPrefix+"*.conf"))
+	var old []string
+	for _, pre := range []string{wpaPrefix, wpaOldPrefix} {
+		m, _ := filepath.Glob(filepath.Join(WPAConfDir, pre+"*.conf"))
+		for _, f := range m {
+			if ours(f) {
+				old = append(old, f)
+			}
+		}
+	}
 	if len(enabled) == 0 && len(old) == 0 {
 		return nil
 	}
-	if err := os.MkdirAll(WPAConfDir, 0o700); err != nil {
+	if err := os.MkdirAll(WPAConfDir, 0o755); err != nil {
 		return err
 	}
 	for _, f := range old {
-		name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(f), wpaPrefix), ".conf")
-		if !enabled[name] {
+		base := filepath.Base(f)
+		name := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(base, wpaPrefix), wpaOldPrefix), ".conf")
+		if strings.HasPrefix(base, wpaOldPrefix) || !enabled[name] {
 			_ = os.Remove(f)
-			_, _ = sys.Run("systemctl", "disable", "--now", "wpa_supplicant@"+name+".service")
 		}
 	}
 	for _, w := range c.WiFi {
 		if !w.Enabled {
 			continue
 		}
-		if err := sys.WriteFileAtomic(filepath.Join(WPAConfDir, wpaPrefix+w.Name+".conf"), []byte(wpaConf(w)), 0o600); err != nil {
+		if err := sys.WriteFileAtomic(wpaFile(w.Name), []byte(wpaConf(w)), 0o600); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// activateWiFi makes wpa_supplicant follow the files: restarted (so a new
+// network or password applies to a running instance) where a configuration
+// exists, stopped and disabled where it does not.
+func activateWiFi(links []string) {
+	for _, n := range dedupe(links) {
+		unit := "wpa_supplicant@" + n + ".service"
+		if _, err := os.Stat(wpaFile(n)); err == nil {
+			_, _ = sysRun("systemctl", "enable", unit)
+			_, _ = sysRun("systemctl", "restart", unit)
+		} else {
+			_, _ = sysRun("systemctl", "disable", "--now", unit)
+		}
+	}
+}
+
+// sysRun runs a command (variable for tests).
+var sysRun = sys.Run
+
+// wpaLinks lists the links that have a StrataOS wpa_supplicant file now.
+func wpaLinks() []string {
+	var out []string
+	m, _ := filepath.Glob(filepath.Join(WPAConfDir, wpaPrefix+"*.conf"))
+	for _, f := range m {
+		if ours(f) {
+			out = append(out, strings.TrimSuffix(strings.TrimPrefix(filepath.Base(f), wpaPrefix), ".conf"))
+		}
+	}
+	return out
 }
 
 // wifiLinks returns the enabled wireless links of a configuration.

@@ -373,6 +373,7 @@ type Pending struct {
 	Token    string    `json:"token,omitempty"`
 	Deadline time.Time `json:"deadline"`
 	Links    []string  `json:"links"`
+	WiFi     []string  `json:"wifi,omitempty"`   // wireless links whose wpa_supplicant follows the change
 	Config   *Config   `json:"config,omitempty"` // configuration being tried
 	// ReadyAt is when the new configuration has been active long enough for a
 	// confirmation to prove anything; earlier confirmations are refused.
@@ -401,8 +402,14 @@ func managedFiles() ([]string, error) {
 		return nil, err
 	}
 	out := matches
-	if wpa, err := filepath.Glob(filepath.Join(WPAConfDir, wpaPrefix+"*")); err == nil {
-		out = append(out, wpa...)
+	for _, pre := range []string{wpaPrefix, wpaOldPrefix} {
+		if wpa, err := filepath.Glob(filepath.Join(WPAConfDir, pre+"*.conf")); err == nil {
+			for _, f := range wpa {
+				if ours(f) {
+					out = append(out, f)
+				}
+			}
+		}
 	}
 	out = append(out, InterfacesF)
 	if fi, err := os.Lstat(ResolvConf); err == nil && fi.Mode().IsRegular() {
@@ -453,7 +460,7 @@ func restore() error {
 	current, _ := managedFiles()
 	for _, f := range current {
 		base := filepath.Base(f)
-		if !index[f] && (strings.HasPrefix(base, filePrefix) || strings.HasPrefix(base, wpaPrefix)) {
+		if !index[f] && (strings.HasPrefix(base, filePrefix) || strings.HasPrefix(base, wpaPrefix) || strings.HasPrefix(base, wpaOldPrefix)) {
 			_ = os.Remove(f)
 		}
 	}
@@ -462,7 +469,11 @@ func restore() error {
 		if err != nil {
 			return err
 		}
-		if err := sys.WriteFileAtomic(f, data, 0o644); err != nil {
+		mode := os.FileMode(0o644)
+		if filepath.Dir(f) == WPAConfDir {
+			mode = 0o600 // WiFi keys
+		}
+		if err := sys.WriteFileAtomic(f, data, mode); err != nil {
 			return err
 		}
 	}
@@ -531,13 +542,14 @@ func Apply(next, prev Config, timeout time.Duration) (*Pending, error) {
 		return nil, fmt.Errorf("rollback point: %w", err)
 	}
 	touched := append(links(next), links(prev)...)
+	wifiTouched := append(wifiLinks(next), wpaLinks()...)
 	if err := write(next, mgr); err != nil {
 		_ = restore()
 		return nil, err
 	}
 	tok := make([]byte, 24)
 	_, _ = rand.Read(tok)
-	p := &Pending{Token: hex.EncodeToString(tok), Deadline: time.Now().Add(timeout), Links: dedupe(touched), Config: &next}
+	p := &Pending{Token: hex.EncodeToString(tok), Deadline: time.Now().Add(timeout), Links: dedupe(touched), WiFi: dedupe(wifiTouched), Config: &next}
 	b, _ := json.Marshal(p)
 	if err := os.WriteFile(pendingPath(), b, 0o600); err != nil {
 		_ = restore()
@@ -549,7 +561,7 @@ func Apply(next, prev Config, timeout time.Duration) (*Pending, error) {
 	// and the browser must receive its confirmation token first.
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
-		activate(p.Links, mgr, wifiLinks(next))
+		activate(p.Links, mgr, p.WiFi)
 		mu.Lock()
 		if pending == p {
 			p.ReadyAt = time.Now().Add(settle)
@@ -691,11 +703,7 @@ func activate(names []string, mgr string, wifi []string) {
 			_, _ = sys.Run("networkctl", "reconfigure", n)
 		}
 	}
-	for _, n := range wifi {
-		if _, err := os.Stat(filepath.Join(WPAConfDir, wpaPrefix+n+".conf")); err == nil {
-			_, _ = sys.Run("systemctl", "enable", "--now", "wpa_supplicant@"+n+".service")
-		}
-	}
+	activateWiFi(wifi)
 	if mgr == "ifupdown" {
 		_, _ = sys.Run("systemctl", "try-restart", "networking.service")
 	}
@@ -736,16 +744,16 @@ func Rollback(reason string) error {
 	var names []string
 	var wifi []string
 	if pending != nil {
-		names = pending.Links
+		names, wifi = pending.Links, pending.WiFi
 		if pending.Config != nil {
-			wifi = wifiLinks(*pending.Config)
+			wifi = append(wifi, wifiLinks(*pending.Config)...)
 		}
 	} else if b, err := os.ReadFile(pendingPath()); err == nil {
 		var p Pending
 		_ = json.Unmarshal(b, &p)
-		names = p.Links
+		names, wifi = p.Links, p.WiFi
 		if p.Config != nil {
-			wifi = wifiLinks(*p.Config)
+			wifi = append(wifi, wifiLinks(*p.Config)...)
 		}
 	}
 	if timer != nil {
@@ -756,7 +764,9 @@ func Rollback(reason string) error {
 	}
 	pending = nil
 	_ = os.Remove(pendingPath())
-	activate(names, Manager(), wifi)
+	// Every wireless link of either side: restarted on the old network and
+	// password, or stopped when it had none (a wrong password is undone).
+	activate(names, Manager(), append(wifi, wpaLinks()...))
 	if OnRollback != nil {
 		OnRollback(reason)
 	}

@@ -63,7 +63,7 @@ func TestValidateWiFi(t *testing.T) {
 
 func TestWPAConf(t *testing.T) {
 	c := wpaConf(WiFi{Name: "wlan0", SSID: "Home \"Net\"", PSK: "pass word1", Hidden: true, Enabled: true})
-	if !strings.Contains(c, "ssid="+hex.EncodeToString([]byte("Home \"Net\""))) || !strings.Contains(c, `psk="pass word1"`) || !strings.Contains(c, "scan_ssid=1") {
+	if !strings.Contains(c, "ssid="+hex.EncodeToString([]byte("Home \"Net\""))) || !strings.Contains(c, "psk="+wpaPSK("pass word1", "Home \"Net\"")+"\n") || !strings.Contains(c, "scan_ssid=1") {
 		t.Errorf("conf:\n%s", c)
 	}
 	pmk := strings.Repeat("ab", 32)
@@ -83,9 +83,12 @@ func TestWriteWPA(t *testing.T) {
 	WPAConfDir = dir
 	t.Cleanup(func() { WPAConfDir = old })
 	// A stale conf of a now-disabled link must be removed.
-	if err := os.WriteFile(filepath.Join(dir, wpaPrefix+"wlan1.conf"), []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, wpaPrefix+"wlan1.conf"), []byte(wpaMarker+"old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A file of 0.15.1 (strata-<link>.conf) goes; one written by hand stays.
+	os.WriteFile(filepath.Join(dir, "strata-wlan0.conf"), []byte("old"), 0o600)
+	os.WriteFile(filepath.Join(dir, wpaPrefix+"wlan9.conf"), []byte("network={}"), 0o600)
 	c := Config{WiFi: []WiFi{
 		{Name: "wlan0", SSID: "Home", PSK: "password123", Enabled: true},
 		{Name: "wlan1", SSID: "Old", PSK: "password123", Enabled: false},
@@ -101,11 +104,55 @@ func TestWriteWPA(t *testing.T) {
 	if fi.Mode().Perm() != 0o600 {
 		t.Errorf("conf permissions = %o, want 600", fi.Mode().Perm())
 	}
-	if !strings.Contains(string(b), `ssid="Home"`) || !strings.Contains(string(b), `psk="password123"`) {
+	if !strings.Contains(string(b), `ssid="Home"`) || !strings.Contains(string(b), "psk="+wpaPSK("password123", "Home")+"\n") {
 		t.Errorf("conf:\n%s", b)
 	}
 	if _, err := os.Stat(filepath.Join(dir, wpaPrefix+"wlan1.conf")); !os.IsNotExist(err) {
 		t.Errorf("disabled link conf should be removed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "strata-wlan0.conf")); !os.IsNotExist(err) {
+		t.Errorf("0.15.1 file should be removed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, wpaPrefix+"wlan9.conf")); err != nil {
+		t.Errorf("hand-written file removed")
+	}
+}
+
+// IEEE 802.11i-2004, H.4.1 test vectors (what wpa_passphrase prints).
+func TestWPAPSKVectors(t *testing.T) {
+	for _, v := range []struct{ pass, ssid, psk string }{
+		{"password", "IEEE", "f42c6fc52df0ebef9ebb4b90b38a5f902e83fe1b135a70e23aed762e9710a12e"},
+		{"ThisIsAPassword", "ThisIsASSID", "0dc0d6eb90555ed6419756b9a15ec3e3209b63df707dd508d14581f8982721af"},
+	} {
+		if got := wpaPSK(v.pass, v.ssid); got != v.psk {
+			t.Errorf("%s/%s: %s", v.pass, v.ssid, got)
+		}
+	}
+	// Quotes, backslashes and exactly 32 characters give a key, never a
+	// quoted or hex-encoded passphrase.
+	for _, p := range []string{`pa"ss\word`, strings.Repeat("x", 32)} {
+		c := wpaConf(WiFi{Name: "wlan0", SSID: "Home", PSK: p, Enabled: true})
+		if !strings.Contains(c, "psk="+wpaPSK(p, "Home")+"\n") {
+			t.Errorf("%q:\n%s", p, c)
+		}
+	}
+}
+
+func TestActivateWiFiRestartsOrStops(t *testing.T) {
+	dir := t.TempDir()
+	old, oldRun := WPAConfDir, sysRun
+	WPAConfDir = dir
+	var calls []string
+	sysRun = func(name string, args ...string) (string, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return "", nil
+	}
+	t.Cleanup(func() { WPAConfDir, sysRun = old, oldRun })
+	os.WriteFile(filepath.Join(dir, wpaPrefix+"wlan0.conf"), []byte(wpaMarker), 0o600)
+	activateWiFi([]string{"wlan0", "wlan1", "wlan0"})
+	want := []string{"systemctl enable wpa_supplicant@wlan0.service", "systemctl restart wpa_supplicant@wlan0.service", "systemctl disable --now wpa_supplicant@wlan1.service"}
+	if strings.Join(calls, "|") != strings.Join(want, "|") {
+		t.Errorf("calls: %q", calls)
 	}
 }
 
