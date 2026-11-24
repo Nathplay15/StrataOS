@@ -5567,5 +5567,11 @@
  "Administrators always can. The remote appears in their cinema page.": "Beheerders kunnen het altijd. De afstandsbediening verschijnt op hun bioscooppagina.",
  "Library shown on the TV": "Bibliotheek op de tv",
  "TV remote": "Tv-afstandsbediening",
- "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "De tv toont, alleen-lezen, de films en series die dit account mag lezen, met zijn leeftijdsgrens. Er wordt niets getoond zolang er geen account is gekozen."
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "De tv toont, alleen-lezen, de films en series die dit account mag lezen, met zijn leeftijdsgrens. Er wordt niets getoond zolang er geen account is gekozen.",
+ "A profile hides, for the accounts it applies to, the videos certified for older viewers and those without a certification (TMDB age ratings). These accounts cannot change it.": "Een profiel verbergt voor de accounts waarop het van toepassing is de video's met een hogere leeftijdsclassificatie en die zonder classificatie (TMDB-leeftijdsclassificaties). Deze accounts kunnen het niet wijzigen.",
+ "Accounts it applies to": "Accounts waarop het van toepassing is",
+ "Age limit": "Leeftijdsgrens",
+ "Age limit: {0}": "Leeftijdsgrens: {0}",
+ "Profile saved": "Profiel opgeslagen",
+ "{0}+": "{0}+"
 }

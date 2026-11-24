@@ -94,14 +94,35 @@ func (s *Server) cinemaScan() {
 	s.cinemaScanState(func(st *cinema.State) { st.Scanned = len(items); st.Items = items })
 }
 
+// cinemaMaxAge is the age limit of an account: the strictest family profile
+// an administrator applied to it (0 = none).
+func (s *Server) cinemaMaxAge(user string) int {
+	maxAge := 0
+	s.store.Read(func(st *store.State) {
+		for _, p := range st.Media.Profiles {
+			if p.MaxAge > 0 && slices.Contains(p.Accounts, user) && (maxAge == 0 || p.MaxAge < maxAge) {
+				maxAge = p.MaxAge
+			}
+		}
+	})
+	return maxAge
+}
+
+// cinemaAllowed reports whether a video fits an age limit: certified for
+// that age or younger; without a certification, only when there is no limit.
+func cinemaAllowed(it cinema.Item, maxAge int) bool {
+	return maxAge == 0 || (it.Rated && it.Age <= maxAge)
+}
+
 // cinemaItems are the videos of the library the caller may see: those of
-// the shares it can read.
+// the shares it can read, within its age limit.
 func (s *Server) cinemaItems(r *http.Request) []cinema.Item {
 	statePath, _, _ := s.cinemaPaths()
 	roots := s.readableRoots(r)
+	maxAge := s.cinemaMaxAge(userOf(r))
 	out := []cinema.Item{}
 	for _, it := range cinema.LoadState(statePath).Items {
-		if under(roots, it.Path) {
+		if under(roots, it.Path) && cinemaAllowed(it, maxAge) {
 			out = append(out, it)
 		}
 	}
@@ -132,8 +153,9 @@ func (s *Server) cinemaRoutes() {
 			Items     []cinema.Item            `json:"items"`
 			Positions map[string]store.PlayPos `json:"positions"`
 			Remote    bool                     `json:"remote"` // may drive the TV menu
+			MaxAge    int                      `json:"maxAge,omitempty"`
 		}{cinema.LoadKey(keyPath) != "", cinemaRunning.Load(), st.Checked, st.Scanned, items, pos,
-			hdmiInstalled() && !s.hdmiSettings().Off && s.hdmiRemoteAllowed(r)}, nil
+			hdmiInstalled() && !s.hdmiSettings().Off && s.hdmiRemoteAllowed(r), s.cinemaMaxAge(userOf(r))}, nil
 	})
 
 	// PUT /api/cinema/position records where the signed-in account stopped
@@ -193,19 +215,26 @@ func (s *Server) cinemaRoutes() {
 		return map[string]any{"keySet": key != ""}, nil
 	})
 
-	// ---- Family profiles (kid-only shelves) ----
+	// ---- Family profiles: age limits applied by the server ----
 	s.user("GET /api/cinema/profiles", func(r *http.Request) (any, error) {
 		var out []store.MediaProfile
 		s.store.Read(func(st *store.State) { out = slices.Clone(st.Media.Profiles) })
 		if out == nil {
 			out = []store.MediaProfile{}
 		}
+		for i := range out {
+			out[i].MaxRating = 0
+			if !isAdmin(r) {
+				out[i].Accounts = nil // who is limited is the administrators' business
+			}
+		}
 		return out, nil
 	})
 	profileReq := func(r *http.Request) (store.MediaProfile, error) {
 		var req struct {
-			Name      string   `json:"name"`
-			MaxRating *float64 `json:"maxRating"`
+			Name     string   `json:"name"`
+			MaxAge   int      `json:"maxAge"`
+			Accounts []string `json:"accounts"`
 		}
 		if err := decode(r, &req); err != nil {
 			return store.MediaProfile{}, err
@@ -214,14 +243,14 @@ func (s *Server) cinemaRoutes() {
 		if name == "" || len(name) > 64 {
 			return store.MediaProfile{}, badRequest("the profile name must have 1 to 64 characters")
 		}
-		rating := 0.0
-		if req.MaxRating != nil {
-			rating = *req.MaxRating
+		if req.MaxAge < 0 || req.MaxAge > 18 {
+			return store.MediaProfile{}, badRequest("the age limit must be between 0 and 18")
 		}
-		if rating < 0 || rating > 10 {
-			return store.MediaProfile{}, badRequest("the maximum rating must be between 0 and 10")
+		accounts, err := s.usersExist(req.Accounts)
+		if err != nil {
+			return store.MediaProfile{}, err
 		}
-		return store.MediaProfile{Name: name, MaxRating: rating}, nil
+		return store.MediaProfile{Name: name, MaxAge: req.MaxAge, Accounts: accounts}, nil
 	}
 	s.admin("POST /api/cinema/profiles", func(r *http.Request) (any, error) {
 		p, err := profileReq(r)
@@ -229,12 +258,31 @@ func (s *Server) cinemaRoutes() {
 			return nil, err
 		}
 		p.ID = newLinkID()[:12]
+		s.audit(r, "cinema", "family profile created: "+p.Name)
 		return nil, s.store.Update(func(st *store.State) error {
 			if len(st.Media.Profiles) >= 20 {
 				return badRequest("too many profiles")
 			}
 			st.Media.Profiles = append(st.Media.Profiles, p)
 			return nil
+		})
+	})
+	s.admin("PUT /api/cinema/profiles/{id}", func(r *http.Request) (any, error) {
+		p, err := profileReq(r)
+		if err != nil {
+			return nil, err
+		}
+		id := r.PathValue("id")
+		s.audit(r, "cinema", "family profile changed: "+p.Name)
+		return nil, s.store.Update(func(st *store.State) error {
+			for i := range st.Media.Profiles {
+				if st.Media.Profiles[i].ID == id {
+					p.ID = id
+					st.Media.Profiles[i] = p
+					return nil
+				}
+			}
+			return notFound("profile not found")
 		})
 	})
 	s.admin("DELETE /api/cinema/profiles/{id}", func(r *http.Request) (any, error) {

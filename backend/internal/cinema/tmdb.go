@@ -103,7 +103,7 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 	if c.Key == "" {
 		return nil, fmt.Errorf("no TMDB API key")
 	}
-	u := fmt.Sprintf("%s/%s/%d?api_key=%s&language=en&append_to_response=credits,external_ids", TMDBBase, map[string]string{"movie": "movie", "tv": "tv"}[kind], id, url.QueryEscape(c.Key))
+	u := fmt.Sprintf("%s/%s/%d?api_key=%s&language=en&append_to_response=credits,external_ids,release_dates,content_ratings", TMDBBase, map[string]string{"movie": "movie", "tv": "tv"}[kind], id, url.QueryEscape(c.Key))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	resp, err := c.http().Do(req)
 	if err != nil {
@@ -138,6 +138,20 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 				Name string `json:"name"`
 			} `json:"cast"`
 		} `json:"credits"`
+		ReleaseDates struct {
+			Results []struct {
+				Country string `json:"iso_3166_1"`
+				Dates   []struct {
+					Cert string `json:"certification"`
+				} `json:"release_dates"`
+			} `json:"results"`
+		} `json:"release_dates"`
+		ContentRatings struct {
+			Results []struct {
+				Country string `json:"iso_3166_1"`
+				Rating  string `json:"rating"`
+			} `json:"results"`
+		} `json:"content_ratings"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&body); err != nil {
 		return nil, err
@@ -164,6 +178,20 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 			it.Runtime = body.EpisodeRunTime[0]
 		}
 	}
+	certs := map[string]string{}
+	for _, r := range body.ReleaseDates.Results {
+		for _, d := range r.Dates {
+			if d.Cert != "" && certs[r.Country] == "" {
+				certs[r.Country] = d.Cert
+			}
+		}
+	}
+	for _, r := range body.ContentRatings.Results {
+		if r.Rating != "" && certs[r.Country] == "" {
+			certs[r.Country] = r.Rating
+		}
+	}
+	it.Age, it.Rated = AgeOf(certs)
 	for _, g := range body.Genres {
 		it.Genres = append(it.Genres, g.Name)
 	}
@@ -246,4 +274,50 @@ func (c *Client) Poster(ctx context.Context, posterFile string) ([]byte, error) 
 		return nil, fmt.Errorf("TMDB image: HTTP %d", resp.StatusCode)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+}
+
+// certCountries is the order in which the certifications are read.
+var certCountries = []string{"FR", "US", "GB", "DE", "ES", "IT", "NL", "BR", "PT", "CA", "AU"}
+
+// namedCerts maps the non-numeric certifications to a minimum age.
+var namedCerts = map[string]int{
+	// US films and TV
+	"G": 0, "PG": 10, "PG-13": 13, "R": 17, "NC-17": 18,
+	"TV-Y": 0, "TV-Y7": 7, "TV-Y7-FV": 7, "TV-G": 0, "TV-PG": 10, "TV-14": 14, "TV-MA": 17,
+	// UK
+	"U": 0, "UC": 0, "12A": 12, "R18": 18,
+	// France, Brazil, Portugal, Netherlands, Spain, Italy
+	"TP": 0, "TOUS PUBLICS": 0, "L": 0, "AL": 0, "A": 0, "T": 0, "E": 0,
+	"M/3": 3, "M/6": 6, "M/12": 12, "M/14": 14, "M/16": 16, "M/18": 18,
+	"VM14": 14, "VM18": 18, "APTA": 0, "ERI": 0,
+	// Canada, Australia
+	"14A": 14, "18A": 18, "M": 15, "MA15+": 15, "R18+": 18, "X18+": 18,
+}
+
+// AgeOf returns the minimum age of a work from its certifications by
+// country (TMDB release_dates / content_ratings), read in certCountries
+// order; rated is false when none is known.
+func AgeOf(certs map[string]string) (age int, rated bool) {
+	for _, c := range certCountries {
+		if a, ok := certAge(certs[c]); ok {
+			return a, true
+		}
+	}
+	return 0, false
+}
+
+func certAge(c string) (int, bool) {
+	c = strings.ToUpper(strings.TrimSpace(c))
+	if c == "" {
+		return 0, false
+	}
+	if a, ok := namedCerts[c]; ok {
+		return a, true
+	}
+	// "12", "16", "FSK 12", "-12", "12+", "AL 12"…
+	digits := strings.TrimFunc(c, func(r rune) bool { return r < '0' || r > '9' })
+	if a, err := strconv.Atoi(digits); err == nil && a >= 0 && a <= 21 {
+		return a, true
+	}
+	return 0, false
 }

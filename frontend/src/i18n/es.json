@@ -5567,5 +5567,11 @@
  "Administrators always can. The remote appears in their cinema page.": "Los administradores siempre pueden. El mando aparece en su página de cine.",
  "Library shown on the TV": "Biblioteca mostrada en la TV",
  "TV remote": "Mando de la TV",
- "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "La TV muestra, en solo lectura, las películas y series que esta cuenta puede leer, con su límite de edad. No se muestra nada hasta elegir una cuenta."
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "La TV muestra, en solo lectura, las películas y series que esta cuenta puede leer, con su límite de edad. No se muestra nada hasta elegir una cuenta.",
+ "A profile hides, for the accounts it applies to, the videos certified for older viewers and those without a certification (TMDB age ratings). These accounts cannot change it.": "Un perfil oculta, para las cuentas a las que se aplica, los vídeos clasificados para edades superiores y los que no tienen clasificación (clasificaciones por edad de TMDB). Esas cuentas no pueden cambiarlo.",
+ "Accounts it applies to": "Cuentas a las que se aplica",
+ "Age limit": "Límite de edad",
+ "Age limit: {0}": "Límite de edad: {0}",
+ "Profile saved": "Perfil guardado",
+ "{0}+": "+{0}"
 }

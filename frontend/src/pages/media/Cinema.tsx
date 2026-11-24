@@ -11,10 +11,12 @@ import { TvRemoteModal } from "../../components/ApplianceConsole";
 
 export type CinemaItem = {
   path: string; title: string; year?: number; kind: string; season?: number; episode?: number; size: number; mod?: string;
-  tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[];
+  tmdbId?: number; poster?: string; overview?: string; rating?: number; age?: number; rated?: boolean; runtime?: number; genres?: string[]; cast?: string[];
   collection?: string; collectionId?: number;
 };
-type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }>; remote?: boolean };
+type Profile = { id: string; name: string; maxAge?: number; accounts?: string[] };
+const ageLabel = (a: number) => tr("{0}+", a);
+type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }>; remote?: boolean; maxAge?: number };
 type Work = { path?: string; title: string; year?: number; kind: string; items: CinemaItem[]; mod?: string; collection?: string; collectionId?: number; tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[] };
 
 const epLabel = (i: CinemaItem) => `S${String(i.season ?? 0).padStart(2, "0")}E${String(i.episode ?? 0).padStart(2, "0")}`;
@@ -264,12 +266,17 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const [key, setKey] = useState("");
   const saveKey = useAction(() => api.put("/api/cinema/settings", { tmdbKey: key }), { success: tr("Key saved"), onDone: () => { setKey(""); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const [filter, setFilter] = useState("");
-  // Family profile: the library hides what rates above the profile's cap.
-  const profiles = useQuery({ queryKey: ["cinema-profiles"], queryFn: () => api.get<{ id: string; name: string; maxRating?: number }[]>("/api/cinema/profiles"), staleTime: 60000 });
+  // Family profiles: age limits applied by the server to the accounts an
+  // administrator chose; anyone may also pick a profile here for a stricter view.
+  const profiles = useQuery({ queryKey: ["cinema-profiles"], queryFn: () => api.get<Profile[]>("/api/cinema/profiles"), staleTime: 60000 });
+  const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<{ username: string }[]>("/api/users"), enabled: admin, staleTime: 60000 });
   const [profileId, setProfileId] = useState<string | null>(() => { try { return localStorage.getItem("strata-profile"); } catch { return null; } });
   useEffect(() => { try { if (profileId) localStorage.setItem("strata-profile", profileId); else localStorage.removeItem("strata-profile"); } catch { /* private mode */ } }, [profileId]);
-  const [newProf, setNewProf] = useState<{ name: string; maxRating: string } | null>(null);
-  const mkProf = useAction(() => api.post("/api/cinema/profiles", { name: newProf?.name ?? "", maxRating: parseFloat(newProf?.maxRating ?? "0") || 0 }), { success: tr("Profile created"), onDone: () => { setNewProf(null); qc.invalidateQueries({ queryKey: ["cinema-profiles"] }); } });
+  const [newProf, setNewProf] = useState<{ id?: string; name: string; maxAge: number; accounts: string[] } | null>(null);
+  const mkProf = useAction(() => {
+    const body = { name: newProf?.name ?? "", maxAge: newProf?.maxAge ?? 0, accounts: newProf?.accounts ?? [] };
+    return newProf?.id ? api.put(`/api/cinema/profiles/${newProf.id}`, body) : api.post("/api/cinema/profiles", body);
+  }, { success: tr("Profile saved"), onDone: () => { setNewProf(null); qc.invalidateQueries({ queryKey: ["cinema-profiles"] }); qc.invalidateQueries({ queryKey: ["cinema"] }); } });
   const delProf = useAction((id: string) => api.del(`/api/cinema/profiles/${id}`), { success: tr("Profile deleted"), onDone: () => { qc.invalidateQueries({ queryKey: ["cinema-profiles"] }); } });
   const lists = useQuery({ queryKey: ["cinema-lists"], queryFn: () => api.get<WatchList[]>("/api/cinema/lists"), refetchInterval: 30000 });
   const [listSel, setListSel] = useState<WatchList | null>(null);
@@ -288,7 +295,7 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const d = lib.data;
   const allItems = d?.items ?? [];
   const prof = profiles.data?.find((p) => p.id === profileId);
-  const items = prof && (prof.maxRating ?? 0) > 0 ? allItems.filter((i) => !i.rating || i.rating <= prof.maxRating!) : allItems;
+  const items = prof && (prof.maxAge ?? 0) > 0 ? allItems.filter((i) => i.rated && (i.age ?? 0) <= prof.maxAge!) : allItems;
   const f = filter.trim().toLowerCase();
   const shown = items.filter((i) => !f || i.title.toLowerCase().includes(f));
   const movies: Work[] = shown.filter((i) => i.kind !== "episode").map((i) => ({ ...i, items: [i] }));
@@ -344,8 +351,9 @@ export function CinemaTab({ admin }: { admin: boolean }) {
           </div>
           <Select value={profileId ?? ""} onChange={(e) => setProfileId(e.target.value || null)} className="!h-9 w-44 text-[12.5px]" aria-label={tr("Family profiles")}>
             <option value="">{tr("All content")}</option>
-            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.maxRating ? ` (≤ ${p.maxRating})` : ""}</option>)}
+            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.maxAge ? ` (${ageLabel(p.maxAge)})` : ""}</option>)}
           </Select>
+          {!!d?.maxAge && <Badge>{tr("Age limit: {0}", ageLabel(d.maxAge))}</Badge>}
           {d?.remote && <Button icon={<Tv size={14} />} onClick={() => setTvRemote(true)}>{tr("TV remote")}</Button>}
           {admin && <Button icon={<RefreshCw size={14} />} loading={scan.isPending || d?.running} disabled={d?.running} onClick={() => scan.mutate()}>{d?.running ? tr("Scanning…") : tr("Scan the library")}</Button>}
         </div>
@@ -356,23 +364,44 @@ export function CinemaTab({ admin }: { admin: boolean }) {
 
       {admin && (
         <Card title={<span className="flex items-center gap-2"><Users size={16} />{tr("Family profiles")}</span>}
-          actions={<Button size="sm" variant="ghost" icon={<ListPlus size={14} />} onClick={() => setNewProf({ name: "", maxRating: "6" })}>{tr("New profile")}</Button>}>
-          <p className="text-muted text-[12.5px]">{tr("A profile hides the videos rated above its maximum on TMDB: a kid-only shelf.")}</p>
+          actions={<Button size="sm" variant="ghost" icon={<ListPlus size={14} />} onClick={() => setNewProf({ name: "", maxAge: 12, accounts: [] })}>{tr("New profile")}</Button>}>
+          <p className="text-muted text-[12.5px]">{tr("A profile hides, for the accounts it applies to, the videos certified for older viewers and those without a certification (TMDB age ratings). These accounts cannot change it.")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {(profiles.data ?? []).map((p) => (
               <span key={p.id} className="flex items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 text-[12.5px]">
-                {p.name}{p.maxRating ? ` (≤ ${p.maxRating})` : ""}
+                <button type="button" className="hover:underline" onClick={() => setNewProf({ id: p.id, name: p.name, maxAge: p.maxAge ?? 0, accounts: p.accounts ?? [] })}>
+                  {p.name}{p.maxAge ? ` (${ageLabel(p.maxAge)})` : ""}{p.accounts?.length ? ` · ${p.accounts.join(", ")}` : ""}
+                </button>
                 <IconButton title={tr("Delete")} onClick={() => { delProf.mutate(p.id); if (profileId === p.id) setProfileId(null); }}><Trash2 size={13} /></IconButton>
               </span>
             ))}
             {!profiles.data?.length && !newProf && <span className="text-[12.5px] text-muted">{tr("No profile yet")}</span>}
           </div>
           {newProf && (
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <Field label={tr("Profile name")}><Input className="w-44" value={newProf.name} onChange={(e) => setNewProf({ ...newProf, name: e.target.value })} /></Field>
-              <Field label={tr("Maximum rating (0 = no limit)")}><Input className="w-24" type="number" min={0} max={10} step={0.5} value={newProf.maxRating} onChange={(e) => setNewProf({ ...newProf, maxRating: e.target.value })} /></Field>
-              <Button size="sm" variant="primary" loading={mkProf.isPending} disabled={!newProf.name.trim()} onClick={() => mkProf.mutate()}>{tr("Add")}</Button>
-              <Button size="sm" variant="ghost" onClick={() => setNewProf(null)}>{tr("Cancel")}</Button>
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <Field label={tr("Profile name")}><Input className="w-44" value={newProf.name} onChange={(e) => setNewProf({ ...newProf, name: e.target.value })} /></Field>
+                <Field label={tr("Age limit")}>
+                  <Select className="w-32" value={String(newProf.maxAge)} onChange={(e) => setNewProf({ ...newProf, maxAge: parseInt(e.target.value) || 0 })}>
+                    {[0, 3, 6, 7, 10, 12, 13, 14, 16, 18].map((a) => <option key={a} value={a}>{a ? ageLabel(a) : tr("No limit")}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <div>
+                <div className="text-[12.5px] font-medium">{tr("Accounts it applies to")}</div>
+                <div className="mt-1.5 flex flex-wrap gap-3">
+                  {(users.data ?? []).map((u) => (
+                    <label key={u.username} className="flex items-center gap-1.5 text-[12.5px]">
+                      <input type="checkbox" checked={newProf.accounts.includes(u.username)} onChange={(e) => setNewProf({ ...newProf, accounts: e.target.checked ? [...newProf.accounts, u.username] : newProf.accounts.filter((x) => x !== u.username) })} />
+                      {u.username}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="primary" loading={mkProf.isPending} disabled={!newProf.name.trim()} onClick={() => mkProf.mutate()}>{tr("Save")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setNewProf(null)}>{tr("Cancel")}</Button>
+              </div>
             </div>
           )}
           <ErrorBox error={mkProf.error || delProf.error} />

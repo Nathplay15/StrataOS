@@ -278,3 +278,24 @@ func TestBuildLibraryNestedShares(t *testing.T) {
 		t.Fatalf("items: %+v", items)
 	}
 }
+
+func TestAgeOf(t *testing.T) {
+	for _, c := range []struct {
+		certs map[string]string
+		age   int
+		rated bool
+	}{
+		{map[string]string{"US": "PG-13"}, 13, true},
+		{map[string]string{"FR": "12", "US": "R"}, 12, true},
+		{map[string]string{"DE": "16"}, 16, true},
+		{map[string]string{"GB": "12A"}, 12, true},
+		{map[string]string{"US": "TV-MA"}, 17, true},
+		{map[string]string{"FR": "U"}, 0, true},
+		{map[string]string{"US": "NR"}, 0, false},
+		{map[string]string{}, 0, false},
+	} {
+		if a, r := AgeOf(c.certs); a != c.age || r != c.rated {
+			t.Errorf("%v: %d %v", c.certs, a, r)
+		}
+	}
+}

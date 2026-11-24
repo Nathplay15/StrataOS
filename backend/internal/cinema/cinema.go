@@ -38,6 +38,10 @@ type Item struct {
 	Collection   string `json:"collection,omitempty"`
 	CollectionID int    `json:"collectionId,omitempty"`
 	IMDB         string `json:"imdb,omitempty"` // IMDb id (tt…), for subtitle lookup
+	// Age: minimum age from the TMDB certification; Rated is false when
+	// no certification is known (hidden from accounts with an age limit).
+	Age   int  `json:"age,omitempty"`
+	Rated bool `json:"rated,omitempty"`
 }
 
 // State is the persisted library (dataDir/cinema.json).

@@ -29,8 +29,15 @@ type Media struct {
 // MediaProfile is a family profile: content rated above MaxRating is hidden
 // (0 = no limit).
 type MediaProfile struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// MaxAge: the videos certified for older viewers, and the ones with no
+	// certification, are hidden (0 = no limit).
+	MaxAge int `json:"maxAge,omitempty"`
+	// Accounts this profile applies to, enforced by the server; they cannot
+	// change it (administrators set it).
+	Accounts []string `json:"accounts,omitempty"`
+	// MaxRating: the TMDB vote cap of 0.15.0-0.15.1, no longer used.
 	MaxRating float64 `json:"maxRating,omitempty"`
 }
 

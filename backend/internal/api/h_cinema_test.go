@@ -18,7 +18,7 @@ func cinemaFixture(t *testing.T) *Server {
 	t.Helper()
 	s := newTestServer(t)
 	_ = s.store.Update(func(st *store.State) error {
-		st.Users = append(st.Users, &store.User{Username: "alice", Role: "user"}, &store.User{Username: "bob", Role: "user"})
+		st.Users = append(st.Users, &store.User{Username: "alice", Role: "user"}, &store.User{Username: "bob", Role: "user"}, &store.User{Username: "root", Role: "admin"})
 		st.Shares = append(st.Shares,
 			&store.Share{Name: "Family", Path: "/srv/strata/main/Family", Permissions: map[string]string{"alice": "ro", "bob": "rw"}},
 			&store.Share{Name: "Private", Path: "/srv/strata/main/Private", Permissions: map[string]string{"bob": "rw"}})
@@ -76,5 +76,40 @@ func TestCinemaStaleScanReset(t *testing.T) {
 	s.cinemaRoutes()
 	if st := cinema.LoadState(statePath); st.Running || st.Scanned != 3 {
 		t.Fatalf("state after start: %+v", st)
+	}
+}
+
+func TestCinemaAgeLimitEnforced(t *testing.T) {
+	s := cinemaFixture(t)
+	statePath, _, _ := s.cinemaPaths()
+	_ = cinema.SaveState(statePath, cinema.State{Items: []cinema.Item{
+		{Path: "/srv/strata/main/Family/Up.mkv", Title: "Up", Age: 0, Rated: true},
+		{Path: "/srv/strata/main/Family/Heat.mkv", Title: "Heat", Age: 16, Rated: true},
+		{Path: "/srv/strata/main/Family/Unknown.mkv", Title: "Unknown"},
+	}})
+	admin := albumClient(t, s, "root", "admin")
+	if rec := admin.req("POST", "/api/cinema/profiles", map[string]any{"name": "Kids", "maxAge": 12, "accounts": []string{"alice"}}); rec.Code != http.StatusOK {
+		t.Fatalf("create profile: %d %s", rec.Code, rec.Body.String())
+	}
+	alice := albumClient(t, s, "alice", "user")
+	body := alice.req("GET", "/api/cinema", nil).Body.String()
+	if !strings.Contains(body, `"Up"`) || strings.Contains(body, "Heat") || strings.Contains(body, "Unknown") || !strings.Contains(body, `"maxAge":12`) {
+		t.Fatalf("alice (limit 12) sees: %s", body)
+	}
+	// She cannot lift her own limit, nor see who is limited.
+	var id string
+	s.store.Read(func(st *store.State) { id = st.Media.Profiles[0].ID })
+	if rec := alice.req("PUT", "/api/cinema/profiles/"+id, map[string]any{"name": "Kids", "maxAge": 18}); rec.Code != http.StatusForbidden {
+		t.Fatalf("alice changed her limit: %d", rec.Code)
+	}
+	if rec := alice.req("DELETE", "/api/cinema/profiles/"+id, nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("alice deleted her profile: %d", rec.Code)
+	}
+	if body := alice.req("GET", "/api/cinema/profiles", nil).Body.String(); strings.Contains(body, "alice") {
+		t.Fatalf("profile accounts shown to a user: %s", body)
+	}
+	// Bob has no limit.
+	if body := albumClient(t, s, "bob", "user").req("GET", "/api/cinema", nil).Body.String(); !strings.Contains(body, "Heat") || !strings.Contains(body, "Unknown") {
+		t.Fatalf("bob: %s", body)
 	}
 }

@@ -5567,5 +5567,11 @@
  "Administrators always can. The remote appears in their cinema page.": "管理员始终可以使用。遥控器会出现在其影院页面中。",
  "Library shown on the TV": "电视上显示的媒体库",
  "TV remote": "电视遥控器",
- "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "电视以只读方式显示该账户可读取的电影和剧集，并遵循其年龄限制。在选择账户之前不显示任何内容。"
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "电视以只读方式显示该账户可读取的电影和剧集，并遵循其年龄限制。在选择账户之前不显示任何内容。",
+ "A profile hides, for the accounts it applies to, the videos certified for older viewers and those without a certification (TMDB age ratings). These accounts cannot change it.": "配置文件会对所适用的账户隐藏分级年龄更高的视频以及没有分级的视频（TMDB 年龄分级）。这些账户无法更改它。",
+ "Accounts it applies to": "适用的账户",
+ "Age limit": "年龄限制",
+ "Age limit: {0}": "年龄限制：{0}",
+ "Profile saved": "配置文件已保存",
+ "{0}+": "{0}+"
 }
