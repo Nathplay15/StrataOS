@@ -78,7 +78,6 @@ fun StatusScreen(onBack: (() -> Unit)? = null) {
                         NasIllustration(Modifier.size(92.dp, 76.dp), healthy = alerts.isEmpty())
                     }
                 }
-                NasNewerBanner(st.info.version)
                 SectionCard(stringResource(R.string.status_alerts), trailing = {
                     Chip(if (alerts.isEmpty()) stringResource(R.string.ui_healthy) else alerts.size.toString(), if (alerts.isEmpty()) Tone.OK else Tone.WARN)
                 }) {
