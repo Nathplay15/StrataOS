@@ -146,7 +146,7 @@ export function PwaPhotoUpload() {
       for (const f of fresh) fd.append("file", f, f.name);
       await new Promise<void>((res, rej) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", `/api/files/upload${q({ path: cfg.target })}`);
+        xhr.open("POST", `/api/files/upload${q({ path: cfg.target, keep: 1 })}`); // never overwrite
         xhr.setRequestHeader("X-Strata", "1");
         xhr.upload.onprogress = (e) => e.lengthComputable && setPct(Math.round((e.loaded / e.total) * 100));
         xhr.onload = () => (xhr.status < 300 ? res() : rej(new Error(JSON.parse(xhr.responseText || "{}").error ?? "upload failed")));

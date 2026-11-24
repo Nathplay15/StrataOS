@@ -2,6 +2,8 @@ package api
 
 import (
 	"archive/zip"
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -404,7 +406,8 @@ func (s *Server) fileRoutes() {
 			writeErr(w, badRequest("multipart body expected"))
 			return
 		}
-		n := 0
+		keep := r.URL.Query().Get("keep") == "1"
+		n, skipped := 0, 0
 		for {
 			part, err := mr.NextPart()
 			if errors.Is(err, io.EOF) {
@@ -430,6 +433,22 @@ func (s *Server) fileRoutes() {
 				writeErr(w, badRequest(err.Error()))
 				return
 			}
+			if keep {
+				// Automatic uploads (phone photos): never overwrite; the same
+				// file again is skipped, another one with that name is renamed.
+				final, stored, err := uploadKeep(rt, rel, part)
+				if err != nil {
+					writeErr(w, err)
+					return
+				}
+				if !stored {
+					skipped++
+					continue
+				}
+				s.chownForUser(r, rt, final)
+				n++
+				continue
+			}
 			f, err := rt.OpenFile(rel, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o664)
 			if err != nil {
 				writeErr(w, badRequest(err.Error()))
@@ -445,7 +464,7 @@ func (s *Server) fileRoutes() {
 			s.chownForUser(r, rt, rel)
 			n++
 		}
-		writeJSON(w, http.StatusOK, map[string]int{"uploaded": n})
+		writeJSON(w, http.StatusOK, map[string]int{"uploaded": n, "skipped": skipped})
 	})
 
 	s.userRaw("GET /api/files/download", func(w http.ResponseWriter, r *http.Request) {
@@ -549,4 +568,60 @@ func firstErr(errs ...error) error {
 		}
 	}
 	return nil
+}
+
+// uploadKeep stores an uploaded file at rel without ever replacing a file:
+// written to a new temporary file, then linked under rel, or "name (2).ext"…
+// when rel exists with other content. A file identical to rel is dropped
+// (stored false). Returns the name used.
+func uploadKeep(rt *os.Root, rel string, src io.Reader) (string, bool, error) {
+	dir, base := path.Split(rel)
+	tmp := path.Join(dir, "."+base+".upload-"+newLinkID()[:8])
+	f, err := rt.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o664)
+	if err != nil {
+		return "", false, badRequest(err.Error())
+	}
+	h := sha256.New()
+	size, err := io.Copy(io.MultiWriter(f, h), src)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	defer rt.Remove(tmp)
+	if err != nil {
+		return "", false, err
+	}
+	sum := h.Sum(nil)
+	ext := path.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	for i := 1; i <= 1000; i++ {
+		name := rel
+		if i > 1 {
+			name = path.Join(dir, fmt.Sprintf("%s (%d)%s", stem, i, ext))
+		}
+		if st, err := rt.Lstat(name); err == nil {
+			if st.Mode().IsRegular() && st.Size() == size && sameHash(rt, name, sum) {
+				return name, false, nil // already there
+			}
+			continue
+		}
+		if err := rt.Link(tmp, name); err == nil {
+			return name, true, nil
+		} else if !errors.Is(err, fs.ErrExist) {
+			return "", false, err
+		}
+	}
+	return "", false, badRequest("too many files with this name")
+}
+
+func sameHash(rt *os.Root, rel string, sum []byte) bool {
+	f, err := rt.Open(rel)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false
+	}
+	return bytes.Equal(h.Sum(nil), sum)
 }

@@ -148,7 +148,7 @@ async function uploadNewPhotos() {
       try {
         const fd = new FormData();
         fd.append("file", f, f.name);
-        const resp = await fetch(`/api/files/upload?path=${encodeURIComponent(r.target)}`, { method: "POST", headers: { "X-Strata": "1" }, body: fd });
+        const resp = await fetch(`/api/files/upload?keep=1&path=${encodeURIComponent(r.target)}`, { method: "POST", headers: { "X-Strata": "1" }, body: fd });
         if (!resp.ok) throw new Error(String(resp.status));
         cfg.seen[r.dir][key] = 1;
         sent++;
