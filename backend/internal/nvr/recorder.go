@@ -203,7 +203,7 @@ type recorder struct {
 	mu        sync.Mutex
 	status    Status
 	proc      *os.Process
-	stdin     *io.PipeWriter // ffmpeg's commands, while it runs
+	stdin     *os.File // ffmpeg's commands, while it runs
 	started   time.Time
 	lastSeen  string // newest segment name and size
 	lastGrow  time.Time
@@ -270,24 +270,33 @@ func (r *recorder) once(ctx context.Context) error {
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
 	cmd.WaitDelay = 10 * time.Second
 	// The stdin pipe lets Roll close the current segment on demand ('q').
-	pr, pw := io.Pipe()
+	// An OS pipe, not an io.Pipe: exec hands the file to ffmpeg directly, so
+	// no copying goroutine can keep Wait blocked once ffmpeg has exited
+	// (which left the camera "recording" forever after its stream ended).
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return err
+	}
 	cmd.Stdin = pr
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		pr.Close()
 		pw.Close()
 		return err
 	}
 	if err := cmd.Start(); err != nil {
+		pr.Close()
 		pw.Close()
 		return err
 	}
+	pr.Close() // the child has its copy
 	r.mu.Lock()
 	// Growth is measured from what is on disk now (files of a previous run).
 	r.proc, r.stdin, r.started, r.lastGrow, r.lastSeen = cmd.Process, pw, time.Now(), time.Now(), newest(r.cfg.Dir)
 	r.mu.Unlock()
 	last := tail(stderr)
 	err = cmd.Wait()
-	pw.Close() // unblocks the stdin copy; exec already closed the child's end
+	pw.Close()
 	r.mu.Lock()
 	r.proc, r.stdin = nil, nil
 	r.mu.Unlock()

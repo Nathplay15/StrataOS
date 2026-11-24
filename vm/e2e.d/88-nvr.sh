@@ -35,7 +35,7 @@ authInternalUsers:
 paths:
   all_others:
 EOF
-sudo docker rm -f e2e-mtx >/dev/null 2>&1; sudo docker run -d --name e2e-mtx --network host -v /tmp/e2e-mtx.yml:/mediamtx.yml:ro bluenviron/mediamtx:latest >/dev/null"
+sudo docker rm -f e2e-mtx >/dev/null 2>&1; sudo docker run -d --name e2e-mtx --network host -v /tmp/e2e-mtx.yml:/mediamtx.yml:ro bluenviron/mediamtx:1.12.3 >/dev/null"
 publish() { vm "sudo systemctl reset-failed e2e-nvr-pub 2>/dev/null; sudo systemd-run --unit=e2e-nvr-pub ffmpeg -nostdin -loglevel error -re -f lavfi -i testsrc=size=640x360:rate=10 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -g 10 -f rtsp -rtsp_transport tcp rtsp://pub:pubpass@127.0.0.1:8554/cam >/dev/null 2>&1"; }
 for _ in $(seq 1 60); do vm "timeout 2 bash -c '</dev/tcp/127.0.0.1/8554' 2>/dev/null" && break; sleep 2; done
 publish
