@@ -135,3 +135,48 @@ Done in 0.15.1 (ticked).
 
 - [x] Media page crash right after installing the DLNA app: empty configuration arrays (DLNA folders, music shares, WireGuard links, firewall guests/groups/ipsets) were missing from the API answers; they are now always sent as empty arrays.
 - [x] Android 0.12.3 (its own release): the "My apps" launcher opened 127.0.0.1 on the phone (the NAS now sends app addresses with its own host); the NAS-vs-app version banner is removed, the two versions are independent. Desktop app: the Rust glib VariantStrIter advisory is fixed with a vendored patched copy (Tauri 2 pins gtk-rs 0.18).
+
+## 0.16
+
+### Deliver what 0.15 announced (trust first)
+
+- [ ] **Whisper.cpp as an optional component.** Installed from the components page: the binary and a model are downloaded with their checksums verified, and the transcription button works out of the box (today: whisper.cpp and its model installed by hand).
+- [ ] **Cloud import in the migration assistant.** Google Photos through a **Google Takeout archive** (the Photos API no longer exposes the whole library since 2025), and Dropbox.
+- [ ] **One-click AI provider presets.** In the assistant settings, choose a provider (Mistral, OpenAI, DeepSeek, Kimi, Anthropic…), paste the API key: the endpoint and the model list are filled automatically. Account sign-in for third-party apps is not used: those providers do not offer it, and Anthropic forbids using a Claude.ai subscription in another application (API key only).
+- [ ] **HDMI extras and the PWA badge.** CEC control of the TV from the kiosk, Bluetooth remote/gamepad pairing from the NAS, the PWA-remote QR code shown on the TV, photos and all media on the TV menu, and the app icon badge (free space, RAID state, last backup) on the web app.
+
+### Quality and hardening
+
+- [ ] **API contract tests.** Every GET endpoint's answer is validated against the frontend's TypeScript types (or a schema): an empty array is always `[]`, never a missing key — the class of the DLNA crash.
+- [ ] **The full end-to-end suite green in CI.** The suite passes in a local VM; the GitHub nightly environment is what fails — fix that.
+- [ ] **Rust vulnerability scanning.** `cargo audit` on the desktop shell in the vulncheck workflow, and Dependabot configured for Cargo.
+
+### Network
+
+- [ ] **Several saved WiFi networks.** Multiple saved profiles with a priority order (which one the NAS auto-connects to first), and WPA3.
+
+### Assistant
+
+- [ ] **Quotas and memory.** Per-user limits for the assistant (messages, tokens, cost), and a memory of what it learned about the NAS — viewable and deletable. Local model management in the interface (pull, delete, choose the quantization).
+
+### Surveillance
+
+- [ ] **A real local detector.** Ship the object detector as a component (persons and vehicles), 100 % local — today `strata-detect` is only a hook, no binary is built or delivered. Faces only later.
+
+### Updates
+
+- [ ] **A visible beta channel.** The beta channel shown and selectable in the interface (a staged rollout would need a central server following the NAS fleet; later).
+
+## 0.17
+
+- [ ] **Desktop app on Tauri 3**, when it is stable — unblocks glib ≥ 0.20 and lets the vendored patched copy be removed.
+- [ ] **PWA at the level of the Android app** (no native iOS app without a paid Apple developer account).
+- [ ] **Fleet orchestration.** Run routines and backups on several NAS at once, with consolidated fleet reports.
+- [ ] **Migration wizards for Synology DSM and TrueNAS** (shares, ACLs, users) — a strong argument to attract new users.
+
+### Later (not scheduled)
+
+- WiFi access point with a captive portal (guest/IoT network) — little use on a NAS.
+- Ceph multi-site replication with erasure coding — niche.
+- Weather in the HDMI screensaver.
+- Native iOS app.
