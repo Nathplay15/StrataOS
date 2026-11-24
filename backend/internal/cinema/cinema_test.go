@@ -267,3 +267,14 @@ func TestBuildLibrary(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildLibraryNestedShares(t *testing.T) {
+	vol := t.TempDir()
+	os.MkdirAll(filepath.Join(vol, "Videos", "Films"), 0o755)
+	os.WriteFile(filepath.Join(vol, "Videos", "Films", "Heat (1995).mkv"), []byte("x"), 0o644)
+	roots := []Root{{Abs: vol, API: vol}, {Abs: filepath.Join(vol, "Videos"), API: filepath.Join(vol, "Videos")}}
+	items := BuildLibrary(context.Background(), roots, nil, t.TempDir(), 6, func(string, ...any) {})
+	if len(items) != 1 {
+		t.Fatalf("items: %+v", items)
+	}
+}

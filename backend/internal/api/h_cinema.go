@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"strataos/internal/cinema"
-	"strataos/internal/storage"
 	"strataos/internal/store"
 )
 
@@ -26,18 +25,31 @@ func (s *Server) cinemaPaths() (state, key, posters string) {
 	return filepath.Join(s.dataDir, "cinema.json"), filepath.Join(s.dataDir, "cinema.key"), filepath.Join(s.dataDir, "cinema-posters")
 }
 
-// cinemaShares are the mounted shares scanned for videos, as scan roots
-// (absolute path on disk + path as the files API spells it).
+// cinemaShares are the shares scanned for videos: every share that lives on
+// a mounted volume (shares are folders of volumes), as scan roots (absolute
+// path on disk + path as the files API spells it).
 func (s *Server) cinemaShares() []cinema.Root {
-	var out []cinema.Root
+	var paths []string
 	s.store.Read(func(st *store.State) {
 		for _, sh := range st.Shares {
-			if sh.Path != "" && storage.IsMountpoint(sh.Path) {
-				// The files API spells paths as absolute under the mount root.
-				out = append(out, cinema.Root{Abs: sh.Path, API: sh.Path})
+			if sh.Path != "" {
+				paths = append(paths, sh.Path)
 			}
 		}
 	})
+	var out []cinema.Root
+	seen := map[string]bool{}
+	for _, p := range paths {
+		// A share root replaced by a symlink is skipped, like in the files API.
+		if seen[p] || !s.pathOnVolume(p) {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(p); err != nil || real != p {
+			continue
+		}
+		seen[p] = true
+		out = append(out, cinema.Root{Abs: p, API: p})
+	}
 	return out
 }
 

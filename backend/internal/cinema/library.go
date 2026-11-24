@@ -30,6 +30,7 @@ type Root struct {
 // its match. logf receives progress lines.
 func BuildLibrary(ctx context.Context, roots []Root, cl *Client, posterDir string, maxDepth int, logf func(string, ...any)) []Item {
 	var items []Item
+	seen := map[string]bool{} // a share inside another one: each video once
 	for _, root := range roots {
 		for _, it := range Scan(root.Abs, maxDepth) {
 			rel, err := filepath.Rel(root.Abs, it.Path)
@@ -37,6 +38,10 @@ func BuildLibrary(ctx context.Context, roots []Root, cl *Client, posterDir strin
 				continue
 			}
 			it.Path = root.API + "/" + filepath.ToSlash(rel)
+			if seen[it.Path] {
+				continue
+			}
+			seen[it.Path] = true
 			items = append(items, it)
 		}
 	}
