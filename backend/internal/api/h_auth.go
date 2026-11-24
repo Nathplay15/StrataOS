@@ -220,6 +220,8 @@ func (s *Server) authRoutes() {
 			s.ssoEndSession(c.Value)
 		}
 		s.setCookie(w, r, "", -time.Second)
+		// The offline copy of the interface goes with the session.
+		w.Header().Set("Clear-Site-Data", `"cache"`)
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 

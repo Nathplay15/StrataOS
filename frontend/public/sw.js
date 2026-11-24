@@ -17,11 +17,14 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// Paths never served from the cache nor stored in it: the API, file access
+// (WebDAV, CalDAV/CardDAV), metrics, share links and the kiosk page.
+const NEVER = ["/api/", "/dav", "/caldav", "/carddav", "/principals", "/.well-known/", "/metrics", "/s/", "/hdmi"];
+
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
-  // The API and the live data are never cached.
-  if (url.pathname.startsWith("/api/")) return;
+  if (NEVER.some((p) => url.pathname === p.replace(/\/$/, "") || url.pathname.startsWith(p))) return;
   // Vite hashes its assets: what is in /assets/ never changes, serve the
   // cache first, the network fills it in.
   if (url.pathname.startsWith("/assets/")) {
@@ -40,17 +43,22 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // The shell itself (/, /index.html): network first, cache when offline.
+  // The shell: the app's own files, and page loads of the interface (always
+  // the same index.html, kept under "/"). Network first, cache when offline.
+  const shellFile = SHELL_FILES.includes(url.pathname);
+  if (!shellFile && e.request.mode !== "navigate") return;
+  const key = shellFile ? e.request : "/";
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        if (res.ok) {
+        const type = res.headers.get("Content-Type") || "";
+        if (res.ok && (shellFile || type.startsWith("text/html"))) {
           const copy = res.clone();
-          caches.open(SHELL).then((c) => c.put(e.request, copy));
+          caches.open(SHELL).then((c) => c.put(key, copy));
         }
         return res;
       })
-      .catch(() => caches.match(e.request).then((hit) => hit ?? caches.match("/"))),
+      .catch(() => caches.match(key).then((hit) => hit ?? caches.match("/"))),
   );
 });
 

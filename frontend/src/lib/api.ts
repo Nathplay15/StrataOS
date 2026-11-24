@@ -46,7 +46,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   get: <T>(p: string) => request<T>("GET", p),
-  post: <T>(p: string, b: unknown = {}) => request<T>("POST", p, b),
+  post: <T>(p: string, b: unknown = {}) => {
+    // Signing out also drops the offline copy of the interface (the server
+    // sends Clear-Site-Data too; not every browser applies it).
+    if (p === "/api/logout" && typeof caches !== "undefined") void caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))).catch(() => {});
+    return request<T>("POST", p, b);
+  },
   put: <T>(p: string, b: unknown = {}) => request<T>("PUT", p, b),
   del: <T>(p: string) => request<T>("DELETE", p),
 };
