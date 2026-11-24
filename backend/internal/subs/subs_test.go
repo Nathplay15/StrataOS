@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -106,6 +107,10 @@ func fakeOS(t *testing.T) *httptest.Server {
 	old := Base
 	Base = srv.URL
 	t.Cleanup(func() { Base = old })
+	// The test server is on loopback, which the real download refuses.
+	oldDL, oldCheck := DownloadHTTP, checkLink
+	DownloadHTTP, checkLink = srv.Client(), func(*url.URL) error { return nil }
+	t.Cleanup(func() { DownloadHTTP, checkLink = oldDL, oldCheck })
 	return srv
 }
 
@@ -179,5 +184,18 @@ func TestClientSearchDownload(t *testing.T) {
 	// No id at all.
 	if _, err := c.Search(ctx, "", "", "en"); err == nil {
 		t.Error("no id should fail")
+	}
+}
+
+func TestDownloadLinkGuarded(t *testing.T) {
+	for _, l := range []string{"http://example.com/x.srt", "https://127.0.0.1/x.srt", "https://169.254.169.254/latest", "file:///etc/shadow"} {
+		u, _ := url.Parse(l)
+		if checkLink(u) == nil {
+			t.Errorf("%s accepted", l)
+		}
+	}
+	u, _ := url.Parse("https://dl.opensubtitles.org/x.srt")
+	if err := checkLink(u); err != nil {
+		t.Errorf("public https link refused: %v", err)
 	}
 }

@@ -16,12 +16,18 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"strataos/internal/netguard"
 )
 
 var (
-	Base      = "https://api.opensubtitles.com/api/v1"
-	HTTP      = &http.Client{Timeout: 20 * time.Second}
-	UserAgent = "StrataOS v0"
+	Base = "https://api.opensubtitles.com/api/v1"
+	HTTP = &http.Client{Timeout: 20 * time.Second}
+	// DownloadHTTP fetches the link the API answers: an address chosen by
+	// a remote server, so it only reaches public addresses (netguard).
+	DownloadHTTP = netguard.Client(netguard.Options{Timeout: 30 * time.Second, HTTPSOnly: true, MaxRedirects: 3})
+	checkLink    = func(u *url.URL) error { return netguard.CheckURL(u, true) }
+	UserAgent    = "StrataOS v0"
 )
 
 // Client talks to OpenSubtitles with the user's API key and account.
@@ -175,11 +181,18 @@ func (c *Client) Download(ctx context.Context, fileID int) ([]byte, error) {
 	if res.Link == "" {
 		return nil, fmt.Errorf("opensubtitles returned no download link")
 	}
+	u, err := url.Parse(res.Link)
+	if err != nil {
+		return nil, fmt.Errorf("opensubtitles returned an invalid download link")
+	}
+	if err := checkLink(u); err != nil {
+		return nil, fmt.Errorf("download link refused: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, res.Link, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := HTTP.Do(req)
+	resp, err := DownloadHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
