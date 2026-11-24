@@ -858,9 +858,37 @@ func llmDoError(err error) error {
 	return badRequest(fmt.Sprintf("the assistant endpoint is unreachable: %s", err))
 }
 
+// isOllamaEndpoint tells whether the assistant URL is an Ollama server: the
+// local app (127.0.0.1:11434 by default) or another one on the default port.
+// Only Ollama understands the "think" request field.
+func isOllamaEndpoint(u string) bool {
+	h, err := url.Parse(strings.TrimSpace(u))
+	if err != nil {
+		return false
+	}
+	host := h.Hostname()
+	if host == "localhost" || host == "::1" || strings.HasPrefix(host, "127.") {
+		return true
+	}
+	return h.Port() == "11434"
+}
+
+// llmBody builds the chat/completions request. "think" is sent to Ollama
+// endpoints (thinking models like qwen3 reason for a long time on a small
+// CPU before answering, which looks like a stuck assistant) and to any
+// endpoint when the user asked for thinking; other providers would reject
+// the unknown field.
+func llmBody(set store.Settings, messages []assistantMessage, stream bool) map[string]any {
+	body := map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools(), "stream": stream}
+	if set.AssistantThink || isOllamaEndpoint(set.AssistantURL) {
+		body["think"] = set.AssistantThink
+	}
+	return body
+}
+
 // llmChat calls the configured OpenAI-compatible chat endpoint.
 func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []assistantMessage) (*llmResponse, error) {
-	body, err := json.Marshal(map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools()})
+	body, err := json.Marshal(llmBody(set, messages, false))
 	if err != nil {
 		return nil, err
 	}
@@ -900,7 +928,7 @@ func (s *Server) llmChat(ctx context.Context, set store.Settings, messages []ass
 // accumulates the tool calls (their arguments arrive in small chunks). It
 // returns the complete message of the answer.
 func (s *Server) llmStream(ctx context.Context, set store.Settings, messages []assistantMessage, onDelta func(string), onReasoning func(string)) (*assistantMessage, error) {
-	body, err := json.Marshal(map[string]any{"model": set.AssistantModel, "messages": messages, "tools": assistantTools(), "stream": true})
+	body, err := json.Marshal(llmBody(set, messages, true))
 	if err != nil {
 		return nil, err
 	}

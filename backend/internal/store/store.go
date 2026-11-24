@@ -201,15 +201,18 @@ type Settings struct {
 	// needs no key. ChatGPTAccess and ChatGPTRefresh are secrets: the access
 	// token is renewed by the NAS itself from the refresh token, and neither
 	// ever leaves the server in a settings answer.
-	AssistantURL      string    `json:"assistantUrl,omitempty"`
-	AssistantKey      string    `json:"assistantKey,omitempty"`
-	AssistantModel    string    `json:"assistantModel,omitempty"`
-	AssistantProvider string    `json:"assistantProvider,omitempty"` // "" (endpoint) | "chatgpt"
-	ChatGPTAccess     string    `json:"chatgptAccess,omitempty"`
-	ChatGPTRefresh    string    `json:"chatgptRefresh,omitempty"`
-	ChatGPTAccount    string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header
-	ChatGPTEmail      string    `json:"chatgptEmail,omitempty"`
-	ChatGPTExpires    time.Time `json:"chatgptExpires,omitempty"`
+	AssistantURL      string `json:"assistantUrl,omitempty"`
+	AssistantKey      string `json:"assistantKey,omitempty"`
+	AssistantModel    string `json:"assistantModel,omitempty"`
+	AssistantProvider string `json:"assistantProvider,omitempty"` // "" (endpoint) | "chatgpt"
+	// AssistantThink lets a thinking model (qwen3…) reason before answering.
+	// Off by default: on a small CPU the reasoning alone can take minutes.
+	AssistantThink bool      `json:"assistantThink"`
+	ChatGPTAccess  string    `json:"chatgptAccess,omitempty"`
+	ChatGPTRefresh string    `json:"chatgptRefresh,omitempty"`
+	ChatGPTAccount string    `json:"chatgptAccount,omitempty"` // chatgpt_account_id, sent as its header
+	ChatGPTEmail   string    `json:"chatgptEmail,omitempty"`
+	ChatGPTExpires time.Time `json:"chatgptExpires,omitempty"`
 	// OAuth account sign-in (device flow, RFC 8628) for providers with an
 	// OpenAI-compatible API: AssistantProvider is "oauth:<id>" and the
 	// short-lived access token is renewed by the NAS from the refresh token.

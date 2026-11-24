@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Bot, CircleCheck, CircleX, History, MessageSquarePlus, SendHorizonal, Trash2, User } from "lucide-react";
+import { Bot, CircleCheck, CircleX, History, MessageSquarePlus, SendHorizonal, Square, Trash2, User } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import type { LocalModel } from "../components/LocalModels";
 import type { Me } from "../lib/types";
@@ -86,8 +86,16 @@ export default function Assistant() {
   const [tool, setTool] = useState<string | null>(null);
   const [think, setThink] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [secs, setSecs] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, actions, busy]);
+  useEffect(() => {
+    if (!busy) { setSecs(0); return; }
+    const t0 = Date.now();
+    const iv = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
 
   /** Streams one answer of the assistant (chat or continuation after a
    * confirmed web tool) after the messages in base. */
@@ -96,6 +104,8 @@ export default function Assistant() {
     setBusy(true);
     setTool(null);
     setThink(null);
+    const ac = new AbortController();
+    abortRef.current = ac;
     const show = (reply: string) => setMessages([...base, { role: "assistant", content: reply }]);
     try {
       const res = await fetch(url, {
@@ -103,6 +113,7 @@ export default function Assistant() {
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-Strata": "1" },
         body: JSON.stringify(body),
+        signal: ac.signal,
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null);
@@ -135,13 +146,16 @@ export default function Assistant() {
       if (!reply) setMessages(base);
       if (armed.length) setActions((a) => [...a, ...armed.map((x) => ({ ...x, status: "pending" as const }))]);
     } catch (e) {
-      setError(e);
+      if ((e as Error)?.name !== "AbortError") setError(e);
       setMessages((ms) => (ms.length && ms[ms.length - 1].role === "assistant" && !ms[ms.length - 1].content ? base : ms));
     }
+    abortRef.current = null;
     setTool(null);
     setThink(null);
     setBusy(false);
   };
+
+  const stop = () => abortRef.current?.abort();
 
   const send = async (preset?: string) => {
     const q = (preset ?? text).trim();
@@ -291,7 +305,7 @@ export default function Assistant() {
             {busy && think && (
               <div className="ml-9 max-h-32 max-w-[85%] overflow-y-auto whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-panel-2 px-3.5 py-2 text-[12px] text-muted">{think}</div>
             )}
-            {busy && !think && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}</div>}
+            {busy && !think && <div className="text-[12.5px] text-muted">{tool ? tr("Running {0}…", tool) : tr("Thinking…")}{secs >= 5 ? ` ${secs}s` : ""}</div>}
             {actions.map((a, i) => (
               <div key={a.token} className="ml-7 rounded-xl border border-line bg-panel-2 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -317,6 +331,7 @@ export default function Assistant() {
               placeholder={tr("Send a message")}
               disabled={busy}
             />
+            {busy && <Button variant="ghost" title={tr("Stop")} onClick={stop} icon={<Square size={14} />} />}
             <Button variant="primary" disabled={!text.trim()} loading={busy} onClick={() => send()} icon={<SendHorizonal size={15} />} />
           </div>
         </div>

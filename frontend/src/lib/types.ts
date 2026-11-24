@@ -478,6 +478,8 @@ export interface Settings {
   assistantModel?: string;
   /** "" (endpoint) | "chatgpt" | "oauth:<id>" (account sign-in, device flow). */
   assistantProvider?: string;
+  /** Let a thinking model (qwen3…) reason before answering; off by default. */
+  assistantThink?: boolean;
   chatgptEmail?: string;
   chatgptExpires?: string;
   oauthProvider?: string;

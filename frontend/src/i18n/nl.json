@@ -5540,5 +5540,7 @@
  "Remote control": "Afstandsbediening",
  "Left": "Links",
  "Right": "Rechts",
- "Send a key to the menu shown on the TV.": "Stuur een toets naar het menu op de TV."
+ "Send a key to the menu shown on the TV.": "Stuur een toets naar het menu op de TV.",
+ "Thinking (reasoning)": "Denken (reasoning)",
+ "Off by default: on a small CPU, a thinking model (qwen3…) may reason for minutes before answering. Turn it on for more detailed answers.": "Standaard uit: op een kleine CPU kan een denkmodel (qwen3…) minuten lang redeneren voordat het antwoordt. Zet aan voor uitgebreidere antwoorden."
 }
