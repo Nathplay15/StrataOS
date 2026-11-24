@@ -49,7 +49,9 @@ func (s *Server) checkContainersHealth(alerted map[string]int) {
 			continue
 		}
 		alerted[h.ID] = h.RestartCount
-		msg := fmt.Sprintf("Container %s crashes repeatedly (%s). Last log lines: %s", h.Name, h.Reason, strings.ReplaceAll(h.LastLogs, "\n", " | "))
+		// No log line in the message: it goes to external channels (mail,
+		// ntfy, webhook…) and logs may hold secrets. The interface shows them.
+		msg := fmt.Sprintf("Container %s crashes repeatedly (%s). Its last log lines are shown with the containers.", h.Name, h.Reason)
 		s.store.Log("warning", "docker", "", msg)
 		s.notify("warning", "Container crashing", msg)
 	}
@@ -65,7 +67,10 @@ func (s *Server) containersHealth(ctx context.Context) []containerHealth {
 		return nil
 	}
 	out := []containerHealth{}
+	now := time.Now()
+	keep := map[string]bool{}
 	for _, c := range list {
+		keep[c.ID] = true
 		var ins struct {
 			Name  string              `json:"Name"`
 			State docker.InspectState `json:"State"`
@@ -73,7 +78,7 @@ func (s *Server) containersHealth(ctx context.Context) []containerHealth {
 		if err := s.docker.Call(ctx, "GET", "/containers/"+url.PathEscape(c.ID)+"/json", nil, nil, &ins); err != nil {
 			continue
 		}
-		reason := docker.CrashReason(ins.State, time.Now())
+		reason := docker.CrashReason(ins.State, containerRestarts.Restarts(c.ID, ins.State.RestartCount, now))
 		h := containerHealth{
 			ID:           c.ID,
 			Name:         strings.TrimPrefix(ins.Name, "/"),
@@ -87,8 +92,12 @@ func (s *Server) containersHealth(ctx context.Context) []containerHealth {
 		}
 		out = append(out, h)
 	}
+	containerRestarts.Forget(keep)
 	return out
 }
+
+// containerRestarts counts the restarts of the last hour across checks.
+var containerRestarts = &docker.RestartTracker{}
 
 // containerTailLogs returns the last lines of a container's log (both streams).
 func (s *Server) containerTailLogs(ctx context.Context, id string, tail int) string {

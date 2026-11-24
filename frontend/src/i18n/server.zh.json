@@ -3508,5 +3508,6 @@
  "événement introuvable": "未找到事件",
  "Échec de la recherche TMDB pour {0} : {1}": "TMDB 搜索 {0} 失败：{1}",
  "Échec des détails TMDB pour {0} : {1}": "TMDB 详情 {0} 失败：{1}",
- "{0} ({1}) associé à TMDB {2} : {3}": "已将 {0}（{1}）匹配到 TMDB {2}：{3}"
+ "{0} ({1}) associé à TMDB {2} : {3}": "已将 {0}（{1}）匹配到 TMDB {2}：{3}",
+ "Le conteneur {0} échoue à répétition ({1}). Ses dernières lignes de journal sont affichées avec les conteneurs.": "容器 {0} 反复崩溃（{1}）。其最近的日志行显示在容器列表中。"
 }

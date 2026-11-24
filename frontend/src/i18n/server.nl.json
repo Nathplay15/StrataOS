@@ -3508,5 +3508,6 @@
  "événement introuvable": "gebeurtenis niet gevonden",
  "Échec de la recherche TMDB pour {0} : {1}": "TMDB-zoekopdracht voor {0} mislukt: {1}",
  "Échec des détails TMDB pour {0} : {1}": "TMDB-details voor {0} mislukt: {1}",
- "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) gekoppeld aan TMDB {2}: {3}"
+ "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) gekoppeld aan TMDB {2}: {3}",
+ "Le conteneur {0} échoue à répétition ({1}). Ses dernières lignes de journal sont affichées avec les conteneurs.": "Container {0} crasht herhaaldelijk ({1}). De laatste logregels staan bij de containers."
 }

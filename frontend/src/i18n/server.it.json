@@ -3508,5 +3508,6 @@
  "événement introuvable": "evento non trovato",
  "Échec de la recherche TMDB pour {0} : {1}": "Ricerca TMDB per {0} non riuscita: {1}",
  "Échec des détails TMDB pour {0} : {1}": "Dettagli TMDB per {0} non riusciti: {1}",
- "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) abbinato a TMDB {2}: {3}"
+ "{0} ({1}) associé à TMDB {2} : {3}": "{0} ({1}) abbinato a TMDB {2}: {3}",
+ "Le conteneur {0} échoue à répétition ({1}). Ses dernières lignes de journal sont affichées avec les conteneurs.": "Il container {0} si arresta ripetutamente ({1}). Le sue ultime righe di log sono mostrate con i container."
 }
