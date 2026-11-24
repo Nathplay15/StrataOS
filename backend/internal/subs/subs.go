@@ -7,14 +7,12 @@ package subs
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -192,41 +190,28 @@ func (c *Client) Download(ctx context.Context, fileID int) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 }
 
-// MovieHash computes the OpenSubtitles moviehash of a file: MD5 over the
-// first 64 KiB, the last 64 KiB and the file size (little endian).
-func MovieHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
+// hashChunk is the size of the head and tail summed by the moviehash.
+const hashChunk = 64 << 10
+
+// MovieHash computes the OpenSubtitles moviehash of a file of the given
+// size: the file size plus the sum of the little-endian 64-bit words of its
+// first and last 64 KiB, modulo 2^64, as 16 hexadecimal digits. Files
+// smaller than 128 KiB have no moviehash.
+func MovieHash(f io.ReaderAt, size int64) (string, error) {
+	if size < 2*hashChunk {
+		return "", fmt.Errorf("file too small for a moviehash")
 	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return "", err
-	}
-	h := md5.New()
-	buf := make([]byte, 64<<10)
-	n, err := f.Read(buf)
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	h.Write(buf[:n])
-	if fi.Size() > int64(len(buf)) {
-		if _, err := f.Seek(max(0, fi.Size()-int64(len(buf))), io.SeekStart); err != nil {
+	h := uint64(size)
+	buf := make([]byte, hashChunk)
+	for _, off := range []int64{0, size - hashChunk} {
+		if _, err := f.ReadAt(buf, off); err != nil && err != io.EOF {
 			return "", err
 		}
-		n, err := f.Read(buf)
-		if err != nil && err != io.EOF {
-			return "", err
+		for i := 0; i < hashChunk; i += 8 {
+			h += binary.LittleEndian.Uint64(buf[i:])
 		}
-		h.Write(buf[:n])
 	}
-	var size [8]byte
-	for i := 0; i < 8; i++ {
-		size[i] = byte(fi.Size() >> (8 * i))
-	}
-	h.Write(size[:])
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return fmt.Sprintf("%016x", h), nil
 }
 
 // SanitizeLang keeps only [a-z0-9-] (5 chars max) so a language coming from

@@ -1,62 +1,32 @@
 package subs
 
 import (
+	"bytes"
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestMovieHash(t *testing.T) {
-	// Known vector: the OpenSubtitles moviehash of a file is MD5(head64k +
-	// tail64k + size LE). Verify the structure against a hand-computed hash.
-	dir := t.TempDir()
-	p := filepath.Join(dir, "f.bin")
-	data := make([]byte, 200<<10) // 200 KB: head and tail overlap avoided
+	// Vectors computed independently (Python: size + sum of the
+	// little-endian uint64 words of the first and last 64 KiB, mod 2^64).
+	ones := bytes.Repeat([]byte{1}, 128<<10)
+	if h, err := MovieHash(bytes.NewReader(ones), int64(len(ones))); err != nil || h != "4040404040424000" {
+		t.Errorf("all ones: %s %v", h, err)
+	}
+	data := make([]byte, 200000)
 	for i := range data {
-		data[i] = byte(i * 7)
+		data[i] = byte(i % 251)
 	}
-	if err := os.WriteFile(p, data, 0o644); err != nil {
-		t.Fatal(err)
+	if h, err := MovieHash(bytes.NewReader(data), int64(len(data))); err != nil || h != "e19d5212c9812cd6" {
+		t.Errorf("pattern: %s %v", h, err)
 	}
-	h, err := MovieHash(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	man := md5.New()
-	man.Write(data[:64<<10])
-	man.Write(data[len(data)-64<<10:])
-	var size [8]byte
-	for i := 0; i < 8; i++ {
-		size[i] = byte(int64(len(data)) >> (8 * i))
-	}
-	man.Write(size[:])
-	if h != hex.EncodeToString(man.Sum(nil)) {
-		t.Errorf("hash mismatch: %s vs %s", h, hex.EncodeToString(man.Sum(nil)))
-	}
-	// Small file (< 64 KB): head only once (no double-read), still consistent.
-	small := filepath.Join(dir, "s.bin")
-	os.WriteFile(small, []byte("hello"), 0o644)
-	h2, err := MovieHash(small)
-	if err != nil || len(h2) != 32 {
-		t.Errorf("small file: %q %v", h2, err)
-	}
-	man2 := md5.New()
-	man2.Write([]byte("hello"))
-	var s2 [8]byte
-	for i := 0; i < 8; i++ {
-		s2[i] = byte(int64(5) >> (8 * i))
-	}
-	man2.Write(s2[:])
-	if h2 != hex.EncodeToString(man2.Sum(nil)) {
-		t.Errorf("small hash: %s vs %s", h2, hex.EncodeToString(man2.Sum(nil)))
+	if _, err := MovieHash(bytes.NewReader([]byte("hello")), 5); err == nil {
+		t.Error("a 5-byte file has no moviehash")
 	}
 }
 

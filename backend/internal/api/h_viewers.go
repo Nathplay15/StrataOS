@@ -439,8 +439,20 @@ func (s *Server) viewerRoutes() {
 		}
 		hash := ""
 		if imdb == "" {
-			if hash, err = subs.MovieHash(t.abs); err != nil {
+			// Through the share's root, like any read of a user's file.
+			rt, err := t.open()
+			if err != nil {
 				return nil, err
+			}
+			f, fi, err := rootio.OpenRegular(rt, t.rel)
+			rt.Close()
+			if err != nil {
+				return nil, notFound("file not found")
+			}
+			hash, err = subs.MovieHash(f, fi.Size())
+			f.Close()
+			if err != nil {
+				return nil, badRequest(err.Error())
 			}
 		}
 		cl := &subs.Client{APIKey: set.OSApiKey, User: set.OSUser, Password: set.OSPass}
