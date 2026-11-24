@@ -5559,5 +5559,8 @@
  "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "La modifica WiFi viene applicata in prova per 2 minuti, come ogni modifica di rete: se il NAS diventa irraggiungibile, torna la configurazione precedente.",
  "Saved on this NAS": "Salvato su questo NAS",
  "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "Le credenziali WiFi salvate di {0} vengono rimosse; il collegamento non si connetterà più automaticamente.",
- "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfacce, WiFi, firewall, reti virtuali e nome del NAS"
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfacce, WiFi, firewall, reti virtuali e nome del NAS",
+ "Crop": "Ritaglia",
+ "Apply crop": "Applica ritaglio",
+ "Drag over the picture to choose the area to keep": "Trascina sull'immagine per scegliere l'area da tenere"
 }

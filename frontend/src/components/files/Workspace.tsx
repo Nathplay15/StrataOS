@@ -4,7 +4,7 @@
 // OnlyOffice. Every panel stays mounted while its tab is open, so switching keeps the edits and the undo history.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Columns2, Eye, Folder, Maximize, Minus, Moon, Plus, RefreshCw, RotateCcw, RotateCw, Save, Sun, SunMedium, X } from "lucide-react";
+import { Check, Columns2, Crop, Eye, Folder, Maximize, Minus, Moon, Plus, RefreshCw, RotateCcw, RotateCw, Save, Sun, SunMedium, X } from "lucide-react";
 import { ApiError, api, q } from "../../lib/api";
 import { cx } from "../../lib/format";
 import { tr, srv, lang as uiLang } from "../../lib/i18n";
@@ -239,8 +239,23 @@ function ImagePanel({ tab }: { tab: OpenTab }) {
       setError(e);
     }
   };
-  useEffect(() => { setZoom(0); setError(null); }, [src]);
+  useEffect(() => { setZoom(0); setError(null); setCrop(null); }, [src]);
   const box = useRef<HTMLDivElement>(null);
+  // Crop: a rectangle dragged over the picture, sent as fractions of it.
+  const img = useRef<HTMLImageElement>(null);
+  const [crop, setCrop] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null);
+  const [cropping, setCropping] = useState(false);
+  const frac = (e: React.PointerEvent) => {
+    const b = img.current!.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - b.left) / b.width)), y: Math.min(1, Math.max(0, (e.clientY - b.top) / b.height)) };
+  };
+  const cropRect = crop && { x: Math.min(crop.x0, crop.x1), y: Math.min(crop.y0, crop.y1), w: Math.abs(crop.x1 - crop.x0), h: Math.abs(crop.y1 - crop.y0) };
+  const applyCrop = async () => {
+    if (!cropRect || cropRect.w < 0.02 || cropRect.h < 0.02) return;
+    await edit({ crop: cropRect });
+    setCropping(false);
+    setCrop(null);
+  };
   const goRef = useRef(go);
   goRef.current = go;
   useEffect(() => {
@@ -271,6 +286,11 @@ function ImagePanel({ tab }: { tab: OpenTab }) {
           <Button size="sm" variant="ghost" icon={<Sun size={14} />} title={tr("Auto light")} onClick={() => void edit({ autoLight: true })} />
           <Button size="sm" variant="ghost" icon={<Moon size={14} />} title={tr("Darker")} onClick={() => void edit({ brightness: -15 })} />
           <Button size="sm" variant="ghost" icon={<SunMedium size={14} />} title={tr("Brighter")} onClick={() => void edit({ brightness: 15 })} />
+          <Button size="sm" variant={cropping ? "secondary" : "ghost"} icon={<Crop size={14} />} title={tr("Crop")} onClick={() => { setCropping(!cropping); setCrop(null); setZoom(0); }} />
+          {cropping && <>
+            <span className="text-[12px] text-muted">{tr("Drag over the picture to choose the area to keep")}</span>
+            <Button size="sm" icon={<Check size={14} />} disabled={!cropRect || cropRect.w < 0.02 || cropRect.h < 0.02} onClick={() => void applyCrop()}>{tr("Apply crop")}</Button>
+          </>}
         </>}
         {converted && <Badge>{tr("Converted")}</Badge>}
         <Button size="sm" variant="ghost" icon={<Minus size={14} />} title={tr("Zoom out")} onClick={() => setZoom(Math.max(0.1, (zoom || 1) / 1.25))} />
@@ -279,9 +299,14 @@ function ImagePanel({ tab }: { tab: OpenTab }) {
         <Button size="sm" variant="ghost" icon={<Maximize size={14} />} title={tr("Fit")} onClick={() => setZoom(0)} />
       </Toolbar>
       {error ? <ViewerCard><ErrorBox error={error} /></ViewerCard> : (
-        <div ref={box} className={cx("min-h-0 flex-1 overflow-auto bg-panel-2 p-3", !zoom && "flex items-center justify-center")} onDoubleClick={() => setZoom(zoom ? 0 : 1)}>
-          {/* SVG too goes through <img>: its scripts never run. */}
-          <img src={src} alt={tab.entry.name} onError={() => void onError()} className={cx("rounded", !zoom && "max-h-full max-w-full object-contain")} style={zoom ? { width: "auto", maxWidth: "none", transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined} />
+        <div ref={box} className={cx("min-h-0 flex-1 overflow-auto bg-panel-2 p-3", !zoom && "flex items-center justify-center")} onDoubleClick={() => !cropping && setZoom(zoom ? 0 : 1)}>
+          <div className="relative inline-flex max-h-full max-w-full">
+            {/* SVG too goes through <img>: its scripts never run. */}
+            <img ref={img} src={src} alt={tab.entry.name} draggable={false} onError={() => void onError()} className={cx("rounded", !zoom && "max-h-full max-w-full object-contain", cropping && "cursor-crosshair touch-none select-none")} style={zoom ? { width: "auto", maxWidth: "none", transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
+              onPointerDown={cropping ? (e) => { e.currentTarget.setPointerCapture(e.pointerId); const p = frac(e); setCrop({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }); } : undefined}
+              onPointerMove={cropping ? (e) => { if (e.buttons && crop) { const p = frac(e); setCrop({ ...crop, x1: p.x, y1: p.y }); } } : undefined} />
+            {cropping && cropRect && <div className="pointer-events-none absolute border-2 border-accent shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" style={{ left: `${cropRect.x * 100}%`, top: `${cropRect.y * 100}%`, width: `${cropRect.w * 100}%`, height: `${cropRect.h * 100}%` }} />}
+          </div>
         </div>
       )}
     </>

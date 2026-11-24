@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"strataos/internal/photos"
 )
 
 func testJPEG(t *testing.T, w, h int) []byte {
@@ -35,7 +37,7 @@ func TestEditPhoto(t *testing.T) {
 	tg := target{root: root, rel: "pic.jpg", abs: p, acc: access{read: true, write: true}}
 
 	// Rotate 90: 8x4 becomes 4x8, mode kept.
-	if err := s.editPhoto(tg, 90, 0, false); err != nil {
+	if err := s.editPhoto(tg, photos.Edit{Rotate: 90, Brightness: 0, AutoLight: false}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.Open(p)
@@ -55,7 +57,7 @@ func TestEditPhoto(t *testing.T) {
 	}
 
 	// Auto light: the red channel (50..255) must be stretched to 0..255.
-	if err := s.editPhoto(tg, 0, 0, true); err != nil {
+	if err := s.editPhoto(tg, photos.Edit{Rotate: 0, Brightness: 0, AutoLight: true}); err != nil {
 		t.Fatal(err)
 	}
 	f, _ = os.Open(p)
@@ -86,11 +88,27 @@ func TestEditPhoto(t *testing.T) {
 	if err := os.WriteFile(png, []byte("x"), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.editPhoto(target{root: root, rel: "pic.png", abs: png, acc: access{read: true, write: true}}, 90, 0, false); err == nil {
+	if err := s.editPhoto(target{root: root, rel: "pic.png", abs: png, acc: access{read: true, write: true}}, photos.Edit{Rotate: 90, Brightness: 0, AutoLight: false}); err == nil {
 		t.Fatal("PNG must be refused")
 	}
 	// Missing file.
-	if err := s.editPhoto(target{root: root, rel: "gone.jpg", abs: filepath.Join(root, "gone.jpg"), acc: access{read: true, write: true}}, 90, 0, false); err == nil {
+	if err := s.editPhoto(target{root: root, rel: "gone.jpg", abs: filepath.Join(root, "gone.jpg"), acc: access{read: true, write: true}}, photos.Edit{Rotate: 90, Brightness: 0, AutoLight: false}); err == nil {
 		t.Fatal("missing file must fail")
+	}
+}
+
+func TestEditPhotoRefusesLinksOutOfTheShare(t *testing.T) {
+	s := newTestServer(t)
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.jpg")
+	orig := testJPEG(t, 8, 4)
+	os.WriteFile(outside, orig, 0o600)
+	os.Symlink(outside, filepath.Join(root, "pic.jpg"))
+	tg := target{root: root, rel: "pic.jpg", abs: filepath.Join(root, "pic.jpg"), acc: access{read: true, write: true}}
+	if err := s.editPhoto(tg, photos.Edit{Rotate: 90}); err == nil {
+		t.Fatal("picture outside the share edited")
+	}
+	if b, _ := os.ReadFile(outside); !bytes.Equal(b, orig) {
+		t.Fatal("file outside the share changed")
 	}
 }

@@ -5559,5 +5559,8 @@
  "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "De WiFi-wijziging wordt 2 minuten op proef toegepast, zoals elke netwerkwijziging: als de NAS onbereikbaar wordt, keert de vorige configuratie terug.",
  "Saved on this NAS": "Opgeslagen op deze NAS",
  "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "De opgeslagen WiFi-gegevens van {0} worden verwijderd; de link maakt geen automatische verbinding meer.",
- "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, virtuele netwerken en NAS-naam"
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, virtuele netwerken en NAS-naam",
+ "Crop": "Bijsnijden",
+ "Apply crop": "Bijsnijden toepassen",
+ "Drag over the picture to choose the area to keep": "Sleep over de foto om het deel te kiezen dat u wilt houden"
 }

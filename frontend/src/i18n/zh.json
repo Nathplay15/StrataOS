@@ -5559,5 +5559,8 @@
  "The WiFi change is applied on trial for 2 minutes, like any network change: if the NAS becomes unreachable, the previous configuration comes back.": "WiFi 更改会像任何网络更改一样试运行 2 分钟：如果 NAS 无法访问，将恢复之前的配置。",
  "Saved on this NAS": "已保存在此 NAS 上",
  "The saved WiFi credentials of {0} are removed; the link will not connect automatically anymore.": "将删除 {0} 保存的 WiFi 凭据；该链路将不再自动连接。",
- "Interfaces, WiFi, firewall, virtual networks and NAS name": "接口、WiFi、防火墙、虚拟网络和 NAS 名称"
+ "Interfaces, WiFi, firewall, virtual networks and NAS name": "接口、WiFi、防火墙、虚拟网络和 NAS 名称",
+ "Crop": "裁剪",
+ "Apply crop": "应用裁剪",
+ "Drag over the picture to choose the area to keep": "在图片上拖动，选择要保留的区域"
 }
