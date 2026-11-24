@@ -56,6 +56,11 @@ func (s *Server) cinemaShares() []cinema.Root {
 
 var cinemaScanMu sync.Mutex
 
+const (
+	maxPositions    = 500 // resume points kept per account
+	maxListsPerUser = 50  // watch lists an account may own
+)
+
 // cinemaRunning is the scan in progress of this process: the persisted
 // Running flag of a daemon that stopped mid-scan means nothing.
 var cinemaRunning atomic.Bool
@@ -172,6 +177,16 @@ func (s *Server) cinemaRoutes() {
 		if req.Path == "" || len(req.Path) > 4096 || req.Duration <= 0 || req.At < 0 || req.At > req.Duration*1.5 {
 			return nil, badRequest("invalid position")
 		}
+		known := false
+		for _, it := range s.cinemaItems(r) {
+			if it.Path == req.Path {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return nil, notFound("video not in the library")
+		}
 		u := userOf(r)
 		return nil, s.store.Update(func(st *store.State) error {
 			if st.Media.Positions == nil {
@@ -186,6 +201,16 @@ func (s *Server) cinemaRoutes() {
 				delete(m, req.Path) // finished
 			} else {
 				m[req.Path] = store.PlayPos{At: req.At, Duration: req.Duration, Updated: time.Now()}
+				// At most maxPositions per account: the oldest go.
+				for len(m) > maxPositions {
+					oldest, at := "", time.Now()
+					for p, v := range m {
+						if v.Updated.Before(at) {
+							oldest, at = p, v.Updated
+						}
+					}
+					delete(m, oldest)
+				}
 			}
 			if len(m) == 0 {
 				delete(st.Media.Positions, u)
@@ -360,7 +385,13 @@ func (s *Server) cinemaRoutes() {
 		u := userOf(r)
 		l := store.WatchList{ID: newLinkID()[:12], Name: name, Owner: u, Created: time.Now()}
 		return nil, s.store.Update(func(st *store.State) error {
-			if len(st.Media.WatchLists) >= 100 {
+			mine := 0
+			for _, x := range st.Media.WatchLists {
+				if x.Owner == u {
+					mine++
+				}
+			}
+			if mine >= maxListsPerUser || len(st.Media.WatchLists) >= 5000 {
 				return badRequest("too many lists")
 			}
 			st.Media.WatchLists = append(st.Media.WatchLists, l)
@@ -495,7 +526,13 @@ func (s *Server) cinemaRoutes() {
 		}
 		res := map[string]any{"key": v.Key, "name": v.Name}
 		trailerMu.Lock()
-		trailers[ck] = cachedTrailer{res: res, exp: time.Now().Add(10 * time.Minute)}
+		now := time.Now()
+		for k, c := range trailers { // expired answers go; the cache stays small
+			if now.After(c.exp) || len(trailers) >= 1000 {
+				delete(trailers, k)
+			}
+		}
+		trailers[ck] = cachedTrailer{res: res, exp: now.Add(10 * time.Minute)}
 		trailerMu.Unlock()
 		return res, nil
 	})

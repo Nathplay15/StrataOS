@@ -113,3 +113,26 @@ func TestCinemaAgeLimitEnforced(t *testing.T) {
 		t.Fatalf("bob: %s", body)
 	}
 }
+
+func TestCinemaPositionOnlyKnownVideos(t *testing.T) {
+	s := cinemaFixture(t)
+	alice := albumClient(t, s, "alice", "user")
+	if rec := alice.req("PUT", "/api/cinema/position", map[string]any{"path": "/srv/strata/main/Private/Secret.mkv", "at": 10, "duration": 100}); rec.Code != http.StatusNotFound {
+		t.Fatalf("unreadable video: %d", rec.Code)
+	}
+	if rec := alice.req("PUT", "/api/cinema/position", map[string]any{"path": "/etc/garbage", "at": 10, "duration": 100}); rec.Code != http.StatusNotFound {
+		t.Fatalf("garbage: %d", rec.Code)
+	}
+	if rec := alice.req("PUT", "/api/cinema/position", map[string]any{"path": "/srv/strata/main/Family/Up.mkv", "at": 10, "duration": 100}); rec.Code != http.StatusOK {
+		t.Fatalf("known video: %d %s", rec.Code, rec.Body.String())
+	}
+	for i := 0; i < maxListsPerUser; i++ {
+		alice.req("POST", "/api/cinema/lists", map[string]any{"name": "l"})
+	}
+	if rec := alice.req("POST", "/api/cinema/lists", map[string]any{"name": "one more"}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("list cap: %d", rec.Code)
+	}
+	if rec := albumClient(t, s, "bob", "user").req("POST", "/api/cinema/lists", map[string]any{"name": "bob's"}); rec.Code != http.StatusOK {
+		t.Fatalf("bob blocked by alice's lists: %d", rec.Code)
+	}
+}
