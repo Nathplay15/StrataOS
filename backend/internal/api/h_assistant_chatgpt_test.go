@@ -367,3 +367,17 @@ func TestChatGPTConcurrentRefresh(t *testing.T) {
 		t.Errorf("refresh failed: %v", err)
 	}
 }
+
+// A ChatGPT account has no assistant address: resuming after a confirmation
+// must not answer "not configured".
+func TestAssistantResumeWithChatGPT(t *testing.T) {
+	s, ts, tok := assistantServer(t, "", false)
+	_ = s.store.Update(func(st *store.State) error {
+		st.Settings.AssistantProvider, st.Settings.ChatGPTRefresh, st.Settings.AssistantModel = "chatgpt", "r0", "gpt-test"
+		return nil
+	})
+	_, body := assistantDo(t, ts.URL, tok, "POST", "/api/assistant/resume", map[string]string{"token": "nope"})
+	if strings.Contains(string(body), "not configured") || !strings.Contains(string(body), "confirmation token") {
+		t.Fatalf("resume: %s", body)
+	}
+}

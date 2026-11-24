@@ -618,10 +618,10 @@ func (s *Server) assistantRoutes() {
 			writeErr(w, err)
 			return
 		}
-		var set store.Settings
-		s.store.Read(func(st *store.State) { set = st.Settings })
-		if set.AssistantURL == "" || set.AssistantModel == "" {
-			writeErr(w, badRequest("the assistant is not configured: set it up in Settings"))
+		// Every kind of provider (key, ChatGPT or OAuth sign-in), like the chat.
+		set, err := s.assistantSettings()
+		if err != nil {
+			writeErr(w, err)
 			return
 		}
 		p, err := s.assistantConf.consumeAny(userOf(r), req.Token)
