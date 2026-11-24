@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -91,5 +93,35 @@ func TestAlbumShare(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &list)
 	if len(list) != 0 {
 		t.Fatalf("marie list after unshare: %v", list)
+	}
+}
+
+// A shared album photo is reached as its owner reaches it, now.
+func TestAlbumPhotoFollowsOwnerAccess(t *testing.T) {
+	s := newTestServer(t)
+	photo := "/srv/strata/main/Photos/beach.jpg"
+	_ = s.store.Update(func(st *store.State) error {
+		st.Users = append(st.Users, &store.User{Username: "olga", Role: "admin"}, &store.User{Username: "alice", Role: "user"}, &store.User{Username: "eve", Role: "user"})
+		st.Photos.Albums = append(st.Photos.Albums, &store.Album{ID: "a1", Name: "Summer", Owner: "olga", With: []string{"alice"}, Items: []string{photo}})
+		return nil
+	})
+	req := func(u string) *http.Request {
+		r := httptest.NewRequest("GET", "/", nil)
+		return r.WithContext(context.WithValue(r.Context(), ctxKey{}, &session{User: u, Role: "user"}))
+	}
+	tg, ok := s.sharedTarget(req("alice"), photo)
+	if !ok || tg.acc.write || tg.abs != photo {
+		t.Fatalf("alice: %+v %v", tg, ok)
+	}
+	if _, ok := s.sharedTarget(req("eve"), photo); ok {
+		t.Fatal("eve is not a recipient")
+	}
+	if _, ok := s.sharedTarget(req("alice"), "/srv/strata/main/Photos/other.jpg"); ok {
+		t.Fatal("a photo outside the album")
+	}
+	// The owner loses her access to the share: the album photo closes too.
+	_ = s.store.Update(func(st *store.State) error { st.User("olga").Role = "user"; return nil })
+	if _, ok := s.sharedTarget(req("alice"), photo); ok {
+		t.Fatal("served although the owner can no longer read it")
 	}
 }

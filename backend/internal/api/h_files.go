@@ -449,14 +449,17 @@ func (s *Server) fileRoutes() {
 	})
 
 	s.userRaw("GET /api/files/download", func(w http.ResponseWriter, r *http.Request) {
-		t, err := s.locate(r, r.URL.Query().Get("path"))
+		p := r.URL.Query().Get("path")
+		t, err := s.locate(r, p)
 		if err != nil || !t.acc.read || t.acc.ancestor {
-			// A photo of an album shared with me is sent on its own: no
-			// folder list, no read on anything else.
-			if !(err == nil && t.acc.ancestor && s.sharedWithMe(r, t.abs)) {
+			// A photo of an album shared with me is sent on its own, as its
+			// owner can read it now: no folder list, nothing else.
+			st, ok := s.sharedTarget(r, filepath.Clean("/"+p))
+			if !ok {
 				writeErr(w, firstErr(err, errForbidden))
 				return
 			}
+			t = st
 		}
 		s.serveTarget(w, r, t, nil)
 	})

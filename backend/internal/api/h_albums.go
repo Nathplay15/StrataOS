@@ -259,21 +259,42 @@ func (s *Server) usersExist(names []string) ([]string, error) {
 	return out, nil
 }
 
-// sharedWithMe says whether a photo that is outside this account's roots is
-// still reachable: the owner of a shared album chose exactly who sees its
-// photos, like a share link does.
+// sharedWithMe reports whether path is a photo of an album shared with the
+// caller whose owner can still read it now (see sharedTarget).
 func (s *Server) sharedWithMe(r *http.Request, path string) bool {
+	_, ok := s.sharedTarget(r, path)
+	return ok
+}
+
+// sharedTarget returns, read-only, the photo path of an album shared with
+// the caller, as its owner reaches it: the owner's current access is checked
+// on every request (a share closed to the owner closes the album photo too).
+func (s *Server) sharedTarget(r *http.Request, path string) (target, bool) {
 	me := userOf(r)
-	found := false
+	type owner struct {
+		name  string
+		admin bool
+	}
+	var owners []owner
 	s.store.Read(func(st *store.State) {
 		for _, a := range st.Photos.Albums {
 			if a.Owner != me && slices.Contains(a.With, me) && slices.Contains(a.Items, path) {
-				found = true
-				return
+				u := st.User(a.Owner)
+				if u != nil {
+					owners = append(owners, owner{a.Owner, u.Role == "admin"})
+				}
 			}
 		}
 	})
-	return found
+	for _, o := range owners {
+		t, err := s.locateFor(o.name, o.admin, path)
+		if err != nil || !t.acc.read || t.acc.ancestor || t.rel == "." {
+			continue
+		}
+		t.acc.write, t.acc.e2eWrite = false, false
+		return t, true
+	}
+	return target{}, false
 }
 
 // checkAlbumItems keeps indexed photos the user can read.
