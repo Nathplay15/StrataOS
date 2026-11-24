@@ -3,6 +3,7 @@ package cinema
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func (c *Client) Search(ctx context.Context, kind, title string, year int) ([]Se
 	}
 	u := TMDBBase + "/search/" + kind + "?" + q.Encode()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	resp, err := c.http().Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func (c *Client) Details(ctx context.Context, kind string, id int) (*Item, error
 	}
 	u := fmt.Sprintf("%s/%s/%d?api_key=%s&language=en&append_to_response=credits,external_ids,release_dates,content_ratings", TMDBBase, map[string]string{"movie": "movie", "tv": "tv"}[kind], id, url.QueryEscape(c.Key))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	resp, err := c.http().Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +226,7 @@ func (c *Client) Trailer(ctx context.Context, kind string, id int) (Video, error
 	}
 	u := fmt.Sprintf("%s/%s/%d/videos?api_key=%s&language=en", TMDBBase, kind, id, url.QueryEscape(c.Key))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	resp, err := c.http().Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return Video{}, err
 	}
@@ -265,7 +266,7 @@ func (c *Client) Poster(ctx context.Context, posterFile string) ([]byte, error) 
 		return nil, fmt.Errorf("no poster")
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, TMDBImages+"/"+posterFile, nil)
-	resp, err := c.http().Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -320,4 +321,36 @@ func certAge(c string) (int, bool) {
 		return a, true
 	}
 	return 0, false
+}
+
+// do sends a TMDB request. TMDB v3 keys only go in the query string, so a
+// transport error (which quotes the URL) is rewritten without it: the error
+// reaches the interface and the logs.
+func (c *Client) do(req *http.Request) (*http.Response, error) {
+	resp, err := c.http().Do(req)
+	if err != nil {
+		return nil, redactErr(err, c.Key)
+	}
+	return resp, nil
+}
+
+func redactErr(err error, key string) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		u, _, _ := strings.Cut(ue.URL, "?") // the address without its query
+		return fmt.Errorf("TMDB: %s %s: %v", ue.Op, u, redactText(ue.Err, key))
+	}
+	return fmt.Errorf("TMDB: %v", redactText(err, key))
+}
+
+func redactText(err error, key string) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	if key != "" {
+		s = strings.ReplaceAll(s, key, "***")
+		s = strings.ReplaceAll(s, url.QueryEscape(key), "***")
+	}
+	return s
 }

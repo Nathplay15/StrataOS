@@ -299,3 +299,18 @@ func TestAgeOf(t *testing.T) {
 		}
 	}
 }
+
+func TestTMDBErrorsHideTheKey(t *testing.T) {
+	old := TMDBBase
+	TMDBBase = "http://127.0.0.1:1" // nothing listens: a transport error quoting the URL
+	t.Cleanup(func() { TMDBBase = old })
+	c := &Client{Key: "s3cr3t-key-123"}
+	_, err1 := c.Search(context.Background(), "movie", "Heat", 1995)
+	_, err2 := c.Details(context.Background(), "movie", 949)
+	_, err3 := c.Trailer(context.Background(), "movie", 949)
+	for _, err := range []error{err1, err2, err3} {
+		if err == nil || strings.Contains(err.Error(), "s3cr3t") || strings.Contains(err.Error(), "api_key") {
+			t.Errorf("error leaks the key: %v", err)
+		}
+	}
+}
