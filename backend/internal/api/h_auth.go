@@ -25,7 +25,18 @@ func (s *Server) setCookie(w http.ResponseWriter, r *http.Request, value string,
 		Name: cookieName, Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: r.TLS != nil, MaxAge: int(ttl.Seconds()),
 	})
+	// A browser that signs in gets a long-lived random device id, so the
+	// next sign-ins are recognized whatever its version (new-device alerts).
+	if value != "" && ttl > 0 {
+		if _, err := r.Cookie(deviceCookie); err != nil {
+			http.SetCookie(w, &http.Cookie{Name: deviceCookie, Value: newLinkID(), Path: "/", HttpOnly: true,
+				SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: 400 * 24 * 3600})
+		}
+	}
 }
+
+// deviceCookie holds a browser's random device id (no other meaning).
+const deviceCookie = "strata_device"
 
 func (s *Server) sessionTTL() time.Duration {
 	h := 12

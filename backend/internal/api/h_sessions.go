@@ -11,7 +11,11 @@ import (
 // recordLogin stores a sign-in attempt with the browser/app signature of the
 // request, and alerts the account when it succeeds from a new device.
 func (s *Server) recordLogin(r *http.Request, user string, ok bool, how string) {
-	l := s.store.Login(user, clientIP(r), r.UserAgent(), ok, how)
+	dev := ""
+	if c, err := r.Cookie(deviceCookie); err == nil && len(c.Value) <= 64 {
+		dev = c.Value
+	}
+	l := s.store.LoginDevice(user, clientIP(r), r.UserAgent(), dev, ok, how)
 	if l.OK && l.NewDevice {
 		msg := fmt.Sprintf("Account %s signed in from a new device (%s, method %s)", l.User, l.IP, l.How)
 		s.store.Log("warning", "auth", l.User, "New device sign-in from "+l.IP)

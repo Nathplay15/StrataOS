@@ -3,6 +3,8 @@ package store
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
+	"slices"
 	"time"
 )
 
@@ -26,7 +28,7 @@ type Login struct {
 const maxLogins = 500
 
 // maxDevicesPerUser bounds the device signatures remembered per account.
-const maxDevicesPerUser = 20
+const maxDevicesPerUser = 100
 
 // maxUA is the length kept of the User-Agent signature.
 const maxUA = 200
@@ -37,11 +39,27 @@ func deviceHash(ua string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+var versionRe = regexp.MustCompile(`[0-9][0-9._]*`)
+
+// uaSignature is a browser signature without its version numbers, so a
+// browser update is not a new device.
+func uaSignature(ua string) string { return "u:" + deviceHash(versionRe.ReplaceAllString(ua, "")) }
+
+// cookieSignature identifies a browser by its long-lived device cookie.
+func cookieSignature(id string) string { return "c:" + deviceHash(id) }
+
 // Login records a sign-in attempt in the history (newest last) and returns
 // the stored entry. A successful attempt from a device signature the account
 // never used is marked NewDevice and the signature is remembered (bounded);
 // failed attempts never mark a device as known.
 func (s *Store) Login(user, ip, ua string, ok bool, how string) Login {
+	return s.LoginDevice(user, ip, ua, "", ok, how)
+}
+
+// LoginDevice is Login with the browser's device cookie (dev, "" when it has
+// none). A device is known by its cookie, or else by its browser signature
+// without version numbers (the raw signature of 0.15.1 and before counts).
+func (s *Store) LoginDevice(user, ip, ua, dev string, ok bool, how string) Login {
 	if user == "" {
 		user = "(unknown)"
 	}
@@ -57,20 +75,23 @@ func (s *Store) Login(user, ip, ua string, ok bool, how string) Login {
 			st.Devices = map[string][]string{}
 		}
 		if ok && user != "(unknown)" {
-			h := deviceHash(ua)
-			seen := false
-			for _, d := range st.Devices[user] {
-				if d == h {
-					seen = true
-					break
+			sigs := []string{uaSignature(ua)}
+			if dev != "" {
+				sigs = append(sigs, cookieSignature(dev))
+			}
+			known := slices.ContainsFunc(st.Devices[user], func(d string) bool {
+				return slices.Contains(sigs, d) || d == deviceHash(ua)
+			})
+			if !known {
+				entry.NewDevice = true
+			}
+			for _, sg := range sigs {
+				if !slices.Contains(st.Devices[user], sg) {
+					st.Devices[user] = append(st.Devices[user], sg)
 				}
 			}
-			if !seen {
-				entry.NewDevice = true
-				st.Devices[user] = append(st.Devices[user], h)
-				if len(st.Devices[user]) > maxDevicesPerUser {
-					st.Devices[user] = st.Devices[user][len(st.Devices[user])-maxDevicesPerUser:]
-				}
+			if len(st.Devices[user]) > maxDevicesPerUser {
+				st.Devices[user] = st.Devices[user][len(st.Devices[user])-maxDevicesPerUser:]
 			}
 		}
 		st.Logins = append(st.Logins, entry)
