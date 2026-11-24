@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -83,13 +84,12 @@ var hdmiRemoteHub = &remoteHub{clients: map[*websocket.Conn]struct{}{}}
 // remoteKeys are the keys a remote may send to the TV menu.
 var remoteKeys = map[string]bool{"up": true, "down": true, "left": true, "right": true, "ok": true, "back": true}
 
-// hdmiRemoteWS is the kiosk page's listening channel: it signs in with the
-// kiosk token in the query string, from the loopback interface only (the
-// kiosk browser has no session cookie).
+// hdmiRemoteWS is the kiosk page's listening channel, from the loopback
+// interface only. The kiosk browser has no session cookie: its first message
+// is the kiosk token (never in the address, which may be logged).
 func (s *Server) hdmiRemoteWS(w http.ResponseWriter, r *http.Request) {
-	tok := r.URL.Query().Get("t")
 	want := hdmi.Token(s.dataDir)
-	if want == "" || !net.ParseIP(clientIP(r)).IsLoopback() || subtle.ConstantTimeCompare([]byte(tok), []byte(want)) != 1 {
+	if want == "" || !net.ParseIP(clientIP(r)).IsLoopback() {
 		writeErr(w, errUnauthorized)
 		return
 	}
@@ -97,11 +97,31 @@ func (s *Server) hdmiRemoteWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	defer c.CloseNow()
+	c.SetReadLimit(256)
+	actx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	_, msg, err := c.Read(actx)
+	cancel()
+	if err != nil || subtle.ConstantTimeCompare(msg, []byte(want)) != 1 {
+		s.guardFail(clientIP(r), "hdmi kiosk", "")
+		c.Close(websocket.StatusPolicyViolation, "unauthorized")
+		return
+	}
 	hdmiRemoteHub.add(c)
 	defer hdmiRemoteHub.remove(c)
-	defer c.CloseNow()
 	ctx := c.CloseRead(r.Context())
 	<-ctx.Done()
+}
+
+// hdmiRemoteAllowed: administrators, and the accounts they allowed.
+func (s *Server) hdmiRemoteAllowed(r *http.Request) bool {
+	if isAdmin(r) {
+		return true
+	}
+	if ss := sessionFrom(r.Context()); ss != nil && hasScope(ss.Scopes, hdmiKioskScope) {
+		return false
+	}
+	return slices.Contains(s.hdmiSettings().Remote, userOf(r))
 }
 
 func (s *Server) hdmiRoutes() {
@@ -114,6 +134,9 @@ func (s *Server) hdmiRoutes() {
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
+		}
+		if !s.hdmiRemoteAllowed(r) {
+			return nil, forbidden("the TV remote is not allowed for this account")
 		}
 		key := strings.ToLower(strings.TrimSpace(req.Key))
 		if !remoteKeys[key] {
@@ -135,17 +158,37 @@ func (s *Server) hdmiRoutes() {
 			"installed": hdmiInstalled(),
 			"active":    unitState("is-active", hdmiUnit) == "active",
 			"browser":   hdmi.Browser() != "",
+			"account":   c.Account,
+			"remote":    append([]string{}, c.Remote...),
 		}, nil
 	})
 	s.admin("PUT /api/system/hdmi", func(r *http.Request) (any, error) {
 		var req struct {
-			Enabled bool `json:"enabled"`
+			Enabled bool      `json:"enabled"`
+			Account *string   `json:"account"`
+			Remote  *[]string `json:"remote"`
 		}
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
+		cur := s.hdmiSettings()
+		if req.Account != nil {
+			cur.Account = strings.TrimSpace(*req.Account)
+			if cur.Account != "" {
+				if _, err := s.usersExist([]string{cur.Account}); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if req.Remote != nil {
+			with, err := s.usersExist(*req.Remote)
+			if err != nil {
+				return nil, err
+			}
+			cur.Remote = with
+		}
 		if err := s.store.Update(func(st *store.State) error {
-			st.HDMI = store.HDMIConsole{Off: !req.Enabled, Decided: true}
+			st.HDMI = store.HDMIConsole{Off: !req.Enabled, Decided: true, Account: cur.Account, Remote: cur.Remote}
 			return nil
 		}); err != nil {
 			return nil, err
@@ -164,10 +207,28 @@ func (s *Server) hdmiRoutes() {
 	})
 }
 
+// hdmiKioskScope marks the session of the kiosk browser.
+const hdmiKioskScope = "hdmi-kiosk"
+
+// hdmiKioskPaths are the only routes the kiosk may call (GET): the cinema
+// library and its posters and trailers, and the playback of its videos.
+var hdmiKioskPaths = []string{"/api/cinema", "/api/cinema/lists", "/api/cinema/profiles", "/api/media/night", "/api/cinema/trailer", "/api/cinema/poster/",
+	"/api/files/probe", "/api/files/play", "/api/files/subtitle"}
+
+func hdmiKioskPathAllowed(p string) bool {
+	for _, a := range hdmiKioskPaths {
+		if p == a || (strings.HasSuffix(a, "/") && strings.HasPrefix(p, a)) {
+			return true
+		}
+	}
+	return false
+}
+
 // hdmiKioskAuth authenticates the kiosk browser of the HDMI output: the token
 // is a random secret of the NAS (dataDir/hdmi.token), accepted from the
-// loopback interface only, and the session it gives is read-only — GET/HEAD
-// requests, never the admin routes.
+// loopback interface only. The session acts as the account chosen for the TV
+// (Settings → Console screen), never as an administrator, for GET requests
+// to the cinema and video playback routes only.
 func (s *Server) hdmiKioskAuth(w http.ResponseWriter, r *http.Request, next http.Handler, adminOnly bool, tok string) {
 	ip := clientIP(r)
 	want := hdmi.Token(s.dataDir)
@@ -176,11 +237,18 @@ func (s *Server) hdmiKioskAuth(w http.ResponseWriter, r *http.Request, next http
 		writeErr(w, errUnauthorized)
 		return
 	}
-	if adminOnly || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+	if adminOnly || (r.Method != http.MethodGet && r.Method != http.MethodHead) || !hdmiKioskPathAllowed(r.URL.Path) {
 		writeErr(w, errForbidden)
 		return
 	}
-	ss := &session{User: "hdmi", Role: "admin", Expires: time.Now().Add(24 * time.Hour), Created: time.Now(), IP: ip}
+	acct := s.hdmiSettings().Account
+	known := false
+	s.store.Read(func(st *store.State) { known = acct != "" && st.User(acct) != nil })
+	if !known {
+		writeErr(w, &Error{Status: http.StatusForbidden, Msg: "no account is chosen for the TV (Settings, Console screen)"})
+		return
+	}
+	ss := &session{User: acct, Role: "user", Expires: time.Now().Add(24 * time.Hour), Created: time.Now(), IP: ip, Scopes: []string{hdmiKioskScope}}
 	ctx := context.WithValue(r.Context(), ctxKey{}, ss)
 	next.ServeHTTP(w, r.WithContext(ctx))
 }

@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -102,8 +103,21 @@ var Browser = func() string {
 	return ""
 }
 
-// KioskURL is the address the kiosk browser opens: the local web interface,
+// KioskURL is the address the kiosk page opens: the local web interface,
 // /hdmi page, token in the fragment (never sent to the server).
 func KioskURL(token string) string {
 	return fmt.Sprintf("https://127.0.0.1:7443/hdmi#%s", token)
+}
+
+// KioskUser is the unprivileged system account the kiosk browser runs as
+// (created by the package).
+const KioskUser = "strata-kiosk"
+
+// StartPage is the local page the browser opens: it holds the token and
+// sends the browser to KioskURL, so the token never appears in the
+// browser's command line (/proc/<pid>/cmdline is readable by everyone).
+// The file is private to the kiosk account (see writeStartPage).
+func StartPage(token string) []byte {
+	return []byte("<!doctype html><meta charset=utf-8><title>StrataOS</title><body style=\"background:#000\"><script>location.replace(" +
+		strconv.Quote(KioskURL(token)) + ");</script>\n")
 }

@@ -5562,5 +5562,10 @@
  "Interfaces, WiFi, firewall, virtual networks and NAS name": "接口、WiFi、防火墙、虚拟网络和 NAS 名称",
  "Crop": "裁剪",
  "Apply crop": "应用裁剪",
- "Drag over the picture to choose the area to keep": "在图片上拖动，选择要保留的区域"
+ "Drag over the picture to choose the area to keep": "在图片上拖动，选择要保留的区域",
+ "Accounts that may use the TV remote": "可以使用电视遥控器的账户",
+ "Administrators always can. The remote appears in their cinema page.": "管理员始终可以使用。遥控器会出现在其影院页面中。",
+ "Library shown on the TV": "电视上显示的媒体库",
+ "TV remote": "电视遥控器",
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "电视以只读方式显示该账户可读取的电影和剧集，并遵循其年龄限制。在选择账户之前不显示任何内容。"
 }

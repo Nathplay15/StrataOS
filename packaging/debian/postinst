@@ -3,6 +3,9 @@ set -e
 case "$1" in
   configure)
     getent group strata >/dev/null || groupadd --system strata
+    # The kiosk browser of the HDMI output runs as this unprivileged account.
+    getent passwd strata-kiosk >/dev/null || useradd --system --home-dir /var/lib/strata-kiosk --create-home --shell /usr/sbin/nologin strata-kiosk
+    chmod 700 /var/lib/strata-kiosk 2>/dev/null || true
     mkdir -p /var/lib/strata /srv/strata
     chmod 700 /var/lib/strata
     chmod 755 /srv/strata

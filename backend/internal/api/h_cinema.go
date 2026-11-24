@@ -95,7 +95,9 @@ func (s *Server) cinemaRoutes() {
 			Scanned   int                      `json:"scanned"`
 			Items     []cinema.Item            `json:"items"`
 			Positions map[string]store.PlayPos `json:"positions"`
-		}{cinema.LoadKey(keyPath) != "", st.Running, st.Checked, st.Scanned, items, pos}, nil
+			Remote    bool                     `json:"remote"` // may drive the TV menu
+		}{cinema.LoadKey(keyPath) != "", st.Running, st.Checked, st.Scanned, items, pos,
+			hdmiInstalled() && !s.hdmiSettings().Off && s.hdmiRemoteAllowed(r)}, nil
 	})
 
 	// PUT /api/cinema/position records where the signed-in account stopped

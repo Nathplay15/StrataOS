@@ -5562,5 +5562,10 @@
  "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, redes virtuais e nome do NAS",
  "Crop": "Recortar",
  "Apply crop": "Aplicar recorte",
- "Drag over the picture to choose the area to keep": "Arraste sobre a imagem para escolher a área a manter"
+ "Drag over the picture to choose the area to keep": "Arraste sobre a imagem para escolher a área a manter",
+ "Accounts that may use the TV remote": "Contas que podem usar o controle remoto da TV",
+ "Administrators always can. The remote appears in their cinema page.": "Os administradores sempre podem. O controle aparece na página de cinema deles.",
+ "Library shown on the TV": "Biblioteca mostrada na TV",
+ "TV remote": "Controle da TV",
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "A TV mostra, somente leitura, os filmes e séries que esta conta pode ler, com seu limite de idade. Nada é mostrado até que uma conta seja escolhida."
 }

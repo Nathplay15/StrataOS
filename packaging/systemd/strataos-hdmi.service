@@ -1,6 +1,8 @@
 # The StrataOS cinema menu on a TV plugged to the HDMI output: a kiosk browser
 # kept on the connected display by "strata hdmi". Enabled and disabled by the
 # daemon (Settings -> Console screen), only useful with a display attached.
+# The runner starts a private Xorg (which needs root for the display) and runs
+# the browser as the unprivileged strata-kiosk account, with its own /tmp.
 [Unit]
 Description=StrataOS cinema menu on the HDMI output
 After=strata.service network-online.target
@@ -13,6 +15,8 @@ ExecStart=/usr/bin/strata hdmi
 Restart=always
 RestartSec=5
 User=root
+PrivateTmp=yes
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target

@@ -66,3 +66,50 @@ func TestToken(t *testing.T) {
 		t.Errorf("KioskURL: %q", u)
 	}
 }
+
+func TestKioskCommandHasNoToken(t *testing.T) {
+	tok := strings.Repeat("ab", 32)
+	page := StartPage(tok)
+	if !strings.Contains(string(page), "/hdmi#"+tok) {
+		t.Fatalf("start page: %s", page)
+	}
+	for _, b := range []string{"/usr/bin/chromium", "/usr/bin/firefox"} {
+		c := kioskCmd(b, "file:///var/lib/strata-kiosk/start.html", "/var/lib/strata-kiosk/profile")
+		if strings.Contains(strings.Join(c.Args, " "), tok) || strings.Contains(strings.Join(c.Args, " "), "no-sandbox") {
+			t.Errorf("%s: %v", b, c.Args)
+		}
+	}
+}
+
+func TestPrepareHomeIsPrivate(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "kiosk")
+	h, page, err := prepareHome(home, os.Getuid(), os.Getgid(), "tok")
+	if err != nil || h != home {
+		t.Fatal(h, err)
+	}
+	for p, want := range map[string]os.FileMode{home: 0o700, page: 0o600} {
+		st, err := os.Stat(p)
+		if err != nil || st.Mode().Perm() != want {
+			t.Errorf("%s: %v %v", p, st.Mode(), err)
+		}
+	}
+	// A planted link where the start page goes is replaced, not followed.
+	victim := filepath.Join(t.TempDir(), "victim")
+	os.WriteFile(victim, []byte("keep"), 0o644)
+	os.Remove(page)
+	os.Symlink(victim, page)
+	if _, _, err := prepareHome(home, os.Getuid(), os.Getgid(), "tok"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Fatalf("victim written: %q", b)
+	}
+}
+
+func TestXAuthority(t *testing.T) {
+	b := XAuthority("61", []byte("0123456789abcdef"))
+	// family 0xffff, empty address, "61", name, 16-byte cookie.
+	if len(b) != 2+2+0+2+2+2+18+2+16 || b[0] != 0xff || b[1] != 0xff || string(b[6:8]) != "61" {
+		t.Fatalf("xauth: %x", b)
+	}
+}

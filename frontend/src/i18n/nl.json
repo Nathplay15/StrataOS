@@ -5562,5 +5562,10 @@
  "Interfaces, WiFi, firewall, virtual networks and NAS name": "Interfaces, WiFi, firewall, virtuele netwerken en NAS-naam",
  "Crop": "Bijsnijden",
  "Apply crop": "Bijsnijden toepassen",
- "Drag over the picture to choose the area to keep": "Sleep over de foto om het deel te kiezen dat u wilt houden"
+ "Drag over the picture to choose the area to keep": "Sleep over de foto om het deel te kiezen dat u wilt houden",
+ "Accounts that may use the TV remote": "Accounts die de tv-afstandsbediening mogen gebruiken",
+ "Administrators always can. The remote appears in their cinema page.": "Beheerders kunnen het altijd. De afstandsbediening verschijnt op hun bioscooppagina.",
+ "Library shown on the TV": "Bibliotheek op de tv",
+ "TV remote": "Tv-afstandsbediening",
+ "The TV shows, read-only, the films and series this account can read, with its age limit. Nothing is shown until an account is chosen.": "De tv toont, alleen-lezen, de films en series die dit account mag lezen, met zijn leeftijdsgrens. Er wordt niets getoond zolang er geen account is gekozen."
 }

@@ -20,7 +20,9 @@ export default function HdmiPage() {
   useEffect(() => {
     if (!token) return;
     const keys: Record<string, string> = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", ok: "Enter", back: "Escape" };
-    const ws = new WebSocket(`${wsURL("/api/hdmi/remote")}?t=${encodeURIComponent(token)}`);
+    // The token goes in the first message, never in the address.
+    const ws = new WebSocket(wsURL("/api/hdmi/remote"));
+    ws.onopen = () => ws.send(token);
     ws.onmessage = (e) => {
       const k = keys[String(e.data)];
       if (k) window.dispatchEvent(new KeyboardEvent("keydown", { key: k }));

@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clapperboard, KeyRound, ListPlus, Moon, Play, RefreshCw, Search, Star, Trash2, Users } from "lucide-react";
+import { Clapperboard, KeyRound, ListPlus, Moon, Play, RefreshCw, Search, Star, Trash2, Tv, Users } from "lucide-react";
 import { api, q } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { ago, bytes, cx } from "../../lib/format";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, Modal, Select, Spinner, Switch } from "../../components/ui";
 import { locale, tr } from "../../lib/i18n";
 import { caps } from "../../components/files/MediaPlayer";
+import { TvRemoteModal } from "../../components/ApplianceConsole";
 
 export type CinemaItem = {
   path: string; title: string; year?: number; kind: string; season?: number; episode?: number; size: number; mod?: string;
   tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[];
   collection?: string; collectionId?: number;
 };
-type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }> };
+type CinemaData = { keySet: boolean; running: boolean; checked?: string; scanned: number; items: CinemaItem[]; positions: Record<string, { at: number; dur: number; upd: string }>; remote?: boolean };
 type Work = { path?: string; title: string; year?: number; kind: string; items: CinemaItem[]; mod?: string; collection?: string; collectionId?: number; tmdbId?: number; poster?: string; overview?: string; rating?: number; runtime?: number; genres?: string[]; cast?: string[] };
 
 const epLabel = (i: CinemaItem) => `S${String(i.season ?? 0).padStart(2, "0")}E${String(i.episode ?? 0).padStart(2, "0")}`;
@@ -282,6 +283,7 @@ export function CinemaTab({ admin }: { admin: boolean }) {
   const [sel, setSel] = useState<Work | null>(null);
   const [play, setPlay] = useState<{ item: CinemaItem; start: number } | null>(null);
   const lastSave = useRef(0);
+  const [tvRemote, setTvRemote] = useState(false);
 
   const d = lib.data;
   const allItems = d?.items ?? [];
@@ -333,6 +335,7 @@ export function CinemaTab({ admin }: { admin: boolean }) {
 
   return (
     <div className="space-y-4">
+      <TvRemoteModal open={tvRemote} onClose={() => setTvRemote(false)} />
       <Card>
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-48 flex-1">
@@ -343,6 +346,7 @@ export function CinemaTab({ admin }: { admin: boolean }) {
             <option value="">{tr("All content")}</option>
             {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.maxRating ? ` (≤ ${p.maxRating})` : ""}</option>)}
           </Select>
+          {d?.remote && <Button icon={<Tv size={14} />} onClick={() => setTvRemote(true)}>{tr("TV remote")}</Button>}
           {admin && <Button icon={<RefreshCw size={14} />} loading={scan.isPending || d?.running} disabled={d?.running} onClick={() => scan.mutate()}>{d?.running ? tr("Scanning…") : tr("Scan the library")}</Button>}
         </div>
         {d && <div className="mt-2 text-[12px] text-muted">{tr("Scanned {0} videos", d.scanned)}{d.checked && ` · ${tr("Last scan {0}", ago(d.checked))}`}</div>}
