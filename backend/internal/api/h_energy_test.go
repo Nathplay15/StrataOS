@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,4 +68,20 @@ func TestEnergyNightPlan(t *testing.T) {
 	if _, ok := pw["history"]; !ok {
 		t.Fatalf("power history missing: %v", pw)
 	}
+}
+
+func TestSpindownPendingPerDisk(t *testing.T) {
+	st := &spindownState{applied: map[string]int{}}
+	st.set([]string{"/dev/sda", "/dev/sdb"}, 20)
+	// sdb was asleep at the change to 60: it stays pending until applied.
+	st.set([]string{"/dev/sda"}, 60)
+	if p := st.pending([]string{"/dev/sda", "/dev/sdb", "/dev/sdc"}, 60); len(p) != 2 || p[0] != "/dev/sdb" || p[1] != "/dev/sdc" {
+		t.Fatalf("pending: %v", p)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) { defer wg.Done(); st.set([]string{"/dev/sda"}, i); _ = st.pending([]string{"/dev/sda"}, i) }(i)
+	}
+	wg.Wait()
 }

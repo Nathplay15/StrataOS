@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"strataos/internal/energy"
@@ -55,7 +56,7 @@ func (s *Server) applyEnergy() []string {
 		if err := energy.SetSpindown(diskPaths(disks), c.SpindownMin); err != nil {
 			problems = append(problems, err.Error())
 		} else {
-			appliedSpindown = c.SpindownMin
+			spindown.set(diskPaths(disks), c.SpindownMin)
 		}
 	}
 	if c.Governor != "" {
@@ -86,32 +87,57 @@ func (s *Server) applyEnergy() []string {
 
 var wakeArmed time.Time
 
-// appliedSpindown is the spin-down delay currently set on the data disks.
-var appliedSpindown = -1
+// spindownState is the spin-down delay set on each data disk (the energy
+// loop and a settings change both apply it).
+type spindownState struct {
+	mu      sync.Mutex
+	applied map[string]int
+}
+
+var spindown = &spindownState{applied: map[string]int{}}
+
+func (st *spindownState) set(devs []string, v int) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, d := range devs {
+		st.applied[d] = v
+	}
+}
+
+// pending returns the disks whose delay differs from want.
+func (st *spindownState) pending(devs []string, want int) []string {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	var out []string
+	for _, d := range devs {
+		if v, ok := st.applied[d]; !ok || v != want {
+			out = append(out, d)
+		}
+	}
+	return out
+}
 
 // applyNightSpindown applies the night plan's spin-down during its window,
 // the global spindownMin outside (roadmap 0.15, "Night energy plan"). Only
-// awake disks are touched: hdparm -S would wake a sleeping one.
+// awake disks are touched (hdparm -S would wake a sleeping one); a sleeping
+// disk gets the new delay on the first check after it woke up.
 func (s *Server) applyNightSpindown(c store.Energy, now time.Time) {
 	want := c.SpindownMin
 	if c.Night != nil && c.Night.Active(now) && c.Night.SpindownMin > 0 {
 		want = c.Night.SpindownMin
 	}
-	if want == appliedSpindown || !sys.Has("hdparm") {
+	if !sys.Has("hdparm") {
 		return
 	}
-	var devs []string
-	for _, d := range rotatingDisks() {
-		if energy.DiskState(d.Path) != "standby" {
-			devs = append(devs, d.Path)
+	var awake []string
+	for _, d := range spindown.pending(diskPaths(rotatingDisks()), want) {
+		if energy.DiskState(d) != "standby" {
+			awake = append(awake, d)
 		}
 	}
-	if len(devs) > 0 {
-		if err := energy.SetSpindown(devs, want); err != nil {
-			return
-		}
+	if len(awake) > 0 && energy.SetSpindown(awake, want) == nil {
+		spindown.set(awake, want)
 	}
-	appliedSpindown = want
 }
 
 // armWake keeps the clock's wake alarm on the next scheduled power-on, so
