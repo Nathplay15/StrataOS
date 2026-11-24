@@ -496,3 +496,21 @@ func TestForwardAuthHeaders(t *testing.T) {
 	spoof("app.example.com")
 	check(map[string]string{"Remote-User": "alice", "Remote-Groups": "family"})
 }
+
+func TestProxySelfSignedOptIn(t *testing.T) {
+	s := &Server{}
+	tls := func(target string, self bool) bool {
+		u, _ := url.Parse(target)
+		tr := s.newProxy(u, self).Transport.(*http.Transport)
+		return tr.TLSClientConfig != nil && tr.TLSClientConfig.InsecureSkipVerify
+	}
+	if !tls("https://127.0.0.1:8443", false) {
+		t.Error("loopback should skip verification")
+	}
+	if tls("https://192.168.1.20:8443", false) {
+		t.Error("LAN target verified unless opted in")
+	}
+	if !tls("https://192.168.1.20:8443", true) {
+		t.Error("opt-in ignored")
+	}
+}

@@ -681,7 +681,10 @@ func telegramChats(token string) ([]map[string]any, error) {
 // DNS rebinding and redirects go through it too. A private LAN address
 // stays reachable: a self-hosted webhook or ntfy on the LAN is legitimate.
 func notifyHTTPClient(trust store.TLSTrust, timeout time.Duration) *http.Client {
-	return netguard.ClientTLS(netguard.Options{Timeout: timeout, AllowPrivate: true}, tlstrust.ClientConfig(trust, "", nil))
+	// Only administrators set these addresses: an app of the NAS itself
+	// (loopback, its own address) is a legitimate target, as before 0.15;
+	// link-local (cloud metadata) stays refused.
+	return netguard.ClientTLS(netguard.Options{Timeout: timeout, AllowSelf: true}, tlstrust.ClientConfig(trust, "", nil))
 }
 
 // notifyClient builds it; a variable so tests can bypass the SSRF guard

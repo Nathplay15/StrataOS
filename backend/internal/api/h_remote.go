@@ -140,7 +140,7 @@ func (s *Server) proxyTable() proxy.Table {
 	})
 	t := proxy.Table{}
 	for _, d := range ds {
-		r := &proxy.Route{Host: d.Host, LANOnly: d.LANOnly, Auth: d.SSO && d.Kind != "ui"}
+		r := &proxy.Route{Host: d.Host, LANOnly: d.LANOnly, SelfSigned: d.SelfSigned && d.Kind == "url", Auth: d.SSO && d.Kind != "ui"}
 		if ps, err := proxy.ParsePrefixes(d.AllowedIPs); err == nil {
 			r.AllowedIPs = ps
 		}
@@ -693,6 +693,7 @@ func (s *Server) remoteRoutes() {
 					}
 					x.Host, x.Kind, x.App, x.Target, x.LANOnly = host, req.Kind, req.App, req.Target, req.LANOnly
 					x.AllowedIPs = req.AllowedIPs
+					x.SelfSigned = req.SelfSigned
 					d = *x
 					return nil
 				}

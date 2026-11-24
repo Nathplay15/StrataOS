@@ -115,3 +115,25 @@ func TestClientTLSAllowPrivate(t *testing.T) {
 		t.Error("cloud metadata must stay refused")
 	}
 }
+
+func TestBlockedSelf(t *testing.T) {
+	for addr, want := range map[string]bool{"127.0.0.1": false, "::1": false, "192.168.1.20": false, "169.254.169.254": true, "0.0.0.0": true, "8.8.8.8": false} {
+		if got := BlockedSelf(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("BlockedSelf(%s) = %v", addr, got)
+		}
+	}
+	// End to end: a server on loopback is reachable with AllowSelf only.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	if _, err := ClientTLS(Options{AllowPrivate: true}, nil).Get(srv.URL); err == nil {
+		t.Error("AllowPrivate reached loopback")
+	}
+	if resp, err := ClientTLS(Options{AllowSelf: true}, nil).Get(srv.URL); err != nil {
+		t.Errorf("AllowSelf: %v", err)
+	} else {
+		resp.Body.Close()
+	}
+	if _, err := ClientTLS(Options{AllowSelf: true}, nil).Get("http://169.254.169.254/latest/meta-data"); err == nil {
+		t.Error("AllowSelf reached the metadata address")
+	}
+}

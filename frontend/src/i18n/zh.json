@@ -5581,5 +5581,8 @@
  "Mistral account (removed)": "Mistral 账户（已移除）",
  "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "已移除 Mistral 账户登录：无法确认其端点。请选择 API 端点并粘贴 Mistral API 密钥。",
  "Light mode": "轻量模式",
- "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "简短的提示词，并且只保留读取 NAS 的工具：在 NAS 处理器上运行的小模型回答会快得多。自动：对 40 亿参数及以下的本地模型启用。"
+ "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "简短的提示词，并且只保留读取 NAS 的工具：在 NAS 处理器上运行的小模型回答会快得多。自动：对 40 亿参数及以下的本地模型启用。",
+ "Accept a self-signed certificate": "接受自签名证书",
+ "The certificate of this address is not verified. Only for an app of your local network you trust: anyone able to intercept that traffic could read it.": "不会验证此地址的证书。仅用于您信任的本地网络应用：任何能截获该流量的人都可能读取它。",
+ "http:// or https://, on this NAS or the local network": "http:// 或 https://，位于此 NAS 或本地网络"
 }

@@ -5581,5 +5581,8 @@
  "Mistral account (removed)": "Mistral-account (verwijderd)",
  "The Mistral account sign-in was removed: its endpoints could not be confirmed. Choose the API endpoint and paste a Mistral API key.": "De aanmelding met een Mistral-account is verwijderd: de endpoints konden niet worden bevestigd. Kies het API-endpoint en plak een Mistral-API-sleutel.",
  "Light mode": "Lichte modus",
- "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "Een korte instructie en alleen de hulpmiddelen die de NAS lezen: een klein model op de processor van de NAS antwoordt veel sneller. Automatisch: aan voor lokale modellen van 4 miljard parameters of minder."
+ "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "Een korte instructie en alleen de hulpmiddelen die de NAS lezen: een klein model op de processor van de NAS antwoordt veel sneller. Automatisch: aan voor lokale modellen van 4 miljard parameters of minder.",
+ "Accept a self-signed certificate": "Zelfondertekend certificaat accepteren",
+ "The certificate of this address is not verified. Only for an app of your local network you trust: anyone able to intercept that traffic could read it.": "Het certificaat van dit adres wordt niet gecontroleerd. Alleen voor een app in uw lokale netwerk die u vertrouwt: wie dat verkeer kan onderscheppen, kan het lezen.",
+ "http:// or https://, on this NAS or the local network": "http:// of https://, op deze NAS of in het lokale netwerk"
 }

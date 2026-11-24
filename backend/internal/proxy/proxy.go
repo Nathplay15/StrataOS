@@ -71,6 +71,8 @@ type Route struct {
 	Host    string
 	Target  *url.URL
 	LANOnly bool
+	// SelfSigned: an https LAN target is not verified (opt-in per domain).
+	SelfSigned bool
 	// AllowedIPs restricts the visitors to these networks; empty: everyone.
 	AllowedIPs []netip.Prefix
 	// Auth: a NAS sign-in is needed before the request goes on (forward
@@ -223,7 +225,7 @@ func StripIdentity(h http.Header) {
 func (s *Server) SetRoutes(t Table) {
 	for _, r := range t {
 		if r.Target != nil && r.proxy == nil {
-			r.proxy = s.newProxy(r.Target)
+			r.proxy = s.newProxy(r.Target, r.SelfSigned)
 		}
 	}
 	s.mu.Lock()
@@ -409,7 +411,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt.proxy.ServeHTTP(w, r)
 }
 
-func (s *Server) newProxy(target *url.URL) *httputil.ReverseProxy {
+func (s *Server) newProxy(target *url.URL, selfSigned bool) *httputil.ReverseProxy {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = nil // never through the environment's proxy
 	tr.DialContext = (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second, Control: localOnly}).DialContext
@@ -418,7 +420,7 @@ func (s *Server) newProxy(target *url.URL) *httputil.ReverseProxy {
 		// certificates: its certificate is not verified. Any other target
 		// (a LAN app) is verified against the system roots.
 		host := target.Hostname()
-		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() || host == "localhost" {
+		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() || host == "localhost" || selfSigned {
 			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
 		} else {
 			tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}

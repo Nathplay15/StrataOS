@@ -79,6 +79,29 @@ func BlockedLAN(ip netip.Addr) bool {
 	return blocked(ip, true)
 }
 
+// BlockedSelf is BlockedLAN that also lets the NAS itself and loopback
+// through (an app of the NAS as webhook target, chosen by an
+// administrator); link-local (cloud metadata) and the reserved ranges stay
+// refused.
+func BlockedSelf(ip netip.Addr) bool {
+	if !ip.IsValid() {
+		return true
+	}
+	if a := ip.Unmap(); a.IsLoopback() || isOwn(a) {
+		return false
+	}
+	return blocked(ip, true)
+}
+
+func isOwn(ip netip.Addr) bool {
+	for _, own := range ownAddrs() {
+		if own == ip {
+			return true
+		}
+	}
+	return false
+}
+
 func blocked(ip netip.Addr, allowPrivate bool) bool {
 	if !ip.IsValid() {
 		return true
@@ -142,6 +165,9 @@ type Options struct {
 	// administrator chose, like a self-hosted webhook or ntfy). The NAS
 	// itself, loopback and link-local (cloud metadata) stay refused.
 	AllowPrivate bool
+	// AllowSelf also lets the NAS itself and loopback through (implies
+	// AllowPrivate): administrators' webhook and ntfy targets.
+	AllowSelf bool
 }
 
 // CheckURL refuses a URL that is not http(s) (https only with httpsOnly),
@@ -187,6 +213,16 @@ func ClientTLS(o Options, tlsCfg *tls.Config) *http.Client {
 	if o.AllowPrivate {
 		dialer = DialerLAN(10 * time.Second)
 	}
+	if o.AllowSelf {
+		o.AllowPrivate = true
+		dialer = &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
+			ap, err := netip.ParseAddrPort(address)
+			if err != nil || BlockedSelf(ap.Addr()) {
+				return ErrBlocked
+			}
+			return nil
+		}}
+	}
 	tr := &http.Transport{
 		Proxy:                 nil,
 		DialContext:           dialer.DialContext,
@@ -204,6 +240,9 @@ func ClientTLS(o Options, tlsCfg *tls.Config) *http.Client {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) > o.MaxRedirects {
 				return errors.New("too many redirects")
+			}
+			if o.AllowSelf {
+				return checkURLSelf(req.URL, o.HTTPSOnly)
 			}
 			return CheckURLLAN(req.URL, o.HTTPSOnly, o.AllowPrivate)
 		},
@@ -224,4 +263,19 @@ func Get(ctx context.Context, c *http.Client, raw string, httpsOnly bool) (*http
 		return nil, err
 	}
 	return c.Do(req)
+}
+
+// checkURLSelf is CheckURLLAN for AllowSelf clients.
+func checkURLSelf(u *url.URL, httpsOnly bool) error {
+	if u != nil {
+		if ip, err := netip.ParseAddr(u.Hostname()); err == nil {
+			if BlockedSelf(ip) {
+				return ErrBlocked
+			}
+			v := *u
+			v.Host = "example.com" // the address is fine: check the rest
+			return CheckURLLAN(&v, httpsOnly, true)
+		}
+	}
+	return CheckURLLAN(u, httpsOnly, true)
 }

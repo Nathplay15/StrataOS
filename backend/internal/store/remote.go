@@ -45,6 +45,10 @@ type AppDomain struct {
 	App     string `json:"app,omitempty"`
 	Target  string `json:"target,omitempty"`
 	LANOnly bool   `json:"lanOnly,omitempty"`
+	// SelfSigned: an https target on the local network is accepted with a
+	// certificate the NAS cannot verify (self-signed), by the
+	// administrator's choice for this domain.
+	SelfSigned bool `json:"selfSigned,omitempty"`
 	// AllowedIPs restricts the visitors to these addresses or networks
 	// (IP or CIDR); empty: everyone may come in.
 	AllowedIPs []string  `json:"allowedIPs,omitempty"`
