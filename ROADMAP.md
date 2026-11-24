@@ -118,3 +118,20 @@ Done in 0.15.0 (ticked).
 - [x] **User quotas in the interface.** Each person sees the space left to them on their page, and an alert comes before the quota is reached.
 - [x] **Watched NAS fleet.** The fleet dashboard also shows the NAS devices that are not part of a cluster (simple checks, no management).
 - [x] **Night energy plan.** Disks spin down on a schedule and the consumption is followed when the hardware reports it.
+
+## 0.15.1
+
+Done in 0.15.1 (ticked).
+
+### Network
+
+- [x] **WiFi.** Network → WiFi tab: scan the networks in range, connect (WPA password asked only for secured networks), forget; the change goes through the trial apply with automatic rollback, and the wpa_supplicant configurations are part of the rollback set.
+
+### Assistant
+
+- [x] **Thinking toggle.** Off by default for local Ollama models (a thinking model like qwen3 reasons for minutes on a small CPU and looks stuck); the assistant page shows the elapsed time and a Stop button while waiting.
+
+### Fixes
+
+- [x] Media page crash right after installing the DLNA app: empty configuration arrays (DLNA folders, music shares, WireGuard links, firewall guests/groups/ipsets) were missing from the API answers; they are now always sent as empty arrays.
+- [x] Android 0.12.3 (its own release): the "My apps" launcher opened 127.0.0.1 on the phone (the NAS now sends app addresses with its own host); the NAS-vs-app version banner is removed, the two versions are independent. Desktop app: the Rust glib VariantStrIter advisory is fixed with a vendored patched copy (Tauri 2 pins gtk-rs 0.18).

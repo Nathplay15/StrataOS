@@ -15,11 +15,12 @@
 - **Several NAS**: a Multi-NAS Console with a fleet health dashboard (disks, space, backups, security score, temperatures), grouped updates and VM transfers, and high availability of the shared folders between two or more NAS.
 - **Remote access**: WireGuard (devices per user, site-to-site, an outgoing tunnel for chosen apps), Tailscale, Cloudflare Tunnel and app addresses with automatic HTTPS, with an assistant that recommends a method, sets it up and checks from outside that it works (including carrier-grade NAT detection).
 - **Media and home**: DLNA server, multi-room music on AirPlay and Chromecast speakers, casting videos and photos to TVs, and video surveillance (built-in recorder, or Frigate with AI detection).
+- **Network**: Ethernet and **WiFi** (the Network → WiFi tab scans the networks in range and connects the NAS, with the usual trial apply), link aggregation, bridges and VLANs.
 - **Everything else**: users, groups and quotas, a notification centre and alerts (email, Telegram, ntfy, webhooks) with quiet hours and a weekly health report, UPS support (NUT), fan control and power scheduling, Prometheus metrics, a status screen with a QR code and a recovery code on the NAS itself, components and apps you can uninstall, and updates in one click or automatic in a maintenance window (stable or beta channel), always with a restore point before.
 
 The interface is available in English, French, Spanish, German, Italian, Portuguese (Brazil), Dutch and Simplified Chinese. On a computer it looks like a desktop with windows, in a dark or light theme, usable with the keyboard, with a search (Ctrl+K) that finds apps, settings, folders and files; on a phone it switches to a mobile layout. StrataOS runs on Debian 13 (trixie) and is being prepared for Debian 14 ([status](docs/DEBIAN-14.md)).
 
-Clients: an **Android app** (files, photo backup, folder sync, managing the NAS, updates itself) and a **desktop app** for Windows, macOS and Linux (two-way folder sync, optionally end-to-end encrypted, and managing the NAS), described below.
+Clients: an **Android app** (files, photo backup, folder sync, managing the NAS, updates itself) and a **desktop app** for Windows, macOS and Linux (two-way folder sync, optionally end-to-end encrypted, and managing the NAS), described below. The Android and desktop apps have their own versions and releases, independent of the NAS version.
 
 ## Screenshots
 
