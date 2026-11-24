@@ -67,15 +67,19 @@ func TestSubtitleSidecarServed(t *testing.T) {
 func TestTranscribeRoute(t *testing.T) {
 	s, admin := sttTestServer(t)
 	// Without the binaries: 409.
-	if w := admin.req("POST", "/api/files/transcribe", strings.NewReader(`{"path":"/srv/strata/main/movie.mkv"}`)); w.Code != 409 {
+	if w := admin.req("POST", "/api/files/transcribe", map[string]string{"path": "/srv/strata/main/movie.mkv"}); w.Code != 409 {
 		t.Fatalf("no whisper: %d %s", w.Code, w.Body.String())
 	}
 	// Fake the binaries.
 	oldInst, oldRun := stt.Installed, stt.Run
 	t.Cleanup(func() { stt.Installed, stt.Run = oldInst, oldRun })
 	stt.Installed = func() bool { return true }
+	// A planted link where the transcript goes is replaced, never followed.
+	victim := filepath.Join(t.TempDir(), "victim")
+	os.WriteFile(victim, []byte("keep"), 0o644)
+	os.Symlink(victim, "/srv/strata/main/movie.transcript.txt")
 	stt.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		if name == "whisper" {
+		if name == stt.Binary {
 			for i, a := range args {
 				if a == "-of" && i+1 < len(args) {
 					prefix := args[i+1]
@@ -86,22 +90,25 @@ func TestTranscribeRoute(t *testing.T) {
 		}
 		return []byte("ok"), nil
 	}
-	w := admin.req("POST", "/api/files/transcribe", strings.NewReader(`{"path":"/srv/strata/main/movie.mkv"}`))
+	w := admin.req("POST", "/api/files/transcribe", map[string]string{"path": "/srv/strata/main/movie.mkv"})
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"text":"hi there"`) {
 		t.Fatalf("transcribe: %d %s", w.Code, w.Body.String())
 	}
 	if _, err := os.Stat("/srv/strata/main/movie.srt"); err != nil {
 		t.Errorf("srt sidecar not written: %v", err)
 	}
-	if _, err := os.Stat("/srv/strata/main/movie.transcript.txt"); err != nil {
-		t.Errorf("transcript not written: %v", err)
+	if st, err := os.Lstat("/srv/strata/main/movie.transcript.txt"); err != nil || !st.Mode().IsRegular() {
+		t.Errorf("transcript not written as a regular file: %v", err)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Errorf("transcript written through a planted link")
 	}
 	// Not a media file: 400.
-	if w := admin.req("POST", "/api/files/transcribe", strings.NewReader(`{"path":"/srv/strata/main/movie.fr.srt"}`)); w.Code != 400 {
+	if w := admin.req("POST", "/api/files/transcribe", map[string]string{"path": "/srv/strata/main/movie.fr.srt"}); w.Code != 400 {
 		t.Errorf("srt file: %d", w.Code)
 	}
 	// Unknown path: 404/403.
-	if w := admin.req("POST", "/api/files/transcribe", strings.NewReader(`{"path":"/srv/strata/main/nope.mkv"}`)); w.Code == 200 {
+	if w := admin.req("POST", "/api/files/transcribe", map[string]string{"path": "/srv/strata/main/nope.mkv"}); w.Code == 200 {
 		t.Errorf("missing file: %d", w.Code)
 	}
 	_ = s

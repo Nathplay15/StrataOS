@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,8 @@ func subsTestServer(t *testing.T) (*Server, *jarClient) {
 		t.Skip("cannot create /srv/strata in the test environment")
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
-	os.WriteFile(filepath.Join(root, "movie.mkv"), []byte("video"), 0o644)
+	// Large enough for a moviehash (128 KiB at least).
+	os.WriteFile(filepath.Join(root, "movie.mkv"), bytes.Repeat([]byte("video"), 40000), 0o644)
 	os.WriteFile(filepath.Join(root, "other.mkv"), []byte("video2"), 0o644)
 	os.WriteFile(filepath.Join(root, "note.txt"), []byte("hello"), 0o644)
 	statePath, _, _ := s.cinemaPaths()
@@ -108,6 +110,10 @@ func fakeOSSubs(t *testing.T) (lastQuery func() url.Values) {
 	old := subs.Base
 	subs.Base = srv.URL
 	t.Cleanup(func() { subs.Base = old })
+	// The fake server is on loopback: the real download refuses it.
+	oldDL, oldCheck := subs.DownloadHTTP, subs.CheckLink
+	subs.DownloadHTTP, subs.CheckLink = srv.Client(), func(*url.URL) error { return nil }
+	t.Cleanup(func() { subs.DownloadHTTP, subs.CheckLink = oldDL, oldCheck })
 	return func() url.Values {
 		mu.Lock()
 		defer mu.Unlock()

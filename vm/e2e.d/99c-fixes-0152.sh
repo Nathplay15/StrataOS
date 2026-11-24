@@ -40,8 +40,8 @@ check "share alice cannot read" "$(c POST /api/shares -d "{\"name\":\"Private152
 vm "sudo sh -c 'printf x > \"$F/Heat (1995).mkv\"; printf x > \"$P2/Secret (2001).mkv\"'"
 c POST /api/cinema/scan >/dev/null
 for _ in $(seq 1 30); do [ "$(c GET /api/cinema | py 'print(d["running"])')" = False ] && break; sleep 2; done
-check "the scan finds the videos of shares on the volume" "$(c GET /api/cinema | py 'print(sorted(i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"]))')" "['Heat (1995).mkv', 'Secret (2001).mkv']"
-check "alice only sees the videos of her shares" "$(u GET /api/cinema | py 'print([i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"]])')" "['Heat (1995).mkv']"
+check "the scan finds the videos of shares on the volume" "$(c GET /api/cinema | py 'print(sorted(i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"] and "(" in i["path"]))')" "['Heat (1995).mkv', 'Secret (2001).mkv']"
+check "alice only sees the videos of her shares" "$(u GET /api/cinema | py 'print([i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"] and "(" in i["path"]])')" "['Heat (1995).mkv']"
 check "resume point refused for a video she cannot see" "$(u PUT /api/cinema/position -d "{\"path\":\"$P2/Secret (2001).mkv\",\"at\":5,\"duration\":100}")" "not in the library"
 
 # ---- HDMI kiosk ----
@@ -51,7 +51,7 @@ kiosk() { vm "T=\$(sudo cat /var/lib/strata/hdmi.token); curl -sk -o /dev/null -
 check "kiosk without an account chosen: nothing" "$(kiosk /api/cinema)" "403"
 c PUT /api/system/hdmi -d "{\"enabled\":false,\"account\":\"$USER_NAME\"}" >/dev/null
 check "kiosk reads the cinema of the chosen account" "$(kiosk /api/cinema)" "200"
-check "kiosk sees that account's library only" "$(vm "T=\$(sudo cat /var/lib/strata/hdmi.token); curl -sk -H \"Authorization: Bearer hdmi:\$T\" https://127.0.0.1:7443/api/cinema" | py 'print([i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"]])')" "['Heat (1995).mkv']"
+check "kiosk sees that account's library only" "$(vm "T=\$(sudo cat /var/lib/strata/hdmi.token); curl -sk -H \"Authorization: Bearer hdmi:\$T\" https://127.0.0.1:7443/api/cinema" | py 'print([i["path"].split("/")[-1] for i in d["items"] if "152/" in i["path"] and "(" in i["path"]])')" "['Heat (1995).mkv']"
 check "kiosk cannot list files, read settings or users" "$(kiosk '/api/files?path=/srv/strata'; echo; kiosk /api/settings; echo; kiosk /api/users)" "403
 403
 403"

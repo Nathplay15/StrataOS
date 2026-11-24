@@ -374,6 +374,17 @@ func (s *Server) viewerRoutes() {
 		if !stt.IsMedia(filepath.Ext(t.abs)) {
 			return nil, badRequest("not a video or audio file")
 		}
+		// The media must be a regular file inside the share (no link out of it).
+		if rt, err := t.open(); err != nil {
+			return nil, err
+		} else {
+			f, _, err := rootio.OpenRegular(rt, t.rel)
+			rt.Close()
+			if err != nil {
+				return nil, notFound("file not found")
+			}
+			f.Close()
+		}
 		transcribeMu.Lock()
 		defer transcribeMu.Unlock()
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)

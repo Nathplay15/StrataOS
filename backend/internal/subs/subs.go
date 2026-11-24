@@ -26,8 +26,9 @@ var (
 	// DownloadHTTP fetches the link the API answers: an address chosen by
 	// a remote server, so it only reaches public addresses (netguard).
 	DownloadHTTP = netguard.Client(netguard.Options{Timeout: 30 * time.Second, HTTPSOnly: true, MaxRedirects: 3})
-	checkLink    = func(u *url.URL) error { return netguard.CheckURL(u, true) }
-	UserAgent    = "StrataOS v0"
+	// CheckLink vets the download link (variable for tests).
+	CheckLink = func(u *url.URL) error { return netguard.CheckURL(u, true) }
+	UserAgent = "StrataOS v0"
 )
 
 // Client talks to OpenSubtitles with the user's API key and account.
@@ -185,7 +186,7 @@ func (c *Client) Download(ctx context.Context, fileID int) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opensubtitles returned an invalid download link")
 	}
-	if err := checkLink(u); err != nil {
+	if err := CheckLink(u); err != nil {
 		return nil, fmt.Errorf("download link refused: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, res.Link, nil)
