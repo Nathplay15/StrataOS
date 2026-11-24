@@ -65,9 +65,10 @@ Done in 0.15.0 (ticked).
 - [x] **Duplicates and near-duplicates.** Duplicate or similar photos (same scene, bursts) are detected and cleaned up in a review screen.
 - [x] **Light photo editor.** Rotate, crop and fix the light of a picture in the gallery, without leaving the NAS.
 - [x] **Built-in text editor.** Markdown and plain text files are edited right in the file browser, with a preview.
-- [x] **Transcriptions and subtitles.** Voice notes and videos passing through a local speech-to-text model become searchable text and subtitle tracks.
+- [ ] **Transcriptions and subtitles.** Voice notes and videos passing through a local speech-to-text model become searchable text and subtitle tracks. *(0.15.2: transcription works only with whisper.cpp and its model installed by hand; nothing installs them yet, and the text is not searchable yet.)*
 - [x] **Advanced share links.** A password, an expiry date and a download limit can be set on every share link.
-- [x] **Migration assistant.** Import data from another NAS (SMB or rsync) or from a cloud (Google Photos, Dropbox) with a guided assistant.
+- [x] **Migration assistant.** Import data from another NAS (SMB, NFS or rsync) with a guided assistant.
+- [ ] **Import from a cloud.** Google Photos and Dropbox in the migration assistant (not delivered in 0.15).
 
 ### Accounts, phones and calendars
 
@@ -77,15 +78,18 @@ Done in 0.15.0 (ticked).
 ### Cinema
 
 - [x] **Cinema app.** The films and series of the NAS get a real media center: the library fetches posters, synopses, actors and ratings by itself, and everything is watched directly in the desktop interface, the PWA and the mobile app, with the playback position following the viewer from one screen to the next.
-- [x] **Subtitles fetched and generated.** The subtitles of a film or an episode are found automatically; a missing track is generated from the audio by the local speech-to-text model.
-- [x] **HDMI out.** Plugged to a TV, the NAS shows a full-screen menu driven with the arrows of any remote: films, series, photos and every media of the NAS, in the same graphic style as the apps. Optional Bluetooth support where the NAS has a Bluetooth adapter: browse the menu with a Bluetooth remote or a gamepad.
+- [x] **Subtitles fetched.** The subtitles of a film or an episode are found automatically on OpenSubtitles.
+- [ ] **Subtitles generated.** A missing track is generated from the audio by a local speech-to-text model installed with StrataOS (today: only with whisper.cpp installed by hand).
+- [x] **HDMI out.** Plugged to a TV, the NAS shows its cinema menu (films and series) full-screen, driven with a keyboard, a gamepad, the arrows of a TV remote or the remote of the web app.
+- [ ] **HDMI out, the rest.** Photos and every other media of the NAS on the TV menu; Bluetooth remotes and gamepads paired from the NAS.
 - [x] **Cinema interface polish.** A dark "10-foot" look with large cards and zoom/blur hover effects; a permanent "continue watching" row resuming exactly where playback stopped; smart auto-collections (a franchise, "recently watched", "added this week"); the trailer plays on poster hover; subtitle size, color and outline are adjustable; a night mode limits brightness and volume late in the evening; family profiles with kid-only shelves and filtered content; the PWA becomes the remote of the HDMI menu; shared "watch together" lists; a screensaver with a slow wall of posters, clock and weather; instant search as you type; gamepad shortcuts (A = ok, B = back, L/R = shelves).
 
 ### Notifications and mobile
 
 - [x] **Web push notifications.** The PWA receives notifications on the lock screen (camera events, disk alerts, finished backups, assistant reports) through web push in the existing service worker; no app store involved.
 - [x] **Automatic photo upload in the PWA.** New photos of the phone are sent to a chosen shared folder, with a pause and a rule per folder.
-- [x] **Widgets and shortcuts.** Free space, RAID state and last backup on the app icon badge; long-press shortcuts to Files, Photos and the Assistant.
+- [x] **Shortcuts.** Long-press shortcuts to Files, Photos and the Assistant.
+- [ ] **App icon badge.** Free space, RAID state and last backup on the app icon badge.
 
 ### Video surveillance
 
@@ -99,7 +103,8 @@ Done in 0.15.0 (ticked).
 - [x] **Scheduled AI reports.** "Every Monday, summarize the NAS health, the new photos and the failed backups": the assistant runs on a schedule and sends its report as a notification or an email.
 - [x] **Questions about your documents.** The assistant answers about the indexed documents and cites the files it read, with clickable references.
 - [x] **Scheduled actions in plain language.** "Stop the test VM every evening at 11 pm" creates a routine, confirmed in the interface like any modifying action.
-- [x] **Sign in with an AI account.** The assistant can be connected with an account instead of a pasted API key (Mistral, DeepSeek, Kimi, OpenAI/Codex, Claude where the provider allows it): the NAS runs the sign-in flow, refreshes the token itself, and no long-lived key is stored.
+- [x] **Sign in with a ChatGPT account** *(experimental: it uses the client of OpenAI's Codex command-line tool)*: the NAS runs the sign-in flow and refreshes the token itself.
+- [ ] **Sign in with other AI accounts.** Mistral, DeepSeek, Kimi, Claude, where the provider offers a sign-in for third-party apps (the Mistral sign-in of 0.15.0 was removed in 0.15.2: its endpoints could not be confirmed).
 
 ### Sign-in and security
 

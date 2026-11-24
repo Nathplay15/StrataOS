@@ -138,6 +138,20 @@ To **share with someone who has no account**, use "Share a link" on a file or fo
 - A download is counted when it starts; previews of images do not count, nor do resumed parts of a download. Once the limit is reached, an interrupted download cannot be resumed.
 - Visitors are limited per address (pages and downloads, uploads) to slow down robots; links keep working with the rights of their owner, checked at each request.
 
+### Calendars and contacts (CalDAV, CardDAV)
+
+Turn on **CalDAV / CardDAV** in File services: each account gets one calendar (events and tasks) and one address book, stored on the NAS. Add the account on the device with the NAS address, your StrataOS user name and password:
+
+- **iPhone / iPad**: Settings → Calendar → Accounts → Add Account → Other → *Add CalDAV Account* (server `<address>:7443`), then the same with *Add CardDAV Account* for contacts.
+- **Android**: install **DAVx⁵** and log in with *URL and user name*: `https://<address>:7443/caldav/` for the calendar, `https://<address>:7443/carddav/` for the contacts.
+- **Thunderbird**: New Calendar → On the Network → `https://<address>:7443/caldav/`; for contacts, New CardDAV Address Book → `https://<address>:7443/carddav/`.
+
+The NAS answers the standard discovery (`/.well-known/caldav` and `/.well-known/carddav`). With the self-signed certificate of the NAS, the device asks you to trust it. Each event or contact is kept as the device names it, with a version tag, so two devices changing the same item do not overwrite each other silently. Upgrading from 0.15.0 or 0.15.1: the calendar and contacts are converted the first time a device connects; if a device was set up with the address of the collection itself, remove the account and add it again with the addresses above.
+
+### The web app on a phone or tablet (PWA)
+
+Open the NAS in the phone's browser and *Add to Home Screen*: StrataOS then opens like an app. In **Photos**, the card **Send the photos of this phone** (web app) takes a folder of the phone and a NAS folder: new photos are sent in the background when the browser allows it, or with *Send new photos now*. The automatic upload **never overwrites** a file of the NAS: a photo already there is skipped, another one with the same name is stored as "name (2).jpg". Only the interface itself is kept for offline use; your files, calendars and the API never are, and signing out clears it.
+
 ## 7. Photos
 
 An administrator chooses the photo folders (Photos → Folders). The timeline shows photos and videos by month; each person only sees the shared folders they have access to. Select photos to create **albums**, which you can share with a link.
@@ -158,6 +172,22 @@ The **Media** page brings your videos, music and photos to the screens and speak
 - **DLNA server**: TVs, game consoles and media players of the local network find the NAS by themselves and browse the "Published folders". DLNA has no password: every device at home can see these folders, even if the shared folder is private, so only publish what everyone may watch.
 - **Music & speakers**: install **OwnTone** from the App Center, choose your music folders, then play your library on **AirPlay** and **Chromecast** speakers. Turn on several speakers to play in every room at once, in sync. By default only administrators control the music; you can let every user do it.
 - **Cast**: in Files or Photos, the **Cast** button plays a video, a song or a picture on one or several TVs (Chromecast or DLNA). The TV plays the original file, so it must support its format; for conversion on the fly, use Jellyfin from the App Center. The Cast tab shows what is playing and lets you pause or stop it.
+
+### Cinema (films and series)
+
+**Media → Cinema** lists the videos of the shared folders as a library of films and series, with posters, synopsis, cast and age rating from **TMDB**. An administrator pastes a free TMDB API key (themoviedb.org → Settings → API) in the Cinema page, then clicks **Scan the library**; every shared folder of a mounted volume is scanned (names like `Heat (1995).mkv` or `Series S01E02.mkv` match best). Each account only sees the videos of the shared folders it can read, with its own "continue watching" row and its watch-together lists (shared with other accounts).
+
+**Family profiles** (administrators): a profile has an **age limit** (from the TMDB certification of the film or series: 12, 16, PG-13…) and the accounts it applies to. For these accounts the NAS hides every video certified for older viewers **and every video without a certification**; they cannot change or remove the limit. The limit applies to the cinema library (and the TV menu), not to the Files app: give a child an account that only reads the folders meant for them.
+
+### HDMI output (TV)
+
+With a screen or a TV on the HDMI (or DisplayPort) output, the NAS can show its cinema menu full-screen (Settings → Console screen → **HDMI output (TV)**). It needs a browser (`chromium` or `firefox`) and Xorg on the NAS. Choose the **account whose library the TV shows**: the TV acts as that account, read-only, with its age limit, and can only reach the cinema; nothing is shown until an account is chosen. Drive the menu with a keyboard, a gamepad, the arrows of a TV remote (HDMI-CEC, when the TV sends them as keys) or the **TV remote** of the web app: administrators always have it, other accounts when an administrator allows them in the same card. The browser runs under its own unprivileged account (`strata-kiosk`). Photos and other media on the TV, and Bluetooth remotes, are not available yet.
+
+### Subtitles and transcription
+
+The player picks up `.srt` and `.vtt` files next to a video (`Film.srt`, `Film.fr.srt`…). **Fetch subtitles** downloads the best match from **OpenSubtitles** in your preferred languages (Settings → **Subtitles (OpenSubtitles)**: an API key, user name and password), by the IMDb id known from the cinema library or by the file's hash, and saves it next to the video.
+
+**Transcribe** generates subtitles from the audio with **whisper.cpp**, entirely on the NAS. StrataOS does not install it yet: the button stays disabled until `whisper-cli` and `ffmpeg` are in the path and a whisper.cpp model is at `/var/lib/strata/stt/ggml-base.bin` (for example `ggml-base.bin` from the whisper.cpp model repository; check its checksum). Expect several times the length of the video on a small processor.
 
 ## 9. Back up
 
@@ -423,6 +453,10 @@ With two or more NAS on the same network, one of them (the primary) serves the s
   - **Health** (first tab): one line per NAS with its state (online or not), version and waiting updates, security advisor score, disks (failing, SMART warnings, degraded or rebuilding arrays, SSD wear), space, backups (last success, failures, tasks without a success for 8 days), temperatures and alerts. Click a column title to sort, the arrow of a line for the details. Above, the summary says how many NAS need attention. A line shows **Critical** for a NAS that does not answer, a failing disk, a degraded array or error alerts, and **Needs attention** for a failed or late backup, SMART warnings, an SSD past 90 % of its endurance, a volume over 90 %, a high-risk security finding or a score under 60, a processor over 85 °C or a disk over 55 °C. Buttons open the NAS, its security advisor, or start its update (when it allows it). The console asks every NAS in the background (every 2 minutes while the page is open, every 10 minutes otherwise); **Refresh** asks now. An older StrataOS shows what its summary gives (marked *Partial*).
   - **VM transfers**: copy or move a virtual machine or a container to another NAS of the console, without a cluster. On each NAS involved (other than this one), allow it first: Multi-NAS Console → Authorized access → *Allow it to copy virtual machines and containers*. Choose what, from where, to where, the volume (and folder, for a VM) on the destination. A running VM or container is shut down for the copy and started again, or copied live from a temporary snapshot (file systems frozen by the guest agent when it answers, otherwise like a power cut). A **move** shuts it down, and deletes it from its NAS once the copy is in place; the copy keeps its identity. A **copy** gets new MAC addresses (and a new UUID), so both can run on the same network. When a bridge of the VM does not exist on the destination, the console asks which bridge to use (or NAT, for a container). The data goes compressed over the console's link, each file checked with SHA-256 on arrival; a transfer that fails (network, NAS restarted) keeps what was sent: **Resume** goes on from there, **Cancel** removes the copy on both NAS and starts a moved VM again on its NAS. Each NAS shows its own job. Limits: VMs with disks on Ceph stay in their cluster (move them there), PCI passthrough is dropped from the copy, shared folders mounted in a container are dropped when they do not exist on the destination; the source and the destination each need room for one copy (four times the archive for a container on the destination); an abandoned transfer's files are removed after 3 days.
 
+### Browser notifications
+
+On the page of your devices (account menu), **Notifications on this browser** turns on web push for that browser (allow it when the browser asks; on iPhone, only once the web app is added to the Home Screen). The NAS then shows its alerts (disks, backups, cameras with their picture, assistant reports) on the lock screen, like the Android app. Each browser is registered separately; remove it from the same place.
+
 ## 20. Updates and rolling back
 
 Updates → "Update StrataOS". Before each update, a **restore point** is created; if something goes wrong, "Restore" brings the system and its programs back to that state (with a restart), without touching your data or your StrataOS settings.
@@ -582,11 +616,17 @@ The NAS of a cluster (Storage → Ceph → the cluster of NAS, section 24) can m
 
 **Limits**: a VM restarted by high availability boots again (what was in its memory is lost, like after a power cut). Only Ceph disks are protected; VMs with disks on a NAS, USB or PCI devices passed through cannot be under HA. If the whole network fails, every NAS stops its HA VMs and none restarts them until most of the cluster sees each other again. Containers cannot move live or be under HA. A VM moved while stopped keeps its UEFI settings; a VM migrated with copied disks loses nothing but takes time. Up to 16 NAS for VM migrations.
 
+### Watched NAS
+
+A NAS can watch other StrataOS NAS **without making them members of the cluster** (Multi-NAS Console → **Watched NAS**): on the other NAS, open Multi-NAS Console and show an authorization code, then use **Watch a NAS (read-only)** here with its address and the code. The console shows its health, version and waiting updates; it cannot update it or move virtual machines. Removing it here stops the watching; also remove the access on the other NAS (Authorized access).
+
 ## 26. The AI assistant and the APIs
 
 **The assistant** (sidebar → Assistant) answers your questions about the NAS in the interface: free space, disk health, containers, backups, the contents of your documents… An administrator turns it on in Settings → **Assistant (AI)**: the address of an OpenAI-compatible endpoint (`https://api.mistral.ai/v1`, OpenAI, a local Ollama or LM Studio…), its API key and the model. The assistant acts **with the permissions of the signed-in user**: it only sees what that user may see, and everything it does lands in the audit logs. Actions that modify the NAS (create a folder, move to the trash, stop a container or a VM, create a ZFS snapshot) never run without you: the assistant shows what it proposes and waits for your **Confirm** button. The same goes for the web: the assistant asks before **opening a web page** (it shows you the full address), and before **searching the web** once it has read something from the NAS in the conversation. A document or a page can hide instructions meant for the assistant; checking the address keeps it from sending your data out. The API key is stored masked and is never sent back to the browser; if you change the assistant's address, type the key again.
 
-With a **local model** (Ollama), a thinking model such as qwen3 can reason for minutes before answering on a small CPU, which looks like a stuck "Thinking…": the **Thinking (reasoning)** switch in the assistant settings (Settings → Assistant) turns this off by default for Ollama endpoints; the assistant page shows the elapsed time while it waits and a **Stop** button to abort the answer.
+With a **local model** (Ollama), a thinking model such as qwen3 can reason for minutes before answering on a small CPU, which looks like a stuck "Thinking…": the **Thinking (reasoning)** switch in the assistant settings (Settings → Assistant) turns this off by default for Ollama endpoints; the assistant page shows the elapsed time while it waits and a **Stop** button to abort the answer. The **Light mode** (same place; automatic for local models of 4 billion parameters or fewer) sends a short prompt and only the tools that read the NAS: a small model on the NAS processor answers several times sooner (the creating and web tools are then not offered).
+
+**ChatGPT account (experimental)**: instead of an API key, an administrator can connect a ChatGPT account (Provider → ChatGPT account, then *Open the sign-in page*, sign in, and paste the address the browser lands on). The NAS refreshes the session itself. This sign-in uses the public client of OpenAI's Codex command-line tool: OpenAI may refuse or block it for other apps at any time, so keep an API key as the reliable way. The Mistral account sign-in of 0.15.0 was removed (its endpoints could not be confirmed): use a Mistral API key.
 
 **MCP** (Model Context Protocol): the endpoint `https://<nas>:7443/api/mcp` lets an external AI assistant (Claude Desktop, and any MCP client) query the NAS. Create an **API token** with the `mcp` scope (account menu → API tokens; the page shows the configuration to copy into the client). The read tools (status, volumes, disks, containers, backups, files…) only read what the token's user may read; the write tools need the `write` scope too, and **your approval**: the first call only files a request, which appears at the top of the **Assistant** page ("Requests from AI clients"); once you click **Approve**, the client calls the tool again and it runs (requests expire after 10 minutes). The AI client can never approve its own request. Idle MCP sessions are closed after 30 minutes. Everything goes through the same permission checks and the same audit trail as the interface.
 
