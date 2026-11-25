@@ -61,6 +61,7 @@ import io.github.nathplay15.strataos.net.manage.o
 import io.github.nathplay15.strataos.net.manage.objs
 import io.github.nathplay15.strataos.net.manage.readNotifications
 import io.github.nathplay15.strataos.net.manage.s
+import io.github.nathplay15.strataos.net.manage.sendObj
 import io.github.nathplay15.strataos.net.manage.setHostname
 import io.github.nathplay15.strataos.net.manage.setTimezone
 import io.github.nathplay15.strataos.net.manage.standby
@@ -428,8 +429,53 @@ fun CertificatesScreen(onBack: () -> Unit) {
                         KeyValue(stringResource(R.string.ctl_expires), whenText(ct.s("notAfter")))
                     }
                 }
-                Hint(stringResource(R.string.ctl_certs_hint))
+                CertForms(c) { data.reload() }
             }
         }
     }
 }
+
+/** Let's Encrypt (HTTP-01 or Cloudflare DNS-01) and importing a certificate, the web's two forms. */
+@Composable
+private fun CertForms(c: kotlinx.serialization.json.JsonObject, reload: () -> Unit) {
+    val actions = rememberActions()
+    val r = LocalResources.current
+    var mode by remember(c) { mutableStateOf(c.s("acmeMode").ifEmpty { "http" }) }
+    var domain by remember(c) { mutableStateOf(c.s("acmeDomain")) }
+    var email by remember(c) { mutableStateOf(c.s("acmeEmail")) }
+    var token by remember { mutableStateOf("") }
+    var zone by remember { mutableStateOf("") }
+    var cert by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
+    SectionCard("Let's Encrypt") {
+        Choice(stringResource(R.string.crt_challenge), listOf("http" to r.getString(R.string.crt_http), "dns" to r.getString(R.string.crt_dns)), mode, { mode = it })
+        Hint(stringResource(if (mode == "http") R.string.crt_http_help else R.string.crt_dns_help))
+        Field(stringResource(R.string.crt_domain), domain, { domain = it.trim() })
+        Field(stringResource(R.string.crt_email), email, { email = it.trim() })
+        if (mode == "dns") {
+            Field(stringResource(R.string.crt_cf_token), token, { token = it.trim() }, secret = true, help = if (c.b("dnsReady")) stringResource(R.string.crt_reuse) else null)
+            Field(stringResource(R.string.crt_cf_zone), zone, { zone = it.trim() })
+        }
+        Button(enabled = !actions.busy, onClick = {
+            val body = io.github.nathplay15.strataos.ui.control.acmeBody(mode, domain, email, token, zone)
+            actions.run(done = r.getString(if (domain.isEmpty()) R.string.crt_acme_off else R.string.crt_acme_on), after = reload) { it.sendObj("PUT", "/api/system/certificates/acme", body) }
+        }) { Text(stringResource(R.string.b_save)) }
+    }
+    SectionCard(stringResource(R.string.crt_import)) {
+        Field(stringResource(R.string.crt_cert_pem), cert, { cert = it }, singleLine = false)
+        Field(stringResource(R.string.crt_key_pem), key, { key = it }, singleLine = false, secret = false)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(enabled = cert.contains("BEGIN") && key.contains("BEGIN") && !actions.busy, onClick = {
+                actions.run(done = r.getString(R.string.crt_imported), after = { cert = ""; key = ""; reload() }) { it.sendObj("PUT", "/api/system/certificates/custom", io.github.nathplay15.strataos.ui.control.pemBody(cert, key)) }
+            }) { Text(stringResource(R.string.crt_import)) }
+            if (c.objs("certificates").any { it.s("source") == "custom" }) TextButton(enabled = !actions.busy, onClick = {
+                actions.run(done = r.getString(R.string.crt_removed), after = reload) { it.sendObj("DELETE", "/api/system/certificates/custom") }
+            }) { Text(stringResource(R.string.crt_remove), color = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+fun acmeBody(mode: String, domain: String, email: String, token: String, zone: String) =
+    kotlinx.serialization.json.JsonObject(emptyMap()).put("mode" to mode, "domain" to domain, "email" to email, "token" to token, "zoneId" to zone)
+
+fun pemBody(cert: String, key: String) = kotlinx.serialization.json.JsonObject(emptyMap()).put("cert" to cert, "key" to key)

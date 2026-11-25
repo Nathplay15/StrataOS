@@ -92,10 +92,13 @@ fun ChannelsScreen(onBack: () -> Unit) {
     val r = LocalResources.current
     AreaScreen(stringResource(R.string.set_channels), onBack) { pad ->
         Refreshable(data, pad) { s ->
-            val f = remember(s) { mutableMapOf<String, androidx.compose.runtime.MutableState<String>>() }
+            val f = remember(s) {
+                listOf("smtpHost", "smtpPort", "smtpUser", "smtpPassword", "smtpFrom", "notifyEmail", "telegramToken", "telegramChatId", "ntfyUrl", "ntfyToken", "webhookUrl")
+                    .associateWith { k -> mutableStateOf(if (k == "smtpPort") s.l(k).toString() else s.s(k)) }
+            }
             @Composable
             fun field(k: String, label: Int, secret: Boolean = false, number: Boolean = false, help: String? = null) {
-                val st = f.getOrPut(k) { mutableStateOf(if (number) s.l(k).toString() else s.s(k)) }
+                val st = f.getValue(k)
                 Field(stringResource(label), st.value, { st.value = if (number) it.filter(Char::isDigit) else it }, secret = secret, number = number, help = help)
             }
             var enc by remember(s) { mutableStateOf(s.s("smtpSecurity").ifEmpty { "auto" }) }

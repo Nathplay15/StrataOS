@@ -147,6 +147,7 @@ fun PropertiesDialog(e: FileEntry, onDismiss: () -> Unit) {
                     Loaded.Loading -> Text("…")
                 }
                 if (fav != null) InfoRow(stringResource(R.string.a_prop_phone), stringResource(if (fav.offline) R.string.a_offline_kept else R.string.a_favorite))
+                if (!e.dir) io.github.nathplay15.strataos.ui.control.FileVersions(e.path)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.a_close)) } },

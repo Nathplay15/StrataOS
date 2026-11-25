@@ -200,5 +200,7 @@ fun tileOf(id: String): TilePaint = when (id) {
     "backups" -> Tiles.backup
     "notifications" -> Tiles.camera
     "sessions" -> Tiles.status
+    "cinema" -> Tiles.photos
+    "music" -> Tiles.assistant
     else -> Tiles.more
 }

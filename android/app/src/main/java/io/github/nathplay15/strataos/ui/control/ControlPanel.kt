@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -88,6 +90,14 @@ val controlGroups = listOf(
         CtlRow(Icons.Default.EventRepeat, R.string.ctl_schedules, Tiles.links, "schedules"),
         CtlRow(Icons.Default.Bolt, R.string.ctl_routines, Tiles.files, "routines"),
         CtlRow(Icons.Default.SmartToy, R.string.set_assistant, Tiles.assistant, "assistant-settings"),
+        CtlRow(Icons.Default.Terminal, R.string.ctl_w_terminal, Tiles.vms, "terminal"),
+        CtlRow(Icons.Default.Help, R.string.ctl_w_help, Tiles.backup, "help"),
+    )),
+    CtlGroup(R.string.tr_g_transfers, listOf(
+        CtlRow(Icons.Default.DriveFileMove, R.string.ctl_w_migration, Tiles.status, "migration"),
+        CtlRow(Icons.Default.CloudSync, R.string.ctl_w_cloudsync, Tiles.sync, "cloudsync"),
+        CtlRow(Icons.Default.Backup, R.string.tr_timemachine, Tiles.backup, "timemachine"),
+        CtlRow(Icons.Default.Lock, R.string.tr_vaults, Tiles.vpn, "vaults"),
     )),
     CtlGroup(R.string.ctl_g_security, listOf(
         CtlRow(Icons.Default.GppGood, R.string.ctl_advisor, Tiles.backup, "advisor"),
@@ -106,15 +116,11 @@ val controlGroups = listOf(
     )),
     CtlGroup(R.string.ctl_g_web, listOf(
         CtlRow(Icons.Default.Storage, R.string.ctl_w_storage, Tiles.storage, web = "/storage/lvm"),
-        CtlRow(Icons.Default.DriveFileMove, R.string.ctl_w_migration, Tiles.status, web = "/migration"),
-        CtlRow(Icons.Default.CloudSync, R.string.ctl_w_cloudsync, Tiles.sync, web = "/cloudsync"),
         CtlRow(Icons.Default.Security, R.string.ctl_w_sso, Tiles.users, web = "/system/sso"),
         CtlRow(Icons.Default.SettingsEthernet, R.string.ctl_w_directory, Tiles.fleet, web = "/system/directory"),
         CtlRow(Icons.Default.Hub, R.string.ctl_w_ha, Tiles.vms, web = "/system/ha"),
+        CtlRow(Icons.Default.Storage, R.string.ctl_w_cluster, Tiles.vms, web = "/vms"),
         CtlRow(Icons.Default.Settings, R.string.ctl_w_settings, Tiles.settings, web = "/system/settings"),
-        CtlRow(Icons.Default.Terminal, R.string.ctl_w_terminal, Tiles.vms, "terminal"),
-        CtlRow(Icons.Default.Movie, R.string.ctl_w_media, Tiles.photos, web = "/media"),
-        CtlRow(Icons.Default.Help, R.string.ctl_w_help, Tiles.backup, "help"),
     )),
 )
 
@@ -166,6 +172,10 @@ fun ControlScreen(route: String, back: () -> Unit): Boolean {
         "channels" -> ChannelsScreen(back)
         "assistant-settings" -> AssistantSettingsScreen(back)
         "help" -> HelpScreen(back)
+        "migration" -> MigrationScreen(back)
+        "cloudsync" -> CloudSyncScreen(back)
+        "timemachine" -> TimeMachineScreen(back)
+        "vaults" -> VaultsScreen(back)
         "terminal" -> io.github.nathplay15.strataos.ui.vms.ContainerTerminal(androidx.compose.ui.res.stringResource(R.string.ctl_w_terminal), back, host = true)
         else -> return false
     }
