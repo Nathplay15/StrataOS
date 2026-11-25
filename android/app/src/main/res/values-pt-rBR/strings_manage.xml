@@ -219,7 +219,6 @@
     <string name="nas_mode_notify">Somente notificar</string>
     <string name="nas_mode_off">Desativado</string>
     <string name="nas_monthly_report">Relatório mensal de saúde</string>
-    <string name="nas_more_web">Todo o resto está na área Interface web.</string>
     <string name="nas_my_account">Minha conta</string>
     <string name="nas_network">Rede</string>
     <string name="nas_network_web">As alterações de rede são feitas na interface web (elas são testadas primeiro e revertidas, a menos que sejam confirmadas).</string>

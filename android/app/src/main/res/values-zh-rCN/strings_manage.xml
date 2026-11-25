@@ -219,7 +219,6 @@
     <string name="nas_mode_notify">仅通知</string>
     <string name="nas_mode_off">关闭</string>
     <string name="nas_monthly_report">每月健康报告</string>
-    <string name="nas_more_web">其他所有设置都在“网页界面”区域。</string>
     <string name="nas_my_account">我的账户</string>
     <string name="nas_network">网络</string>
     <string name="nas_network_web">网络更改请在网页界面中进行（会先试用，未确认则自动回滚）。</string>

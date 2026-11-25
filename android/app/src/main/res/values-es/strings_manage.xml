@@ -219,7 +219,6 @@
     <string name="nas_mode_notify">Solo notificar</string>
     <string name="nas_mode_off">Desactivado</string>
     <string name="nas_monthly_report">Informe mensual de estado</string>
-    <string name="nas_more_web">Todo lo demás está en el área Interfaz web.</string>
     <string name="nas_my_account">Mi cuenta</string>
     <string name="nas_network">Red</string>
     <string name="nas_network_web">Los cambios de red se hacen en la interfaz web (se prueban primero y se revierten si no se confirman).</string>
