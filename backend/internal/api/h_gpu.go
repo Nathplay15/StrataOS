@@ -38,6 +38,13 @@ var gpuCache struct {
 	vaapi   bool // ffmpeg has h264_vaapi
 }
 
+// gpuForget makes the next gpuDetect look again (after a component install).
+func gpuForget() {
+	gpuCache.Lock()
+	gpuCache.at = time.Time{}
+	gpuCache.Unlock()
+}
+
 // gpuDetect returns the GPUs, detected again after 10 minutes or when fresh.
 func gpuDetect(fresh bool) ([]gpu.GPU, bool, bool) {
 	gpuCache.Lock()

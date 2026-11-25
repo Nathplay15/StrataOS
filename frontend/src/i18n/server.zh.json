@@ -3509,5 +3509,19 @@
  "Échec de la recherche TMDB pour {0} : {1}": "TMDB 搜索 {0} 失败：{1}",
  "Échec des détails TMDB pour {0} : {1}": "TMDB 详情 {0} 失败：{1}",
  "{0} ({1}) associé à TMDB {2} : {3}": "已将 {0}（{1}）匹配到 TMDB {2}：{3}",
- "Le conteneur {0} échoue à répétition ({1}). Ses dernières lignes de journal sont affichées avec les conteneurs.": "容器 {0} 反复崩溃（{1}）。其最近的日志行显示在容器列表中。"
+ "Le conteneur {0} échoue à répétition ({1}). Ses dernières lignes de journal sont affichées avec les conteneurs.": "容器 {0} 反复崩溃（{1}）。其最近的日志行显示在容器列表中。",
+ "Tous les comptes du NAS peuvent utiliser ce périphérique : ses droits devraient être 0660, groupe render.": "NAS 的所有账户都可以使用此设备：其权限应为 0660，组为 render。",
+ "Les cartes graphiques NVIDIA n'encodent la vidéo qu'avec le pilote propriétaire de NVIDIA, que StrataOS n'installe pas (non-free, compilé pour chaque noyau). Le pilote libre nouveau n'a pas d'encodeur vidéo utilisable.": "NVIDIA 显卡只能通过 NVIDIA 专有驱动程序编码视频，而 StrataOS 不安装该驱动（non-free，需针对每个内核编译）。开源的 nouveau 驱动没有可用的视频编码器。",
+ "Le pilote NVIDIA est chargé, mais ffmpeg n'a pas d'encodeur NVENC ou /dev/nvidiactl est absent.": "NVIDIA 驱动程序已加载，但 ffmpeg 没有 NVENC 编码器，或缺少 /dev/nvidiactl。",
+ "Les applications de l'App Center n'obtiennent que les cartes graphiques Intel et AMD : NVIDIA nécessite le NVIDIA container toolkit, que StrataOS ne configure pas.": "应用中心的应用只能使用 Intel 和 AMD 显卡：NVIDIA 需要 NVIDIA container toolkit，而 StrataOS 不会设置它。",
+ "Aucune accélération vidéo sur ce périphérique (carte graphique virtuelle ou d'affichage seul).": "此设备不支持视频加速（虚拟显卡或仅用于显示的显卡）。",
+ "Installez les outils multimédias (vainfo et les pilotes vidéo) pour voir ce que ce processeur graphique décode et encode.": "请安装多媒体工具（vainfo 和视频驱动程序），以查看此图形处理器可解码和编码的内容。",
+ "Aucun pilote vidéo fonctionnel : installez intel-media-va-driver-non-free (processeurs de 2015 et après) ou i965-va-driver (plus anciens).": "没有可用的视频驱动程序：请安装 intel-media-va-driver-non-free（2015 年起的处理器）或 i965-va-driver（更早的处理器）。",
+ "Aucun pilote vidéo fonctionnel : installez intel-media-va-driver (processeurs de 2015 et après) ou i965-va-driver (plus anciens). L'encodage sur de nombreux processeurs nécessite intel-media-va-driver-non-free, du composant non-free de Debian, que ce NAS n'utilise pas.": "没有可用的视频驱动程序：请安装 intel-media-va-driver（2015 年起的处理器）或 i965-va-driver（更早的处理器）。许多处理器上的编码需要 intel-media-va-driver-non-free，它来自 Debian 的 non-free 组件，而此 NAS 不使用该组件。",
+ "Aucun pilote vidéo fonctionnel : installez mesa-va-drivers.": "没有可用的视频驱动程序：请安装 mesa-va-drivers。",
+ "Ce pilote ne fait que décoder : installez intel-media-va-driver-non-free pour encoder.": "此驱动程序只能解码：请安装 intel-media-va-driver-non-free 以进行编码。",
+ "Ce pilote ne fait que décoder : l'encodage nécessite intel-media-va-driver-non-free, du composant non-free de Debian (ajoutez non-free aux sources APT, puis installez-le).": "此驱动程序只能解码：编码需要 intel-media-va-driver-non-free，它来自 Debian 的 non-free 组件（请将 non-free 添加到 APT 源，然后安装）。",
+ "Cette version de Mesa ne gère pas H.264/HEVC : le processeur graphique n'est pas utilisé pour ces codecs.": "此 Mesa 版本不支持 H.264/HEVC：这些编解码器不会使用图形处理器。",
+ "Ce processeur graphique n'encode pas le H.264 : les vidéos sont converties par le processeur (CPU).": "此图形处理器不能编码 H.264：视频由处理器（CPU）转换。",
+ "Le H.264 est encodé par le moteur basse consommation : sur les processeurs Intel de 9e à 11e génération, il nécessite le micrologiciel GuC/HuC (i915.enable_guc=2), activé par défaut à partir de la 12e génération.": "H.264 由低功耗引擎编码：在第 9 至第 11 代 Intel 处理器上，它需要 GuC/HuC 固件（i915.enable_guc=2），从第 12 代起默认已启用。"
 }

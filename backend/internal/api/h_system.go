@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strataos/internal/antivirus"
 	"strataos/internal/ceph"
+	"strataos/internal/components"
 	"strataos/internal/directory"
 	"strataos/internal/fileservices"
 	"strataos/internal/ha"
@@ -484,10 +485,19 @@ func (s *Server) systemRoutes() {
 			return nil, badRequest("unknown component")
 		}
 		s.audit(r, "system", "Installing component "+name)
-		return s.jobs.Start("install", "Install "+name, userOf(r), func(ctx context.Context, j *jobs.Job) error {
+		// The job shows the component's own name ("Media tools (ffmpeg,
+		// libvips)"), not its internal id ("photos").
+		title := name
+		if c := components.Find(name); c != nil && c.Name != "" {
+			title = c.Name
+		}
+		return s.jobs.Start("install", "Install "+title, userOf(r), func(ctx context.Context, j *jobs.Job) error {
 			componentMu.Lock()
 			defer componentMu.Unlock()
 			_, err := sys.RunOpts(ctx, sys.Opts{Output: j, Timeout: time.Hour, Env: []string{"DEBIAN_FRONTEND=noninteractive"}}, "/bin/bash", scriptsDir+"/"+script)
+			// New packages (vainfo, video drivers, ffmpeg) change what the
+			// Hardware page detects: detect again at its next visit.
+			gpuForget()
 			return err
 		}), nil
 	})
