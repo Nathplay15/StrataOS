@@ -21,7 +21,7 @@
 
 The interface is available in English, French, Spanish, German, Italian, Portuguese (Brazil), Dutch and Simplified Chinese. On a computer it looks like a desktop with windows, in a dark or light theme, usable with the keyboard, with a search (Ctrl+K) that finds apps, settings, folders and files; on a phone it switches to a mobile layout. StrataOS runs on Debian 13 (trixie) and is being prepared for Debian 14 ([status](docs/DEBIAN-14.md)).
 
-On a phone, and in the desktop app, the interface comes in two styles, each in light and dark: **Glass** by default (translucent, blurred panels over a soft gradient, a floating tab bar) and **Modern** (opaque surfaces in a vivid blue), chosen in **Appearance** (in the app: Settings), with a switch to reduce transparency.
+On a phone, and in the desktop app, the interface comes in two styles, each in light and dark: **Glass** by default (translucent, blurred panels and controls over slowly drifting colours, still when the system asks for less motion; a floating tab bar) and **Modern** (opaque surfaces in a vivid blue), chosen in **Appearance** (in the app: Settings), with a switch to reduce transparency.
 
 Clients: an **Android app** (files, photo backup, folder sync, managing the NAS, updates itself) and a **desktop app** for Windows, macOS and Linux (two-way folder sync, optionally end-to-end encrypted, and managing the NAS), described below. The Android and desktop apps have their own versions and releases, independent of the NAS version.
 
@@ -62,9 +62,9 @@ The **StrataOS desktop app** (Windows, macOS, Linux; native, built with Tauri) b
 
 <img src="docs/screenshots/desktop-app.png" alt="The desktop app: overview of the NAS" width="410"> <img src="docs/screenshots/desktop-app-sync.png" alt="The desktop app: folder sync" width="410">
 
-In the **Modern** style (Settings → Style):
+In the dark theme, and in the **Modern** style (Settings → Style):
 
-<img src="docs/screenshots/desktop-app-modern.png" alt="The desktop app in the Modern style" width="410">
+<img src="docs/screenshots/desktop-app-dark.png" alt="The desktop app in the Glass style, dark theme" width="410"> <img src="docs/screenshots/desktop-app-modern.png" alt="The desktop app in the Modern style" width="410">
 
 ## Requirements
 
