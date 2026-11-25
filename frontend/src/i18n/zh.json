@@ -5584,5 +5584,13 @@
  "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "简短的提示词，并且只保留读取 NAS 的工具：在 NAS 处理器上运行的小模型回答会快得多。自动：对 40 亿参数及以下的本地模型启用。",
  "Accept a self-signed certificate": "接受自签名证书",
  "The certificate of this address is not verified. Only for an app of your local network you trust: anyone able to intercept that traffic could read it.": "不会验证此地址的证书。仅用于您信任的本地网络应用：任何能截获该流量的人都可能读取它。",
- "http:// or https://, on this NAS or the local network": "http:// 或 https://，位于此 NAS 或本地网络"
+ "http:// or https://, on this NAS or the local network": "http:// 或 https://，位于此 NAS 或本地网络",
+ "Glass": "玻璃",
+ "Modern": "现代",
+ "Style": "风格",
+ "Translucent panels over a soft gradient": "柔和渐变上的半透明面板",
+ "Opaque surfaces and a vivid blue": "不透明的界面与鲜艳的蓝色",
+ "The look of the phone layout, kept by this browser. The desktop mode keeps its own look.": "手机布局的外观，保存在此浏览器中。桌面模式保持其自身外观。",
+ "Reduce transparency": "降低透明度",
+ "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "不透明面板：更易阅读，对旧手机更轻量。系统要求时也会开启。"
 }

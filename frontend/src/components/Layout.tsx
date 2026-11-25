@@ -230,11 +230,11 @@ function MobileTabs() {
     { to: "/me", label: "Me", icon: <User size={21} /> },
   ];
   return (
-    <nav style={{ paddingBottom: "env(safe-area-inset-bottom)" }} className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 backdrop-blur lg:hidden" aria-label={tr("Main navigation")}>
+    <nav className="shell-tabbar shell-bar lg:hidden" aria-label={tr("Main navigation")}>
       <div className="mx-auto flex max-w-[560px]">
         {tabs.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => cx("flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]", isActive ? "text-accent" : "text-muted hover:text-fg")}>
-            {t.icon}
+          <NavLink key={t.to} to={t.to} end={t.to === "/"} className="shell-tab hover:text-fg">
+            <span className="shell-tab-icon">{t.icon}</span>
             {tr(t.label)}
           </NavLink>
         ))}
@@ -322,15 +322,15 @@ export function Layout({ me }: { me: Me }) {
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-[248px] shrink-0 border-r border-line bg-panel lg:block">{sidebar}</aside>
+      <aside className="shell-bar hidden w-[248px] shrink-0 border-r border-line bg-panel lg:block">{sidebar}</aside>
       {mobileNav && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileNav(false)} />
-          <aside className="absolute inset-y-0 left-0 w-[260px] border-r border-line bg-panel">{sidebar}</aside>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => setMobileNav(false)} />
+          <aside className="shell-drawer shell-bar absolute inset-y-0 left-0 w-[260px] overflow-hidden border-r border-line bg-panel">{sidebar}</aside>
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line bg-panel/80 px-4 backdrop-blur">
+        <header className="shell-bar relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line bg-panel/80 px-4 backdrop-blur">
           <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileNav(true)} aria-label={tr("Menu")}>
             {mobileNav ? <X size={18} /> : <Menu size={18} />}
           </button>
@@ -380,8 +380,8 @@ export function Layout({ me }: { me: Me }) {
         </header>
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
-            <PageBoundary key={loc.pathname}><Outlet /></PageBoundary>
-            <div className="h-16 lg:hidden" aria-hidden />
+            <div key={loc.pathname} className="shell-page"><PageBoundary><Outlet /></PageBoundary></div>
+            <div className="shell-tab-space lg:hidden" aria-hidden />
           </div>
         </main>
       </div>

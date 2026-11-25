@@ -51,7 +51,8 @@ export function applyAccent(hex: string) {
       const v = accentVars(hex, t);
       return `${sel}{--accent:${v.accent};--accent-2:${v.accent2};--accent-soft:${v.soft}}`;
     };
-    el.textContent = css(":root", "light") + css(':root[data-theme="dark"]', "dark");
+    // Above the defaults of the styles of index.css ([data-style]).
+    el.textContent = css(":root:root:root:root", "light") + css(':root:root:root:root[data-theme="dark"]', "dark");
   }
   try {
     if (hex) localStorage.setItem(ACCENT_KEY, hex);

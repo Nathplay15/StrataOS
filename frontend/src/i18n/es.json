@@ -5584,5 +5584,13 @@
  "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "Una instrucción breve y solo las herramientas que leen el NAS: un modelo pequeño en el procesador del NAS responde mucho antes. Automático: activado para modelos locales de 4 mil millones de parámetros o menos.",
  "Accept a self-signed certificate": "Aceptar un certificado autofirmado",
  "The certificate of this address is not verified. Only for an app of your local network you trust: anyone able to intercept that traffic could read it.": "El certificado de esta dirección no se verifica. Solo para una aplicación de su red local en la que confíe: quien pueda interceptar ese tráfico podría leerlo.",
- "http:// or https://, on this NAS or the local network": "http:// o https://, en este NAS o en la red local"
+ "http:// or https://, on this NAS or the local network": "http:// o https://, en este NAS o en la red local",
+ "Glass": "Cristal",
+ "Modern": "Moderno",
+ "Style": "Estilo",
+ "Translucent panels over a soft gradient": "Paneles translúcidos sobre un degradado suave",
+ "Opaque surfaces and a vivid blue": "Superficies opacas y un azul vivo",
+ "The look of the phone layout, kept by this browser. The desktop mode keeps its own look.": "El aspecto de la vista para móvil, guardado en este navegador. El modo escritorio conserva el suyo.",
+ "Reduce transparency": "Reducir la transparencia",
+ "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Paneles opacos: más legibles y más ligeros para móviles antiguos. También se activa cuando el sistema lo pide."
 }

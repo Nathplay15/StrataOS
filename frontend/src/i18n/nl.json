@@ -5584,5 +5584,13 @@
  "A short prompt and only the tools that read the NAS: a small model on the NAS processor answers much sooner. Automatic: on for local models of 4 billion parameters or fewer.": "Een korte instructie en alleen de hulpmiddelen die de NAS lezen: een klein model op de processor van de NAS antwoordt veel sneller. Automatisch: aan voor lokale modellen van 4 miljard parameters of minder.",
  "Accept a self-signed certificate": "Zelfondertekend certificaat accepteren",
  "The certificate of this address is not verified. Only for an app of your local network you trust: anyone able to intercept that traffic could read it.": "Het certificaat van dit adres wordt niet gecontroleerd. Alleen voor een app in uw lokale netwerk die u vertrouwt: wie dat verkeer kan onderscheppen, kan het lezen.",
- "http:// or https://, on this NAS or the local network": "http:// of https://, op deze NAS of in het lokale netwerk"
+ "http:// or https://, on this NAS or the local network": "http:// of https://, op deze NAS of in het lokale netwerk",
+ "Glass": "Glas",
+ "Modern": "Modern",
+ "Style": "Stijl",
+ "Translucent panels over a soft gradient": "Doorschijnende panelen op een zacht verloop",
+ "Opaque surfaces and a vivid blue": "Ondoorzichtige vlakken en een helder blauw",
+ "The look of the phone layout, kept by this browser. The desktop mode keeps its own look.": "Het uiterlijk van de telefoonweergave, bewaard door deze browser. De bureaubladmodus houdt zijn eigen uiterlijk.",
+ "Reduce transparency": "Transparantie verminderen",
+ "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Ondoorzichtige panelen: beter leesbaar en lichter voor oudere telefoons. Ook aan wanneer het systeem erom vraagt."
 }

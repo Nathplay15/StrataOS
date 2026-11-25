@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ImagePlus, Trash2 } from "lucide-react";
-import { Button, Modal, useUI } from "./ui";
+import { Button, Modal, Switch, useUI } from "./ui";
 import { cx } from "../lib/format";
 import { tr, srv } from "../lib/i18n";
 import { ACCENT_PRESETS, DEFAULT_ACCENT, accentVars } from "../lib/accent";
 import { usePrefs, useSavePrefs } from "../lib/appearance";
+import { setReduceTransparency, setUIStyle, useUIStyle, type UIStyle } from "../lib/uistyle";
 import { WALLPAPERS, DEFAULT_WALLPAPER, legacyWallpaper, wallpaperCSS } from "../desktop/wallpapers";
 
 const MAX_UPLOAD = 5 << 20;
@@ -35,7 +36,58 @@ async function prepareImage(file: File): Promise<Blob> {
   throw new Error(tr("The image is too large"));
 }
 
-/** Account menu → Appearance: wallpaper of the desktop mode and accent colour, kept on the NAS. */
+// Small pictures of the two styles, drawn with their own colours.
+const STYLE_PREVIEW: Record<UIStyle, { bg: string; panel: string; edge: string; bar: string; blur: boolean }> = {
+  glass: {
+    bg: "radial-gradient(70% 60% at 0% 0%, #8ea4ff, transparent 70%), radial-gradient(60% 60% at 100% 100%, #c39bff, transparent 70%), linear-gradient(160deg, #e6ecff, #f1e9ff)",
+    panel: "rgba(255,255,255,0.6)", edge: "rgba(255,255,255,0.85)", bar: "rgba(255,255,255,0.7)", blur: true,
+  },
+  modern: { bg: "#f2f4f8", panel: "#ffffff", edge: "#e3e7ef", bar: "#ffffff", blur: false },
+};
+
+function StylePicker() {
+  const { style, solid } = useUIStyle();
+  const opts: { id: UIStyle; label: string; text: string }[] = [
+    { id: "glass", label: tr("Glass"), text: tr("Translucent panels over a soft gradient") },
+    { id: "modern", label: tr("Modern"), text: tr("Opaque surfaces and a vivid blue") },
+  ];
+  return (
+    <section>
+      <h3 className="mb-1 font-medium">{tr("Style")}</h3>
+      <p className="mb-3 text-muted text-[12.5px]">{tr("The look of the phone layout, kept by this browser. The desktop mode keeps its own look.")}</p>
+      <div className="grid grid-cols-2 gap-3">
+        {opts.map((o) => {
+          const v = STYLE_PREVIEW[o.id];
+          const on = style === o.id;
+          return (
+            <button key={o.id} type="button" onClick={() => setUIStyle(o.id)} aria-pressed={on} className={cx("overflow-hidden rounded-2xl border-2 text-left transition", on ? "border-accent" : "border-line hover:border-accent/50")}>
+              <div className="relative h-24 p-2.5" style={{ background: v.bg }} aria-hidden>
+                <div className="h-9 rounded-xl border" style={{ background: v.panel, borderColor: v.edge, backdropFilter: v.blur ? "blur(8px)" : undefined }} />
+                <div className="absolute inset-x-5 bottom-2 h-6 rounded-full border" style={{ background: v.bar, borderColor: v.edge }}>
+                  <span className="absolute left-1 top-1 h-4 w-8 rounded-full" style={{ background: o.id === "modern" ? "#1f6bff" : "#4f6bff", opacity: 0.85 }} />
+                </div>
+              </div>
+              <div className="flex items-start gap-2 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium">{o.label}</div>
+                  <div className="text-muted text-[11.5px]">{o.text}</div>
+                </div>
+                {on && <Check size={16} className="mt-0.5 shrink-0 text-accent" />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {style === "glass" && (
+        <div className="mt-3">
+          <Switch checked={solid} onChange={setReduceTransparency} label={tr("Reduce transparency")} hint={tr("Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.")} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Account menu → Appearance: style of the phone layout (this browser), wallpaper of the desktop mode and accent colour, kept on the NAS. */
 export function AppearanceModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const prefs = usePrefs();
   const save = useSavePrefs();
@@ -83,6 +135,7 @@ export function AppearanceModal({ open, onClose }: { open: boolean; onClose: () 
   return (
     <Modal open={open} onClose={onClose} title={tr("Appearance")} wide footer={<Button variant="primary" onClick={onClose}>{tr("Close")}</Button>}>
       <div className="space-y-6">
+        <StylePicker />
         <section>
           <h3 className="mb-1 font-medium">{tr("Wallpaper")}</h3>
           <p className="mb-3 text-muted text-[12.5px]">{tr("Shown behind the desktop mode. Your own image stays on the NAS, in your account only.")}</p>

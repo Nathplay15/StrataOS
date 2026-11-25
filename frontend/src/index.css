@@ -186,3 +186,221 @@ body {
 .screensaver-wall {
   animation: screensaver-drift 90s ease-in-out infinite alternate;
 }
+
+/* ---------- Styles of the phone layout and of the desktop app ----------
+   lib/uistyle.ts sets data-style on <html>: "glass" (translucent, blurred
+   panels over a soft gradient) or "modern" (opaque). data-transparency=
+   "reduced" (the user's switch, the system's setting, or no backdrop-filter)
+   makes the glass opaque. The desktop mode of the web interface has neither
+   attribute and keeps its own look. Text always sits on a tinted panel
+   (≥ 60 % opaque), never directly on the blur. */
+:root[data-style] {
+  --radius-card: 20px;
+  --ease-fluid: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+:root[data-style="glass"] {
+  --bg: #eef2fb;
+  --panel: rgba(255, 255, 255, 0.74);
+  --panel-2: rgba(236, 240, 250, 0.78);
+  --border: rgba(15, 23, 42, 0.09);
+  --muted: #545f74;
+  --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 12px 32px -10px rgba(30, 41, 90, 0.22);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --glass-bar: rgba(255, 255, 255, 0.66);
+  --glass-blur: blur(24px) saturate(180%);
+  --backdrop:
+    radial-gradient(55% 45% at 0% 0%, rgba(110, 140, 255, 0.5), transparent 72%),
+    radial-gradient(45% 40% at 100% 8%, rgba(70, 205, 255, 0.4), transparent 72%),
+    radial-gradient(60% 45% at 85% 100%, rgba(185, 135, 255, 0.4), transparent 72%),
+    radial-gradient(50% 40% at 0% 92%, rgba(255, 160, 195, 0.32), transparent 72%),
+    linear-gradient(160deg, #eef2fd, #f3effc);
+}
+:root[data-style="glass"][data-theme="dark"] {
+  --bg: #070b16;
+  --panel: rgba(26, 32, 52, 0.66);
+  --panel-2: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #eef1f8;
+  --muted: #a0a9bf;
+  --shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 16px 40px -12px rgba(0, 0, 0, 0.55);
+  --glass-edge: rgba(255, 255, 255, 0.13);
+  --glass-hi: rgba(255, 255, 255, 0.16);
+  --glass-bar: rgba(22, 27, 45, 0.62);
+  --backdrop:
+    radial-gradient(55% 45% at 0% 0%, rgba(70, 95, 255, 0.4), transparent 72%),
+    radial-gradient(45% 40% at 100% 8%, rgba(0, 165, 220, 0.26), transparent 72%),
+    radial-gradient(60% 45% at 85% 100%, rgba(135, 70, 255, 0.32), transparent 72%),
+    radial-gradient(50% 40% at 0% 92%, rgba(255, 80, 150, 0.14), transparent 72%),
+    linear-gradient(160deg, #070b18, #0c0a1c);
+}
+/* Reduced transparency: the same look, opaque. */
+:root[data-style="glass"][data-transparency="reduced"] {
+  --panel: #ffffff;
+  --panel-2: #f1f4fb;
+  --glass-bar: #ffffff;
+}
+:root[data-style="glass"][data-transparency="reduced"][data-theme="dark"] {
+  --panel: #161c2e;
+  --panel-2: #1d2438;
+  --glass-bar: #161c2e;
+}
+:root[data-style="modern"] {
+  --bg: #f2f4f8;
+  --panel: #ffffff;
+  --panel-2: #f5f7fb;
+  --border: #e3e7ef;
+  --text: #0f172a;
+  --muted: #5b6475;
+  --accent: #1f6bff;
+  --accent-2: #00a3ff;
+  --accent-soft: rgba(31, 107, 255, 0.12);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 20px -6px rgba(16, 24, 40, 0.1);
+  --glass-edge: var(--border);
+  --glass-hi: transparent;
+  --glass-bar: #ffffff;
+  --backdrop: var(--bg);
+}
+:root[data-style="modern"][data-theme="dark"] {
+  --bg: #0b0f17;
+  --panel: #151a24;
+  --panel-2: #1b2130;
+  --border: #262d3c;
+  --text: #e8ecf4;
+  --muted: #98a1b5;
+  --accent: #4d8dff;
+  --accent-2: #3cc3ff;
+  --accent-soft: rgba(77, 141, 255, 0.16);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+  --glass-bar: #151a24;
+}
+
+:root[data-style] body {
+  background: var(--backdrop);
+  background-color: var(--bg);
+}
+:root[data-style] .card {
+  border-radius: var(--radius-card);
+  border-color: var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
+}
+:root[data-style="glass"]:not([data-transparency]) :is(.card, .bg-panel, .shell-bar) {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+:root[data-style] .input {
+  border-radius: 12px;
+}
+
+/* Top bar, side menu and the phone's tab bar. */
+:root[data-style] .shell-bar {
+  background: var(--glass-bar);
+  border-color: var(--glass-edge);
+}
+:root[data-style="modern"] .shell-bar {
+  border-color: var(--border);
+}
+.shell-tabbar {
+  position: fixed;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.shell-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.shell-tab:hover {
+  color: var(--text);
+}
+.shell-tab[aria-current="page"] {
+  color: var(--accent);
+}
+.shell-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 56px;
+  border-radius: 999px;
+  transition: background-color 0.25s var(--ease-fluid, ease), transform 0.25s var(--ease-fluid, ease);
+}
+/* Glass: a floating capsule, the current tab in a lighter pill. */
+:root[data-style="glass"] .shell-tabbar {
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 6px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 28px;
+  background: var(--glass-bar);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 18px 40px -12px rgba(15, 23, 42, 0.35);
+}
+:root[data-style="glass"] .shell-tab {
+  padding: 4px 0;
+  border-radius: 22px;
+  font-weight: 500;
+  transition: background-color 0.3s var(--ease-fluid), color 0.3s var(--ease-fluid);
+}
+:root[data-style="glass"] .shell-tab[aria-current="page"] {
+  background: var(--accent-soft);
+}
+:root[data-style="glass"] .shell-tab-icon {
+  height: 26px;
+}
+/* Modern: an opaque bar, the current tab's icon in a tinted pill. */
+:root[data-style="modern"] .shell-tabbar {
+  border-top-color: var(--border);
+  box-shadow: 0 -4px 16px -8px rgba(16, 24, 40, 0.12);
+}
+:root[data-style="modern"] .shell-tab[aria-current="page"] {
+  font-weight: 600;
+}
+:root[data-style="modern"] .shell-tab[aria-current="page"] .shell-tab-icon {
+  background: var(--accent-soft);
+}
+/* Room for the tab bar under the page. */
+.shell-tab-space {
+  height: 64px;
+}
+:root[data-style="glass"] .shell-tab-space {
+  height: 96px;
+}
+:root[data-style="glass"] .shell-drawer {
+  inset: 8px auto 8px 8px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+
+/* Fluid motion, only for those who did not ask the system for less. */
+@keyframes shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-style] .shell-page {
+    animation: shell-in 0.38s var(--ease-fluid) both;
+  }
+  :root[data-style] .shell-tab:active .shell-tab-icon {
+    transform: scale(0.9);
+  }
+}

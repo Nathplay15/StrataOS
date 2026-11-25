@@ -11,6 +11,7 @@ import { Setup } from "./pages/Setup";
 import { Desktop } from "./desktop/Desktop";
 import { Splash } from "./components/Splash";
 import { useDesktopMode } from "./desktop/mode";
+import { useUIStyleRoot } from "./lib/uistyle";
 import { lang, tr } from "./lib/i18n";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -85,6 +86,8 @@ function Root() {
   const meQ = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/me"), retry: false, enabled: setup.data?.needed === false });
   const [me, setMe] = useState<Me | null>(null);
   const desktop = useDesktopMode();
+  // Glass or modern look everywhere but in the desktop mode.
+  useUIStyleRoot(!desktop);
 
   useEffect(() => {
     if (meQ.data) setMe(meQ.data);
