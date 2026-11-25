@@ -9,6 +9,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -84,6 +87,7 @@ import io.github.nathplay15.strataos.net.FileEntry
 import io.github.nathplay15.strataos.net.Photo
 import io.github.nathplay15.strataos.net.albums
 import io.github.nathplay15.strataos.net.changeAlbum
+import io.github.nathplay15.strataos.net.shareAlbum
 import io.github.nathplay15.strataos.net.createAlbum
 import io.github.nathplay15.strataos.net.deleteAlbum
 import io.github.nathplay15.strataos.net.photoThumbUrl
@@ -186,6 +190,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
     var deleting by remember { mutableStateOf<List<Photo>?>(null) }
     var renaming by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
+    var sharingWith by remember { mutableStateOf(false) }
     var deletingAlbum by remember { mutableStateOf(false) }
     var name by remember(album?.id) { mutableStateOf(album?.name ?: "") }
     var saving by remember { mutableStateOf<List<Photo>>(emptyList()) }
@@ -274,6 +279,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                             IconButton(onClick = { searching = true }) { Icon(Icons.Default.Search, stringResource(R.string.a_search)) }
                             if (album != null) {
                                 IconButton(onClick = { sharing = true }) { Icon(Icons.Default.Link, stringResource(R.string.a_share_link)) }
+                                if (album.from.isEmpty()) IconButton(onClick = { sharingWith = true }) { Icon(Icons.Default.Group, stringResource(R.string.ph_share_album)) }
                                 IconButton(onClick = { renaming = true }) { Icon(Icons.Default.Edit, stringResource(R.string.a_rename)) }
                                 IconButton(onClick = { deletingAlbum = true }) { Icon(Icons.Default.Delete, stringResource(R.string.a_delete_album)) }
                             }
@@ -346,6 +352,7 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
             act.run({ name = n }) { api().changeAlbum(album.id, name = n) }
         }
         if (sharing) ShareLinkDialog(album = album.id, title = name) { sharing = false }
+        if (sharingWith) ShareAlbumDialog(album) { sharingWith = false }
         if (deletingAlbum) ConfirmDialog(stringResource(R.string.a_delete_album), stringResource(R.string.a_delete_album_text, name), stringResource(R.string.a_delete), danger = true,
             onDismiss = { deletingAlbum = false }, onConfirm = { act.run(onAlbumGone) { api().deleteAlbum(album.id) } })
     }
@@ -444,4 +451,38 @@ private fun AlbumsList(open: (Album) -> Unit) {
     if (creating) TextDialog(stringResource(R.string.a_new_album), stringResource(R.string.name), confirm = stringResource(R.string.create), onDismiss = { creating = false }) { n ->
         act.run(load.reload) { api().createAlbum(n, emptyList()) }
     }
+}
+
+/** Shares an album with other accounts of the NAS: they see it in their Photos, read-only (like the web). */
+@Composable
+private fun ShareAlbumDialog(album: Album, onClose: () -> Unit) {
+    var names by remember { mutableStateOf(album.with) }
+    var text by remember { mutableStateOf("") }
+    val act = rememberActions()
+    fun add() {
+        val n = text.trim()
+        if (n.isNotEmpty() && n !in names) names = names + n
+        text = ""
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(stringResource(R.string.ph_share_album)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.ph_share_album_help), style = MaterialTheme.typography.bodySmall)
+                names.forEach { n ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(n, Modifier.weight(1f))
+                        IconButton(onClick = { names = names - n }) { Icon(Icons.Default.Close, stringResource(R.string.ph_remove_access)) }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.OutlinedTextField(text, { text = it }, Modifier.weight(1f), singleLine = true, label = { Text(stringResource(R.string.ph_add_account)) })
+                    TextButton(onClick = ::add) { Text(stringResource(R.string.ph_add)) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { add(); act.run(onClose) { api().shareAlbum(album.id, names) } }) { Text(stringResource(R.string.b_save)) } },
+        dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.cancel)) } },
+    )
 }

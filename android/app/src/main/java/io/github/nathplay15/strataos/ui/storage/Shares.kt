@@ -1,5 +1,8 @@
 package io.github.nathplay15.strataos.ui.storage
 
+import io.github.nathplay15.strataos.net.manage.sendObj
+import io.github.nathplay15.strataos.ui.toast
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,6 +96,9 @@ fun SharesTab() {
     var editing by remember { mutableStateOf<JsonObject?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
+    var unlocking by remember { mutableStateOf<String?>(null) }
+    val res = androidx.compose.ui.platform.LocalResources.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     Refreshable(load) { d ->
         CardList {
             item { Button(onClick = { creating = true }, enabled = d.locations.isNotEmpty()) { Text(stringResource(R.string.a_new_share)) } }
@@ -104,6 +110,11 @@ fun SharesTab() {
                     onClick = { editing = sh },
                     menu = { close ->
                         DropdownMenuItem({ Text(stringResource(R.string.a_edit)) }, { close(); editing = sh })
+                        // Encrypted folders: closed after each start until an administrator unlocks them.
+                        if (sh.bool("encrypted")) {
+                            if (sh.bool("locked")) DropdownMenuItem({ Text(stringResource(R.string.sh_unlock)) }, { close(); unlocking = name })
+                            else DropdownMenuItem({ Text(stringResource(R.string.sh_lock)) }, { close(); act.run({ toast(ctx, res.getString(R.string.sh_locked_done)); load.reload() }) { api().sendObj("POST", "/api/shares/${enc(name)}/lock") } })
+                        }
                         DropdownMenuItem({ Text(stringResource(R.string.a_delete), color = MaterialTheme.colorScheme.error) }, { close(); deleting = name })
                     }) {
                     val perms = sh.permissions().filterValues { it != "none" }
@@ -121,6 +132,7 @@ fun SharesTab() {
             act.run(load.reload) { api().createShare(created) }
         }
     }
+    unlocking?.let { n -> UnlockDialog(n, onDismiss = { unlocking = null }) { body -> unlocking = null; act.run({ toast(ctx, res.getString(R.string.sh_unlocked_done)); load.reload() }) { api().sendObj("POST", "/api/shares/${enc(n)}/unlock", body) } } }
     deleting?.let { n ->
         ConfirmDialog(stringResource(R.string.a_delete_share, n), stringResource(R.string.a_delete_share_text), stringResource(R.string.a_delete), danger = true,
             onDismiss = { deleting = null }, onConfirm = { act.run(load.reload) { api().deleteShare(n) } })
@@ -267,4 +279,32 @@ fun QuotasTab() {
             act.run(quotas.reload) { api().setUserQuota(u, q.kind, q.target, ((v.toDoubleOrNull() ?: 0.0) * 1073741824.0).toLong()) }
         }
     }
+}
+
+private fun enc(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
+/** The passphrase (or the recovery key) of an encrypted folder, as the web asks for it. */
+@Composable
+private fun UnlockDialog(name: String, onDismiss: () -> Unit, onUnlock: (kotlinx.serialization.json.JsonObject) -> Unit) {
+    var secret by remember { mutableStateOf("") }
+    var recovery by remember { mutableStateOf(false) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sh_unlock_title, name)) },
+        text = {
+            androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(secret, { secret = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(if (recovery) R.string.sh_recovery_key else R.string.sh_passphrase)) },
+                    visualTransformation = if (recovery) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation())
+                SwitchRow(stringResource(R.string.sh_use_recovery), recovery) { recovery = it }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = secret.isNotEmpty(), onClick = {
+                val o = kotlinx.serialization.json.buildJsonObject { put(if (recovery) "recoveryKey" else "passphrase", kotlinx.serialization.json.JsonPrimitive(secret)) }
+                onUnlock(o)
+            }) { Text(stringResource(R.string.sh_unlock)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

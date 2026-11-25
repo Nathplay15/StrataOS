@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Yes</string>
     <string name="ctl_your_ip">Your address: %1$s</string>
+    <string name="ph_add">Add</string>
+    <string name="ph_add_account">Add account</string>
+    <string name="ph_remove_access">Remove access</string>
+    <string name="ph_share_album">Share with accounts</string>
+    <string name="ph_share_album_help">Accounts you share it with see this album in their Photos, read-only.</string>
+    <string name="rw_blocked">Accounts blocked by protection:</string>
+    <string name="rw_frozen">Shares set to read-only after a trap file was modified:</string>
+    <string name="rw_nfs">NFS shares are suspended after mass renames over NFS.</string>
+    <string name="rw_none">Nothing is blocked.</string>
+    <string name="rw_restore_nfs">Restore NFS</string>
+    <string name="rw_restore_share">Restore %1$s</string>
+    <string name="rw_title">Ransomware protection</string>
+    <string name="rw_unblock">Unblock %1$s</string>
+    <string name="sh_lock">Lock</string>
+    <string name="sh_locked_done">Folder locked</string>
+    <string name="sh_passphrase">Passphrase</string>
+    <string name="sh_recovery_key">Recovery key</string>
+    <string name="sh_unlock">Unlock</string>
+    <string name="sh_unlock_title">Unlock %1$s</string>
+    <string name="sh_unlocked_done">Folder unlocked</string>
+    <string name="sh_use_recovery">Use the recovery key</string>
 </resources>

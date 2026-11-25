@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Ja</string>
     <string name="ctl_your_ip">Je adres: %1$s</string>
+    <string name="ph_add">Toevoegen</string>
+    <string name="ph_add_account">Account toevoegen</string>
+    <string name="ph_remove_access">Toegang intrekken</string>
+    <string name="ph_share_album">Delen met accounts</string>
+    <string name="ph_share_album_help">Accounts waarmee je het deelt, zien dit album in hun Foto\'s, alleen-lezen.</string>
+    <string name="rw_blocked">Door de bescherming geblokkeerde accounts:</string>
+    <string name="rw_frozen">Shares die alleen-lezen zijn gezet nadat een lokbestand werd gewijzigd:</string>
+    <string name="rw_nfs">NFS-shares zijn opgeschort na massaal hernoemen via NFS.</string>
+    <string name="rw_none">Niets is geblokkeerd.</string>
+    <string name="rw_restore_nfs">NFS herstellen</string>
+    <string name="rw_restore_share">%1$s herstellen</string>
+    <string name="rw_title">Ransomwarebescherming</string>
+    <string name="rw_unblock">%1$s deblokkeren</string>
+    <string name="sh_lock">Vergrendelen</string>
+    <string name="sh_locked_done">Map vergrendeld</string>
+    <string name="sh_passphrase">Wachtwoordzin</string>
+    <string name="sh_recovery_key">Herstelsleutel</string>
+    <string name="sh_unlock">Ontgrendelen</string>
+    <string name="sh_unlock_title">%1$s ontgrendelen</string>
+    <string name="sh_unlocked_done">Map ontgrendeld</string>
+    <string name="sh_use_recovery">De herstelsleutel gebruiken</string>
 </resources>

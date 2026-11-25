@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Ja</string>
     <string name="ctl_your_ip">Ihre Adresse: %1$s</string>
+    <string name="ph_add">Hinzufügen</string>
+    <string name="ph_add_account">Konto hinzufügen</string>
+    <string name="ph_remove_access">Zugriff entfernen</string>
+    <string name="ph_share_album">Mit Konten teilen</string>
+    <string name="ph_share_album_help">Konten, mit denen Sie es teilen, sehen dieses Album in ihren Fotos, nur lesend.</string>
+    <string name="rw_blocked">Vom Schutz gesperrte Konten:</string>
+    <string name="rw_frozen">Freigaben, die nach Änderung einer Köderdatei schreibgeschützt wurden:</string>
+    <string name="rw_nfs">NFS-Freigaben sind nach Massenumbenennungen über NFS ausgesetzt.</string>
+    <string name="rw_none">Nichts ist gesperrt.</string>
+    <string name="rw_restore_nfs">NFS wiederherstellen</string>
+    <string name="rw_restore_share">%1$s wiederherstellen</string>
+    <string name="rw_title">Ransomware-Schutz</string>
+    <string name="rw_unblock">%1$s entsperren</string>
+    <string name="sh_lock">Sperren</string>
+    <string name="sh_locked_done">Ordner gesperrt</string>
+    <string name="sh_passphrase">Passphrase</string>
+    <string name="sh_recovery_key">Wiederherstellungsschlüssel</string>
+    <string name="sh_unlock">Entsperren</string>
+    <string name="sh_unlock_title">%1$s entsperren</string>
+    <string name="sh_unlocked_done">Ordner entsperrt</string>
+    <string name="sh_use_recovery">Wiederherstellungsschlüssel verwenden</string>
 </resources>

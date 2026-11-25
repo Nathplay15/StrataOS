@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Oui</string>
     <string name="ctl_your_ip">Votre adresse : %1$s</string>
+    <string name="ph_add">Ajouter</string>
+    <string name="ph_add_account">Ajouter un compte</string>
+    <string name="ph_remove_access">Retirer l\'accès</string>
+    <string name="ph_share_album">Partager avec des comptes</string>
+    <string name="ph_share_album_help">Les comptes avec qui vous le partagez voient cet album dans leurs Photos, en lecture seule.</string>
+    <string name="rw_blocked">Comptes bloqués par la protection :</string>
+    <string name="rw_frozen">Partages passés en lecture seule après la modification d\'un fichier piège :</string>
+    <string name="rw_nfs">Les partages NFS sont suspendus après des renommages en masse via NFS.</string>
+    <string name="rw_none">Rien n\'est bloqué.</string>
+    <string name="rw_restore_nfs">Rétablir NFS</string>
+    <string name="rw_restore_share">Rétablir %1$s</string>
+    <string name="rw_title">Protection anti-rançongiciel</string>
+    <string name="rw_unblock">Débloquer %1$s</string>
+    <string name="sh_lock">Verrouiller</string>
+    <string name="sh_locked_done">Dossier verrouillé</string>
+    <string name="sh_passphrase">Phrase secrète</string>
+    <string name="sh_recovery_key">Clé de récupération</string>
+    <string name="sh_unlock">Déverrouiller</string>
+    <string name="sh_unlock_title">Déverrouiller %1$s</string>
+    <string name="sh_unlocked_done">Dossier déverrouillé</string>
+    <string name="sh_use_recovery">Utiliser la clé de récupération</string>
 </resources>

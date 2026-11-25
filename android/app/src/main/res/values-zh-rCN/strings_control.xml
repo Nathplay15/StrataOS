@@ -188,4 +188,25 @@
     <string name="ctl_wol">网络唤醒</string>
     <string name="ctl_yes">是</string>
     <string name="ctl_your_ip">您的地址：%1$s</string>
+    <string name="ph_add">添加</string>
+    <string name="ph_add_account">添加账户</string>
+    <string name="ph_remove_access">移除访问权限</string>
+    <string name="ph_share_album">与账户共享</string>
+    <string name="ph_share_album_help">与您共享的账户可在其照片中以只读方式看到此相册。</string>
+    <string name="rw_blocked">被防护封锁的账户：</string>
+    <string name="rw_frozen">因诱饵文件被修改而设为只读的共享：</string>
+    <string name="rw_nfs">经 NFS 大量重命名后，NFS 共享已暂停。</string>
+    <string name="rw_none">没有被封锁的内容。</string>
+    <string name="rw_restore_nfs">恢复 NFS</string>
+    <string name="rw_restore_share">恢复 %1$s</string>
+    <string name="rw_title">勒索软件防护</string>
+    <string name="rw_unblock">解除封锁 %1$s</string>
+    <string name="sh_lock">锁定</string>
+    <string name="sh_locked_done">文件夹已锁定</string>
+    <string name="sh_passphrase">密码短语</string>
+    <string name="sh_recovery_key">恢复密钥</string>
+    <string name="sh_unlock">解锁</string>
+    <string name="sh_unlock_title">解锁 %1$s</string>
+    <string name="sh_unlocked_done">文件夹已解锁</string>
+    <string name="sh_use_recovery">使用恢复密钥</string>
 </resources>

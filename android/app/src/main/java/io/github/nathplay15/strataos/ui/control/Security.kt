@@ -25,6 +25,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.nathplay15.strataos.R
 import io.github.nathplay15.strataos.net.manage.antivirus
+import io.github.nathplay15.strataos.net.manage.a
+import io.github.nathplay15.strataos.net.manage.json
+import io.github.nathplay15.strataos.net.manage.sendObj
 import io.github.nathplay15.strataos.net.manage.advisor
 import io.github.nathplay15.strataos.net.manage.b
 import io.github.nathplay15.strataos.net.manage.block
@@ -226,7 +229,7 @@ private fun howText(r: android.content.res.Resources, how: String): String = whe
 
 @Composable
 fun AntivirusScreen(onBack: () -> Unit) {
-    val data = rememberData(Unit, every = 15000) { it.antivirus() }
+    val data = rememberData(Unit, every = 15000) { it.antivirus() to runCatching { it.json("/api/ransomware").o() }.getOrNull() }
     val actions = rememberActions()
     val r = LocalResources.current
     val web = LocalOpenWeb.current
@@ -234,9 +237,25 @@ fun AntivirusScreen(onBack: () -> Unit) {
     AreaScreen(stringResource(R.string.ctl_antivirus), onBack, actions = {
         TextButton(onClick = { web("/system/antivirus", null) }) { Text(stringResource(R.string.ctl_settings_web)) }
     }) { pad ->
-        Refreshable(data, pad) { av ->
+        Refreshable(data, pad) { (av, rw) ->
             val st = av["status"].o()
             ScrollColumn {
+                if (rw != null) SectionCard {
+                    CardHead(stringResource(R.string.rw_title)) {
+                        StatusBadge(stringResource(if (rw.b("enabled")) R.string.usr_on else R.string.usr_off), if (rw.b("enabled")) Tone.Ok else Tone.Warn)
+                    }
+                    val frozen = rw["frozen"].a().map { (it as kotlinx.serialization.json.JsonPrimitive).content }
+                    val blocked = rw["blocked"].a().map { (it as kotlinx.serialization.json.JsonPrimitive).content }
+                    if (frozen.isEmpty() && blocked.isEmpty() && !rw.b("nfsPaused")) Hint(stringResource(R.string.rw_none))
+                    if (frozen.isNotEmpty()) Text(stringResource(R.string.rw_frozen), style = MaterialTheme.typography.bodyMedium)
+                    frozen.forEach { sh -> OutlinedButton(enabled = !actions.busy, onClick = { actions.run(after = data.reload) { a -> a.sendObj("POST", "/api/ransomware/unfreeze", kotlinx.serialization.json.buildJsonObject { put("share", kotlinx.serialization.json.JsonPrimitive(sh)) }) } }) { Text(stringResource(R.string.rw_restore_share, sh)) } }
+                    if (rw.b("nfsPaused")) {
+                        Text(stringResource(R.string.rw_nfs), style = MaterialTheme.typography.bodyMedium)
+                        OutlinedButton(enabled = !actions.busy, onClick = { actions.run(after = data.reload) { a -> a.sendObj("POST", "/api/ransomware/nfs-resume") } }) { Text(stringResource(R.string.rw_restore_nfs)) }
+                    }
+                    if (blocked.isNotEmpty()) Text(stringResource(R.string.rw_blocked), style = MaterialTheme.typography.bodyMedium)
+                    blocked.forEach { u -> OutlinedButton(enabled = !actions.busy, onClick = { actions.run(after = data.reload) { a -> a.sendObj("POST", "/api/ransomware/unblock", kotlinx.serialization.json.buildJsonObject { put("user", kotlinx.serialization.json.JsonPrimitive(u)) }) } }) { Text(stringResource(R.string.rw_unblock, u)) } }
+                }
                 SectionCard {
                     CardHead(stringResource(R.string.ctl_antivirus), st.s("version").ifEmpty { null }) {
                         StatusBadge(stringResource(if (st.b("installed")) R.string.ctl_installed else R.string.nas_not_installed), if (st.b("installed")) Tone.Ok else Tone.Neutral)

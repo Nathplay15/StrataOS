@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Sim</string>
     <string name="ctl_your_ip">Seu endereço: %1$s</string>
+    <string name="ph_add">Adicionar</string>
+    <string name="ph_add_account">Adicionar conta</string>
+    <string name="ph_remove_access">Remover acesso</string>
+    <string name="ph_share_album">Compartilhar com contas</string>
+    <string name="ph_share_album_help">As contas com quem você compartilha veem este álbum nas Fotos delas, somente leitura.</string>
+    <string name="rw_blocked">Contas bloqueadas pela proteção:</string>
+    <string name="rw_frozen">Compartilhamentos em somente leitura após a alteração de um arquivo armadilha:</string>
+    <string name="rw_nfs">Os compartilhamentos NFS estão suspensos após renomeações em massa via NFS.</string>
+    <string name="rw_none">Nada está bloqueado.</string>
+    <string name="rw_restore_nfs">Restabelecer NFS</string>
+    <string name="rw_restore_share">Restabelecer %1$s</string>
+    <string name="rw_title">Proteção contra ransomware</string>
+    <string name="rw_unblock">Desbloquear %1$s</string>
+    <string name="sh_lock">Bloquear</string>
+    <string name="sh_locked_done">Pasta bloqueada</string>
+    <string name="sh_passphrase">Frase secreta</string>
+    <string name="sh_recovery_key">Chave de recuperação</string>
+    <string name="sh_unlock">Desbloquear</string>
+    <string name="sh_unlock_title">Desbloquear %1$s</string>
+    <string name="sh_unlocked_done">Pasta desbloqueada</string>
+    <string name="sh_use_recovery">Usar a chave de recuperação</string>
 </resources>

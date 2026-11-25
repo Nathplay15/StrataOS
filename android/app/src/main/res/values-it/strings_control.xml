@@ -188,4 +188,25 @@
     <string name="ctl_wol">Wake-on-LAN</string>
     <string name="ctl_yes">Sì</string>
     <string name="ctl_your_ip">Il tuo indirizzo: %1$s</string>
+    <string name="ph_add">Aggiungi</string>
+    <string name="ph_add_account">Aggiungi account</string>
+    <string name="ph_remove_access">Rimuovi accesso</string>
+    <string name="ph_share_album">Condividi con account</string>
+    <string name="ph_share_album_help">Gli account con cui lo condividi vedono questo album nelle loro Foto, in sola lettura.</string>
+    <string name="rw_blocked">Account bloccati dalla protezione:</string>
+    <string name="rw_frozen">Condivisioni messe in sola lettura dopo la modifica di un file trappola:</string>
+    <string name="rw_nfs">Le condivisioni NFS sono sospese dopo rinomine di massa via NFS.</string>
+    <string name="rw_none">Nulla è bloccato.</string>
+    <string name="rw_restore_nfs">Ripristina NFS</string>
+    <string name="rw_restore_share">Ripristina %1$s</string>
+    <string name="rw_title">Protezione ransomware</string>
+    <string name="rw_unblock">Sblocca %1$s</string>
+    <string name="sh_lock">Blocca</string>
+    <string name="sh_locked_done">Cartella bloccata</string>
+    <string name="sh_passphrase">Passphrase</string>
+    <string name="sh_recovery_key">Chiave di ripristino</string>
+    <string name="sh_unlock">Sblocca</string>
+    <string name="sh_unlock_title">Sblocca %1$s</string>
+    <string name="sh_unlocked_done">Cartella sbloccata</string>
+    <string name="sh_use_recovery">Usa la chiave di ripristino</string>
 </resources>
