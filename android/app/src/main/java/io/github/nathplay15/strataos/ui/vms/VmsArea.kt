@@ -208,7 +208,7 @@ private fun VmCard(v: Vm, l: VmList, cpu: Int?, actions: Actions, go: (String) -
                 val mem = l.stats[v.name]?.getOrNull(1)
                 cpu?.let {
                     Text(stringResource(R.string.vm_cpu_use, it), style = MaterialTheme.typography.labelSmall)
-                    LinearProgressIndicator(progress = { it / 100f }, Modifier.fillMaxWidth())
+                    io.github.nathplay15.strataos.ui.ThinBar(it / 100f, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                 }
                 if (mem != null && mem > 0) Text(stringResource(R.string.vm_mem_use, formatBytes(mem * 1024), formatBytes(v.memoryMb * 1024L * 1024)), style = MaterialTheme.typography.labelSmall)
             }

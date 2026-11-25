@@ -258,10 +258,10 @@ private fun Resources(c: Container, save: (LxcSettings) -> Unit, busy: Boolean) 
             val max = (if (s.cpuLimit > 0) s.cpuLimit else s.cores.coerceAtLeast(1).toDouble()) * 100
             cpu?.let {
                 Text(stringResource(R.string.ct_cpu_use, it.toInt(), max.toInt()), style = MaterialTheme.typography.bodySmall)
-                LinearProgressIndicator(progress = { (it / max).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+                io.github.nathplay15.strataos.ui.ThinBar((it / max).toFloat().coerceIn(0f, 1f))
             }
             Text(stringResource(R.string.ct_mem_line, formatBytes(s.memory), if (s.memoryMax > 0) formatBytes(s.memoryMax) else "—", s.pids.toInt()), style = MaterialTheme.typography.bodySmall)
-            if (s.memoryMax > 0) LinearProgressIndicator(progress = { (s.memory.toFloat() / s.memoryMax).coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+            if (s.memoryMax > 0) io.github.nathplay15.strataos.ui.ThinBar((s.memory.toFloat() / s.memoryMax).coerceIn(0f, 1f))
             Text(stringResource(R.string.ct_net_line, formatBytes(s.netRx), formatBytes(s.netTx)), style = MaterialTheme.typography.bodySmall)
         } else Text(stringResource(R.string.ct_stats_stopped), style = MaterialTheme.typography.bodySmall)
         if (s != null && s.diskUsed > 0) Text(stringResource(R.string.ct_disk_line, formatBytes(s.diskUsed), if (s.diskLimit > 0) formatBytes(s.diskLimit) else "—"), style = MaterialTheme.typography.bodySmall)

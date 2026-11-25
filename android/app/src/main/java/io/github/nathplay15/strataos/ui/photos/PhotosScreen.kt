@@ -148,7 +148,7 @@ fun PhotosScreen(accountAction: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         if (tab == 0) PhotoGrid(album = null, accountAction = accountAction, tabs = { Tabs(tab) { tab = it } })
         else {
-            TopAppBar(title = { Text(stringResource(R.string.a_photos)) }, actions = { accountAction() })
+            io.github.nathplay15.strataos.ui.BrandTopBar(stringResource(R.string.a_photos), actions = { accountAction() })
             Tabs(tab) { tab = it }
             AlbumsList { album = it }
         }
@@ -268,9 +268,8 @@ private fun PhotoGrid(album: Album?, accountAction: @Composable () -> Unit, tabs
                         },
                         navigationIcon = { IconButton(onClick = { searching = false; query = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                     )
-                    else -> TopAppBar(
-                        title = { Text(album?.let { name } ?: stringResource(R.string.a_photos), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                    else -> io.github.nathplay15.strataos.ui.BrandTopBar(
+                        album?.let { name } ?: stringResource(R.string.a_photos), onBack,
                         actions = {
                             IconButton(onClick = { searching = true }) { Icon(Icons.Default.Search, stringResource(R.string.a_search)) }
                             if (album != null) {

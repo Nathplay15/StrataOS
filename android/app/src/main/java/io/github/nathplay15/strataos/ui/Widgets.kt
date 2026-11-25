@@ -39,7 +39,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -142,18 +141,7 @@ fun SectionScaffold(
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = { if (back != null) IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
-                    actions = actions,
-                )
-                if (tabs.isNotEmpty()) PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-                    tabs.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { onTab(i) }, text = { Text(t) }) }
-                }
-            }
-        },
+        topBar = { BrandTopBar(title, back, actions = actions, tabs = tabs, tab = tab, onTab = onTab) },
         floatingActionButton = fab,
     ) { pad -> content(Modifier.padding(pad).fillMaxSize()) }
 }
@@ -204,14 +192,14 @@ fun UsageBar(used: Long, total: Long, modifier: Modifier = Modifier) {
 
 /** A thin rounded progress bar: brand blue, amber above 80 %, red above 90 %. */
 @Composable
-fun ThinBar(frac: Float, modifier: Modifier = Modifier) {
-    val c = when {
+fun ThinBar(frac: Float, modifier: Modifier = Modifier, color: androidx.compose.ui.graphics.Color? = null) {
+    val c = color ?: when {
         frac > 0.9f -> MaterialTheme.colorScheme.error
         frac > 0.8f -> Tone.WARN.color()
         else -> MaterialTheme.colorScheme.primary
     }
     LinearProgressIndicator(
-        progress = { frac.coerceIn(0f, 1f) }, modifier = modifier.height(6.dp), color = c,
+        progress = { frac.coerceIn(0f, 1f) }, modifier = modifier.fillMaxWidth().height(6.dp), color = c,
         trackColor = MaterialTheme.colorScheme.surfaceVariant, strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {},
     )
 }
@@ -342,7 +330,7 @@ fun JobDialog(j: Job, onClose: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 when {
                     j.running -> {
-                        if (j.progress > 0) LinearProgressIndicator(progress = { (j.progress / 100).toFloat() }, modifier = Modifier.fillMaxWidth())
+                        if (j.progress > 0) io.github.nathplay15.strataos.ui.ThinBar((j.progress / 100).toFloat(), color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         else LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text(stringResource(R.string.a_job_running), style = MaterialTheme.typography.bodySmall)
                     }

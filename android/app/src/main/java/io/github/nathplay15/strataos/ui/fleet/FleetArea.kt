@@ -174,7 +174,7 @@ private fun RunView(r: FleetRun, cancel: () -> Unit) {
             StatusBadge(runState(r.status), when (r.status) { "success" -> Tone.Ok; "failed" -> Tone.Bad; "running" -> Tone.Accent; else -> Tone.Neutral })
         }
         Text(formatDate(r.started), style = MaterialTheme.typography.bodySmall)
-        if (r.running) LinearProgressIndicator(progress = { (r.totals.progress / 100).toFloat() }, Modifier.fillMaxWidth())
+        if (r.running) io.github.nathplay15.strataos.ui.ThinBar((r.totals.progress / 100).toFloat(), color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
         r.items.forEach { it ->
             Text("${it.name}: ${runState(it.state)}" + listOf(it.version, it.note, it.error).filter { s -> s.isNotEmpty() }.joinToString(" · ", prefix = " ").trimEnd(),
                 style = MaterialTheme.typography.bodySmall, color = if (it.error.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -277,7 +277,7 @@ private fun NasDetail(n: FleetNas, onBack: () -> Unit) {
                     SectionCard(stringResource(R.string.status_storage)) {
                         s.volumes.forEach { v ->
                             Text("${v.name} · ${v.health}", style = MaterialTheme.typography.bodyLarge)
-                            if (v.total > 0) LinearProgressIndicator(progress = { v.used.toFloat() / v.total }, Modifier.fillMaxWidth())
+                            if (v.total > 0) io.github.nathplay15.strataos.ui.ThinBar(v.used.toFloat() / v.total)
                             Text(stringResource(R.string.status_usage, formatBytes(v.used), formatBytes(v.total), formatBytes(v.free)), style = MaterialTheme.typography.bodySmall)
                         }
                         KeyValue(stringResource(R.string.fleet_backups), stringResource(R.string.fleet_backups_state, s.backups.ok, s.backups.failed))
