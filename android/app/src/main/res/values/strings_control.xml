@@ -399,6 +399,7 @@
     <string name="set_assistant">Assistant (AI)</string>
     <string name="set_assistant_help">The assistant only sees what the signed-in user can, and every modifying action needs an explicit confirmation.</string>
     <string name="set_assistant_provider_web">This NAS signs in to a ChatGPT account: that sign-in is managed in the web interface. The fields below are for an API endpoint.</string>
+    <string name="set_auto">Automatic</string>
     <string name="set_bot_token">Bot token</string>
     <string name="set_channels">Notification channels</string>
     <string name="set_chat_id">Chat ID</string>

@@ -399,6 +399,7 @@
     <string name="set_assistant">Assistent (KI)</string>
     <string name="set_assistant_help">Der Assistent sieht nur, was der angemeldete Benutzer sehen darf, und jede ändernde Aktion braucht eine ausdrückliche Bestätigung.</string>
     <string name="set_assistant_provider_web">Dieses NAS meldet sich bei einem ChatGPT-Konto an: Diese Anmeldung wird in der Weboberfläche verwaltet. Die Felder unten gelten für einen API-Endpunkt.</string>
+    <string name="set_auto">Automatisch</string>
     <string name="set_bot_token">Bot-Token</string>
     <string name="set_channels">Benachrichtigungskanäle</string>
     <string name="set_chat_id">Chat-ID</string>

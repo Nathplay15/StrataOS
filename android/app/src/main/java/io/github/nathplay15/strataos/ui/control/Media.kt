@@ -103,7 +103,7 @@ fun CinemaScreen(onBack: () -> Unit) {
         PlayerActivity.start(ctx, items.map { QueueItem(it.s("path"), it.s("title") + if (it.s("kind") == "episode") " · " + epLabel(it) else "", true) }, index)
     }
     val w = open
-    AreaScreen(w?.title ?: stringResource(R.string.ctl_w_media), if (w != null) ({ open = null }) else onBack, actions = {
+    AreaScreen(w?.title ?: stringResource(R.string.md_cinema), if (w != null) ({ open = null }) else onBack, actions = {
         if (admin && w == null) androidx.compose.material3.TextButton(enabled = !actions.busy && data.value?.b("running") != true, onClick = { actions.run(done = r.getString(R.string.md_scan_started), after = data.reload) { it.sendObj("POST", "/api/cinema/scan", JsonObject(emptyMap())) } }) {
             Text(stringResource(R.string.md_scan))
         }

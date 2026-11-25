@@ -70,7 +70,7 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
                     Field(stringResource(R.string.set_endpoint), url, { url = it.trim() }, help = stringResource(R.string.set_endpoint_help))
                     Field(stringResource(R.string.set_api_key), key, { key = it }, secret = true, help = stringResource(R.string.set_api_key_help))
                     Field(stringResource(R.string.set_model), model, { model = it.trim() }, help = "mistral-small-latest, qwen3:4b…")
-                    Choice(stringResource(R.string.set_light), listOf("" to r.getString(R.string.nas_auto), "on" to r.getString(R.string.usr_on), "off" to r.getString(R.string.usr_off)), light, { light = it })
+                    Choice(stringResource(R.string.set_light), listOf("" to r.getString(R.string.set_auto), "on" to r.getString(R.string.usr_on), "off" to r.getString(R.string.usr_off)), light, { light = it })
                     Hint(stringResource(R.string.set_light_help))
                     SwitchLine(stringResource(R.string.set_think), think, sub = stringResource(R.string.set_think_help)) { think = it }
                     Hint(stringResource(R.string.set_assistant_help))
@@ -106,7 +106,7 @@ fun ChannelsScreen(onBack: () -> Unit) {
                 SectionCard(stringResource(R.string.nas_ch_email)) {
                     field("smtpHost", R.string.set_smtp_host)
                     field("smtpPort", R.string.ctl_port, number = true)
-                    Choice(stringResource(R.string.set_smtp_tls), listOf("auto" to r.getString(R.string.nas_auto), "tls" to "TLS", "starttls" to "STARTTLS", "none" to r.getString(R.string.net_none)), enc, { enc = it })
+                    Choice(stringResource(R.string.set_smtp_tls), listOf("auto" to r.getString(R.string.set_auto), "tls" to "TLS", "starttls" to "STARTTLS", "none" to r.getString(R.string.net_none)), enc, { enc = it })
                     field("smtpUser", R.string.set_smtp_user)
                     field("smtpPassword", R.string.usr_password, secret = true)
                     field("smtpFrom", R.string.set_smtp_from)

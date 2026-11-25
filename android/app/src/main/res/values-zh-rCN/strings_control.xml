@@ -399,6 +399,7 @@
     <string name="set_assistant">助手（AI）</string>
     <string name="set_assistant_help">助手只能看到当前登录用户可见的内容，每个修改操作都需明确确认。</string>
     <string name="set_assistant_provider_web">此 NAS 登录了 ChatGPT 账户：该登录需在网页界面中管理。以下字段用于 API 端点。</string>
+    <string name="set_auto">自动</string>
     <string name="set_bot_token">机器人令牌</string>
     <string name="set_channels">通知渠道</string>
     <string name="set_chat_id">聊天 ID</string>
