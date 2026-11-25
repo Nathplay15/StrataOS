@@ -27,6 +27,7 @@ import io.github.nathplay15.strataos.net.manage.antivirus
 import io.github.nathplay15.strataos.net.manage.a
 import io.github.nathplay15.strataos.net.manage.json
 import io.github.nathplay15.strataos.net.manage.sendObj
+import io.github.nathplay15.strataos.net.manage.startJob
 import io.github.nathplay15.strataos.net.manage.advisor
 import io.github.nathplay15.strataos.net.manage.b
 import io.github.nathplay15.strataos.net.manage.block
@@ -232,9 +233,9 @@ fun AntivirusScreen(onBack: () -> Unit) {
     val r = LocalResources.current
     val web = LocalOpenWeb.current
     var ask by remember { mutableStateOf<Ask?>(null) }
-    AreaScreen(stringResource(R.string.ctl_antivirus), onBack, actions = {
-        TextButton(onClick = { web("/system/antivirus", null) }) { Text(stringResource(R.string.ctl_settings_web)) }
-    }) { pad ->
+    var avJob by remember { mutableStateOf<io.github.nathplay15.strataos.net.manage.NasJob?>(null) }
+    avJob?.let { j -> io.github.nathplay15.strataos.ui.adminkit.JobDialog(j) { avJob = null; data.reload() } }
+    AreaScreen(stringResource(R.string.ctl_antivirus), onBack) { pad ->
         Refreshable(data, pad) { (av, rw) ->
             val st = av["status"].o()
             ScrollColumn {
@@ -259,6 +260,7 @@ fun AntivirusScreen(onBack: () -> Unit) {
                         StatusBadge(stringResource(if (st.b("installed")) R.string.ctl_installed else R.string.nas_not_installed), if (st.b("installed")) Tone.Ok else Tone.Neutral)
                     }
                     Hint(stringResource(R.string.ctl_antivirus_hint))
+                    if (!st.b("installed")) Button(enabled = !actions.busy, onClick = { actions.run { a -> avJob = a.startJob("POST", "/api/system/components/antivirus/install") } }) { Text(stringResource(R.string.nas_install)) }
                 }
                 val q = av.objs("quarantine")
                 if (q.isEmpty()) Hint(stringResource(R.string.ctl_quarantine_empty))
