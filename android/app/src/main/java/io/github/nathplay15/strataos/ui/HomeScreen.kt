@@ -164,7 +164,7 @@ fun HomeScreen(go: HomeNav) {
     val unread = events.count { it.id > seen }
     fun openNotifications() {
         events.maxOfOrNull { it.id }?.let { seen = it; uiPrefs(ctx).edit { putLong("seenEvent", it) } }
-        go.section(STATUS)
+        go.section(if (admin) "notifications" else STATUS)
     }
 
     PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.reload, modifier = Modifier.fillMaxSize()) {
