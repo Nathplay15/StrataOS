@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.SettingsEthernet
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Storage
@@ -68,7 +69,7 @@ class CtlGroup(@StringRes val title: Int, val rows: List<CtlRow>)
 val controlGroups = listOf(
     CtlGroup(R.string.ctl_g_alerts, listOf(
         CtlRow(Icons.Default.Notifications, R.string.notifications, Tiles.camera, "inbox"),
-        CtlRow(Icons.Default.NotificationsActive, R.string.nas_notifications, Tiles.users, "notifications"),
+        CtlRow(Icons.Default.NotificationsActive, R.string.ctl_notify_settings, Tiles.users, "notifications"),
         CtlRow(Icons.Default.SystemUpdate, R.string.nas_updates, Tiles.apps, "updates"),
         CtlRow(Icons.Default.Upgrade, R.string.ctl_dist, Tiles.fleet, "dist"),
     )),
@@ -79,6 +80,7 @@ val controlGroups = listOf(
         CtlRow(Icons.Default.Badge, R.string.ctl_identity, Tiles.status, "identity"),
         CtlRow(Icons.Default.Dns, R.string.nas_services, Tiles.storage, "services"),
         CtlRow(Icons.Default.History, R.string.nas_restore, Tiles.sync, "restore"),
+        CtlRow(Icons.Default.SettingsBackupRestore, R.string.ctl_restore_title, Tiles.backup, "restore-files"),
         CtlRow(Icons.AutoMirrored.Filled.Article, R.string.ctl_logs, Tiles.assistant, "logs"),
         CtlRow(Icons.Default.EventRepeat, R.string.ctl_schedules, Tiles.links, "schedules"),
         CtlRow(Icons.Default.Bolt, R.string.ctl_routines, Tiles.files, "routines"),
@@ -152,6 +154,8 @@ fun ControlScreen(route: String, back: () -> Unit): Boolean {
         "logins" -> LoginsScreen(back)
         "antivirus" -> AntivirusScreen(back)
         "certs" -> CertificatesScreen(back)
+        "restore-files" -> RestoreScreen(back)
+        "ups" -> UpsScreen(back)
         else -> return false
     }
     return true

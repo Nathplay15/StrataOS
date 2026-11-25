@@ -324,7 +324,8 @@ fun BrandTopBar(
                     Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (!subtitle.isNullOrEmpty()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                actions()
+                // Text buttons of the bar are white like its icons (not the blue of the theme).
+                MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = Color.White)) { actions() }
             }
             if (tabs.isNotEmpty()) {
                 val st = androidx.compose.foundation.rememberScrollState()

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -127,9 +126,7 @@ fun GuardScreen(onBack: () -> Unit) {
     val r = LocalResources.current
     val web = LocalOpenWeb.current
     var ip by remember { mutableStateOf("") }
-    AreaScreen(stringResource(R.string.ctl_guard), onBack, actions = {
-        TextButton(onClick = { web("/system/guard", null) }) { Text(stringResource(R.string.ctl_settings_web)) }
-    }) { pad ->
+    AreaScreen(stringResource(R.string.ctl_guard), onBack) { pad ->
         Refreshable(data, pad) { g ->
             val cfg = g["config"].o()
             ScrollColumn {
@@ -139,6 +136,7 @@ fun GuardScreen(onBack: () -> Unit) {
                     }
                     KeyValue(stringResource(R.string.ctl_guard_rule), stringResource(R.string.ctl_guard_rule_v, cfg.l("maxFailures").toInt(), cfg.l("windowMin").toInt(), cfg.l("blockMin").toInt()))
                 }
+                GuardSettingsCard(cfg, actions.busy) { c -> actions.run(done = r.getString(R.string.ctl_guard_saved), after = data.reload) { a -> a.sendObj("PUT", "/api/guard", c) } }
                 SectionCard(stringResource(R.string.ctl_block_ip)) {
                     Field(stringResource(R.string.ctl_ip_address), ip, { ip = it.trim() })
                     OutlinedButton(enabled = ip.isNotEmpty() && !actions.busy, onClick = { actions.run(done = r.getString(R.string.ctl_blocked_done), after = { ip = ""; data.reload() }) { it.block(ip) } }) { Text(stringResource(R.string.ctl_block)) }
@@ -263,7 +261,7 @@ fun AntivirusScreen(onBack: () -> Unit) {
                     Hint(stringResource(R.string.ctl_antivirus_hint))
                 }
                 val q = av.objs("quarantine")
-                if (q.isEmpty()) Empty(Icons.Default.GppGood, stringResource(R.string.ctl_quarantine_empty))
+                if (q.isEmpty()) Hint(stringResource(R.string.ctl_quarantine_empty))
                 q.forEach { f ->
                     SectionCard {
                         CardHead(f.s("path").substringAfterLast('/'), f.s("virus")) { StatusBadge(formatBytes(f.l("size")), Tone.Neutral) }

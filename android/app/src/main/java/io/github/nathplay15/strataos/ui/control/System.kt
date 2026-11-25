@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Upgrade
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -123,8 +124,8 @@ fun InboxScreen(onBack: () -> Unit) {
 }
 
 fun levelText(r: android.content.res.Resources, level: String): String = r.getString(when (level) {
-    "error" -> R.string.nas_level_error
-    "warning" -> R.string.nas_level_warning
+    "error" -> R.string.ctl_level_error
+    "warning" -> R.string.ctl_level_warning
     else -> R.string.ctl_level_info
 })
 
@@ -149,7 +150,10 @@ fun DistUpgradeScreen(onBack: () -> Unit) {
             val n = d.s("targetVersion")
             ScrollColumn {
                 SectionCard {
-                    CardHead(stringResource(R.string.ctl_dist_current, d.s("currentVersion"), d.s("current")), d.s("reason").takeIf { !d.b("available") })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        io.github.nathplay15.strataos.ui.TileIcon(Icons.Default.Upgrade, io.github.nathplay15.strataos.ui.Tiles.fleet, size = 44.dp, iconSize = 24.dp)
+                        Column(Modifier.padding(start = 14.dp)) { CardHead(stringResource(R.string.ctl_dist_current, d.s("currentVersion"), d.s("current")), d.s("reason").takeIf { !d.b("available") }) }
+                    }
                     if (d.s("target").isNotEmpty() && !busy) OutlinedButton(enabled = !actions.busy, onClick = { actions.run { job = it.distCheck() } }) { Text(stringResource(R.string.ctl_check_again)) }
                     if (chk != null) Hint(stringResource(R.string.ctl_last_check, whenText(chk.s("at"))))
                     else if (d.s("target").isNotEmpty() && !busy) Hint(stringResource(R.string.ctl_not_checked))
@@ -225,6 +229,8 @@ private fun CheckLine(c: kotlinx.serialization.json.JsonObject) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EnergyScreen(onBack: () -> Unit) {
+    var ups by remember { mutableStateOf(false) }
+    if (ups) { UpsScreen { ups = false }; return }
     val data = rememberData(Unit, every = 10000) { it.energy() to runCatching { it.ups() }.getOrNull() }
     val actions = rememberActions()
     val r = LocalResources.current
@@ -281,7 +287,7 @@ fun EnergyScreen(onBack: () -> Unit) {
                             if (u.s("error").isNotEmpty()) Text(u.s("error"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    TextButton(onClick = { web("/system/ups", null) }) { Text(stringResource(R.string.ctl_settings_web)) }
+                    TextButton(onClick = { ups = true }) { Text(stringResource(R.string.ctl_ups_settings)) }
                 }
             }
         }
@@ -372,7 +378,7 @@ fun LogsScreen(onBack: () -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(events, { events = true }, label = { Text(stringResource(R.string.ctl_events)) })
                     FilterChip(!events, { events = false }, label = { Text(stringResource(R.string.ctl_journal)) })
-                    if (!events) listOf("3" to R.string.nas_level_error, "4" to R.string.nas_level_warning, "6" to R.string.ctl_level_info).forEach { (p, l) ->
+                    if (!events) listOf("3" to R.string.ctl_level_error, "4" to R.string.ctl_level_warning, "6" to R.string.ctl_level_info).forEach { (p, l) ->
                         FilterChip(priority == p, { priority = p }, label = { Text(stringResource(l)) })
                     }
                 }

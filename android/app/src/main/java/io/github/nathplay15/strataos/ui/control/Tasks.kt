@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.foundation.verticalScroll
@@ -68,11 +71,18 @@ fun BackupsScreen(onBack: () -> Unit) {
     val web = LocalOpenWeb.current
     var pending by remember { mutableStateOf<Pending?>(null) }
     var snaps by remember { mutableStateOf<JsonObject?>(null) }
+    // The editor (null: a new task) and the restore wizard (its source) open over the list.
+    var editing by remember { mutableStateOf<JsonObject?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf<String?>(null) }
+    if (creating || editing != null) { BackupEditor(editing) { creating = false; editing = null; data.reload() }; return }
+    restoring?.let { src -> RestoreScreen({ restoring = null; data.reload() }, src); return }
     AreaScreen(stringResource(R.string.ctl_backups), onBack, actions = {
-        TextButton(onClick = { web("/backup", null) }) { Text(stringResource(R.string.ctl_restore_web)) }
+        androidx.compose.material3.IconButton(onClick = { restoring = "" }) { androidx.compose.material3.Icon(Icons.Default.Restore, stringResource(R.string.ctl_restore_title)) }
+        androidx.compose.material3.IconButton(onClick = { creating = true }) { androidx.compose.material3.Icon(Icons.Default.Add, stringResource(R.string.ctl_new_backup)) }
     }) { pad ->
         Refreshable(data, pad) { list ->
-            if (list.isEmpty()) Empty(Icons.Default.Backup, stringResource(R.string.ctl_no_backups)) { OutlinedButton(onClick = { web("/backup", null) }) { Text(stringResource(R.string.ctl_create_web)) } }
+            if (list.isEmpty()) Empty(Icons.Default.Backup, stringResource(R.string.ctl_no_backups)) { Button(onClick = { creating = true }) { Text(stringResource(R.string.ctl_new_backup)) } }
             else ScrollColumn {
                 list.forEach { bk ->
                     val last = bk.objs("history").firstOrNull()
@@ -89,6 +99,8 @@ fun BackupsScreen(onBack: () -> Unit) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (running && bk.s("jobId").isNotEmpty()) OutlinedButton(enabled = !actions.busy, onClick = { actions.run(after = data.reload) { it.sendObj("POST", "/api/jobs/${bk.s("jobId")}/cancel") } }) { Text(stringResource(R.string.ctl_stop)) }
                             else OutlinedButton(enabled = !actions.busy && !running, onClick = { actions.run(done = r.getString(R.string.ctl_started), after = data.reload) { it.runBackup(bk.s("id")) } }) { Text(stringResource(R.string.ctl_run)) }
+                            TextButton(onClick = { editing = bk }) { Text(stringResource(R.string.ctl_edit)) }
+                            if (bk.s("kind") == "restic" || (bk.s("kind") == "rsync" && bk.s("sourceType").isEmpty() && bk.s("destType") == "local")) TextButton(onClick = { restoring = "backup:" + bk.s("id") }) { Text(stringResource(R.string.ctl_restore)) }
                             if (bk.s("kind") == "restic") TextButton(onClick = { snaps = bk }) { Text(stringResource(R.string.ctl_versions)) }
                             if (bk.s("kind") == "sync" && bk.b("synced")) TextButton(enabled = !running, onClick = {
                                 pending = Pending(r.getString(R.string.ctl_resync_title, bk.s("name")), r.getString(R.string.ctl_resync_text), r.getString(R.string.ctl_resync), false) { actions.run(after = data.reload) { it.resyncBackup(bk.s("id")) } }
@@ -99,7 +111,6 @@ fun BackupsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                Hint(stringResource(R.string.ctl_backups_hint))
             }
         }
     }
