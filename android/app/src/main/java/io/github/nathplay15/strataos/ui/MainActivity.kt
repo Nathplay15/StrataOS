@@ -53,6 +53,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -88,11 +90,25 @@ class MainActivity : FragmentActivity() {
                             UpdateScreen(onBack = { overlay = null })
                         }
                         !signedIn -> Onboarding(initialLink = pairLink, onLinkUsed = { pairLink = null }, onDone = { signedIn = true; unlocked = true })
-                        // unlocked first: the setting is not observable state, and read alone
-                        // it would leave unlocked unobserved, so the lock screen would not come
-                        // back after the lock was turned on until something else recomposes.
-                        !unlocked && Graph.prefs.biometricLock -> LockScreen { authenticate() }
-                        else -> Home(tab, { tab = it; section = null }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null }, section)
+                        // The app stays composed under the lock screen, so unlocking returns
+                        // to the screen the user was on (a film, a folder…), not to Home.
+                        else -> Box(Modifier.fillMaxSize()) {
+                            Home(tab, { tab = it; section = null }, overlay, { overlay = it }, onSignedOut = { signedIn = false; overlay = null }, section)
+                            // unlocked first: the setting is not observable state, and read alone
+                            // it would leave unlocked unobserved, so the lock screen would not come
+                            // back after the lock was turned on until something else recomposes.
+                            if (!unlocked && Graph.prefs.biometricLock) {
+                                Surface(
+                                    Modifier.fillMaxSize().pointerInput(Unit) {
+                                        // Nothing under the lock screen can be touched.
+                                        awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                                    },
+                                ) {
+                                    BackHandler { moveTaskToBack(true) }
+                                    LockScreen { authenticate() }
+                                }
+                            }
+                        }
                     }
                 }
             }

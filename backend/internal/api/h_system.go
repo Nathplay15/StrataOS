@@ -18,6 +18,7 @@ import (
 	"strataos/internal/ha"
 	"strataos/internal/i18n"
 	"strataos/internal/media"
+	"strataos/internal/mediaplay"
 	"strataos/internal/netdiag"
 	"strataos/internal/nvr"
 	"strataos/internal/photoml"
@@ -498,6 +499,9 @@ func (s *Server) systemRoutes() {
 			// New packages (vainfo, video drivers, ffmpeg) change what the
 			// Hardware page detects: detect again at its next visit.
 			gpuForget()
+			// The player chose its GPU once (none before the drivers were
+			// there): choose again so videos use the new driver right away.
+			mediaplay.Default.Configure(s.gpuChoice)
 			return err
 		}), nil
 	})
