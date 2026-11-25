@@ -58,14 +58,14 @@ import okio.ByteString
  * messages. "shell" is root's shell; "console" the container's console with
  * its login prompt.
  */
-class TermSession(api: Api, name: String, mode: String, private val screen: TermScreen, private val onOutput: () -> Unit, private val onEnd: (String?) -> Unit) {
+class TermSession(api: Api, url: okhttp3.HttpUrl, private val screen: TermScreen, private val onOutput: () -> Unit, private val onEnd: (String?) -> Unit) {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     private val ws: WebSocket
 
     init {
         val client = api.http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).pingInterval(20, TimeUnit.SECONDS).build()
-        ws = client.newWebSocket(api.request(api.lxcConsoleUrl(name, mode)).build(), object : WebSocketListener() {
+        ws = client.newWebSocket(api.request(url).build(), object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 val b = bytes.toByteArray()
                 main.post { screen.feed(b); onOutput() }
@@ -105,7 +105,8 @@ class TermSession(api: Api, name: String, mode: String, private val screen: Term
 }
 
 @Composable
-fun ContainerTerminal(name: String, onBack: () -> Unit) {
+fun ContainerTerminal(name: String, onBack: () -> Unit, host: Boolean = false) {
+    // host: the shell of the NAS itself (GET /api/system/terminal, administrators), same protocol.
     val ctx = LocalContext.current
     var mode by rememberSaveable { mutableStateOf("shell") }
     var attempt by remember { mutableIntStateOf(0) }
@@ -118,23 +119,23 @@ fun ContainerTerminal(name: String, onBack: () -> Unit) {
     DisposableEffect(mode, attempt) {
         ended = null
         val s = runCatching {
-            TermSession(api(), name, mode, screen, onOutput = { view?.changed() }, onEnd = { e -> ended = e ?: "" })
+            TermSession(api(), if (host) api().url("/api/system/terminal") else api().lxcConsoleUrl(name, mode), screen, onOutput = { view?.changed() }, onEnd = { e -> ended = e ?: "" })
         }.onFailure { ended = errorText(ctx, it) }.getOrNull()
         session = s
         s?.resize(size.first, size.second)
         onDispose { s?.close() }
     }
     val send: (String) -> Unit = { session?.input(it) }
-    AreaScreen(name, onBack, subtitle = stringResource(if (mode == "shell") R.string.ct_shell else R.string.ct_console), actions = {
+    AreaScreen(name, onBack, subtitle = if (host) null else stringResource(if (mode == "shell") R.string.ct_shell else R.string.ct_console), actions = {
         IconButton(onClick = { view?.showKeyboard() }) { Icon(Icons.Default.Keyboard, stringResource(R.string.ct_keyboard)) }
         IconButton(onClick = { attempt++ }) { Icon(Icons.Default.Refresh, stringResource(R.string.ct_reconnect)) }
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!host) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(mode == "shell", { mode = "shell" }, { Text(stringResource(R.string.ct_shell)) })
                 FilterChip(mode == "console", { mode = "console" }, { Text(stringResource(R.string.ct_console)) })
             }
-            Text(stringResource(if (mode == "console") R.string.ct_console_help else R.string.ct_shell_help), Modifier.padding(horizontal = 12.dp),
+            if (!host) Text(stringResource(if (mode == "console") R.string.ct_console_help else R.string.ct_shell_help), Modifier.padding(horizontal = 12.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             key(screen) {
                 AndroidView(

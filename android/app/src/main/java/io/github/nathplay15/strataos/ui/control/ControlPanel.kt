@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.SettingsEthernet
 import androidx.compose.material.icons.filled.Shield
@@ -70,6 +72,7 @@ val controlGroups = listOf(
     CtlGroup(R.string.ctl_g_alerts, listOf(
         CtlRow(Icons.Default.Notifications, R.string.notifications, Tiles.camera, "inbox"),
         CtlRow(Icons.Default.NotificationsActive, R.string.ctl_notify_settings, Tiles.users, "notifications"),
+        CtlRow(Icons.Default.Send, R.string.set_channels, Tiles.links, "channels"),
         CtlRow(Icons.Default.SystemUpdate, R.string.nas_updates, Tiles.apps, "updates"),
         CtlRow(Icons.Default.Upgrade, R.string.ctl_dist, Tiles.fleet, "dist"),
     )),
@@ -84,6 +87,7 @@ val controlGroups = listOf(
         CtlRow(Icons.AutoMirrored.Filled.Article, R.string.ctl_logs, Tiles.assistant, "logs"),
         CtlRow(Icons.Default.EventRepeat, R.string.ctl_schedules, Tiles.links, "schedules"),
         CtlRow(Icons.Default.Bolt, R.string.ctl_routines, Tiles.files, "routines"),
+        CtlRow(Icons.Default.SmartToy, R.string.set_assistant, Tiles.assistant, "assistant-settings"),
     )),
     CtlGroup(R.string.ctl_g_security, listOf(
         CtlRow(Icons.Default.GppGood, R.string.ctl_advisor, Tiles.backup, "advisor"),
@@ -96,9 +100,9 @@ val controlGroups = listOf(
     CtlGroup(R.string.ctl_g_network, listOf(
         CtlRow(Icons.Default.Lan, R.string.nas_network, Tiles.storage, "network"),
         CtlRow(Icons.Default.VerifiedUser, R.string.ctl_certs, Tiles.backup, "certs"),
-        CtlRow(Icons.Default.Public, R.string.ctl_w_remote, Tiles.web, web = "/system/remote"),
-        CtlRow(Icons.Default.Wifi, R.string.ctl_w_wifi, Tiles.sync, web = "/system/network#wifi"),
-        CtlRow(Icons.Default.Shield, R.string.ctl_w_firewall, Tiles.camera, web = "/system/network#firewall"),
+        CtlRow(Icons.Default.Public, R.string.ctl_w_remote, Tiles.web, "remote"),
+        CtlRow(Icons.Default.Wifi, R.string.ctl_w_wifi, Tiles.sync, "wifi"),
+        CtlRow(Icons.Default.Shield, R.string.ctl_w_firewall, Tiles.camera, "firewall"),
     )),
     CtlGroup(R.string.ctl_g_web, listOf(
         CtlRow(Icons.Default.Storage, R.string.ctl_w_storage, Tiles.storage, web = "/storage/lvm"),
@@ -108,9 +112,9 @@ val controlGroups = listOf(
         CtlRow(Icons.Default.SettingsEthernet, R.string.ctl_w_directory, Tiles.fleet, web = "/system/directory"),
         CtlRow(Icons.Default.Hub, R.string.ctl_w_ha, Tiles.vms, web = "/system/ha"),
         CtlRow(Icons.Default.Settings, R.string.ctl_w_settings, Tiles.settings, web = "/system/settings"),
-        CtlRow(Icons.Default.Terminal, R.string.ctl_w_terminal, Tiles.vms, web = "/system/terminal"),
+        CtlRow(Icons.Default.Terminal, R.string.ctl_w_terminal, Tiles.vms, "terminal"),
         CtlRow(Icons.Default.Movie, R.string.ctl_w_media, Tiles.photos, web = "/media"),
-        CtlRow(Icons.Default.Help, R.string.ctl_w_help, Tiles.backup, web = "/help"),
+        CtlRow(Icons.Default.Help, R.string.ctl_w_help, Tiles.backup, "help"),
     )),
 )
 
@@ -156,6 +160,13 @@ fun ControlScreen(route: String, back: () -> Unit): Boolean {
         "certs" -> CertificatesScreen(back)
         "restore-files" -> RestoreScreen(back)
         "ups" -> UpsScreen(back)
+        "wifi" -> WifiScreen(back)
+        "firewall" -> FirewallScreen(back)
+        "remote" -> RemoteScreen(back)
+        "channels" -> ChannelsScreen(back)
+        "assistant-settings" -> AssistantSettingsScreen(back)
+        "help" -> HelpScreen(back)
+        "terminal" -> io.github.nathplay15.strataos.ui.vms.ContainerTerminal(androidx.compose.ui.res.stringResource(R.string.ctl_w_terminal), back, host = true)
         else -> return false
     }
     return true

@@ -66,7 +66,7 @@ import kotlinx.serialization.json.JsonPrimitive
 // checks and messages). An edited task is the object the NAS gave with the
 // form's fields replaced, like the web's {...task, ...form}.
 
-private fun JsonObject.put(vararg kv: Pair<String, Any?>): JsonObject = JsonObject(this + kv.associate { (k, v) ->
+internal fun JsonObject.put(vararg kv: Pair<String, Any?>): JsonObject = JsonObject(this + kv.associate { (k, v) ->
     k to when (v) {
         null -> kotlinx.serialization.json.JsonNull
         is JsonElement -> v
@@ -77,7 +77,7 @@ private fun JsonObject.put(vararg kv: Pair<String, Any?>): JsonObject = JsonObje
     }
 })
 
-private fun strings(e: JsonElement?): List<String> = e.a().mapNotNull { (it as? JsonPrimitive)?.content }
+internal fun strings(e: JsonElement?): List<String> = e.a().mapNotNull { (it as? JsonPrimitive)?.content }
 
 /** Schedules offered as chips (the cron field stays editable, like the web's custom plan). */
 private val cronPresets = listOf("0 1 * * *", "0 * * * *", "0 1 * * 0", "")
