@@ -7,18 +7,21 @@
 ![The StrataOS desktop with the Storage Manager open](docs/screenshots/desktop.png)
 
 - **Storage**: RAID (mdadm), Btrfs, ZFS and LVM (with thin volumes), SSD cache, iSCSI targets and Ceph across several NAS; SMART monitoring with a history and SSD wear, a guided disk replacement wizard, burn-in tests for new disks, a space analyzer and a duplicate finder.
-- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP and a built-in S3 service that exposes shared folders as buckets with per-user access keys; share links (password, expiry, limits, statistics) and file requests; a web file manager with a tabbed editor and viewers for PDF, office documents, photos and any video (optional OnlyOffice for editing), and a photo timeline with albums.
+- **Sharing**: SMB (Windows, macOS, Time Machine), NFS, WebDAV, FTP/SFTP and a built-in S3 service that exposes shared folders as buckets with per-user access keys; share links (password, expiry, limits, statistics) and file requests; a web file manager with a tabbed editor and viewers for PDF, office documents, photos and any video (optional OnlyOffice for editing), and a photo timeline with albums, shared albums, and people, places and memories worked out on the NAS itself (nothing is sent elsewhere); calendars and contacts (CalDAV, CardDAV) for iPhone, Android and Thunderbird.
 - **Data protection**: scheduled snapshots with hourly, daily, weekly and monthly retention, locked against deletion and shown in Windows "Previous versions"; encrypted, versioned backups (restic) to a disk, SFTP, S3 or a vault on another StrataOS; backup repositories shared by several tasks and NAS, where virtual machines and containers are stored as deduplicated images, checked on a schedule, with single files restorable from a VM disk; file copies, ZFS replication, backups pulled from other NAS, two-way sync and cloud sync. A guided restore (pick a point in time, preview what is overwritten, restore in place, elsewhere or as a download), a 3-2-1 assistant, monthly automatic restore tests, and a configuration backup you can export and import.
 - **Security**: two-factor sign-in with an authenticator app, passkeys or security keys (FIDO2/U2F), which can be required for administrators; sign-in through an OpenID Connect provider (Authentik, Keycloak, Entra ID…), Active Directory and LDAP (with TLS); a security advisor with a score and safe one-click fixes; address blocking (also by country), ransomware detection with trap files, ClamAV antivirus, encrypted shared folders and a firewall for the NAS.
 - **Apps**: Docker with an App Center of about 50 ready-to-run apps (Jellyfin, Nextcloud, Immich, Home Assistant, Node-RED, Ollama…), community catalogs (signed or pinned, with a review of the permissions each app gets), your own Compose stacks, and one-click updates of containers and apps that roll back if the new version doesn't start.
 - **Virtualization**: KVM virtual machines (cloud images, any ISO, Windows 11 with TPM, imports from VMware, VirtualBox and Hyper-V, snapshots, clones, templates, USB and PCI passthrough) and LXC containers in one list; a cluster of NAS on Ceph with live migration and high availability; copying or moving a VM or container to another NAS; a firewall per VM and container with security groups, and virtual networks (NAT, isolated, VLAN, VXLAN between NAS).
 - **Several NAS**: a Multi-NAS Console with a fleet health dashboard (disks, space, backups, security score, temperatures), grouped updates and VM transfers, and high availability of the shared folders between two or more NAS.
 - **Remote access**: WireGuard (devices per user, site-to-site, an outgoing tunnel for chosen apps), Tailscale, Cloudflare Tunnel and app addresses with automatic HTTPS, with an assistant that recommends a method, sets it up and checks from outside that it works (including carrier-grade NAT detection).
-- **Media and home**: DLNA server, multi-room music on AirPlay and Chromecast speakers, casting videos and photos to TVs, and video surveillance (built-in recorder, or Frigate with AI detection).
+- **Media and home**: a cinema for the films and series of your shares (posters and details from TMDB, continue watching per account, subtitles, family profiles), shown full screen on a TV plugged into the NAS (HDMI); DLNA server, multi-room music on AirPlay and Chromecast speakers, casting videos and photos to TVs, and video surveillance (built-in recorder, or Frigate with AI detection).
+- **Assistant**: an AI assistant that answers questions about the NAS and your documents (citing the files it read) and turns plain requests into scheduled reports and routines, with a local model (Ollama) or a cloud provider's API key.
 - **Network**: Ethernet and **WiFi** (the Network → WiFi tab scans the networks in range and connects the NAS, with the usual trial apply), link aggregation, bridges and VLANs.
 - **Everything else**: users, groups and quotas, a notification centre and alerts (email, Telegram, ntfy, webhooks) with quiet hours and a weekly health report, UPS support (NUT), fan control and power scheduling, Prometheus metrics, a status screen with a QR code and a recovery code on the NAS itself, components and apps you can uninstall, and updates in one click or automatic in a maintenance window (stable or beta channel), always with a restore point before.
 
 The interface is available in English, French, Spanish, German, Italian, Portuguese (Brazil), Dutch and Simplified Chinese. On a computer it looks like a desktop with windows, in a dark or light theme, usable with the keyboard, with a search (Ctrl+K) that finds apps, settings, folders and files; on a phone it switches to a mobile layout. StrataOS runs on Debian 13 (trixie) and is being prepared for Debian 14 ([status](docs/DEBIAN-14.md)).
+
+On a phone, and in the desktop app, the interface comes in two styles, each in light and dark: **Glass** by default (translucent, blurred panels over a soft gradient, a floating tab bar) and **Modern** (opaque surfaces in a vivid blue), chosen in **Appearance** (in the app: Settings), with a switch to reduce transparency.
 
 Clients: an **Android app** (files, photo backup, folder sync, managing the NAS, updates itself) and a **desktop app** for Windows, macOS and Linux (two-way folder sync, optionally end-to-end encrypted, and managing the NAS), described below. The Android and desktop apps have their own versions and releases, independent of the NAS version.
 
@@ -39,9 +42,13 @@ Clients: an **Android app** (files, photo backup, folder sync, managing the NAS,
 | ![The notification centre](docs/screenshots/notifications.png) | ![The desktop in the light theme](docs/screenshots/desktop-light.png) |
 | **Notification centre** | **Light theme** |
 
-On a phone, the interface switches to a mobile layout:
+On a phone, the interface switches to a mobile layout, installable as a web app (PWA), with its Home, Files, Photos and Me tabs:
 
-<img src="docs/screenshots/mobile.png" alt="StrataOS on a phone" width="260">
+<img src="docs/screenshots/mobile-home-light.png" alt="Home, Glass style, light theme" width="200"> <img src="docs/screenshots/mobile-files-dark.png" alt="Files, Glass style, dark theme" width="200"> <img src="docs/screenshots/mobile-photos-light.png" alt="Photos, Glass style, light theme" width="200"> <img src="docs/screenshots/mobile-status-dark.png" alt="Status of the NAS, Glass style, dark theme" width="200">
+
+The **Modern** style, and the Appearance settings where the style is chosen:
+
+<img src="docs/screenshots/mobile-modern.png" alt="Home, Modern style" width="200"> <img src="docs/screenshots/mobile-modern-dark.png" alt="Files, Modern style, dark theme" width="200"> <img src="docs/screenshots/mobile-appearance.png" alt="Appearance: Glass or Modern style" width="200">
 
 ### Android app
 
@@ -54,6 +61,10 @@ The StrataOS app (APK on the [Releases page](https://github.com/Nathplay15/Strat
 The **StrataOS desktop app** (Windows, macOS, Linux; native, built with Tauri) browses, shares and manages your NAS (several of them) and keeps folders of your computer and of the NAS identical, in both directions, in the background: real local copies, changes from SMB or the web interface picked up within seconds, conflict copies instead of overwrites, deletions to the trash and the NAS recycle bin, a safety brake before mass deletions, and optional end-to-end encrypted folders (the NAS only keeps ciphertext). It replaces the StrataOS Sync app of 0.10 and takes over its folders and pairing. Pair it with a code or a link from the web interface (account menu → **Phones and computers**); it also runs headless (`strataos-sync daemon`). See the [guide](docs/GUIDE.md#23-the-desktop-app).
 
 <img src="docs/screenshots/desktop-app.png" alt="The desktop app: overview of the NAS" width="410"> <img src="docs/screenshots/desktop-app-sync.png" alt="The desktop app: folder sync" width="410">
+
+In the **Modern** style (Settings → Style):
+
+<img src="docs/screenshots/desktop-app-modern.png" alt="The desktop app in the Modern style" width="410">
 
 ## Requirements
 
