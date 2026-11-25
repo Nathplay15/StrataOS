@@ -41,3 +41,6 @@ textarea,
 :root[data-style="glass"] .app-account {
   border-bottom-color: var(--border);
 }
+:root[data-style="glass"] .app-sidebar {
+  background: linear-gradient(to bottom, var(--glass-sheen), transparent 30%), var(--panel);
+}

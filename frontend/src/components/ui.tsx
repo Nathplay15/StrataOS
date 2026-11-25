@@ -41,7 +41,8 @@ export function Button({ variant = "secondary", size = "md", loading, icon, clas
   return (
     <button
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-[9px] font-medium transition disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+        "btn inline-flex items-center justify-center gap-2 rounded-[9px] font-medium transition disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+        `btn-${variant}`,
         size === "sm" ? "px-2.5 py-1.5 text-[12.5px]" : "px-3.5 py-2 text-[13.5px]",
         styles[variant],
         className,
@@ -80,9 +81,9 @@ export function PageHeader({ title, subtitle, icon, actions }: { title: string; 
     );
   }
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="page-head mb-6 flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-center gap-3">
-        {icon && <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">{icon}</div>}
+        {icon && <div className="page-head-icon flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">{icon}</div>}
         <div>
           <h1 className="text-[20px] font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="text-muted text-[13px]">{subtitle}</p>}
@@ -111,7 +112,7 @@ export function Stat({ label, value, sub, icon, tone = "accent" }: { label: stri
   const tones = { accent: "text-accent bg-accent-soft", ok: "text-ok bg-ok/10", warn: "text-warn bg-warn/10", danger: "text-danger bg-danger/10" };
   return (
     <div className="card flex items-center gap-4 p-4">
-      {icon && <div className={cx("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", tones[tone])}>{icon}</div>}
+      {icon && <div data-tone={tone} className={cx("stat-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", tones[tone])}>{icon}</div>}
       <div className="min-w-0">
         <div className="text-muted text-[12px]">{label}</div>
         <div className="text-[19px] font-semibold leading-tight">{value}</div>
@@ -158,8 +159,8 @@ export function Progress({ value, tone, className, indeterminate }: { value: num
   const t = tone ?? (value > 90 ? "danger" : value > 75 ? "warn" : "accent");
   const colors = { accent: "bg-gradient-to-r from-accent to-accent-2", ok: "bg-ok", warn: "bg-warn", danger: "bg-danger" };
   return (
-    <div className={cx("h-2 w-full overflow-hidden rounded-full bg-panel-2 border border-line", className)}>
-      <div className={cx("h-full rounded-full transition-all duration-500", colors[t], indeterminate && "animate-pulse")} style={{ width: `${indeterminate ? 100 : Math.max(0, Math.min(100, value))}%` }} />
+    <div className={cx("bar-track h-2 w-full overflow-hidden rounded-full bg-panel-2 border border-line", className)}>
+      <div className={cx("bar-fill h-full rounded-full transition-all duration-500", colors[t], indeterminate && "animate-pulse")} style={{ width: `${indeterminate ? 100 : Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
 }
@@ -203,9 +204,9 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "warn"; ch
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-line bg-panel p-1">
+    <div className="seg mb-5 flex gap-1 overflow-x-auto rounded-xl border border-line bg-panel p-1">
       {tabs.map((t) => (
-        <button key={t.id} onClick={() => onChange(t.id)} className={cx("rounded-lg px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition", value === t.id ? "bg-accent text-white shadow-sm" : "text-muted hover:text-fg hover:bg-panel-2")}>
+        <button key={t.id} onClick={() => onChange(t.id)} aria-pressed={value === t.id} className={cx("seg-item rounded-lg px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition", value === t.id ? "bg-accent text-white shadow-sm" : "text-muted hover:text-fg hover:bg-panel-2")}>
           {t.label}
         </button>
       ))}
@@ -296,7 +297,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
   // Portal to <body>: inside a desktop window the dialog must cover every window and the taskbar.
   return createPortal(
     <div className="fixed inset-0 z-[9500] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cx("card my-8 flex max-h-[90vh] w-full flex-col", wide === "xl" ? "max-w-5xl" : wide ? "max-w-3xl" : "max-w-lg")}>
+      <div className={cx("card card-raised my-8 flex max-h-[90vh] w-full flex-col", wide === "xl" ? "max-w-5xl" : wide ? "max-w-3xl" : "max-w-lg")}>
         <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
           <h3 className="font-semibold">{title}</h3>
           <IconButton title={tr("Close")} onClick={onClose}>
@@ -351,7 +352,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="fixed bottom-4 right-4 z-[9600] flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-2">
         {toasts.map((t) => (
-          <div key={t.id} className="card flex items-start gap-2.5 px-4 py-3 text-[13px] animate-[fadeIn_.2s]">
+          <div key={t.id} className="card card-raised flex items-start gap-2.5 px-4 py-3 text-[13px] animate-[fadeIn_.2s]">
             {t.tone === "ok" ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ok" /> : t.tone === "error" ? <XCircle size={17} className="mt-0.5 shrink-0 text-danger" /> : <Info size={17} className="mt-0.5 shrink-0 text-accent" />}
             <span className="break-words">{t.text}</span>
           </div>

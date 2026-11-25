@@ -60,8 +60,8 @@ export function Section({ title, actions, children }: { title: ReactNode; action
 export function UsageBar({ used, total }: { used: number; total: number }) {
   const p = total ? Math.min(100, (used / total) * 100) : 0;
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
-      <div className={`h-full rounded-full ${p > 90 ? "bg-danger" : p > 75 ? "bg-warn" : "bg-accent"}`} style={{ width: `${p}%` }} />
+    <div className="bar-track h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
+      <div className={`bar-fill h-full rounded-full ${p > 90 ? "bg-danger" : p > 75 ? "bg-warn" : "bg-accent"}`} style={{ width: `${p}%` }} />
     </div>
   );
 }

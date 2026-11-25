@@ -94,8 +94,8 @@ function Sidebar({ current }: { current: PageId }) {
             <div key={g.id} className="mt-3">
               {g.label && <div className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{g.label()}</div>}
               {items.map((p) => (
-                <button key={p.id} onClick={() => go(p.id)}
-                  className={cx("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] transition",
+                <button key={p.id} onClick={() => go(p.id)} aria-current={p.id === current ? "page" : undefined}
+                  className={cx("nav-item flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] transition",
                     p.id === current ? "bg-accent-soft font-medium text-accent" : "text-fg hover:bg-panel-2")}>
                   <p.icon size={16} className={p.id === current ? "text-accent" : "text-muted"} />
                   <span className="truncate">{p.label()}</span>
