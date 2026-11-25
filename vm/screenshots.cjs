@@ -16,19 +16,20 @@ const OUT = process.env.OUT || "/out";
 const ONLY = (process.env.ONLY || "").split(",").filter(Boolean);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function login(page, { mode = "desktop", windows = [], geometry = {}, theme = "dark" }) {
+async function login(page, { mode = "desktop", windows = [], geometry = {}, theme = "dark", style = "glass", path = "/" }) {
   await page.goto(B + "/", { waitUntil: "load" });
-  await page.evaluate(async ([mode, windows, geometry, theme]) => {
+  await page.evaluate(async ([mode, windows, geometry, theme, style]) => {
     localStorage.clear();
     localStorage.setItem("strata-lang", "en");
     localStorage.setItem("strata-theme", theme);
+    if (style !== "glass") localStorage.setItem("strata-style", style);
     for (const [app, g] of Object.entries(geometry)) localStorage.setItem(`strata-win-${app}`, JSON.stringify({ ...g, sw: window.innerWidth, sh: window.innerHeight - 48 }));
     localStorage.setItem("strata-ui-mode", mode);
     sessionStorage.setItem("strata-open-windows", JSON.stringify(windows));
     await fetch("/api/login", { method: "POST", headers: { "X-Strata": "1", "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "Strata-Test-2026" }) });
     await fetch("/api/me/2fa/postpone", { method: "POST", headers: { "X-Strata": "1" } });
-  }, [mode, windows, geometry, theme]);
-  await page.goto(B + "/", { waitUntil: "load" });
+  }, [mode, windows, geometry, theme, style]);
+  await page.goto(B + path, { waitUntil: "load" });
   await page.addStyleTag({ content: ':root{--font-sans:"Inter","Noto Sans",sans-serif !important}' });
   await sleep(5000); // charts and live data
 }
@@ -89,8 +90,34 @@ const shots = {
     },
   },
   "desktop-light": { theme: "light", windows: [{ app: "files" }, { app: "storage", section: "disks" }], geometry: { files: { x: 90, y: 50, w: 820, h: 520 }, storage: { x: 330, y: 200, w: 900, h: 560 } } },
-  mobile: { width: 390, height: 844, mode: "classic", scale: 2 },
+  // The phone layout (glass style unless said otherwise), 390 × 844 at 2×.
+  mobile: phone({}),
+  "mobile-home-light": phone({ theme: "light" }),
+  "mobile-files-light": phone({ theme: "light", path: "/files", after: openFolder("data", "Documents") }),
+  "mobile-files-dark": phone({ path: "/files", after: openFolder("data", "Documents") }),
+  "mobile-photos-light": phone({ theme: "light", path: "/photos", wait: 4000 }),
+  "mobile-photos-dark": phone({ path: "/photos", wait: 4000 }),
+  "mobile-status-light": phone({ theme: "light", path: "/system/monitor" }),
+  "mobile-status-dark": phone({ path: "/system/monitor" }),
+  "mobile-modern": phone({ theme: "light", style: "modern" }),
+  "mobile-modern-dark": phone({ style: "modern", path: "/files", after: openFolder("data", "Documents") }),
+  "mobile-appearance": phone({ theme: "light", path: "/me", after: async (p) => {
+    await p.getByRole("button", { name: "Appearance", exact: true }).first().click();
+    await sleep(1500);
+  } }),
 };
+
+function phone(o) {
+  return { width: 390, height: 844, mode: "classic", scale: 2, ...o };
+}
+function openFolder(...names) {
+  return async (p) => {
+    for (const name of names) {
+      await p.locator(`text="${name}" >> visible=true`).first().click({ timeout: 8000 }).catch(() => console.log("  (no " + name + ")"));
+      await sleep(2500);
+    }
+  };
+}
 
 (async () => {
   const browser = await chromium.launch();
