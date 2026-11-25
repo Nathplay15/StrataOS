@@ -42,7 +42,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -143,18 +142,7 @@ fun AreaScreen(
     CompositionLocalProvider(LocalSnackbar provides snack) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (!subtitle.isNullOrEmpty()) Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    },
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.b_back)) } },
-                    actions = actions,
-                )
-            },
+            topBar = { io.github.nathplay15.strataos.ui.BrandTopBar(title, onBack, subtitle, actions = actions) },
             floatingActionButton = fab,
             snackbarHost = { SnackbarHost(snack) },
         ) { pad -> content(pad) }
@@ -228,19 +216,16 @@ fun SwitchLine(text: String, checked: Boolean, enabled: Boolean = true, sub: Str
     }
 }
 
-/** A small coloured label (state of a VM, a camera, a user…). */
+/** A small coloured label (state of a VM, a camera, a user…): the pill of the whole app (ui.Chip). */
 @Composable
 fun StatusBadge(text: String, tone: Tone) {
-    val (bg, fg) = when (tone) {
-        Tone.Ok -> Color(0xFF1E9E5A).copy(alpha = 0.18f) to Color(0xFF1E9E5A)
-        Tone.Warn -> Color(0xFFE0A100).copy(alpha = 0.18f) to Color(0xFFB98500)
-        Tone.Bad -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        Tone.Neutral -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        Tone.Accent -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-    }
-    Surface(color = bg, shape = MaterialTheme.shapes.small) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelMedium, color = fg, maxLines = 1)
-    }
+    io.github.nathplay15.strataos.ui.Chip(text, when (tone) {
+        Tone.Ok -> io.github.nathplay15.strataos.ui.Tone.OK
+        Tone.Warn -> io.github.nathplay15.strataos.ui.Tone.WARN
+        Tone.Bad -> io.github.nathplay15.strataos.ui.Tone.DANGER
+        Tone.Neutral -> io.github.nathplay15.strataos.ui.Tone.NEUTRAL
+        Tone.Accent -> io.github.nathplay15.strataos.ui.Tone.ACCENT
+    })
 }
 
 enum class Tone { Ok, Warn, Bad, Neutral, Accent }
@@ -378,7 +363,7 @@ fun JobDialog(start: NasJob, onClose: (success: Boolean?) -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 when {
                     j.running -> {
-                        if (j.progress > 0) LinearProgressIndicator(progress = { (j.progress / 100).toFloat() }, Modifier.fillMaxWidth())
+                        if (j.progress > 0) io.github.nathplay15.strataos.ui.ThinBar((j.progress / 100).toFloat(), color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         else LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text(stringResource(R.string.b_job_running), style = MaterialTheme.typography.bodySmall)
                     }

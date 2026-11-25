@@ -22,9 +22,18 @@ val keystoreProps = Properties().apply {
 fun signingValue(env: String, prop: String): String? = System.getenv(env)?.takeIf { it.isNotEmpty() } ?: keystoreProps.getProperty(prop)
 val keystorePath = signingValue("STRATA_KEYSTORE", "storeFile")
 
+// The user guide of the web interface (docs/GUIDE*.md), read by the Help screen.
+val copyGuide by tasks.registering(Copy::class) {
+    from(rootProject.file("../docs")) { include("GUIDE.md", "GUIDE.fr.md") }
+    into(layout.buildDirectory.dir("generated/guide/guide"))
+}
+tasks.named("preBuild") { dependsOn(copyGuide) }
+
 android {
     namespace = "io.github.nathplay15.strataos"
     compileSdk = 37
+
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/guide").get().asFile)
 
     defaultConfig {
         applicationId = "io.github.nathplay15.strataos"

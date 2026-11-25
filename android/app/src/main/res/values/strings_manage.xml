@@ -220,7 +220,6 @@
     <string name="nas_mode_notify">Notify only</string>
     <string name="nas_mode_off">Off</string>
     <string name="nas_monthly_report">Monthly health report</string>
-    <string name="nas_more_web">Everything else is in the Web interface area.</string>
     <string name="nas_my_account">My account</string>
     <string name="nas_network">Network</string>
     <string name="nas_network_web">Network changes are made in the web interface (they are tried first and rolled back unless confirmed).</string>

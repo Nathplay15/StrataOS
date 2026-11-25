@@ -1,5 +1,6 @@
 package io.github.nathplay15.strataos.ui.player
 
+import okhttp3.RequestBody.Companion.toRequestBody
 import android.content.Context
 import android.media.MediaCodecList
 import android.net.Uri
@@ -235,11 +236,24 @@ object Playback {
     private fun resumeFor(path: String, duration: Double): Double =
         resumePosition(prefs.getFloat(path, 0f).toDouble(), duration)
 
+    /** Paths of the cinema library: their position is also kept by the NAS (PUT /api/cinema/position), shared with the web. */
+    private val cinema = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /** Starts [path] where the NAS says it was left (a later local position wins). */
+    fun seedCinema(path: String, at: Double) {
+        cinema += path
+        if (at > prefs.getFloat(path, 0f)) prefs.edit { putFloat(path, at.toFloat()) }
+    }
+
     private fun saveResume() {
         val path = currentPath
         if (path.isEmpty() || player == null) return
         val d = durationSec()
         val pos = positionSec()
+        if (path in cinema && d > 0) {
+            val body = """{"path":${kotlinx.serialization.json.JsonPrimitive(path)},"at":${pos.toLong()},"duration":${d.toLong()}}"""
+            Thread { runCatching { Graph.api()?.let { a -> a.http.newCall(a.request(a.url("/api/cinema/position")).put(body.toRequestBody(a.jsonType)).build()).execute().close() } } }.start()
+        }
         prefs.edit {
             if (keepResume(pos, d)) putFloat(path, pos.toFloat()) else remove(path)
             // Keep the list bounded (a few hundred files are plenty).

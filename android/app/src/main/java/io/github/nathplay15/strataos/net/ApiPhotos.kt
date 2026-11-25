@@ -14,11 +14,17 @@ import okhttp3.HttpUrl
     val installed: Boolean = true, val total: Int = 0, val items: List<Photo> = emptyList(), val running: Boolean = false,
     val folders: List<String>? = null,
 )
-@Serializable data class Album(val id: String = "", val name: String = "", val count: Int = 0, val cover: String = "", val created: String = "", val shared: Boolean = false)
+@Serializable data class Album(val id: String = "", val name: String = "", val count: Int = 0, val cover: String = "", val created: String = "", val shared: Boolean = false,
+    val from: String = "", val with: List<String> = emptyList())
 
 @Serializable private data class NewAlbum(val name: String, val items: List<String>)
 @Serializable private data class AlbumChange(val name: String = "", val add: List<String> = emptyList(), val remove: List<String> = emptyList())
 @Serializable private data class AlbumId(val id: String = "")
+@Serializable private data class AlbumShare(val with: List<String>)
+
+/** Shares an album of mine with other accounts (read-only for them); an empty list takes the sharing off. */
+fun Api.shareAlbum(id: String, with: List<String>) =
+    call(request(url("/api/photos/albums/$id/share")).put(body(AlbumShare(with))).build(), kotlinx.serialization.json.JsonObject.serializer())
 
 /** A page of the timeline (newest first), of an album, or of a search. */
 fun Api.photos(offset: Int, limit: Int, album: String = "", q: String = ""): PhotoPage {

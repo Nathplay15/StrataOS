@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -291,5 +296,51 @@ fun StatusBarIcons(light: Boolean) {
         val c = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, view) }
         c?.isAppearanceLightStatusBars = !light && !dark
         onDispose { c?.isAppearanceLightStatusBars = !dark }
+    }
+}
+
+/**
+ * The top of every screen: the brand gradient with a white title, the back
+ * arrow, actions and optional tabs, ending on the rounded top of the page,
+ * like the Home and Me headers. [navIcon] null: no navigation button.
+ */
+@Composable
+fun BrandTopBar(
+    title: String,
+    onNav: (() -> Unit)? = null,
+    subtitle: String? = null,
+    navIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
+    actions: @Composable RowScope.() -> Unit = {},
+    tabs: List<String> = emptyList(),
+    tab: Int = 0,
+    onTab: (Int) -> Unit = {},
+) {
+    StatusBarIcons(light = true)
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Color.White) {
+        Column(Modifier.fillMaxWidth().background(strata.header).windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = if (onNav == null) 16.dp else 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onNav != null) androidx.compose.material3.IconButton(onClick = onNav) { Icon(navIcon, androidx.compose.ui.res.stringResource(io.github.nathplay15.strataos.R.string.back)) }
+                Column(Modifier.weight(1f).padding(start = 4.dp, end = 4.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (!subtitle.isNullOrEmpty()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                // Text buttons of the bar are white like its icons (not the blue of the theme).
+                MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = Color.White)) { actions() }
+            }
+            if (tabs.isNotEmpty()) {
+                val st = androidx.compose.foundation.rememberScrollState()
+                Row(Modifier.fillMaxWidth().horizontalScroll(st).padding(start = 12.dp, end = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tabs.forEachIndexed { i, t ->
+                        val sel = i == tab
+                        Text(
+                            t, style = MaterialTheme.typography.labelLarge, color = if (sel) Color(0xFF1456F0) else Color.White, maxLines = 1,
+                            modifier = Modifier.clip(CircleShape).background(if (sel) Color.White else Color.White.copy(alpha = 0.16f))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Tab) { onTab(i) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().padding(top = 10.dp).height(18.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
+        }
     }
 }

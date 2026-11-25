@@ -24,6 +24,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
@@ -97,6 +99,8 @@ fun MeScreen(go: HomeNav, onSignedOut: () -> Unit) {
             NavGroup(stringResource(R.string.ui_me_nas), buildList {
                 add { NavRow(Icons.Default.MonitorHeart, Tiles.status, stringResource(R.string.tab_status), cfg?.url) { go.section(STATUS) } }
                 add { NavRow(Icons.Default.Dashboard, Tiles.fleet, stringResource(R.string.a_manage)) { go.tab("manage") } }
+                if (admin) add { NavRow(Icons.Default.Tune, Tiles.settings, stringResource(R.string.area_nas_settings)) { go.section("nas-settings") } }
+                add { NavRow(Icons.Default.Devices, Tiles.status, stringResource(R.string.ctl_sessions)) { go.section("sessions") } }
                 add { NavRow(Icons.Default.Language, Tiles.web, stringResource(R.string.area_web)) { go.section("web") } }
             })
             NavGroup(stringResource(R.string.ui_me_app), listOf(

@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,7 +64,7 @@ fun BackupScreen(onBack: (() -> Unit)? = null) {
     fun changed() { tick++; BackupScheduler.apply(ctx) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.backup_title)) }, navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } })
+        BrandTopBar(stringResource(R.string.backup_title), onBack)
         key(tick) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.backup_intro), style = MaterialTheme.typography.bodyMedium)
@@ -105,7 +104,7 @@ fun BackupScreen(onBack: (() -> Unit)? = null) {
                     val done = p.getInt("done", 0)
                     val total = p.getInt("total", 0)
                     Text(stringResource(R.string.backup_progress, done, total) + (p.getString("file")?.let { " · $it" } ?: ""))
-                    LinearProgressIndicator(progress = { if (total > 0) done.toFloat() / total else 0f }, modifier = Modifier.fillMaxWidth())
+                    io.github.nathplay15.strataos.ui.ThinBar(if (total > 0) done.toFloat() / total else 0f, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                 }
                 Button(enabled = s.enabled && s.destination.isNotEmpty() && s.buckets.isNotEmpty(), onClick = { BackupScheduler.runNow(ctx) }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.backup_now))

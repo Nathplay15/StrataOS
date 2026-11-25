@@ -34,7 +34,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +58,9 @@ const val STATUS = "status"
 /** Opens a folder of the NAS in the Files tab (from a management area: snapshots, shares…). */
 val LocalOpenInFiles = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
 
+/** Opens a page of the web interface (path, title) inside the app: rare expert pages. */
+val LocalOpenWeb = androidx.compose.runtime.staticCompositionLocalOf<(String, String?) -> Unit> { { _, _ -> } }
+
 /** Opens a full screen page of the app (settings, app update…). */
 val LocalOpenOverlay = androidx.compose.runtime.staticCompositionLocalOf<(String?) -> Unit> { {} }
 
@@ -69,6 +71,20 @@ val LocalOpenOverlay = androidx.compose.runtime.staticCompositionLocalOf<(String
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? = null, closeTo: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
+    var web by rememberSaveable { mutableStateOf<String?>(null) }
+    var webTitle by rememberSaveable { mutableStateOf<String?>(null) }
+    web?.let { path ->
+        io.github.nathplay15.strataos.ui.web.WebArea({ web = null }, path, webTitle)
+        return
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalOpenWeb provides { p, t -> webTitle = t; web = p }) {
+        ManageContent(accountAction, initialSection, closeTo, onBack)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManageContent(accountAction: @Composable () -> Unit, initialSection: String?, closeTo: (() -> Unit)?, onBack: (() -> Unit)?) {
     val admin = Graph.prefs.server?.isAdmin == true
     val sections = visibleSections(manageSectionsA + manageSectionsB, admin)
     var open by rememberSaveable { mutableStateOf(if (initialSection == STATUS) STATUS else sections.firstOrNull { it.id == initialSection }?.id) }
@@ -80,7 +96,7 @@ fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? 
     if (wide) {
         Row(Modifier.fillMaxSize()) {
             Column(Modifier.width(300.dp).fillMaxHeight()) {
-                TopAppBar(title = { Text(stringResource(R.string.a_manage)) }, actions = { accountAction() })
+                BrandTopBar(stringResource(R.string.a_manage), actions = { accountAction() })
                 LazyColumn {
                     item { SectionRow(stringResource(R.string.tab_status), Icons.Default.MonitorHeart, open == null || open == STATUS) { open = null } }
                     items(sections, key = { it.id }) { s -> SectionRow(stringResource(s.label), s.icon, open == s.id) { open = s.id } }
@@ -105,10 +121,7 @@ fun ManageScreen(accountAction: @Composable () -> Unit, initialSection: String? 
         return
     }
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(stringResource(R.string.a_manage)) }, actions = { accountAction() },
-            navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
-        )
+        BrandTopBar(stringResource(R.string.a_manage), onBack, actions = { accountAction() })
         val status = rememberLoad(Unit) { val a = api(); a.systemInfo() to a.overview() }
         val ctx = androidx.compose.ui.platform.LocalContext.current
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = status.refreshing, onRefresh = status.reload) {
@@ -184,5 +197,10 @@ fun tileOf(id: String): TilePaint = when (id) {
     "fleet" -> Tiles.fleet
     "nas-settings" -> Tiles.settings
     "web" -> Tiles.web
+    "backups" -> Tiles.backup
+    "notifications" -> Tiles.camera
+    "sessions" -> Tiles.status
+    "cinema" -> Tiles.photos
+    "music" -> Tiles.assistant
     else -> Tiles.more
 }

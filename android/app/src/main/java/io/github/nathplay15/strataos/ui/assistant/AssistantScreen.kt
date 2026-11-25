@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -116,8 +115,8 @@ fun AssistantScreen(accountAction: @Composable () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(stringResource(R.string.a_assistant)) },
+        io.github.nathplay15.strataos.ui.BrandTopBar(
+            stringResource(R.string.a_assistant),
             actions = {
                 IconButton(onClick = { open("", emptyList()) }) { Icon(Icons.Default.Add, stringResource(R.string.a_assistant_new)) }
                 IconButton(onClick = { history = true }) { Icon(Icons.Default.History, stringResource(R.string.a_assistant_history)) }

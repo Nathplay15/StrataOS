@@ -385,11 +385,9 @@ private fun Browser(path: String, setPath: (String) -> Unit, goPlace: (String) -
                         }
                     },
                 )
-                else -> TopAppBar(
-                    title = { Text(list?.path?.let { if (it == ROOT) null else it.substringAfterLast('/') } ?: stringResource(R.string.tab_files), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = {
-                        if (list != null && list.path != ROOT) IconButton(onClick = { setPath(list.path.substringBeforeLast('/')) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
-                    },
+                else -> io.github.nathplay15.strataos.ui.BrandTopBar(
+                    list?.path?.let { if (it == ROOT) null else it.substringAfterLast('/') } ?: stringResource(R.string.tab_files),
+                    onNav = if (list != null && list.path != ROOT) ({ setPath(list.path.substringBeforeLast('/')) }) else null,
                     actions = {
                         IconButton(onClick = { searching = true }) { Icon(Icons.Default.Search, stringResource(R.string.a_search)) }
                         Box {

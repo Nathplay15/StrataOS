@@ -219,7 +219,6 @@
     <string name="nas_mode_notify">Alleen melden</string>
     <string name="nas_mode_off">Uit</string>
     <string name="nas_monthly_report">Maandelijks gezondheidsrapport</string>
-    <string name="nas_more_web">Al het andere staat in het gedeelte Webinterface.</string>
     <string name="nas_my_account">Mijn account</string>
     <string name="nas_network">Netwerk</string>
     <string name="nas_network_web">Netwerkwijzigingen worden in de webinterface gedaan (ze worden eerst uitgeprobeerd en teruggedraaid tenzij ze worden bevestigd).</string>

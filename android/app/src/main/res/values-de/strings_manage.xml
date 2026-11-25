@@ -219,7 +219,6 @@
     <string name="nas_mode_notify">Nur benachrichtigen</string>
     <string name="nas_mode_off">Aus</string>
     <string name="nas_monthly_report">Monatlicher Zustandsbericht</string>
-    <string name="nas_more_web">Alles andere finden Sie im Bereich Weboberfläche.</string>
     <string name="nas_my_account">Mein Konto</string>
     <string name="nas_network">Netzwerk</string>
     <string name="nas_network_web">Netzwerkänderungen erfolgen in der Weboberfläche (sie werden zuerst getestet und zurückgesetzt, wenn sie nicht bestätigt werden).</string>

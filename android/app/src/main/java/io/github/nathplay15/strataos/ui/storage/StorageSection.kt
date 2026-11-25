@@ -295,7 +295,7 @@ private fun RaidTab(raids: List<RaidArray>, reload: () -> Unit) {
                 Text(stringResource(R.string.a_raid_members, a.activeDevices, a.raidDevices, a.failedDevices, a.spareDevices), style = MaterialTheme.typography.bodySmall)
                 a.members.orEmpty().forEach { m -> Text("${m.device} — ${m.state}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) }
                 if (a.syncAction.isNotEmpty()) {
-                    LinearProgressIndicator(progress = { (a.syncProgress / 100).toFloat() }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                    io.github.nathplay15.strataos.ui.ThinBar((a.syncProgress / 100).toFloat(), Modifier.padding(top = 4.dp), color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                     Text(stringResource(R.string.a_raid_sync, a.syncAction, a.syncProgress.toInt(), a.syncFinish), style = MaterialTheme.typography.bodySmall)
                 }
                 if (a.usedBy.isNotEmpty()) Text(stringResource(R.string.a_used_by, a.usedBy), style = MaterialTheme.typography.bodySmall)

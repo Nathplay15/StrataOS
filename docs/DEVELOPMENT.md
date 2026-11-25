@@ -333,6 +333,7 @@ The 2-NAS high availability for files (`internal/ha`, keepalived + replication) 
 | `ui/adminkit/` | Building blocks of the management areas: screens with their own top bar and back, pull to refresh, confirmations (typed name for destructive actions), NAS jobs, authenticated pictures, save/share |
 | `ui/sync/` | Folder sync screens (account menu → Folder sync): pairs, their state, conflicts, skipped items, adding a pair |
 | `ui/surveillance/`, `ui/vms/`, `ui/vpn/`, `ui/users/`, `ui/fleet/`, `ui/nassettings/`, `ui/web/` | Management areas listed in `ui/SectionsB.kt` (their API calls in `net/Api<Area>.kt`) |
+| `ui/control/` | Control panel (the NAS settings area since 0.13.0): `ControlPanel.kt` lists every page of the web Control Panel in groups, native screens (`Tasks.kt` backups, scheduled tasks, routines; `Security.kt` advisor, address blocking, sessions, sign-in journal, antivirus; `System.kt` notification centre, system upgrade, energy and UPS, hardware, name and time, logs, certificates; API in `net/manage/ApiControl.kt`, JSON round-tripped like the web's `{...task, enabled}`) or web rows that open `WebArea` on their path (`LocalOpenWeb`). Every screen draws its header with `BrandTopBar` (`ui/Brand.kt`) |
 | `vnc/` | RFB client of the VM consoles (ZRLE, CopyRect, Raw, DesktopSize) over the NAS websocket |
 
 The server side is in `backend/internal/api/mobile*.go` (pairing, device tokens, uploads, events, push) and `backend/internal/webpush` (RFC 8291 encryption, VAPID); its end-to-end test is `vm/e2e.d/96-mobile-api.sh`. Since 0.8.0:

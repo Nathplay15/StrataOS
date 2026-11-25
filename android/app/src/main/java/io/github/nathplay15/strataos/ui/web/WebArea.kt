@@ -114,7 +114,9 @@ private class Pending(val name: String, val mime: String, val data: ByteArray? =
 
 @SuppressLint("SetJavaScriptEnabled") // the NAS's own web interface needs it; the page is checked (origin, certificate)
 @Composable
-fun WebArea(back: () -> Unit) {
+fun WebArea(back: () -> Unit, path: String = "/", title: String? = null) {
+    // Once the session page has landed on "/", the page asked for (a rare expert page).
+    var routed by remember(path) { mutableStateOf(path == "/") }
     val ctx = LocalContext.current
     val res = LocalResources.current
     val cfg = Graph.prefs.server
@@ -169,7 +171,7 @@ fun WebArea(back: () -> Unit) {
     val pageBack: () -> Unit = { val w = web; if (w != null && w.canGoBack()) w.goBack() else back() }
     DisposableEffect(Unit) { onDispose { web?.destroy() } }
 
-    AreaScreen(stringResource(R.string.area_web), onBack = back, systemBack = pageBack, actions = {
+    AreaScreen(title ?: stringResource(R.string.area_web), onBack = back, subtitle = if (title != null) stringResource(R.string.area_web) else null, systemBack = pageBack, actions = {
         IconButton(onClick = { if (start == null) attempt++ else web?.reload() }) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh)) }
     }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
@@ -215,6 +217,11 @@ fun WebArea(back: () -> Unit) {
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 if (sameOrigin(url?.toHttpUrlOrNull(), base)) view.evaluateJavascript(BLOB_HOOK, null)
+                                val u = url?.toHttpUrlOrNull()
+                                if (!routed && sameOrigin(u, base) && u?.encodedPath == "/") {
+                                    routed = true
+                                    view.loadUrl(base.toString().trimEnd('/') + path)
+                                }
                             }
                         }
                         webChromeClient = object : WebChromeClient() {

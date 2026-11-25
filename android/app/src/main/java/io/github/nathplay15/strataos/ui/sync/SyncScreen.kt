@@ -185,7 +185,7 @@ private fun PairCard(p: SyncPair, s: PairStatus, go: (String) -> Unit) {
             }
             Text(stringResource(R.string.sync_phone_line, p.localLabel, modeLabel(p.mode)), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (s.state == "syncing" && s.pending > 0) {
-                LinearProgressIndicator(progress = { s.done.toFloat() / s.pending }, Modifier.fillMaxWidth())
+                io.github.nathplay15.strataos.ui.ThinBar(s.done.toFloat() / s.pending, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                 if (s.current.isNotEmpty()) Text(s.current, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (s.state == "error" && s.error.isNotEmpty()) Text(s.error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -248,7 +248,7 @@ private fun PairDetail(p: SyncPair, s: PairStatus, onBack: () -> Unit, go: (Stri
                         if (s.lastSync > 0) Text(stringResource(R.string.sync_last, formatTime(s.lastSync)), style = MaterialTheme.typography.bodySmall)
                     }
                     if (s.state == "syncing" && s.pending > 0) {
-                        LinearProgressIndicator(progress = { s.done.toFloat() / s.pending }, Modifier.fillMaxWidth())
+                        io.github.nathplay15.strataos.ui.ThinBar(s.done.toFloat() / s.pending, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         Text(stringResource(R.string.sync_progress, s.done, s.pending, s.current), style = MaterialTheme.typography.bodySmall)
                     }
                     if (s.state == "error" && s.error.isNotEmpty()) Text(s.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)

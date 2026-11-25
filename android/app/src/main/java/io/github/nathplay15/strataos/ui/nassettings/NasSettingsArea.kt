@@ -86,9 +86,10 @@ import io.github.nathplay15.strataos.ui.formatDate
 // rest is in the Web interface area.
 
 @Composable
-fun NasSettingsArea(back: () -> Unit) {
-    var route by rememberSaveable { mutableStateOf("menu") }
-    val home = { route = "menu" }
+fun NasSettingsArea(back: () -> Unit, start: String = "menu") {
+    var route by rememberSaveable { mutableStateOf(start) }
+    // A screen opened directly (from Home or Me) goes back where it came from.
+    val home = { if (start != "menu") back() else route = "menu" }
     when (route) {
         "updates" -> UpdatesScreen(home)
         "notifications" -> NotificationsScreen(home)
@@ -97,27 +98,10 @@ fun NasSettingsArea(back: () -> Unit) {
         "security" -> SecurityScreen(home)
         "restore" -> RestoreScreen(home)
         "power" -> PowerScreen(home)
-        else -> AreaScreen(stringResource(R.string.area_nas_settings), back) { pad ->
-            val items = listOf(
-                Triple("updates", R.string.nas_updates, Icons.Default.SystemUpdate),
-                Triple("notifications", R.string.nas_notifications, Icons.Default.Notifications),
-                Triple("network", R.string.nas_network, Icons.Default.Lan),
-                Triple("services", R.string.nas_services, Icons.Default.Dns),
-                Triple("security", R.string.nas_security, Icons.Default.Security),
-                Triple("restore", R.string.nas_restore, Icons.Default.History),
-                Triple("power", R.string.nas_power, Icons.Default.PowerSettingsNew),
-            )
-            LazyColumn(Modifier.padding(pad).fillMaxSize()) {
-                items(items) { (id, label, icon) -> MenuRow(stringResource(label), icon) { route = id }; HorizontalDivider(Modifier.readable()) }
-                item { Text(stringResource(R.string.nas_more_web), Modifier.readable().padding(16.dp), style = MaterialTheme.typography.bodySmall) }
-            }
+        else -> if (!io.github.nathplay15.strataos.ui.control.ControlScreen(route, home)) {
+            io.github.nathplay15.strataos.ui.control.ControlMenu(back) { route = it }
         }
     }
-}
-
-@Composable
-private fun MenuRow(label: String, icon: ImageVector, open: () -> Unit) {
-    ListItem(modifier = Modifier.readable().clickable(onClick = open), leadingContent = { Icon(icon, null) }, headlineContent = { Text(label) })
 }
 
 // ---- Updates ----
