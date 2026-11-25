@@ -11,6 +11,7 @@ import { PairingPage } from "./pages/Pairing";
 import { useShellBridge } from "./lib/shell";
 import { NavCtx, useNav, type Nav } from "./lib/nav";
 import logo from "@nas/logo.svg";
+import { useUIStyleRoot } from "@nas/lib/uistyle";
 
 const rootClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } } });
 
@@ -28,6 +29,7 @@ export function App() {
 
 
 function Shell() {
+  useUIStyleRoot();
   const { state, error, accountId, isAdmin } = useApp();
   const [nav, setNav] = useState<Nav>({ page: "home" });
   const [adding, setAdding] = useState(false);
@@ -55,9 +57,11 @@ function Shell() {
         <main className="min-w-0 flex-1 overflow-y-auto">
           <AccountScope key={accountId}>
             <div className="mx-auto max-w-[1180px] px-7 py-6">
-              <PageBoundary key={page.id + accountId}>
-                <Page params={nav.params ?? {}} />
-              </PageBoundary>
+              <div key={page.id + accountId} className="shell-page">
+                <PageBoundary>
+                  <Page params={nav.params ?? {}} />
+                </PageBoundary>
+              </div>
             </div>
           </AccountScope>
         </main>
@@ -80,7 +84,7 @@ function Sidebar({ current }: { current: PageId }) {
   const { isAdmin } = useApp();
   const { go } = useNav();
   return (
-    <nav className="flex w-[232px] shrink-0 flex-col border-r border-line bg-panel">
+    <nav className="app-sidebar shell-bar flex w-[232px] shrink-0 flex-col border-r border-line bg-panel">
       <AccountSwitcher />
       <div className="flex-1 overflow-y-auto px-2.5 pb-3">
         {groups.map((g) => {
@@ -118,7 +122,7 @@ function AccountSwitcher() {
   }, [open]);
   const name = (a: typeof account) => a?.config.nasName || a?.config.server?.replace(/^https:\/\//, "") || "NAS";
   return (
-    <div className="relative border-b border-line p-2.5">
+    <div className="app-account relative border-b border-line p-2.5">
       <button onClick={(e) => { e.stopPropagation(); setOpen(!open); }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-panel-2">
         <img src={logo} alt="" className="h-8 w-8" />
         <div className="min-w-0 flex-1">

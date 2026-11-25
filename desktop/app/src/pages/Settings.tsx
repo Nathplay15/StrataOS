@@ -15,6 +15,7 @@ import { useApp } from "../lib/state";
 import { useNav } from "../lib/nav";
 import { languages, t, tk, type Lang } from "../lib/i18n";
 import { chosenLang, setChosenLang, setTheme, theme, type Theme } from "../lib/prefs";
+import { setReduceTransparency, setUIStyle, useUIStyle, type UIStyle } from "@nas/lib/uistyle";
 import { PageHeader, Section } from "../components/kit";
 import type { Account } from "../lib/types";
 
@@ -41,6 +42,7 @@ function AppSettings() {
   const { toast } = useUI();
   const [th, setTh] = useState<Theme>(theme());
   const [auto, setAuto] = useState<boolean | null>(null);
+  const look = useUIStyle();
   const integ = useQuery({ queryKey: ["integration"], queryFn: () => invoke<{ supported: boolean; enabled: boolean; how: string }>("integration_status") });
   useEffect(() => { autoIs().then(setAuto).catch(() => setAuto(null)); }, []);
   return (
@@ -65,8 +67,15 @@ function AppSettings() {
             <option value="dark">{t("Dark")}</option>
           </Select>
         </Field>
+        <Field label={t("Style")}>
+          <Select value={look.style} onChange={(e) => setUIStyle(e.target.value as UIStyle)}>
+            <option value="glass">{t("Glass")}</option>
+            <option value="modern">{t("Modern")}</option>
+          </Select>
+        </Field>
       </div>
       <div className="mt-4 space-y-3">
+        {look.style === "glass" && <Switch checked={look.solid} onChange={setReduceTransparency} label={t("Reduce transparency")} hint={t("Opaque panels, easier to read. Also on when the system asks for it.")} />}
         <Switch checked={!!auto} disabled={auto === null} onChange={async (v) => {
           try {
             if (v) await autoOn();

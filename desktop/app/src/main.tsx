@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { initTexts } from "./lib/i18n";
 import { applyTheme } from "./lib/prefs";
+import { applyUIStyle } from "@nas/lib/uistyle";
 
 applyTheme();
+applyUIStyle();
 
 // The dictionaries load before the interface modules run (some build their
 // labels when imported), hence the dynamic import of App.
