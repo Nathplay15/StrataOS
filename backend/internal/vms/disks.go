@@ -79,7 +79,7 @@ func AttachDisk(name string, sizeGB int) error {
 		n++
 	}
 	disk := filepath.Join(vm.Dir, fmt.Sprintf("disk%d.qcow2", n))
-	if _, err := sys.Run("qemu-img", "create", "-f", "qcow2", disk, strconv.Itoa(sizeGB)+"G"); err != nil {
+	if _, err := sys.Run("qemu-img", "create", "-f", "qcow2", "--", disk, strconv.Itoa(sizeGB)+"G"); err != nil {
 		return err
 	}
 	if err := grantQemu(disk, true); err != nil {

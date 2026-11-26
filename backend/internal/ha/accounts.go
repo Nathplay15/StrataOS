@@ -136,7 +136,7 @@ func ImportAccounts(a Accounts) []string {
 			}
 			continue
 		}
-		if _, err := sys.Run("groupadd", "-g", strconv.Itoa(g.GID), g.Name); err != nil {
+		if _, err := sys.Run("groupadd", "-g", strconv.Itoa(g.GID), "--", g.Name); err != nil {
 			problems = append(problems, "group "+g.Name+": "+err.Error())
 		}
 	}
@@ -154,8 +154,8 @@ func ImportAccounts(a Accounts) []string {
 				problems = append(problems, fmt.Sprintf("user %s has UID %s here, %d on the primary", u.Name, cur[2], u.UID))
 				continue
 			}
-			_, _ = sys.Run("usermod", "-c", gecos, "-s", shell, u.Name)
-		} else if _, err := sys.Run("useradd", "-M", "-u", strconv.Itoa(u.UID), "-g", strconv.Itoa(u.GID), "-s", shell, "-c", gecos, u.Name); err != nil {
+			_, _ = sys.Run("usermod", "-c", gecos, "-s", shell, "--", u.Name)
+		} else if _, err := sys.Run("useradd", "-M", "-u", strconv.Itoa(u.UID), "-g", strconv.Itoa(u.GID), "-s", shell, "-c", gecos, "--", u.Name); err != nil {
 			problems = append(problems, "user "+u.Name+": "+err.Error())
 			continue
 		}
@@ -168,7 +168,7 @@ func ImportAccounts(a Accounts) []string {
 	}
 	for _, g := range a.Groups {
 		if nameRe(g.Name) && g.GID >= 1000 && len(g.Members) > 0 {
-			_, _ = sys.Run("gpasswd", "-M", strings.Join(g.Members, ","), g.Name)
+			_, _ = sys.Run("gpasswd", "-M", strings.Join(g.Members, ","), "--", g.Name)
 		}
 	}
 	if a.SMB != "" && sys.Has("pdbedit") {

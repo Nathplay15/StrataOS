@@ -527,7 +527,7 @@ func (s *Server) createRecoveryAdmin(name, fullName, password string) error {
 		return err
 	}
 	if _, err := user.LookupGroup("sudo"); err == nil {
-		if _, err := sys.Run("usermod", "-a", "-G", "sudo", name); err != nil {
+		if _, err := sys.Run("usermod", "-a", "-G", "sudo", "--", name); err != nil {
 			slog.Warn("add recovered admin to sudo", "err", err)
 		}
 	}

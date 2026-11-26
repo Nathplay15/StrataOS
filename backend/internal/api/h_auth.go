@@ -105,7 +105,7 @@ func (s *Server) authRoutes() {
 		// ISO, root has no password and this account is the console/SSH way in.
 		// (sudo is a reserved group that StrataOS never lets users pick.)
 		if _, err := user.LookupGroup("sudo"); err == nil {
-			if _, err := sys.Run("usermod", "-a", "-G", "sudo", req.Username); err != nil {
+			if _, err := sys.Run("usermod", "-a", "-G", "sudo", "--", req.Username); err != nil {
 				slog.Warn("add first admin to sudo", "err", err)
 			}
 		}

@@ -172,7 +172,7 @@ func applySFTP(c store.FileServices, sftpOnly []string) error {
 		sort.Strings(sftpOnly)
 		members = strings.Join(sftpOnly, ",")
 	}
-	if _, err := sys.Run("gpasswd", "-M", members, SFTPGroup); err != nil {
+	if _, err := sys.Run("gpasswd", "-M", members, "--", SFTPGroup); err != nil {
 		return err
 	}
 	old, _ := os.ReadFile(SSHDConf)

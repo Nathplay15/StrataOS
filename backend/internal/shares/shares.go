@@ -159,10 +159,10 @@ func Prepare(sh *store.Share) error {
 	specs = append(specs, "m::rwx", "d:m::rwx")
 	// setfacl gets the already-open directory through /proc, never the raw path.
 	byFD := fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), f.Fd())
-	if _, err := sys.Run("setfacl", "-b", "-k", byFD); err != nil {
+	if _, err := sys.Run("setfacl", "-b", "-k", "--", byFD); err != nil {
 		return err
 	}
-	_, err = sys.Run("setfacl", "-m", strings.Join(specs, ","), byFD)
+	_, err = sys.Run("setfacl", "-m", strings.Join(specs, ","), "--", byFD)
 	return err
 }
 

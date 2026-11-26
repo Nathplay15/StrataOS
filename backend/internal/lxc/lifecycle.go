@@ -259,17 +259,17 @@ func ensureTraverse(s *Spec) {
 		if err != nil || fi.Mode().Perm()&0o001 != 0 {
 			continue
 		}
-		out, _ := sys.Run("getfacl", "-cp", d)
+		out, _ := sys.Run("getfacl", "-cp", "--", d)
 		if aclSearchable(out, uid) {
 			continue
 		}
-		_, _ = sys.Run("setfacl", "-m", "u:"+uid+":x", d)
+		_, _ = sys.Run("setfacl", "-m", "u:"+uid+":x", "--", d)
 		// StrataOS sets 0700 on its data folder at each start, which empties
 		// the ACL mask: give the mask its search bit back (group entries keep
 		// their own bits, so nothing else changes).
-		out, _ = sys.Run("getfacl", "-cp", d)
+		out, _ = sys.Run("getfacl", "-cp", "--", d)
 		if m := aclMask(out); m != "" && !aclSearchable(out, uid) {
-			_, _ = sys.Run("setfacl", "-m", "m::"+m[:2]+"x", d)
+			_, _ = sys.Run("setfacl", "-m", "m::"+m[:2]+"x", "--", d)
 		}
 	}
 }

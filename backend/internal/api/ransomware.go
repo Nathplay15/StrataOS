@@ -209,7 +209,7 @@ func (s *Server) ransomAlert(user, ip, share, reason string) {
 		_ = s.applyShares()
 		closeSMBSessions(user) // sessions opened meanwhile
 		// SFTP and FTP: lock the password and end the running sessions.
-		_, _ = sys.Run("usermod", "-L", user)
+		_, _ = sys.Run("usermod", "-L", "--", user)
 		_, _ = sys.Run("pkill", "-KILL", "-u", user)
 		msg += ". The account is blocked on the shares: check the computer, then unblock it in Antivirus"
 	}
@@ -355,7 +355,7 @@ func (s *Server) ransomRoutes() {
 			return nil, err
 		}
 		if !disabled {
-			_, _ = sys.Run("usermod", "-U", req.User)
+			_, _ = sys.Run("usermod", "-U", "--", req.User)
 		}
 		ransomW.reset(req.User)
 		s.audit(r, "ransomware", "Unblocked "+req.User)

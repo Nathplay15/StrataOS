@@ -85,6 +85,9 @@ func LinuxUserExists(name string) bool {
 
 // Create creates (or adopts) the Linux account and its Samba password.
 func Create(name, fullName, password string, groups []string, ssh bool) error {
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
 	EnsureBaseGroup()
 	gs := append([]string{BaseGroup}, groups...)
 	for _, g := range groups {
@@ -93,11 +96,11 @@ func Create(name, fullName, password string, groups []string, ssh bool) error {
 		}
 	}
 	if LinuxUserExists(name) {
-		if _, err := sys.Run("usermod", "-a", "-G", strings.Join(gs, ","), name); err != nil {
+		if _, err := sys.Run("usermod", "-a", "-G", strings.Join(gs, ","), "--", name); err != nil {
 			return err
 		}
 	} else {
-		args := []string{"-m", "-s", shell(ssh), "-G", strings.Join(gs, ","), "-c", sanitizeGecos(fullName), name}
+		args := []string{"-m", "-s", shell(ssh), "-G", strings.Join(gs, ","), "-c", sanitizeGecos(fullName), "--", name}
 		if _, err := sys.Run("useradd", args...); err != nil {
 			return err
 		}
@@ -115,6 +118,9 @@ func sanitizeGecos(s string) string {
 }
 
 func SetPassword(name, password string) error {
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
 	if _, err := sys.RunInput(name+":"+password+"\n", "chpasswd"); err != nil {
 		return err
 	}
@@ -127,13 +133,19 @@ func SetPassword(name, password string) error {
 }
 
 func Update(name, fullName string, ssh bool) error {
-	_, err := sys.Run("usermod", "-c", sanitizeGecos(fullName), "-s", shell(ssh), name)
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
+	_, err := sys.Run("usermod", "-c", sanitizeGecos(fullName), "-s", shell(ssh), "--", name)
 	return err
 }
 
 func SetEnabled(name string, enabled bool) error {
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
 	if enabled {
-		if _, err := sys.Run("usermod", "-U", name); err != nil {
+		if _, err := sys.Run("usermod", "-U", "--", name); err != nil {
 			return err
 		}
 		if sys.Has("smbpasswd") {
@@ -141,7 +153,7 @@ func SetEnabled(name string, enabled bool) error {
 		}
 		return nil
 	}
-	if _, err := sys.Run("usermod", "-L", name); err != nil {
+	if _, err := sys.Run("usermod", "-L", "--", name); err != nil {
 		return err
 	}
 	if sys.Has("smbpasswd") {
@@ -151,6 +163,9 @@ func SetEnabled(name string, enabled bool) error {
 }
 
 func Delete(name string, removeHome bool) error {
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
 	if sys.Has("smbpasswd") {
 		_, _ = sys.Run("smbpasswd", "-x", name)
 	}
@@ -159,7 +174,7 @@ func Delete(name string, removeHome bool) error {
 	if removeHome {
 		args = append(args, "-r")
 	}
-	_, err := sys.Run("userdel", append(args, name)...)
+	_, err := sys.Run("userdel", append(args, "--", name)...)
 	return err
 }
 
@@ -191,7 +206,7 @@ func nssGroups(name string) []string {
 	}
 	// id -Gn separates names with spaces, which domain group names contain:
 	// resolve the numeric IDs one by one instead.
-	ids, err := sys.Run("id", "-G", name)
+	ids, err := sys.Run("id", "-G", "--", name)
 	if err != nil {
 		return out
 	}
@@ -210,6 +225,9 @@ func nssGroups(name string) []string {
 
 // SetUserGroups replaces the supplementary groups of a user.
 func SetUserGroups(name string, groups []string) error {
+	if err := sys.NoOption(name); err != nil {
+		return err
+	}
 	gs := []string{BaseGroup}
 	// Memberships the account already has (e.g. sudo on an adopted Debian user)
 	// may be kept; only new privileged ones are refused.
@@ -226,7 +244,7 @@ func SetUserGroups(name string, groups []string) error {
 		gs = append(gs, g)
 	}
 	// Keep docker membership when an admin set it.
-	_, err := sys.Run("usermod", "-G", strings.Join(gs, ","), name)
+	_, err := sys.Run("usermod", "-G", strings.Join(gs, ","), "--", name)
 	return err
 }
 
@@ -284,7 +302,7 @@ func CreateGroup(name string) error {
 	if err := ValidName(name); err != nil {
 		return err
 	}
-	_, err := sys.Run("groupadd", name)
+	_, err := sys.Run("groupadd", "--", name)
 	return err
 }
 
@@ -292,7 +310,7 @@ func DeleteGroup(name string) error {
 	if err := ValidName(name); err != nil {
 		return err
 	}
-	_, err := sys.Run("groupdel", name)
+	_, err := sys.Run("groupdel", "--", name)
 	return err
 }
 
@@ -305,7 +323,7 @@ func SetGroupMembers(name string, members []string) error {
 			return fmt.Errorf("invalid member name %q", m)
 		}
 	}
-	_, err := sys.Run("gpasswd", "-M", strings.Join(members, ","), name)
+	_, err := sys.Run("gpasswd", "-M", strings.Join(members, ","), "--", name)
 	return err
 }
 

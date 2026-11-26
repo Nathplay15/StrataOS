@@ -518,11 +518,11 @@ func Wipe(path string) error {
 			return fmt.Errorf("%s is in use (%s)", path, d.ActiveBy)
 		}
 		for _, c := range d.Children {
-			_, _ = sys.Run("wipefs", "-a", c.Path)
+			_, _ = sys.Run("wipefs", "-a", "--", c.Path)
 		}
 	}
 	_, _ = sys.Run("mdadm", "--zero-superblock", "--force", path)
-	if _, err := sys.Run("wipefs", "-a", "-f", path); err != nil {
+	if _, err := sys.Run("wipefs", "-a", "-f", "--", path); err != nil {
 		return err
 	}
 	_, _ = sys.Run("sgdisk", "--zap-all", path)

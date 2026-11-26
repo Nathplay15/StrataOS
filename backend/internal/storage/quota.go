@@ -120,6 +120,9 @@ func SetUserQuota(t QuotaTarget, user string, bytes int64) error {
 	if bytes < 0 {
 		return fmt.Errorf("invalid limit")
 	}
+	if err := sys.NoOption(user); err != nil {
+		return err
+	}
 	switch t.Kind {
 	case "zfs":
 		if err := validDS(t.Target); err != nil {

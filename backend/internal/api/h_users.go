@@ -33,7 +33,7 @@ type userView struct {
 }
 
 func (s *Server) addToDockerGroup(name string) error {
-	_, err := sys.Run("usermod", "-a", "-G", "docker", name)
+	_, err := sys.Run("usermod", "-a", "-G", "docker", "--", name)
 	return err
 }
 

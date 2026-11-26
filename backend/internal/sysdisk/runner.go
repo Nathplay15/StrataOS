@@ -442,7 +442,7 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 // (files vanished during the copy) are reported, not fatal.
 func (r *Run) rsync(w *progressWriter, extra []string, src, dst string) error {
 	args := append([]string{"-aHAXx", "--numeric-ids", "--info=progress2", "--no-inc-recursive"}, extra...)
-	args = append(args, src, dst)
+	args = append(args, "--", src, dst)
 	r.Logf("$ rsync %s", strings.Join(args, " "))
 	_, err := sys.RunOpts(r.Ctx, sys.Opts{Timeout: -1, Output: w}, "rsync", args...)
 	var ce *sys.CmdError
@@ -509,7 +509,7 @@ func (r *Run) Copy(l Layout, final bool) error {
 			}
 			// FAT: no owners, permissions or links.
 			args := append([]string{"-rt", "--modify-window=2"}, excl...)
-			if _, err := r.run("rsync", append(args, m.Target+"/", dst)...); err != nil {
+			if _, err := r.run("rsync", append(args, "--", m.Target+"/", dst)...); err != nil {
 				return err
 			}
 			continue

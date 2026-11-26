@@ -208,7 +208,7 @@ func (im *importer) groups() {
 			return err
 		}
 		if g.GID >= 1000 && g.GID < 60000 && gidFree(g.GID) {
-			_, err := sys.Run("groupadd", "-g", strconv.Itoa(g.GID), g.Name)
+			_, err := sys.Run("groupadd", "-g", strconv.Itoa(g.GID), "--", g.Name)
 			return err
 		}
 		return accounts.CreateGroup(g.Name)
@@ -358,11 +358,11 @@ func (im *importer) createUser(u confbackup.User) error {
 			im.j.Logf("users: UID %d of %s is taken here: files on moved disks may need a new owner", u.UID, u.Username)
 		}
 		if u.GID >= 1000 && u.GID < 60000 && gidFree(u.GID) {
-			if _, err := sys.Run("groupadd", "-g", strconv.Itoa(u.GID), u.Username); err == nil {
+			if _, err := sys.Run("groupadd", "-g", strconv.Itoa(u.GID), "--", u.Username); err == nil {
 				args = append(args, "-g", u.Username)
 			}
 		}
-		if _, err := sys.Run("useradd", append(args, u.Username)...); err != nil {
+		if _, err := sys.Run("useradd", append(args, "--", u.Username)...); err != nil {
 			return err
 		}
 	}

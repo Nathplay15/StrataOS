@@ -188,7 +188,7 @@ func buildSeed(dir, meta, user, network string) (string, error) {
 	}
 	// The folder sits in a shared folder: keep its ACLs (and the password hash) out.
 	if sys.Has("setfacl") {
-		_, _ = sys.Run("setfacl", "-b", cdir)
+		_, _ = sys.Run("setfacl", "-b", "--", cdir)
 	}
 	files := map[string]string{"meta-data": meta, "user-data": user}
 	if network != "" {
@@ -204,7 +204,7 @@ func buildSeed(dir, meta, user, network string) (string, error) {
 				return "", err
 			}
 			if sys.Has("setfacl") {
-				_, _ = sys.Run("setfacl", "-b", p)
+				_, _ = sys.Run("setfacl", "-b", "--", p)
 			}
 			paths = append(paths, p)
 		}

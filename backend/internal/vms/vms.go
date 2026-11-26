@@ -203,7 +203,7 @@ func Get(name string) (*VM, error) {
 			disk.Source = "rbd:" + dk.Source.Name
 		}
 		if dk.Device == "disk" && dk.Source.File != "" {
-			if info, err := sys.Run("qemu-img", "info", "--force-share", "--output=json", dk.Source.File); err == nil {
+			if info, err := sys.Run("qemu-img", "info", "--force-share", "--output=json", "--", dk.Source.File); err == nil {
 				if m := regexp.MustCompile(`"virtual-size":\s*(\d+)`).FindStringSubmatch(info); m != nil {
 					disk.Size, _ = strconv.ParseInt(m[1], 10, 64)
 				}
@@ -342,15 +342,15 @@ func grantQemu(p string, write bool) error {
 		return nil
 	}
 	for d := filepath.Dir(p); strings.HasPrefix(d, "/srv/strata"); d = filepath.Dir(d) {
-		if _, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":x", d); err != nil {
+		if _, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":x", "--", d); err != nil {
 			return err
 		}
 	}
 	if write {
-		_, err := sys.Run("setfacl", "-R", "-m", "u:"+qemuUser+":rwX,d:u:"+qemuUser+":rwX", p)
+		_, err := sys.Run("setfacl", "-R", "-m", "u:"+qemuUser+":rwX,d:u:"+qemuUser+":rwX", "--", p)
 		return err
 	}
-	_, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":r", p)
+	_, err := sys.Run("setfacl", "-m", "u:"+qemuUser+":r", "--", p)
 	return err
 }
 

@@ -411,14 +411,14 @@ func DeleteRaid(name string) error {
 	}
 	Lock.Lock()
 	defer Lock.Unlock()
-	_, _ = sys.Run("wipefs", "-a", a.Device)
+	_, _ = sys.Run("wipefs", "-a", "--", a.Device)
 	if _, err := sys.Run("mdadm", "--stop", a.Device); err != nil {
 		return err
 	}
 	for _, m := range a.Members {
 		if m.Device != "" {
 			_, _ = sys.Run("mdadm", "--zero-superblock", m.Device)
-			_, _ = sys.Run("wipefs", "-a", m.Device)
+			_, _ = sys.Run("wipefs", "-a", "--", m.Device)
 		}
 	}
 	return SaveMdadmConf()

@@ -114,7 +114,7 @@ func Backup(ctx context.Context, logf func(string, ...any), l Layout, folder, ve
 	for _, d := range []string{filepath.Join(folder, BackupDir), dir} {
 		_ = os.Chmod(d, 0o700)
 		if sys.Has("setfacl") {
-			if _, err := sys.Run("setfacl", "-b", d); err != nil {
+			if _, err := sys.Run("setfacl", "-b", "--", d); err != nil {
 				return m, "", fmt.Errorf("could not restrict the access to %s: %v", d, err)
 			}
 		}

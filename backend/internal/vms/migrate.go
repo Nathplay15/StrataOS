@@ -111,7 +111,7 @@ func MigrationInfo(name string) (*MigInfo, error) {
 			md.Source = dk.Source.Dev
 		}
 		if dk.Device == "disk" && md.Source != "" && dk.Type == "file" {
-			if info, err := sys.Run("qemu-img", "info", "--force-share", "--output=json", md.Source); err == nil {
+			if info, err := sys.Run("qemu-img", "info", "--force-share", "--output=json", "--", md.Source); err == nil {
 				if m := regexp.MustCompile(`"virtual-size":\s*(\d+)`).FindStringSubmatch(info); m != nil {
 					md.Size, _ = strconv.ParseInt(m[1], 10, 64)
 				}
@@ -515,7 +515,7 @@ func PrepareDisks(dir string, disks []DiskSpec) error {
 			_ = os.RemoveAll(d)
 			return fmt.Errorf("invalid disk %s", x.Path)
 		}
-		if _, err := sys.Run("qemu-img", "create", "-f", x.Format, p, strconv.FormatInt(x.Size, 10)); err != nil {
+		if _, err := sys.Run("qemu-img", "create", "-f", x.Format, "--", p, strconv.FormatInt(x.Size, 10)); err != nil {
 			_ = os.RemoveAll(d)
 			return err
 		}

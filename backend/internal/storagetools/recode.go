@@ -95,7 +95,7 @@ func PlanRecode(ctx context.Context, root string, minSize int64, progress Recode
 // videoCodec returns the codec of the first video stream, "" when unknown.
 func videoCodec(path string) string {
 	out, err := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0",
-		"-show_entries", "stream=codec_name", "-of", "csv=p=0", path).Output()
+		"-show_entries", "stream=codec_name", "-of", "csv=p=0", "-i", path).Output()
 	if err != nil {
 		return ""
 	}
@@ -237,7 +237,7 @@ func sameDuration(a, b float64) bool {
 
 // duration of a file in seconds, 0 when unknown.
 func duration(path string) float64 {
-	out, err := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path).Output()
+	out, err := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", "-i", path).Output()
 	if err != nil {
 		return 0
 	}

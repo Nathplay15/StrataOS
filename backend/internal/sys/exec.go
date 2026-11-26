@@ -208,3 +208,23 @@ func GroupKill(cmd *exec.Cmd) {
 	// by children that ignored the signal (and SIGKILLs the leader).
 	cmd.WaitDelay = KillGrace + 2*time.Second
 }
+
+// NoOption rejects values that a command-line tool could mistake for an
+// option. Use it on user-controlled positional operands for tools that do not
+// accept "--" (smbpasswd, pdbedit, zfs, zpool, lv*, vgcreate...).
+func NoOption(v string) error {
+	if strings.HasPrefix(v, "-") {
+		return fmt.Errorf("invalid value %q: must not start with '-'", v)
+	}
+	return nil
+}
+
+// NoOptions applies NoOption to every value.
+func NoOptions(vs ...string) error {
+	for _, v := range vs {
+		if err := NoOption(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
