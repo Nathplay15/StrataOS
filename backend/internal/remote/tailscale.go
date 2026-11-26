@@ -275,7 +275,9 @@ func ApplyTailscale(c store.Tailscale, lan string) error {
 	}
 	if c.AdvertiseLAN || c.ExitNode {
 		// Routing for the other machines of the tailnet.
-		_ = os.WriteFile("/etc/sysctl.d/90-strata-tailscale.conf", []byte("net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n"), 0o644)
+		if err := os.WriteFile("/etc/sysctl.d/90-strata-tailscale.conf", []byte("net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n"), 0o644); err != nil {
+			return fmt.Errorf("routing not enabled: %w", err)
+		}
 		_, _ = sys.Run("sysctl", "-q", "-p", "/etc/sysctl.d/90-strata-tailscale.conf")
 	}
 	_, err := sys.Run("tailscale", TailscaleSetArgs(c, lan)...)

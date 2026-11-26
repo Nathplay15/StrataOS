@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strataos/internal/sys"
 	"strconv"
 	"strings"
 	"time"
@@ -56,11 +57,9 @@ type State struct {
 // LoadState reads the state file; a missing file is an empty state.
 func LoadState(path string) State {
 	var st State
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return st
+	if sys.LoadJSON(path, &st) != nil {
+		return State{}
 	}
-	_ = json.Unmarshal(b, &st)
 	return st
 }
 

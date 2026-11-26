@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -53,7 +54,11 @@ func (s *Server) mediaSecret() []byte {
 	}
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
-	_ = os.WriteFile(p, b, 0o600)
+	if err := os.WriteFile(p, b, 0o600); err != nil {
+		// Kept in memory only: the links and keys made with it stop
+		// working at the next restart.
+		slog.Error("key not saved", "file", p, "err", err)
+	}
 	mediaKey = b
 	return b
 }

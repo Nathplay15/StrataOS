@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -59,9 +58,7 @@ func (s *Server) feedLoadLocked() {
 		return
 	}
 	feed.loaded = true
-	if data, err := os.ReadFile(s.feedPath()); err == nil {
-		_ = json.Unmarshal(data, feed)
-	}
+	_ = sys.LoadJSON(s.feedPath(), feed)
 	if feed.Next < 1 {
 		feed.Next = 1
 	}

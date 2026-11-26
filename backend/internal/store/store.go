@@ -4,6 +4,8 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strataos/internal/energy"
@@ -869,9 +871,10 @@ const maxEvents = 2000
 
 // Store guards State behind a mutex and persists it on every mutation.
 type Store struct {
-	mu   sync.RWMutex
-	path string
-	st   State
+	mu    sync.RWMutex
+	path  string
+	st    State
+	saved []byte // the state as last written (or read): restored when a write fails
 }
 
 // schema is the current layout version of the state file.
@@ -888,12 +891,28 @@ func Open(dir string) (*Store, error) {
 	s := &Store{path: filepath.Join(dir, "state.json")}
 	s.st.Settings = Settings{Workgroup: "WORKGROUP", ServerString: "StrataOS", SessionHours: 12, SMBMinProto: "SMB2_10", SMTPPort: 587, TrashDays: 30}
 	s.st.Schema = schema
+	defaults := s.st.Settings
 	data, err := os.ReadFile(s.path)
 	if err == nil {
 		s.st.Schema = 0
 		if err := json.Unmarshal(data, &s.st); err != nil {
-			return nil, err
+			// Damaged: kept aside, and the copy of the last good start used.
+			bad := err
+			_ = sys.LoadJSON(s.path, &State{})
+			prev, perr := os.ReadFile(s.path + ".prev")
+			if perr != nil {
+				return nil, bad
+			}
+			s.st = State{Settings: defaults}
+			if err := json.Unmarshal(prev, &s.st); err != nil {
+				return nil, bad
+			}
+			slog.Error("state.json damaged: the copy of the last start is used", "err", bad)
+			data = prev
 		}
+		s.saved = data
+		// The copy of a good state, for a damaged state.json.
+		_ = sys.WriteFileAtomic(s.path+".prev", data, 0o600)
 		// Before 0.5, notifications were in French by default.
 		if s.st.Schema < 1 && s.st.Settings.NotifyLang == "" && len(s.st.Users) > 0 {
 			s.st.Settings.NotifyLang = "fr"
@@ -910,8 +929,15 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	return sys.WriteFileAtomic(s.path, data, 0o600)
+	if err := sys.WriteFileAtomic(s.path, data, 0o600); err != nil {
+		return err
+	}
+	s.saved = data
+	return nil
 }
+
+// ErrNotSaved wraps a failure to write the state (disk full, read-only).
+var ErrNotSaved = errors.New("the change could not be saved on the system disk (full or read-only?)")
 
 // Read runs fn with a read lock.
 func (s *Store) Read(fn func(st *State)) {
@@ -927,7 +953,21 @@ func (s *Store) Update(fn func(st *State) error) error {
 	if err := fn(&s.st); err != nil {
 		return err
 	}
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// What is in memory must stay what is on disk: a setting that
+		// seems applied but is lost at the next restart is worse than an
+		// error now.
+		if s.saved != nil {
+			fresh := State{}
+			if json.Unmarshal(s.saved, &fresh) == nil {
+				fresh.Schema = schema
+				s.st = fresh
+			}
+		}
+		slog.Error("state not saved", "err", err)
+		return fmt.Errorf("%w: %v", ErrNotSaved, err)
+	}
+	return nil
 }
 
 // LogLocked records an event from inside an Update callback (the lock is held).

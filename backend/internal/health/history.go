@@ -114,9 +114,7 @@ func fileName(key string) string {
 }
 
 func (s *Store) load(path string, v any) {
-	if b, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(b, v)
-	}
+	_ = sys.LoadJSON(path, v)
 }
 
 func (s *Store) save(path string, v any) error {

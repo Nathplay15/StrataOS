@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strataos/internal/sys"
 	"sync"
 	"time"
 )
@@ -131,9 +132,7 @@ func Open(dir string) (*Provider, error) {
 				return nil, err
 			}
 		}
-		if b, err := os.ReadFile(filepath.Join(dir, "tokens.json")); err == nil {
-			_ = json.Unmarshal(b, &p.d)
-		}
+		_ = sys.LoadJSON(filepath.Join(dir, "tokens.json"), &p.d)
 		if p.d.Access == nil {
 			p.d.Access = map[string]*Token{}
 		}

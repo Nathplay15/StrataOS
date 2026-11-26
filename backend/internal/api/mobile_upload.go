@@ -77,9 +77,7 @@ func (s *Server) uploadsLoadLocked() {
 		return
 	}
 	uploads.loaded = true
-	if data, err := os.ReadFile(s.uploadsPath()); err == nil {
-		_ = json.Unmarshal(data, &uploads.m)
-	}
+	_ = sys.LoadJSON(s.uploadsPath(), &uploads.m)
 	if uploads.m == nil {
 		uploads.m = map[string]*mobileUpload{}
 	}

@@ -90,7 +90,9 @@ func passFile(t *store.BackupTask) string {
 	}
 	f := filepath.Join(SecretDir, "ssh-"+id)
 	_ = os.MkdirAll(SecretDir, 0o700)
-	_ = sys.WriteFileAtomic(f, []byte(t.SSHPassword), 0o600)
+	if err := sys.WriteFileAtomic(f, []byte(t.SSHPassword), 0o600); err != nil {
+		slog.Error("backup SSH password not written", "task", t.Name, "err", err)
+	}
 	return f
 }
 

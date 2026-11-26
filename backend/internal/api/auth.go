@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -56,8 +55,8 @@ type sessions struct {
 
 func newSessions(path string) *sessions {
 	s := &sessions{m: map[string]*session{}, path: path}
-	if data, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(data, &s.m)
+	if err := sys.LoadJSON(path, &s.m); err != nil || s.m == nil {
+		s.m = map[string]*session{}
 	}
 	s.mu.Lock()
 	s.pruneLocked()

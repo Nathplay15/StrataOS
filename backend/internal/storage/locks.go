@@ -82,11 +82,19 @@ func unlockZFSIfExpired(snap string, recursive bool) error {
 func btrfsLocksPath(mp string) string { return filepath.Join(mp, ".snapshots", ".locks.json") }
 
 func btrfsLocks(mp string) map[string]int64 {
-	m := map[string]int64{}
-	if b, err := os.ReadFile(btrfsLocksPath(mp)); err == nil {
-		_ = json.Unmarshal(b, &m)
-	}
+	m, _ := btrfsLocksErr(mp)
 	return m
+}
+
+// btrfsLocksErr also reports a damaged lock file (never rewritten then:
+// the locks it holds would be lost).
+func btrfsLocksErr(mp string) (map[string]int64, error) {
+	m := map[string]int64{}
+	err := sys.LoadJSON(btrfsLocksPath(mp), &m)
+	if m == nil {
+		m = map[string]int64{}
+	}
+	return m, err
 }
 
 // setAppendOnly toggles chattr +a on the .snapshots folder.
@@ -103,7 +111,10 @@ func setAppendOnly(mp string, on bool) error {
 func LockBtrfsSnapshot(mp, name string, until time.Time) error {
 	btrfsLockMu.Lock()
 	defer btrfsLockMu.Unlock()
-	m := btrfsLocks(mp)
+	m, err := btrfsLocksErr(mp)
+	if err != nil {
+		return err
+	}
 	m[name] = until.Unix()
 	// Forget locks of snapshots that no longer exist or have expired.
 	for n, t := range m {
@@ -113,7 +124,7 @@ func LockBtrfsSnapshot(mp, name string, until time.Time) error {
 	}
 	b, _ := json.Marshal(m)
 	_ = setAppendOnly(mp, false)
-	err := sys.WriteFileAtomic(btrfsLocksPath(mp), b, 0o600)
+	err = sys.WriteFileAtomic(btrfsLocksPath(mp), b, 0o600)
 	if e := setAppendOnly(mp, true); err == nil {
 		err = e
 	}
