@@ -7,13 +7,12 @@ import (
 	"strings"
 
 	"strataos/internal/i18n"
-	"strataos/internal/store"
 )
 
 // reqLang is the language the caller reads: the first known language of
 // its Accept-Language header (the web interface, the desktop and Android
-// apps send theirs), else the saved language of the signed-in user, else
-// English.
+// apps send theirs), else English. Not the user's saved language: scripts
+// and other API clients that send no header keep English errors to match.
 func (s *Server) reqLang(r *http.Request) string {
 	for _, part := range strings.Split(r.Header.Get("Accept-Language"), ",") {
 		tag, _, _ := strings.Cut(strings.TrimSpace(part), ";")
@@ -23,19 +22,6 @@ func (s *Server) reqLang(r *http.Request) string {
 		}
 		if i18n.Valid(l) {
 			return l
-		}
-	}
-	if u := userOf(r); u != "" && s.store != nil {
-		lang := ""
-		s.store.Read(func(st *store.State) {
-			for _, x := range st.Users {
-				if x.Username == u {
-					lang = x.Lang
-				}
-			}
-		})
-		if i18n.Valid(lang) {
-			return lang
 		}
 	}
 	return "en"
