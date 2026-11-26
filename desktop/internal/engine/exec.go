@@ -128,9 +128,33 @@ func fileHash(p string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// linkedParent tells whether a folder on the way to rel (inside the sync
+// folder) is a symbolic link: writing or deleting there would act outside
+// the folder, and its content is not "deleted" either.
+func (pr *pairRun) linkedParent(rel string) bool {
+	parts := strings.Split(rel, "/")
+	cur := pr.p.Local
+	for _, part := range parts[:len(parts)-1] {
+		cur = filepath.Join(cur, part)
+		fi, err := os.Lstat(cur)
+		if err != nil {
+			return false
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // exec runs one op.
 func (pr *pairRun) exec(ctx context.Context, o op) error {
 	e := pr.e
+	for _, p := range []string{pathOfL(o.l), pathOfR(o.r), pathOfB(o.b), o.toLocal} {
+		if p != "" && pr.linkedParent(p) {
+			return errSkip
+		}
+	}
 	switch o.kind {
 	case opRecord:
 		return pr.record(o.key, o.l.Path, o.r, "")
@@ -245,6 +269,7 @@ func (pr *pairRun) exec(ctx context.Context, o op) error {
 		}
 		pr.dropRemote(o.b.Path)
 		pr.forget(o.key)
+		pr.noteDeleted(o.b.Dir)
 		return nil
 
 	case opDeleteLocal:
@@ -264,9 +289,44 @@ func (pr *pairRun) exec(ctx context.Context, o op) error {
 			return fmt.Errorf("move to the trash: %w", err)
 		}
 		pr.forget(o.key)
+		pr.noteDeleted(o.b.Dir)
 		return nil
 	}
 	return nil
+}
+
+func pathOfL(l *LocalEntry) string {
+	if l == nil {
+		return ""
+	}
+	return l.Path
+}
+
+func pathOfR(r *RemoteEntry) string {
+	if r == nil {
+		return ""
+	}
+	return r.Path
+}
+
+func pathOfB(b *BaseEntry) string {
+	if b == nil {
+		return ""
+	}
+	return b.local()
+}
+
+// noteDeleted counts a file deleted on either side for the brake (not
+// during a round the user allowed).
+func (pr *pairRun) noteDeleted(dir bool) {
+	if dir {
+		return
+	}
+	pr.smu.Lock()
+	if !pr.allowedRound {
+		pr.deleted = append(pr.deleted, pr.e.opt.Now())
+	}
+	pr.smu.Unlock()
 }
 
 // onlyJunk tells whether a local folder holds nothing synchronized.
@@ -299,7 +359,9 @@ func (pr *pairRun) conflict(ctx context.Context, o op) error {
 	}
 	pr.forget(o.key)
 	pr.e.event(Event{Kind: "conflict", Pair: pr.p.ID, Path: o.l.Path, Msg: name})
+	pr.smu.Lock()
 	pr.conflicts++
+	pr.smu.Unlock()
 	if o.r.Dir {
 		if err := os.MkdirAll(pr.abs(o.r.Path), 0o755); err != nil {
 			return err
@@ -375,8 +437,21 @@ func (pr *pairRun) download(ctx context.Context, key string, r *RemoteEntry, wan
 	w := &progressWriter{w: f, n: off, f: func(n int64) { pr.setCurrent(r.Path, r.Size, n) }}
 	var hasher io.Writer
 	h := sha256.New()
-	if off == 0 && r.Hash != "" {
+	if r.Hash != "" {
 		hasher = h
+		if off > 0 {
+			// Resumed: the bytes already there are part of the checksum
+			// (a part file damaged by a crash is caught).
+			if rf, err := os.Open(part); err == nil {
+				_, err = io.CopyN(h, rf, off)
+				rf.Close()
+				if err != nil {
+					f.Close()
+					os.Remove(part)
+					return fmt.Errorf("resume %s: %w", r.Path, err)
+				}
+			}
+		}
 	}
 	var dst io.Writer = w
 	if hasher != nil {
@@ -527,7 +602,9 @@ func (pr *pairRun) uploadConflict(ctx context.Context, key string, l *LocalEntry
 		return err
 	}
 	pr.forget(key)
+	pr.smu.Lock()
 	pr.conflicts++
+	pr.smu.Unlock()
 	pr.e.event(Event{Kind: "conflict", Pair: pr.p.ID, Path: l.Path, Msg: name})
 	if c.UploadID != "" {
 		pr.setRemote(r)

@@ -92,6 +92,13 @@ func localNameProblem(name string, goos string) string {
 	if !utf8.ValidString(name) {
 		return "invalid characters"
 	}
+	// Never a way out of the folder, whatever the NAS sends.
+	switch {
+	case name == "" || name == "." || name == "..":
+		return "invalid name"
+	case strings.ContainsRune(name, 0) || (goos != "windows" && strings.ContainsRune(name, '/')):
+		return "the name contains a character this computer refuses"
+	}
 	if goos != "windows" {
 		return ""
 	}

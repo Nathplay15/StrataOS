@@ -27,6 +27,7 @@ type E2ERemote struct {
 
 	mu      sync.RWMutex
 	folders map[string]*e2eFolder
+	undec   map[string]map[string]bool // folder → encrypted paths that did not decrypt
 }
 
 type e2eFolder struct {
@@ -46,6 +47,25 @@ func (r *E2ERemote) SetFolder(folder, id string, k *e2e.Keys) {
 		return
 	}
 	r.folders[folder] = &e2eFolder{id: id, k: k}
+}
+
+// HasFolder tells whether the keys of folder are set.
+func (r *E2ERemote) HasFolder(folder string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.folders[folder] != nil
+}
+
+// ErrWrongKey: items of an encrypted folder do not decrypt with its key
+// (a wrong or replaced key, or foreign files) while the round would delete
+// local files: nothing is deleted.
+var ErrWrongKey = errors.New("some items of this encrypted folder cannot be decrypted with its key: no file is deleted")
+
+// Undecipherable is the number of items of folder that did not decrypt.
+func (r *E2ERemote) Undecipherable(folder string) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.undec[folder])
 }
 
 func (r *E2ERemote) of(ctx context.Context, folder string) (*e2eFolder, context.Context) {
@@ -98,9 +118,11 @@ func (r *E2ERemote) Changes(ctx context.Context, folder, cursor string, wait tim
 		return c, err
 	}
 	out := Changes{Cursor: c.Cursor, Reset: c.Reset, More: c.More}
+	failed := 0
 	for _, e := range c.Entries {
 		p, err := f.plain(e, "")
 		if err != nil {
+			failed++
 			if r.Skipped != nil {
 				r.Skipped(folder, e.Path)
 			}
@@ -108,6 +130,28 @@ func (r *E2ERemote) Changes(ctx context.Context, folder, cursor string, wait tim
 		}
 		out.Entries = append(out.Entries, p)
 	}
+	// Remember what could not be decrypted: while there is any, the engine
+	// deletes nothing locally (a wrong key would otherwise make every file
+	// look deleted on the NAS).
+	r.mu.Lock()
+	if r.undec == nil {
+		r.undec = map[string]map[string]bool{}
+	}
+	if c.Reset || r.undec[folder] == nil {
+		r.undec[folder] = map[string]bool{}
+	}
+	for _, e := range c.Entries {
+		if _, err := f.k.DecryptPath(e.Path); err != nil {
+			r.undec[folder][e.Path] = true
+		} else {
+			delete(r.undec[folder], e.Path)
+		}
+	}
+	for _, d := range c.Deleted {
+		delete(r.undec[folder], d)
+	}
+	r.mu.Unlock()
+	_ = failed
 	for _, d := range c.Deleted {
 		if p, err := f.k.DecryptPath(d); err == nil {
 			out.Deleted = append(out.Deleted, p)

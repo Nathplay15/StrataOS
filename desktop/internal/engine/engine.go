@@ -31,7 +31,9 @@ type Options struct {
 	// 1 minute on macOS where file contents are not watched).
 	Interval time.Duration
 	Now      func() time.Time
-	Logf     func(format string, args ...any)
+	// ErrText words an error of a round for the user (nil: err.Error()).
+	ErrText func(error) string
+	Logf    func(format string, args ...any)
 }
 
 // Engine synchronizes the pairs.
@@ -101,13 +103,17 @@ type pairRun struct {
 	status    PairStatus
 	conflicts int
 	brake     *Brake
-	allowDel  bool
-	restore   bool
+	deleted   []time.Time // deletions done recently (the brake counts them)
+	// allowedRound: this round's deletions were allowed by the user.
+	allowedRound bool
+	allowDel     bool
+	restore      bool
 
 	trees map[string][]op // this round: local folders trashed whole, with their content's ops
 
 	kick    chan struct{}
 	cancel  context.CancelFunc
+	wmu     sync.Mutex // guards watcher and watched
 	watcher *fsnotify.Watcher
 	watched map[string]bool
 }
@@ -375,7 +381,9 @@ func (pr *pairRun) start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	pr.cancel = cancel
 	if w, err := fsnotify.NewWatcher(); err == nil {
+		pr.wmu.Lock() // a round of a previous start may still be running
 		pr.watcher, pr.watched = w, map[string]bool{}
+		pr.wmu.Unlock()
 		go pr.watch(ctx, w)
 	}
 	go pr.poll(ctx)
@@ -388,10 +396,12 @@ func (pr *pairRun) stop() {
 		pr.cancel = nil
 	}
 	pr.mu.Lock() // wait for the round in progress
+	pr.wmu.Lock()
 	if pr.watcher != nil {
 		pr.watcher.Close()
 		pr.watcher = nil
 	}
+	pr.wmu.Unlock()
 	pr.mu.Unlock()
 }
 
@@ -417,13 +427,17 @@ func (pr *pairRun) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-pr.kick:
-			// Let a burst of changes end (a folder being copied).
+			// Let a burst of changes end (a folder being copied), but not
+			// forever: a file written every second still syncs.
 			t := time.NewTimer(1500 * time.Millisecond)
+			deadline := time.Now().Add(30 * time.Second)
 		wait:
 			for {
 				select {
 				case <-pr.kick:
-					t.Reset(1500 * time.Millisecond)
+					if time.Now().Before(deadline) {
+						t.Reset(min(1500*time.Millisecond, time.Until(deadline)))
+					}
 				case <-t.C:
 					break wait
 				case <-ctx.Done():
@@ -490,6 +504,8 @@ func (pr *pairRun) watch(ctx context.Context, w *fsnotify.Watcher) {
 const maxWatches = 20000
 
 func (pr *pairRun) updateWatches(dirs []string) {
+	pr.wmu.Lock()
+	defer pr.wmu.Unlock()
 	if pr.watcher == nil {
 		return
 	}
@@ -531,6 +547,9 @@ func (pr *pairRun) round(ctx context.Context) (again bool, err error) {
 			s.State = "idle"
 		case err != nil:
 			s.State, s.Error = "error", err.Error()
+			if pr.e.opt.ErrText != nil {
+				s.Error = pr.e.opt.ErrText(err)
+			}
 		default:
 			s.LastSync = pr.e.opt.Now()
 			s.State = "idle"
@@ -636,7 +655,16 @@ func (pr *pairRun) buildView(sc scanResult) (view, []Skipped) {
 	return v, skipped
 }
 
+// ErrNoKey: an encrypted pair whose key is not loaded (it would otherwise
+// sync in plaintext).
+var ErrNoKey = errors.New("the key of this encrypted folder is missing")
+
 func (pr *pairRun) sync(ctx context.Context) (bool, error) {
+	if pr.p.Encrypted {
+		if k, ok := pr.e.remote.(interface{ HasFolder(string) bool }); !ok || !k.HasFolder(pr.p.Remote) {
+			return false, ErrNoKey
+		}
+	}
 	if err := pr.pull(ctx); err != nil {
 		return false, err
 	}
@@ -656,10 +684,36 @@ func (pr *pairRun) sync(ctx context.Context) (bool, error) {
 		}
 	}
 	ld, rd := pl.deletions()
+	// Nothing of the NAS decrypts but something is there: a wrong key, not
+	// files deleted on the NAS.
+	if pr.p.Encrypted && ld > 0 && len(pr.data.remote) == 0 {
+		if u, ok := pr.e.remote.(interface{ Undecipherable(string) int }); ok && u.Undecipherable(pr.p.Remote) > 0 {
+			return false, ErrWrongKey
+		}
+	}
 	pr.smu.Lock()
 	allow, restore := pr.allowDel, pr.restore
 	pr.allowDel, pr.restore = false, false
-	brake := !allow && !restore && ld+rd >= pr.e.opt.BrakeMin && float64(ld+rd) > pr.e.opt.BrakeRatio*float64(files)
+	pr.allowedRound = allow || restore
+	if pr.allowedRound {
+		pr.deleted = nil
+	}
+	// Deletions done in the last 10 minutes count too: a folder emptied
+	// a few files per round still trips the brake.
+	recent := 0
+	cut := pr.e.opt.Now().Add(-10 * time.Minute)
+	kept := pr.deleted[:0]
+	for _, t := range pr.deleted {
+		if t.After(cut) {
+			kept = append(kept, t)
+		}
+	}
+	pr.deleted = kept
+	if ld+rd > 0 {
+		recent = len(kept)
+	}
+	n := ld + rd + recent
+	brake := !allow && !restore && n >= pr.e.opt.BrakeMin && float64(n) > pr.e.opt.BrakeRatio*float64(files+recent)
 	first := brake && pr.brake == nil
 	if brake {
 		pr.brake = &Brake{LocalDeletes: ld, RemoteDeletes: rd, Files: files, Since: pr.e.opt.Now()}
@@ -684,7 +738,9 @@ func (pr *pairRun) sync(ctx context.Context) (bool, error) {
 		}
 	})
 	again := pl.again
+	pr.smu.Lock()
 	conflictsBefore := pr.conflicts
+	pr.smu.Unlock()
 	covered := pr.wholeTrees(pl, sc)
 	var firstErr error
 	errCount := 0
@@ -732,7 +788,10 @@ func (pr *pairRun) sync(ctx context.Context) (bool, error) {
 			pr.setStatus(func(s *PairStatus) { s.Done++ })
 		}
 	}
-	if pr.conflicts != conflictsBefore {
+	pr.smu.Lock()
+	moreConflicts := pr.conflicts != conflictsBefore
+	pr.smu.Unlock()
+	if moreConflicts {
 		again = true // the conflict copies go to the NAS at the next round
 	}
 	pr.setStatus(func(s *PairStatus) {

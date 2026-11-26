@@ -148,6 +148,15 @@ func (a *App) newEngineLocked() (*engine.Engine, error) {
 	a.e2eKeysLocked()
 	return engine.New(a.e2e, engine.Options{
 		StateFile: a.Store.StateFile(), Device: c.DeviceName, Ignore: ignore, Trash: tr.Trash, OnEvent: a.onEvent,
+		ErrText: func(err error) string {
+			switch {
+			case errors.Is(err, engine.ErrNoKey):
+				return a.T("err.e2e.nokey")
+			case errors.Is(err, engine.ErrWrongKey):
+				return a.T("err.e2e.wrongkey")
+			}
+			return err.Error()
+		},
 	})
 }
 

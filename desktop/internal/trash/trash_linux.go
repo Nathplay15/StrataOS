@@ -40,6 +40,9 @@ func systemTrash(p string) error {
 			ext := filepath.Ext(name)
 			n = strings.TrimSuffix(name, ext) + "." + strconv.Itoa(i) + ext
 		}
+		if _, err := os.Lstat(filepath.Join(files, n)); err == nil {
+			continue // a file without its info: never replaced
+		}
 		f, err := os.OpenFile(filepath.Join(info, n+".trashinfo"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			continue
