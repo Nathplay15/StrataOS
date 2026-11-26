@@ -135,6 +135,35 @@ jobs:
       - name: Install in debian:${{ matrix.suite }}
         run: packaging/test-install.sh ${{ matrix.suite }}
 
+  # Visual regression (frontend/visual): the main pages at phone and desktop
+  # width, Glass and Modern, light and dark, against a mocked API, compared
+  # with the stored pictures. It does not block: the differences are an
+  # artifact to look at (accept a change with MODE=update).
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    continue-on-error: true
+    container:
+      image: mcr.microsoft.com/playwright:v1.48.2-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the interface
+        run: |
+          cd frontend
+          npm ci --no-audit --no-fund
+          npx vite build
+      - name: Compare the pages
+        run: |
+          mkdir -p /tmp/pw && (cd /tmp/pw && npm i --no-save --no-audit --no-fund playwright@1.48.2 pngjs@7.0.0)
+          cd frontend/visual && NODE_PATH=/tmp/pw/node_modules OUT="$GITHUB_WORKSPACE/visual-diff" node visual.cjs
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff
+          path: visual-diff/
+          retention-days: 14
+
   # The end-to-end test: a Debian 13 VM (nested KVM) with 13 disks, the
   # amd64 package of the checks job installed, vm/e2e-test.sh against it.
   e2e:
