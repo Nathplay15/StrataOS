@@ -578,6 +578,9 @@ func (s *Server) passkeyRoutes() {
 	})
 
 	s.admin("DELETE /api/users/{name}/passkeys", func(r *http.Request) (any, error) {
+		if err := s.deviceTouchesAdmin(r, r.PathValue("name")); err != nil {
+			return nil, err
+		}
 		name := r.PathValue("name")
 		err := s.store.Update(func(st *store.State) error {
 			u := st.User(name)

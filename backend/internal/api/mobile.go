@@ -54,9 +54,30 @@ func deviceDenied(p string) bool {
 }
 
 var (
-	errDeviceDenied    = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: use the web interface"}
-	errDeviceWebDenied = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: open the web interface in a browser"}
+	errDeviceDenied      = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: use the web interface"}
+	errDeviceAdminDenied = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: administrator accounts are managed from the web interface"}
+	errDeviceWebDenied   = &Error{Status: http.StatusForbidden, Msg: "not allowed from the mobile app: open the web interface in a browser"}
 )
+
+// deviceTouchesAdmin refuses, from the mobile app, a change to the sign-in
+// security of an administrator account (password, second factors, keys,
+// devices, the account itself): a lost phone must not lead to another
+// administrator's account.
+func (s *Server) deviceTouchesAdmin(r *http.Request, name string) error {
+	if !fromDevice(r) {
+		return nil
+	}
+	admin := false
+	s.store.Read(func(st *store.State) {
+		if u := st.User(name); u != nil && u.Role == "admin" {
+			admin = true
+		}
+	})
+	if admin {
+		return errDeviceAdminDenied
+	}
+	return nil
+}
 
 // fromDevice tells whether a request comes from the mobile app: its token,
 // or a web session it opened.

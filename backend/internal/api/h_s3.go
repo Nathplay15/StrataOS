@@ -544,6 +544,9 @@ func (s *Server) s3Routes() {
 	})
 
 	s.admin("DELETE /api/users/{name}/s3-keys/{access}", func(r *http.Request) (any, error) {
+		if err := s.deviceTouchesAdmin(r, r.PathValue("name")); err != nil {
+			return nil, err
+		}
 		return nil, s.revokeS3Key(r, r.PathValue("name"), r.PathValue("access"))
 	})
 }

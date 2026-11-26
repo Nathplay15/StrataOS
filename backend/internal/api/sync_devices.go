@@ -28,6 +28,9 @@ func (s *Server) syncDeviceRoutes() {
 	})
 
 	s.admin("DELETE /api/devices/{user}/{id}", func(r *http.Request) (any, error) {
+		if err := s.deviceTouchesAdmin(r, r.PathValue("user")); err != nil {
+			return nil, err
+		}
 		user := r.PathValue("user")
 		if err := s.removeDevice(user, r.PathValue("id"), "Device revoked by "+userOf(r)+": "); err != nil {
 			return nil, err

@@ -97,6 +97,9 @@ func (s *Server) userRoutes() {
 		if req.Role != "admin" {
 			req.Role = "user"
 		}
+		if req.Role == "admin" && fromDevice(r) {
+			return nil, errDeviceAdminDenied
+		}
 		var exists bool
 		s.store.Read(func(st *store.State) { exists = st.User(req.Username) != nil })
 		if exists {
@@ -142,6 +145,19 @@ func (s *Server) userRoutes() {
 		if req.Password != "" && name == userOf(r) && fromDevice(r) {
 			// Like /api/me/password: a phone cannot change its own account's password.
 			return nil, errDeviceDenied
+		}
+		if fromDevice(r) {
+			// A phone (lost or stolen) cannot take over an administrator
+			// account: no password, role or state change on one, no new one.
+			var cur store.User
+			s.store.Read(func(st *store.State) {
+				if u := st.User(name); u != nil {
+					cur = *u
+				}
+			})
+			if cur.Role == "admin" && (req.Password != "" || req.Role != "admin" || req.Disabled != cur.Disabled) || cur.Role != "admin" && req.Role == "admin" {
+				return nil, errDeviceAdminDenied
+			}
 		}
 		var prev store.User
 		err := s.store.Update(func(st *store.State) error {
@@ -206,6 +222,9 @@ func (s *Server) userRoutes() {
 	})
 
 	s.admin("DELETE /api/users/{name}", func(r *http.Request) (any, error) {
+		if err := s.deviceTouchesAdmin(r, r.PathValue("name")); err != nil {
+			return nil, err
+		}
 		name := r.PathValue("name")
 		if name == userOf(r) {
 			return nil, badRequest("you cannot delete your own account")

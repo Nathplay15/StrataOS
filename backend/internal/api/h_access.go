@@ -191,6 +191,9 @@ func (s *Server) accessRoutes() {
 	})
 
 	s.admin("PUT /api/security/2fa-policy", func(r *http.Request) (any, error) {
+		if fromDevice(r) {
+			return nil, errDeviceDenied // the sign-in policy is changed from the web interface
+		}
 		var req struct {
 			Require    bool   `json:"require"`
 			RequireKey bool   `json:"requireKey"`

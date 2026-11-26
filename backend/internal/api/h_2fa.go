@@ -106,6 +106,9 @@ func (s *Server) twoFactorRoutes() {
 	// An administrator can reset the second factor of a user who lost their
 	// phone or security key: the app, the security keys and the recovery codes.
 	s.admin("POST /api/users/{name}/2fa/reset", func(r *http.Request) (any, error) {
+		if err := s.deviceTouchesAdmin(r, r.PathValue("name")); err != nil {
+			return nil, err
+		}
 		name := r.PathValue("name")
 		err := s.store.Update(func(st *store.State) error {
 			u := st.User(name)
