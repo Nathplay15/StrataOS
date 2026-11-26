@@ -19,6 +19,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strataos/internal/events"
 	"strings"
 	"sync"
 	"time"
@@ -142,6 +143,9 @@ func fleetInfoReset() {
 func (s *Server) updateJob(kind string, dryRun bool) func(ctx context.Context, j *jobs.Job) error {
 	return func(ctx context.Context, j *jobs.Job) error {
 		defer fleetInfoReset()
+		if kind != "check" && !dryRun {
+			defer events.Publish(events.Packages, kind)
+		}
 		if kind != "check" && !dryRun {
 			s.restorePointBeforeUpdate(j)
 		}

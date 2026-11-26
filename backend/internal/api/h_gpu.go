@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os/user"
 	"slices"
+	"strataos/internal/events"
 	"strings"
 	"sync"
 	"time"
@@ -235,6 +236,7 @@ func (s *Server) setAppGPU(r *http.Request, stack string, on bool) (*jobs.Snapsh
 
 func (s *Server) gpuRoutes() {
 	s.gpuSetup()
+	s.subscribeCaches()
 	s.admin("GET /api/hardware/gpu", func(r *http.Request) (any, error) {
 		gpus, nonFree, vainfo := gpuDetect(r.URL.Query().Get("fresh") == "1")
 		type view struct {
@@ -277,8 +279,7 @@ func (s *Server) gpuRoutes() {
 		if err != nil {
 			return nil, err
 		}
-		gpuDetect(true)
-		s.gpuSetup()
+		events.Publish(events.Settings, "transcoding")
 		s.audit(r, "media", fmt.Sprintf("Video conversion: graphics processor %q, device %q", firstNonEmpty(req.Accel, "auto"), req.Device))
 		return nil, nil
 	})

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strataos/internal/events"
 	"strings"
 	"sync"
 	"time"
@@ -714,6 +715,7 @@ func (s *Server) uninstallRoutes() {
 		s.audit(r, "system", "Uninstalling component "+id)
 		user := userOf(r)
 		return s.jobs.Start("uninstall", "Uninstall "+p.Name, user, func(ctx context.Context, j *jobs.Job) error {
+			defer events.Publish(events.Components, id)
 			return s.uninstallComponent(ctx, j, id, req.Force, req.DeleteData, user)
 		}), nil
 	})

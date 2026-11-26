@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strataos/internal/accounts"
+	"strataos/internal/events"
 	"strataos/internal/i18n"
 	"strataos/internal/netguard"
 	"strconv"
@@ -307,6 +308,7 @@ func weakDiskKey(path, serial string, warnings []string) string {
 // healthWatcher periodically checks storage health and notifies on new problems.
 func (s *Server) healthWatcher() {
 	known := map[string]bool{}
+	lastDisks := ""
 	var progress progressTracker
 	check := func() {
 		s.recoverStorage()
@@ -314,6 +316,12 @@ func (s *Server) healthWatcher() {
 		pools, _ := storage.ListZPools(false)
 		vols := s.volumeSummaries(raids, pools)
 		disks, _ := storage.ListDisks()
+		if set := diskSet(disks); set != lastDisks {
+			if lastDisks != "" {
+				events.Publish(events.Disks, "") // a disk added, removed or replaced
+			}
+			lastDisks = set
+		}
 		var weak []alert
 		var asleep []string // disks in standby: the storage trends leave them alone
 		for _, d := range disks {
@@ -733,4 +741,13 @@ func (s *Server) checkMissingAccounts() {
 	msg := "Accounts missing from the system (back to a restore point?): " + strings.Join(missing, ", ") + ". Set their password again in Users to recreate them."
 	s.store.Log("warning", "users", "", msg)
 	s.notify("warning", "Accounts to recreate", msg)
+}
+
+// diskSet names the disks present (path and serial), to see a change.
+func diskSet(disks []storage.BlockDevice) string {
+	var b strings.Builder
+	for _, d := range disks {
+		b.WriteString(d.Path + "=" + d.Serial + ";")
+	}
+	return b.String()
 }

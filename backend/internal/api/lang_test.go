@@ -1,8 +1,11 @@
 package api
 
 import (
+	"time"
+
 	"net/http"
 	"net/http/httptest"
+	"strataos/internal/events"
 	"strings"
 	"testing"
 )
@@ -36,5 +39,20 @@ func TestResponsesInCallerLanguage(t *testing.T) {
 	}
 	if b := get("/api/t/err", "fr"); !strings.Contains(b, "Update failed because the disk is full") {
 		t.Fatalf("unknown sentence changed: %s", b)
+	}
+}
+
+// A component change makes the GPU detected again (events → caches.go).
+func TestComponentEventForgetsGPU(t *testing.T) {
+	s := newTestServer(t)
+	s.subscribeCaches()
+	gpuCache.Lock()
+	gpuCache.at = time.Now()
+	gpuCache.Unlock()
+	events.Publish(events.Components, "media")
+	gpuCache.Lock()
+	defer gpuCache.Unlock()
+	if !gpuCache.at.IsZero() {
+		t.Fatal("GPU cache kept after a component install")
 	}
 }

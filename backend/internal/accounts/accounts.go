@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"regexp"
 	"sort"
+	"strataos/internal/events"
 	"strconv"
 	"strings"
 
@@ -85,6 +86,7 @@ func LinuxUserExists(name string) bool {
 
 // Create creates (or adopts) the Linux account and its Samba password.
 func Create(name, fullName, password string, groups []string, ssh bool) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := sys.NoOption(name); err != nil {
 		return err
 	}
@@ -141,6 +143,7 @@ func Update(name, fullName string, ssh bool) error {
 }
 
 func SetEnabled(name string, enabled bool) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := sys.NoOption(name); err != nil {
 		return err
 	}
@@ -163,6 +166,7 @@ func SetEnabled(name string, enabled bool) error {
 }
 
 func Delete(name string, removeHome bool) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := sys.NoOption(name); err != nil {
 		return err
 	}
@@ -225,6 +229,7 @@ func nssGroups(name string) []string {
 
 // SetUserGroups replaces the supplementary groups of a user.
 func SetUserGroups(name string, groups []string) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := sys.NoOption(name); err != nil {
 		return err
 	}
@@ -299,6 +304,7 @@ func ListGroups() ([]Group, error) {
 }
 
 func CreateGroup(name string) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := ValidName(name); err != nil {
 		return err
 	}
@@ -307,6 +313,7 @@ func CreateGroup(name string) error {
 }
 
 func DeleteGroup(name string) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := ValidName(name); err != nil {
 		return err
 	}
@@ -315,6 +322,7 @@ func DeleteGroup(name string) error {
 }
 
 func SetGroupMembers(name string, members []string) error {
+	defer events.Publish(events.Accounts, name) // identities cached elsewhere (single sign-on)
 	if err := ValidName(name); err != nil && name != "users" {
 		return err
 	}

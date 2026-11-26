@@ -14,11 +14,11 @@ import (
 	"strataos/internal/ceph"
 	"strataos/internal/components"
 	"strataos/internal/directory"
+	"strataos/internal/events"
 	"strataos/internal/fileservices"
 	"strataos/internal/ha"
 	"strataos/internal/i18n"
 	"strataos/internal/media"
-	"strataos/internal/mediaplay"
 	"strataos/internal/netdiag"
 	"strataos/internal/nvr"
 	"strataos/internal/photoml"
@@ -496,12 +496,9 @@ func (s *Server) systemRoutes() {
 			componentMu.Lock()
 			defer componentMu.Unlock()
 			_, err := sys.RunOpts(ctx, sys.Opts{Output: j, Timeout: time.Hour, Env: []string{"DEBIAN_FRONTEND=noninteractive"}}, "/bin/bash", scriptsDir+"/"+script)
-			// New packages (vainfo, video drivers, ffmpeg) change what the
-			// Hardware page detects: detect again at its next visit.
-			gpuForget()
-			// The player chose its GPU once (none before the drivers were
-			// there): choose again so videos use the new driver right away.
-			mediaplay.Default.Configure(s.gpuChoice)
+			// New packages (vainfo, video drivers, ffmpeg): the GPU detection
+			// and the player's encoder are chosen again (caches.go).
+			events.Publish(events.Components, name)
 			return err
 		}), nil
 	})
