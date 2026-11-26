@@ -1,0 +1,21 @@
+#!/bin/bash
+# Runs a few minutes after a StrataOS update (a timer the old version arms
+# before installing the new one). The new version removes the marker once it
+# answers and its services run; a marker still there means it did not: the
+# previous package is installed again, and the daemon of that version tells
+# the administrators at its start.
+set -u
+f=/var/lib/strata/update-check.env
+[ -f "$f" ] || exit 0
+grep -q '^ROLLEDBACK=' "$f" && exit 0
+from=$(sed -n 's/^FROM=\([0-9A-Za-z.~+:-]*\)$/\1/p' "$f" | head -1)
+to=$(sed -n 's/^TO=\([0-9A-Za-z.~+:-]*\)$/\1/p' "$f" | head -1)
+[ -n "$from" ] || { rm -f "$f"; exit 0; }
+logger -t strata "StrataOS ${to:-update} did not pass its checks: going back to $from"
+echo "ROLLEDBACK=1" >> "$f"
+export DEBIAN_FRONTEND=noninteractive
+if ! apt-get install -y --allow-downgrades -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold "strataos=$from"; then
+  echo "ROLLBACKFAILED=1" >> "$f"
+  logger -t strata "StrataOS: going back to $from failed"
+  systemctl restart strata || true
+fi

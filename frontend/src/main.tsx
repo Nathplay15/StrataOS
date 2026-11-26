@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { initI18n } from "./lib/i18n";
 import { applySavedAccent } from "./lib/appearance";
+import { watchErrors } from "./lib/errlog";
+
+watchErrors();
 
 // Apply the saved theme before the first paint (loading screens included).
 try {
@@ -28,9 +31,12 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 // their labels when imported), hence the dynamic import of App.
 initI18n().then(async () => {
   const { App } = await import("./App");
+  const { RootBoundary } = await import("./components/ui");
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      <RootBoundary>
+        <App />
+      </RootBoundary>
     </StrictMode>,
   );
 });

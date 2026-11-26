@@ -5595,5 +5595,13 @@
  "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Ondoorzichtige panelen: beter leesbaar en lichter voor oudere telefoons. Ook aan wanneer het systeem erom vraagt.",
  "From {0} to {1}": "Van {0} tot {1}",
  "from {0} to {1}": "van {0} tot {1}",
- "This NAS runs Debian {0} ({1}), the latest Debian release.": "Deze NAS draait Debian {0} ({1}), de nieuwste Debian-versie."
+ "This NAS runs Debian {0} ({1}), the latest Debian release.": "Deze NAS draait Debian {0} ({1}), de nieuwste Debian-versie.",
+ "Something went wrong": "Er is iets misgegaan",
+ "The error was recorded in the NAS log. Reloading the page usually fixes it.": "De fout is vastgelegd in het logboek van de NAS. De pagina opnieuw laden lost het meestal op.",
+ "Opaque panels: easier to read, and lighter for older phones. On by default on modest devices, and when the system asks for it.": "Ondoorzichtige panelen: beter leesbaar en lichter voor oudere telefoons. Standaard aan op eenvoudige apparaten, en wanneer het systeem erom vraagt.",
+ "What's new in {0}": "Nieuw in {0}",
+ "Support": "Ondersteuning",
+ "A diagnostic report holds the version, the components, a summary of the hardware, the recent logs, the state of the services and the health of the disks. Passwords, keys, tokens and hashes are masked. Attach it to a bug report.": "Een diagnoserapport bevat de versie, de componenten, een overzicht van de hardware, de recente logboeken, de status van de services en de gezondheid van de schijven. Wachtwoorden, sleutels, tokens en hashes worden gemaskeerd. Voeg het toe aan een bugmelding.",
+ "Keep e-mail addresses": "E-mailadressen behouden",
+ "Download a diagnostic report": "Diagnoserapport downloaden"
 }

@@ -3964,5 +3964,20 @@
  "{0} apps s'exécutent dans des conteneurs : la mise à niveau ne les modifie pas": "{0} apps draaien in containers: de upgrade verandert er niets aan",
  "L'archive Debian est injoignable.": "Het Debian-archief was niet bereikbaar.",
  "Ce NAS utilise la dernière version de Debian.": "Deze NAS draait de nieuwste Debian-release.",
- "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "Debian {0} is uit: het wordt voorgesteld na de eerste point release ({1}.1)."
+ "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "Debian {0} is uit: het wordt voorgesteld na de eerste point release ({1}.1).",
+ "la modification n'a pas pu être enregistrée sur le disque système (plein ou en lecture seule ?) : {0}": "de wijziging kon niet worden opgeslagen op de systeemschijf (vol of alleen-lezen?): {0}",
+ "Erreur de l'interface sur {0} : {1}": "Fout in de interface op {0}: {1}",
+ "non autorisé depuis l'application mobile : les comptes administrateur se gèrent depuis l'interface web": "niet toegestaan vanuit de mobiele app: beheerdersaccounts worden beheerd via de webinterface",
+ "Rapport de diagnostic téléchargé": "Diagnoserapport gedownload",
+ "le dépôt a répondu {0}": "de repository antwoordde {0}",
+ "Mise à jour de StrataOS annulée": "StrataOS-update teruggedraaid",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour : la version {1} a été réinstallée": "StrataOS {0} doorstond de controles na de update niet: versie {1} is opnieuw geïnstalleerd",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour, et la réinstallation de {1} a échoué : voir le journal du système": "StrataOS {0} doorstond de controles na de update niet, en het opnieuw installeren van {1} is mislukt: zie het systeemlogboek",
+ "Échec de la vérification après la mise à jour : {0}": "Controle na de update mislukt: {0}",
+ "Mise à jour vers StrataOS {0} vérifiée : l'interface et les services répondent": "Update naar StrataOS {0} gecontroleerd: de interface en de services reageren",
+ "l'API ne répond pas": "de API reageert niet",
+ "l'interface web ne répond pas": "de webinterface reageert niet",
+ "le service {0} ne fonctionne pas": "de service {0} draait niet",
+ "Vérification après la mise à jour non armée : {0}": "Controle na de update niet ingesteld: {0}",
+ "Vérification armée : sans réponse de StrataOS {0} dans les {1}, {2} est réinstallée": "Controle ingesteld: zonder antwoord van StrataOS {0} binnen {1} wordt {2} opnieuw geïnstalleerd"
 }

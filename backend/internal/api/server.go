@@ -171,6 +171,7 @@ func New(c Config) *Server {
 	go s.replaceResume()
 	go s.sysDiskResume()
 	go s.fwLoop()
+	go s.updateSelfCheck(s.selfBase(), 20*time.Second)
 	return s
 }
 
@@ -391,6 +392,9 @@ func (s *Server) routes() {
 	s.uninstallRoutes()
 	s.hardwareRoutes()
 	s.gpuRoutes()
+	s.clientErrorRoutes()
+	s.notesRoutes()
+	s.supportRoutes()
 	s.mediaRoutes()
 	s.cinemaRoutes()
 	s.nvrRoutes()

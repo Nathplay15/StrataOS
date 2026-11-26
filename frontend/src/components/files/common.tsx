@@ -8,7 +8,7 @@ import type { FileEntry } from "../../lib/types";
 import { cx } from "../../lib/format";
 import { tr } from "../../lib/i18n";
 import { fileExt, fileKind, type FileKind, type OfficeStatus } from "../../lib/filetypes";
-import { Button } from "../ui";
+import { Button, Popover } from "../ui";
 
 export type TabView = FileKind | "office" | "details";
 
@@ -148,26 +148,18 @@ export function OpenWith({ entry, office, onOpen, size = "sm", label }: { entry:
   const [open, setOpen] = useState(false);
   const caps = useViewerCaps();
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
-  }, [open]);
   return (
     <div ref={ref} className="relative inline-block">
       <Button size={size} variant="ghost" icon={<ChevronDown size={14} />} title={tr("Open with")} onClick={() => setOpen(!open)}>{label}</Button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 min-w-[190px] rounded-lg border border-line bg-panel py-1 text-left text-[13px] shadow-lg" role="menu">
+        <Popover anchor={ref} onClose={() => setOpen(false)} className="min-w-[190px] py-1 text-left text-[13px]">
           {openChoices(entry, office, caps.data).map((c) => (
             <button key={c.label + (c.view ?? "")} role="menuitem" className="block w-full px-3 py-1.5 text-left hover:bg-panel-2"
               onClick={() => { setOpen(false); if (c.download) download(entry.path); else onOpen(tabFor(entry, c.view)); }}>
               {c.label}
             </button>
           ))}
-        </div>
+        </Popover>
       )}
     </div>
   );

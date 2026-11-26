@@ -3964,5 +3964,20 @@
  "{0} apps s'exécutent dans des conteneurs : la mise à niveau ne les modifie pas": "{0} 个应用在容器中运行：升级不会更改它们",
  "L'archive Debian est injoignable.": "无法访问 Debian 归档。",
  "Ce NAS utilise la dernière version de Debian.": "此 NAS 运行的是最新的 Debian 版本。",
- "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "Debian {0} 已发布：将在其首个小版本（{1}.1）之后推荐。"
+ "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "Debian {0} 已发布：将在其首个小版本（{1}.1）之后推荐。",
+ "la modification n'a pas pu être enregistrée sur le disque système (plein ou en lecture seule ?) : {0}": "无法将更改保存到系统磁盘（已满或只读？）：{0}",
+ "Erreur de l'interface sur {0} : {1}": "界面错误，位于 {0}：{1}",
+ "non autorisé depuis l'application mobile : les comptes administrateur se gèrent depuis l'interface web": "移动应用中不允许：管理员帐户需在 Web 界面中管理",
+ "Rapport de diagnostic téléchargé": "已下载诊断报告",
+ "le dépôt a répondu {0}": "软件仓库返回 {0}",
+ "Mise à jour de StrataOS annulée": "StrataOS 更新已撤销",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour : la version {1} a été réinstallée": "StrataOS {0} 在更新后未通过检查：已重新安装版本 {1}",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour, et la réinstallation de {1} a échoué : voir le journal du système": "StrataOS {0} 在更新后未通过检查，且重新安装 {1} 失败：请查看系统日志",
+ "Échec de la vérification après la mise à jour : {0}": "更新后自检失败：{0}",
+ "Mise à jour vers StrataOS {0} vérifiée : l'interface et les services répondent": "已检查更新至 StrataOS {0}：界面和服务均有响应",
+ "l'API ne répond pas": "API 无响应",
+ "l'interface web ne répond pas": "Web 界面无响应",
+ "le service {0} ne fonctionne pas": "服务 {0} 未运行",
+ "Vérification après la mise à jour non armée : {0}": "未设置更新后自检：{0}",
+ "Vérification armée : sans réponse de StrataOS {0} dans les {1}, {2} est réinstallée": "已设置自检：如果 StrataOS {0} 在 {1} 内无响应，将重新安装 {2}"
 }

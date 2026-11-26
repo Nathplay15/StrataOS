@@ -5595,5 +5595,13 @@
  "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "不透明面板：更易阅读，对旧手机更轻量。系统要求时也会开启。",
  "From {0} to {1}": "{0} 至 {1}",
  "from {0} to {1}": "{0} 至 {1}",
- "This NAS runs Debian {0} ({1}), the latest Debian release.": "此 NAS 运行 Debian {0}（{1}），即最新的 Debian 版本。"
+ "This NAS runs Debian {0} ({1}), the latest Debian release.": "此 NAS 运行 Debian {0}（{1}），即最新的 Debian 版本。",
+ "Something went wrong": "出现问题",
+ "The error was recorded in the NAS log. Reloading the page usually fixes it.": "该错误已记录到 NAS 日志中。重新加载页面通常即可解决。",
+ "Opaque panels: easier to read, and lighter for older phones. On by default on modest devices, and when the system asks for it.": "不透明面板：更易阅读，对旧手机更轻量。在性能一般的设备上以及系统要求时默认开启。",
+ "What's new in {0}": "{0} 的新功能",
+ "Support": "支持",
+ "A diagnostic report holds the version, the components, a summary of the hardware, the recent logs, the state of the services and the health of the disks. Passwords, keys, tokens and hashes are masked. Attach it to a bug report.": "诊断报告包含版本、组件、硬件摘要、最近的日志、服务状态和磁盘健康状况。密码、密钥、令牌和哈希值均已隐藏。请将其附加到错误报告中。",
+ "Keep e-mail addresses": "保留电子邮件地址",
+ "Download a diagnostic report": "下载诊断报告"
 }

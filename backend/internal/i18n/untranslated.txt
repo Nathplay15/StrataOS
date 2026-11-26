@@ -6,3 +6,5 @@
 file:internal/docker/apps
 # The text console of the NAS screen (no language, plain ASCII terminal).
 file:internal/console/
+# The diagnostic report (files of an archive, not shown).
+"StrataOS {0}\n{1}{2}{3}"

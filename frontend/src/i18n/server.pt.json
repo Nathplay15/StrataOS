@@ -3964,5 +3964,20 @@
  "{0} apps s'exécutent dans des conteneurs : la mise à niveau ne les modifie pas": "{0} apps rodam em contêineres: a atualização não os altera",
  "L'archive Debian est injoignable.": "Não foi possível acessar o arquivo do Debian.",
  "Ce NAS utilise la dernière version de Debian.": "Este NAS já executa a versão mais recente do Debian.",
- "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "O Debian {0} foi lançado: ele é proposto após a primeira point release ({1}.1)."
+ "Debian {0} est sortie : elle est proposée après sa première mise à jour ponctuelle ({1}.1).": "O Debian {0} foi lançado: ele é proposto após a primeira point release ({1}.1).",
+ "la modification n'a pas pu être enregistrée sur le disque système (plein ou en lecture seule ?) : {0}": "não foi possível salvar a alteração no disco do sistema (cheio ou somente leitura?): {0}",
+ "Erreur de l'interface sur {0} : {1}": "Erro da interface em {0}: {1}",
+ "non autorisé depuis l'application mobile : les comptes administrateur se gèrent depuis l'interface web": "não permitido pelo aplicativo móvel: as contas de administrador são gerenciadas pela interface web",
+ "Rapport de diagnostic téléchargé": "Relatório de diagnóstico baixado",
+ "le dépôt a répondu {0}": "o repositório respondeu {0}",
+ "Mise à jour de StrataOS annulée": "Atualização do StrataOS desfeita",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour : la version {1} a été réinstallée": "O StrataOS {0} não passou nas verificações após a atualização: a versão {1} foi reinstalada",
+ "StrataOS {0} n'a pas passé ses vérifications après la mise à jour, et la réinstallation de {1} a échoué : voir le journal du système": "O StrataOS {0} não passou nas verificações após a atualização e a reinstalação da {1} falhou: veja o log do sistema",
+ "Échec de la vérification après la mise à jour : {0}": "A verificação após a atualização falhou: {0}",
+ "Mise à jour vers StrataOS {0} vérifiée : l'interface et les services répondent": "Atualização para o StrataOS {0} verificada: a interface e os serviços respondem",
+ "l'API ne répond pas": "a API não responde",
+ "l'interface web ne répond pas": "a interface web não responde",
+ "le service {0} ne fonctionne pas": "o serviço {0} não está em execução",
+ "Vérification après la mise à jour non armée : {0}": "Verificação após a atualização não preparada: {0}",
+ "Vérification armée : sans réponse de StrataOS {0} dans les {1}, {2} est réinstallée": "Verificação preparada: sem resposta do StrataOS {0} em {1}, a {2} é reinstalada"
 }

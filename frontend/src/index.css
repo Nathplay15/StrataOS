@@ -112,63 +112,68 @@ body {
   scrollbar-color: var(--border) transparent;
 }
 
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-}
+/* Base classes, in the components layer so that Tailwind utilities on the
+   same element win (a Select's pr-8, a w-auto width). The style overrides
+   below (:root[data-style] …) stay outside any layer on purpose. */
+@layer components {
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
 
-.input {
-  width: 100%;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 8px 11px;
-  color: var(--text);
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.input:disabled {
-  opacity: 0.6;
-}
+  .input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 8px 11px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .input:disabled {
+    opacity: 0.6;
+  }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.table th {
-  text-align: left;
-  font-weight: 500;
-  font-size: 12px;
-  color: var(--muted);
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-.table td {
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-.table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.table tbody tr:hover td {
-  background: var(--panel-2);
-}
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .table tbody tr:hover td {
+    background: var(--panel-2);
+  }
 
-.mono {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
 
-.xterm {
-  padding: 8px;
+  .xterm {
+    padding: 8px;
+  }
 }
 
 /* Element reached from the global search. */

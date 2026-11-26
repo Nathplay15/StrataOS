@@ -4,7 +4,7 @@ import { Apple, Box, Camera, ChevronDown, Cloud, Copy, Cpu, Disc3, FileInput, Ha
 import { api, wsURL } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { bytes, cx } from "../../lib/format";
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, IconButton, Input, Modal, Notice, PageHeader, Popover, Select, Spinner, Switch, Tabs, useUI } from "../../components/ui";
 import { tr } from "../../lib/i18n";
 import { QuickBridge } from "../../components/QuickBridge";
 import { useIntent } from "../../lib/intent";
@@ -38,6 +38,8 @@ const stateLabel: Record<string, [string, "ok" | "warn" | "neutral" | "danger"]>
 type Kind = "all" | "vm" | "lxc";
 
 export default function VirtualMachines() {
+  const createHeader = useRef<HTMLDivElement>(null);
+  const createEmpty = useRef<HTMLDivElement>(null);
   const vmq = useQuery({ queryKey: ["vms"], queryFn: () => api.get<VMData>("/api/vms"), refetchInterval: 4000 });
   const lxq = useQuery({ queryKey: ["lxc-list"], queryFn: () => api.get<LXCData>("/api/lxc"), refetchInterval: 4000 });
   const data = vmq.data;
@@ -119,20 +121,17 @@ export default function VirtualMachines() {
     text: tr("Create a virtual machine (any operating system: cloud image, ISO or a disk imported from another hypervisor) or a container (a light Linux system sharing the NAS's kernel, ready in seconds)."),
   };
   const createMenu = (where: "header" | "empty") => (
-    <div className="relative">
+    <div className="relative" ref={where === "header" ? createHeader : createEmpty}>
       <Button variant="primary" icon={<Plus size={15} />} onClick={() => setMenu(menu === where ? null : where)}>{tr("Create")}<ChevronDown size={14} className="ml-1" /></Button>
       {menu === where && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
-          <div className={cx("card absolute z-50 mt-1 w-64 overflow-hidden p-1 text-left", where === "header" ? "right-0" : "left-1/2 -translate-x-1/2")}>
+        <Popover anchor={where === "header" ? createHeader : createEmpty} align={where === "header" ? "right" : "center"} onClose={() => setMenu(null)} className="w-64 p-1 text-left">
             <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); if (vmOK) setCreating(true); else install.mutate(); }}>
               <Monitor size={17} className="mt-0.5 text-accent" /><span><span className="block text-[13px] font-medium">{tr("Virtual machine")}</span><span className="text-muted block text-[11.5px]">{vmOK ? tr("Any operating system, its own kernel") : tr("Install virtualization first")}</span></span>
             </button>
             <button type="button" className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); if (lxcOK) setCreatingCT(true); else installLXC.mutate(); }}>
               <Box size={17} className="mt-0.5 text-ok" /><span><span className="block text-[13px] font-medium">{tr("Container (LXC)")}</span><span className="text-muted block text-[11.5px]">{lxcOK ? tr("A light Linux system, ready in seconds") : tr("Install LXC first")}</span></span>
             </button>
-          </div>
-        </>
+        </Popover>
       )}
     </div>
   );

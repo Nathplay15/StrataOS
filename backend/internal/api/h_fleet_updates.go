@@ -170,7 +170,20 @@ func (s *Server) runUpdate(ctx context.Context, j *jobs.Job, kind string, dryRun
 				return err
 			}
 		}
-		return aptRun(ctx, j, append(do, "install", "--only-upgrade", "strataos")...)
+		var from string
+		if !dryRun {
+			installed, candidate := strataPolicy()
+			from = installed
+			s.armUpdateCheck(j, installed, candidate)
+		}
+		err := aptRun(ctx, j, append(do, "install", "--only-upgrade", "strataos")...)
+		if !dryRun {
+			// Still here with the same version: nothing to check.
+			if now, _ := strataPolicy(); now == from {
+				disarmUpdateCheck()
+			}
+		}
+		return err
 	case "system":
 		return aptRun(ctx, j, append(do, "full-upgrade")...)
 	case "security":

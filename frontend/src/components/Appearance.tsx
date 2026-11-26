@@ -80,7 +80,7 @@ function StylePicker() {
       </div>
       {style === "glass" && (
         <div className="mt-3">
-          <Switch checked={solid} onChange={setReduceTransparency} label={tr("Reduce transparency")} hint={tr("Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.")} />
+          <Switch checked={solid} onChange={setReduceTransparency} label={tr("Reduce transparency")} hint={tr("Opaque panels: easier to read, and lighter for older phones. On by default on modest devices, and when the system asks for it.")} />
         </div>
       )}
     </section>

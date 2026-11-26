@@ -5595,5 +5595,13 @@
  "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Painéis opacos: mais legíveis e mais leves para celulares antigos. Também ativado quando o sistema pede.",
  "From {0} to {1}": "Das {0} às {1}",
  "from {0} to {1}": "de {0} a {1}",
- "This NAS runs Debian {0} ({1}), the latest Debian release.": "Este NAS roda o Debian {0} ({1}), a versão mais recente do Debian."
+ "This NAS runs Debian {0} ({1}), the latest Debian release.": "Este NAS roda o Debian {0} ({1}), a versão mais recente do Debian.",
+ "Something went wrong": "Algo deu errado",
+ "The error was recorded in the NAS log. Reloading the page usually fixes it.": "O erro foi registrado no log do NAS. Recarregar a página geralmente resolve.",
+ "Opaque panels: easier to read, and lighter for older phones. On by default on modest devices, and when the system asks for it.": "Painéis opacos: mais fáceis de ler e mais leves para celulares antigos. Ativado por padrão em aparelhos modestos e quando o sistema pede.",
+ "What's new in {0}": "Novidades da versão {0}",
+ "Support": "Suporte",
+ "A diagnostic report holds the version, the components, a summary of the hardware, the recent logs, the state of the services and the health of the disks. Passwords, keys, tokens and hashes are masked. Attach it to a bug report.": "Um relatório de diagnóstico contém a versão, os componentes, um resumo do hardware, os logs recentes, o estado dos serviços e a saúde dos discos. Senhas, chaves, tokens e hashes são ocultados. Anexe-o a um relato de bug.",
+ "Keep e-mail addresses": "Manter os endereços de e-mail",
+ "Download a diagnostic report": "Baixar um relatório de diagnóstico"
 }

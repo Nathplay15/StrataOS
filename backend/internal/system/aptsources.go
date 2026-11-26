@@ -370,3 +370,28 @@ func Newest(vs []string) string {
 	}
 	return best
 }
+
+// StrataRepoURL is the address of the StrataOS repository ("" when none),
+// from its .sources file.
+func StrataRepoURL() string {
+	b, err := os.ReadFile(StrataSources)
+	if err != nil {
+		return ""
+	}
+	for _, s := range parseDeb822(string(b)) {
+		if u := strings.Fields(s.get("URIs")); len(u) > 0 {
+			return strings.TrimRight(u[0], "/")
+		}
+	}
+	return ""
+}
+
+// NotesName is the file of the release notes of a package version in the
+// repository (notes/<version>.md; "~" of pre-releases written "-").
+func NotesName(version string) string {
+	v, _, _ := strings.Cut(version, "+")
+	if i := strings.LastIndex(v, "-"); i > 0 && !strings.Contains(v[i:], ".") {
+		v = v[:i] // Debian revision
+	}
+	return "notes/" + strings.ReplaceAll(v, "~", "-") + ".md"
+}

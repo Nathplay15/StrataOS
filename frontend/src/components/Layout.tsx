@@ -22,7 +22,7 @@ import { NotificationCenter } from "./NotificationCenter";
 import { StopJobButton } from "./StopJob";
 import { useDismiss } from "../lib/a11y";
 import { cx, ago } from "../lib/format";
-import { Button, Field, Input, Modal, PageBoundary, Progress, useUI } from "./ui";
+import { Button, Field, Input, Modal, PageBoundary, Popover, Progress, useUI } from "./ui";
 import { tr, srv, jobLog } from "../lib/i18n";
 import { LangSwitch } from "./LangSwitch";
 import { GlobalSearch } from "./GlobalSearch";
@@ -247,6 +247,7 @@ export function Layout({ me }: { me: Me }) {
   const [theme, setTheme] = useTheme();
   const [mobileNav, setMobileNav] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [pwModal, setPwModal] = useState(false);
   const [tfa, setTfa] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
@@ -340,16 +341,15 @@ export function Layout({ me }: { me: Me }) {
           <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-panel-2 hover:text-fg" title={tr("Theme")}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <div className="relative">
+          <div className="relative" ref={userMenuRef}>
             <button onClick={() => setUserMenu(!userMenu)} className="flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2 hover:bg-panel-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-[12px] font-semibold text-white">{me.username[0]?.toUpperCase()}</span>
               <span className="hidden text-[13px] sm:inline">{me.fullName || me.username}</span>
               <ChevronDown size={14} className="text-muted" />
             </button>
             {userMenu && (
-              <div onKeyDown={(e) => e.key === "Escape" && setUserMenu(false)}>
-                <div className="fixed inset-0 z-30" onClick={() => setUserMenu(false)} />
-                <div className="card absolute right-0 top-11 z-40 w-56 p-1.5 text-[13px]">
+              <Popover anchor={userMenuRef} onClose={() => setUserMenu(false)} className="w-56 p-1.5 text-[13px]">
+                <div>
                   <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")}</div>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setPwModal(true); }}><KeyRound size={15} /> {" "}{tr("Password")}</button>
@@ -374,7 +374,7 @@ export function Layout({ me }: { me: Me }) {
                   <div className="my-1 border-t border-line" />
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-danger hover:bg-panel-2" onClick={logout}><LogOut size={15} /> {" "}{tr("Sign out")}</button>
                 </div>
-              </div>
+              </Popover>
             )}
           </div>
         </header>

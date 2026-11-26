@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, CheckCircle2, FlaskConical, History, Plus, RefreshCcw, Trash2, Undo2 } from "lucide-react";
+import { CalendarClock, CheckCircle2, Download, LifeBuoy, FlaskConical, History, Plus, RefreshCcw, Trash2, Undo2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAction } from "../../lib/hooks";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Notice, PageHeader, Select, Spinner, Switch, useUI } from "../../components/ui";
@@ -8,6 +8,8 @@ import { dateTime } from "../../lib/format";
 import { locale, tr } from "../../lib/i18n";
 import { RPiKernelCard } from "./RPiKernel";
 import { DistUpgradeCard } from "./DistUpgrade";
+
+const MarkdownPreview = lazy(() => import("../../components/files/MarkdownPreview"));
 
 type Up = { package: string; current: string; new: string; source: string };
 
@@ -48,6 +50,7 @@ function StrataCard() {
           <Button variant="primary" loading={upgrade.isPending} onClick={async () => { if (await confirm({ title: tr("Update to {0}?", data.candidate), text: tr("The StrataOS service restarts at the end: the interface reloads automatically. Shares and applications are not interrupted.") })) upgrade.mutate(); }}>{tr("Update StrataOS")}</Button>
         ) : <Button onClick={() => refetch()}>{data.repository ? tr("Up to date — check") : tr("Check")}</Button>}
       </div>
+      {available && data.repository && <ReleaseNotes version={data.candidate} />}
       {!data.repository && <div className="mt-3 text-muted text-[12.5px]">{tr("No StrataOS repository configured: updates are installed by uploading a new .deb package.")}</div>}
     </Card>
   );
@@ -84,6 +87,7 @@ export default function Updates() {
         )}
       </Card>
       <div className="mt-5"><RestorePoints /></div>
+      <div className="mt-5"><SupportCard /></div>
     </div>
   );
 }
@@ -252,6 +256,35 @@ function AutoUpdatesCard() {
             ) : <span>—</span>}
           </div>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+/** The notes of the version an update would install, before updating. */
+function ReleaseNotes({ version }: { version: string }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery({ queryKey: ["strata-notes", version], queryFn: () => api.get<{ version: string; notes: string }>("/api/system/updates/strata/notes"), staleTime: 3600_000 });
+  if (isLoading || !data?.notes) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-line">
+      <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] font-medium" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {tr("What's new in {0}", data.version)}<span className="text-muted text-[12px]">{open ? tr("Hide") : tr("Show")}</span>
+      </button>
+      {open && <div className="h-[360px] border-t border-line"><Suspense fallback={<Spinner />}><MarkdownPreview text={data.notes} /></Suspense></div>}
+    </div>
+  );
+}
+
+/** A diagnostic archive for a bug report, every secret masked by the NAS. */
+function SupportCard() {
+  const [emails, setEmails] = useState(false);
+  return (
+    <Card title={<span className="flex items-center gap-2"><LifeBuoy size={16} className="text-accent" />{tr("Support")}</span>}>
+      <div className="space-y-3 text-[13px]">
+        <div className="text-muted">{tr("A diagnostic report holds the version, the components, a summary of the hardware, the recent logs, the state of the services and the health of the disks. Passwords, keys, tokens and hashes are masked. Attach it to a bug report.")}</div>
+        <Switch checked={emails} onChange={setEmails} label={tr("Keep e-mail addresses")} />
+        <a className="btn btn-secondary inline-flex items-center gap-2 rounded-[9px] border border-line bg-panel-2 px-3.5 py-2 text-[13.5px] font-medium hover:border-accent/50" href={`/api/system/support/report${emails ? "?emails=1" : ""}`} download><Download size={15} />{tr("Download a diagnostic report")}</a>
       </div>
     </Card>
   );

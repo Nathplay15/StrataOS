@@ -1,9 +1,10 @@
-import { Component, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, RefreshCcw, X, XCircle } from "lucide-react";
 import { cx } from "../lib/format";
 import { InWindow } from "../desktop/context";
 import { srv, tr } from "../lib/i18n";
+import { reportError } from "../lib/errlog";
 
 /* ---------- Page error boundary ---------- */
 
@@ -13,7 +14,7 @@ import { srv, tr } from "../lib/i18n";
 export class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error) { console.error(error); }
+  componentDidCatch(error: Error) { console.error(error); reportError("render", error); }
   render() {
     if (!this.state.error) return this.props.children;
     return (
@@ -22,6 +23,26 @@ export class PageBoundary extends Component<{ children: ReactNode }, { error: Er
         <div className="mt-3 font-semibold">{tr("This page hit an error")}</div>
         <div className="text-muted mt-1 break-words text-[12.5px]">{this.state.error.message}</div>
         <Button className="mt-4" icon={<RefreshCcw size={14} />} onClick={() => this.setState({ error: null })}>{tr("Try again")}</Button>
+      </div>
+    );
+  }
+}
+
+/** The last resort around the whole interface: a card instead of a blank page. */
+export class RootBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { console.error(error); reportError("render", error); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="card max-w-md p-6 text-center">
+          <AlertTriangle className="mx-auto text-warn" size={28} />
+          <div className="mt-3 font-semibold">{tr("Something went wrong")}</div>
+          <div className="text-muted mt-1 text-[13px]">{tr("The error was recorded in the NAS log. Reloading the page usually fixes it.")}</div>
+          <Button className="mt-4" variant="primary" icon={<RefreshCcw size={14} />} onClick={() => location.reload()}>{tr("Reload")}</Button>
+        </div>
       </div>
     );
   }
@@ -381,5 +402,43 @@ export function UIProvider({ children }: { children: ReactNode }) {
         </div>
       </Modal>
     </Ctx.Provider>
+  );
+}
+
+/** A menu or popover under its anchor, drawn over the whole page (through a
+ * portal: a glass panel would otherwise clip it, paint later panels over it,
+ * and confine its click-catcher). Closes on a click outside or Escape. */
+export function Popover({ anchor, onClose, align = "right", className, children, role = "menu", label }: { anchor: React.RefObject<HTMLElement | null>; onClose: () => void; align?: "left" | "right" | "center"; className?: string; children: ReactNode; role?: string; label?: string }) {
+  const [pos, setPos] = useState<CSSProperties | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useLayoutEffect(() => {
+    const place = () => {
+      const r = anchor.current?.getBoundingClientRect();
+      if (!r) return;
+      const top = r.bottom + 4;
+      setPos(align === "right" ? { top, right: Math.max(8, window.innerWidth - r.right) } : align === "left" ? { top, left: Math.max(8, r.left) } : { top, left: r.left + r.width / 2, transform: "translateX(-50%)" });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [anchor, align]);
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !anchor.current?.contains(t)) close.current();
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); close.current(); } };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+  }, [anchor]);
+  return createPortal(
+    <div ref={box} role={role} aria-label={label} className={cx("card card-raised fixed z-[9990] max-h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto", className)} style={pos ?? { visibility: "hidden" }}>
+      {children}
+    </div>,
+    document.body,
   );
 }
