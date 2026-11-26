@@ -40,8 +40,9 @@ document.documentElement.lang = lang;
 
 let dict: Record<string, string> = {};
 let serverDict: Record<string, string> = {};
-type Rule = { re: RegExp; from: string; to: string };
+type Rule = { re: RegExp; from: string; to: string; weak: boolean };
 let rules: Rule[] = [];
+let exact = new Map<string, string>();
 // English key of a server text → its text in the current language.
 let byKey: Map<string, string> | null = null;
 
@@ -75,28 +76,66 @@ export function setLang(l: Lang) {
 
 const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Server texts come in French or English: both are matched and rendered in
-// the current language, most specific pattern first.
+// Words that do not make a template specific (backend/internal/i18n keeps
+// the same list): a template made only of them ("{0} to {1}", "{0}, {1}",
+// "error: {0}") is used by key only, never to recognise a text.
+const connectors = new Set(["to", "vers", "and", "et", "or", "ou", "of", "de", "du", "des", "for", "pour", "in", "dans", "on", "sur", "at", "by", "par", "from", "with", "avec", "the", "le", "la", "les", "à", "au", "error", "erreur", "invalid", "invalide", "warning", "avertissement"]);
+
+/** "exact" (no placeholder), "connector" (never matched), "weak" (one
+ * word of its own: applies only to short names or known texts) or "strong". */
+export function templateKind(tpl: string): "exact" | "connector" | "weak" | "strong" {
+  if (!/\{\d\}/.test(tpl)) return "exact";
+  const words = tpl.replace(/\{\d\}/g, " ").match(/\p{L}{2,}/gu) ?? [];
+  if (!words.some((w) => !connectors.has(w.toLowerCase()))) return "connector";
+  return words.length <= 1 ? "weak" : "strong";
+}
+
+// Server texts come in French or English: both are recognised and rendered
+// in the current language. Whole texts only: an unknown text is shown as it
+// is, never translated piece by piece.
 function buildRules(): Rule[] {
   const out: Rule[] = [];
+  exact = new Map();
   for (const [fr, en] of serverTexts) {
     const to = lang === "fr" ? fr : lang === "en" ? en : (serverDict[fr] || en);
     for (const from of [fr, en]) {
-      if (from !== to) out.push({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to });
+      const kind = templateKind(from);
+      if (kind === "exact") {
+        if (!exact.has(from)) exact.set(from, to);
+      } else if (kind !== "connector" && from !== to) {
+        out.push({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to, weak: kind === "weak" });
+      }
     }
   }
   return out.sort((a, b) => b.from.length - a.from.length);
 }
 
-/** Translates a text produced by the server (job title, history, alert…). */
-export function srv(text: string | undefined | null, depth = 0): string {
-  if (!text) return text ?? "";
+const short = (s: string) => s.length <= 40 && s.trim().split(/\s+/).length <= 2;
+
+function match(text: string, depth: number): string | null {
+  if (!text) return null;
+  const e = exact.get(text);
+  if (e !== undefined) return e;
+  if (depth > 3) return null;
   for (const r of rules) {
     const m = r.re.exec(text);
-    // Variable parts may themselves be server texts ("Backup: X" + ": finished").
-    if (m) return r.to.replace(/\{(\d)\}/g, (_, i) => (depth < 3 ? srv(m[+i + 1], depth + 1) : m[+i + 1]) ?? "");
+    if (!m) continue;
+    const parts: string[] = [];
+    let ok = true;
+    for (const c of m.slice(1)) {
+      const v = match(c, depth + 1);
+      if (v === null && r.weak && !short(c)) { ok = false; break; }
+      parts.push(v ?? c);
+    }
+    if (ok) return r.to.replace(/\{(\d)\}/g, (_, i) => parts[+i] ?? "");
   }
-  return text;
+  return null;
+}
+
+/** Translates a text produced by the server (job title, history, alert…). */
+export function srv(text: string | undefined | null): string {
+  if (!text) return text ?? "";
+  return match(text, 0) ?? text;
 }
 
 /** A server text given as its English key ({0}, {1}… placeholders) and its

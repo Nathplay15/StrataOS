@@ -92,6 +92,7 @@ jobs:
           node scripts/i18n-extract.cjs --check
           node scripts/i18n-lint.cjs --check
           node scripts/server-i18n.cjs ../backend/internal/i18n/texts.json --check
+          (cd ../backend && go run ./cmd/server-texts .)
           node scripts/docs-site.mjs ../build/site
 
       - name: Frontend dependency audit (npm)

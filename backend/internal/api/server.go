@@ -19,6 +19,7 @@ import (
 	"strataos/internal/certs"
 	"strataos/internal/docker"
 	"strataos/internal/health"
+	"strataos/internal/i18n"
 	"strataos/internal/jobs"
 	"strataos/internal/network"
 	"strataos/internal/sso"
@@ -188,13 +189,29 @@ func (s *Server) wrap(h handler) http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
 		v, err := h(r)
 		if err != nil {
-			writeErr(w, err)
+			writeErrLang(w, err, s.reqLang(r))
 			return
 		}
 		if v == nil {
 			v = map[string]bool{"ok": true}
 		}
-		writeJSON(w, http.StatusOK, v)
+		lang := ""
+		if al := r.Header.Get("Accept-Language"); al != "" && !strings.HasPrefix(al, "en") {
+			lang = s.reqLang(r)
+		}
+		if lang == "" || lang == "en" {
+			writeJSON(w, http.StatusOK, v)
+			return
+		}
+		body, err := json.Marshal(v)
+		if err != nil {
+			writeErrLang(w, err, lang)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(append(localize(body, lang), '\n'))
 	})
 }
 
@@ -205,7 +222,10 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func writeErr(w http.ResponseWriter, err error) {
+func writeErr(w http.ResponseWriter, err error) { writeErrLang(w, err, "en") }
+
+// writeErrLang writes err with its message in lang.
+func writeErrLang(w http.ResponseWriter, err error, lang string) {
 	status := http.StatusInternalServerError
 	var e *Error
 	var de *docker.APIError
@@ -224,7 +244,11 @@ func writeErr(w http.ResponseWriter, err error) {
 	if status >= 500 {
 		slog.Error("request failed", "err", err)
 	}
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	msg := err.Error()
+	if lang != "" && lang != "en" {
+		msg = i18n.T(lang, msg)
+	}
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 func decode(r *http.Request, v any) error {

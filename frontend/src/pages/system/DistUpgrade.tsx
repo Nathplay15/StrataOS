@@ -73,7 +73,7 @@ export function DistUpgradeCard() {
   return (
     <Card title={title} className="mb-5" actions={data.target && !busy && <Button size="sm" variant="ghost" icon={<RefreshCcw size={14} />} loading={check.isPending} onClick={() => check.mutate()}>{tr("Check again")}</Button>}>
       <div className="space-y-3 text-[13px]">
-        <p>{tr("This NAS runs Debian {0} ({1}).", data.currentVersion, data.current)} {!data.available && srv(data.reason ?? "")}</p>
+        <p>{!data.available && !data.target && data.currentVersion ? tr("This NAS runs Debian {0} ({1}), the latest Debian release.", data.currentVersion, data.current) : <>{tr("This NAS runs Debian {0} ({1}).", data.currentVersion, data.current)} {!data.available && srv(data.reason ?? "")}</>}</p>
 
         {data.proposal && !busy && (
           <div className="rounded-xl border border-accent/40 bg-accent-soft p-3">

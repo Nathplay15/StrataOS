@@ -1,4 +1,5 @@
 // Thin fetch wrapper around the StrataOS REST API.
+import { lang } from "./i18n";
 
 export class ApiError extends Error {
   status: number;
@@ -16,7 +17,8 @@ let bearer: string | null = null;
 export function setBearerToken(t: string | null) { bearer = t; }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { "X-Strata": "1" };
+  // The server writes its errors, reasons and job titles in this language.
+  const headers: Record<string, string> = { "X-Strata": "1", "Accept-Language": lang };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   const res = await fetch(path, {

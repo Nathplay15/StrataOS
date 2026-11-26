@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ApiError } from "@nas/lib/api";
+import { lang } from "@nas/lib/i18n";
 
 export { ApiError };
 
@@ -71,7 +72,7 @@ export async function call<T>(method: string, path: string, body?: unknown, sign
   let i = await agentInfo();
   const send = (x: Info) => fetch(x.url + path, {
     method,
-    headers: { Authorization: `Bearer ${x.token}`, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    headers: { Authorization: `Bearer ${x.token}`, "Accept-Language": lang, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal,
   });

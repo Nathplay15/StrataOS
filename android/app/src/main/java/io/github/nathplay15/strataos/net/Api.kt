@@ -94,6 +94,9 @@ class Api(baseUrl: String, val http: OkHttpClient, private val token: String?) {
     fun request(url: HttpUrl): Request.Builder = Request.Builder().url(url).apply {
         if (token != null) header("Authorization", "Bearer $token")
         header("X-Strata", "android")
+        // The NAS writes its errors, reasons and job titles in this language
+        // (the app's language when one was chosen, else the system's).
+        header("Accept-Language", java.util.Locale.getDefault().toLanguageTag())
     }
 
     // call, parse, body and get are public for the API functions of each area

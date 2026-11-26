@@ -230,7 +230,7 @@ function AutoUpdatesCard() {
                 return <button key={d} onClick={() => toggleDay(d)} className={`rounded-lg border px-2.5 py-1 text-[12.5px] capitalize ${on ? "border-accent bg-accent-soft" : "border-line text-muted"}`}>{dayName(d)}</button>;
               })}
               <Select className="ml-2 w-auto" value={c.hour} onChange={(e) => set({ hour: +e.target.value })}>
-                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{tr("{0} to {1}", `${String(h).padStart(2, "0")}:00`, `${String((h + 3) % 24).padStart(2, "0")}:00`)}</option>)}
+                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{tr("From {0} to {1}", `${String(h).padStart(2, "0")}:00`, `${String((h + 3) % 24).padStart(2, "0")}:00`)}</option>)}
               </Select>
             </div>
             <div className="mt-1 text-muted text-[11.5px]">{tr("A restore point is taken first. A backup, scrub or other task in progress postpones the updates by 10 minutes, until the end of the window.")}</div>

@@ -28,3 +28,29 @@ func TestTranslate(t *testing.T) {
 		t.Errorf("German not applied: %q", got)
 	}
 }
+
+// Unknown sentences are never translated piece by piece through templates
+// made of connectors or of a single word.
+func TestNoPartialTranslation(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"Folder to create", "Folder to create"},
+		{"Share every holiday picture with grandma", "Share every holiday picture with grandma"},
+		{"Update failed because the disk is full", "Update failed because the disk is full"},
+		{"error: could not reach the server", "error: could not reach the server"},
+		{"a, b", "a, b"},
+		{"Backup: night: finished", "Sauvegarde : night : terminé"},
+		{"Install Nextcloud", "Installation de Nextcloud"},
+	} {
+		if got := T("fr", c.in); got != c.want {
+			t.Errorf("T(fr, %q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	for tpl, want := range map[string]string{"{0} to {1}": "connector", "{0}, {1}": "connector", "error: {0}": "connector", "Update {0}": "weak", "Backup: {0}": "weak", "Let's Encrypt certificate for {0}": "strong", "Done": "exact"} {
+		if got := Kind(tpl); got != want {
+			t.Errorf("Kind(%q) = %q, want %q", tpl, got, want)
+		}
+	}
+	if got := Key("fr", "Backup: {0}", "night"); got != "Sauvegarde : night" {
+		t.Errorf("Key = %q", got)
+	}
+}

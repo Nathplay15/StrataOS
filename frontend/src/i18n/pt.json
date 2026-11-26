@@ -5592,5 +5592,8 @@
  "Opaque surfaces and a vivid blue": "Superfícies opacas e um azul vivo",
  "The look of the phone layout, kept by this browser. The desktop mode keeps its own look.": "A aparência do layout para celular, guardada por este navegador. O modo desktop mantém a sua própria.",
  "Reduce transparency": "Reduzir transparência",
- "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Painéis opacos: mais legíveis e mais leves para celulares antigos. Também ativado quando o sistema pede."
+ "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Painéis opacos: mais legíveis e mais leves para celulares antigos. Também ativado quando o sistema pede.",
+ "From {0} to {1}": "Das {0} às {1}",
+ "from {0} to {1}": "de {0} a {1}",
+ "This NAS runs Debian {0} ({1}), the latest Debian release.": "Este NAS roda o Debian {0} ({1}), a versão mais recente do Debian."
 }

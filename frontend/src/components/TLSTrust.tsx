@@ -67,7 +67,7 @@ export function TLSTrustField({ address, value, onChange, allowInsecure = true, 
               <div><span className="text-muted">{tr("Subject")}: </span><span className="break-all">{c.subject || "—"}</span></div>
               <div><span className="text-muted">{tr("Issuer")}: </span><span className="break-all">{c.issuer || "—"}</span></div>
               {c.names?.length ? <div><span className="text-muted">{tr("Names")}: </span><span className="break-all">{c.names.join(", ")}</span></div> : null}
-              <div className={c.expired ? "text-danger" : ""}><span className="text-muted">{tr("Valid")}: </span>{tr("{0} to {1}", dateTime(c.notBefore), dateTime(c.notAfter))}{c.expired ? ` · ${tr("expired or not yet valid")}` : ""}</div>
+              <div className={c.expired ? "text-danger" : ""}><span className="text-muted">{tr("Valid")}: </span>{tr("from {0} to {1}", dateTime(c.notBefore), dateTime(c.notAfter))}{c.expired ? ` · ${tr("expired or not yet valid")}` : ""}</div>
               <div><span className="text-muted">SHA-256: </span><code className="mono break-all">{colons(c.sha256)}</code></div>
             </div>
           ))}

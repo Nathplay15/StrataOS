@@ -19,7 +19,7 @@ import (
 // ---- NAS API, for the window ----
 
 // requestHeaders are the headers of the window passed on to the NAS.
-var requestHeaders = []string{"Accept", "Content-Type", "Range", "If-Range", "If-None-Match", "Upload-Offset", "Upload-Length"}
+var requestHeaders = []string{"Accept", "Accept-Language", "Content-Type", "Range", "If-Range", "If-None-Match", "Upload-Offset", "Upload-Length"}
 
 // serveNAS forwards /v1/accounts/{id}/nas/<path> to the NAS with the
 // device token. The window's own headers (its Origin, the agent token)

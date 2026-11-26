@@ -451,11 +451,11 @@ func (s *Server) distState(ctx context.Context) distView {
 	v.Target, v.TargetVersion, v.TargetPoint, v.Testing = t.Codename, t.Number, t.Version, t.Testing
 	switch {
 	case len(suites) == 0:
-		v.Reason = "the Debian archive could not be reached"
+		v.Reason = "The Debian archive could not be reached."
 	case t.Codename == "":
-		v.Reason = "this NAS runs the latest Debian release"
+		v.Reason = "This NAS runs the latest Debian release."
 	case !t.Ready:
-		v.Reason = fmt.Sprintf("Debian %s is out: it is proposed after its first point release (%s.1)", t.Number, t.Number)
+		v.Reason = fmt.Sprintf("Debian %s is out: it is proposed after its first point release (%s.1).", t.Number, t.Number)
 	default:
 		v.Available = true
 	}

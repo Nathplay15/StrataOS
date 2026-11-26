@@ -5592,5 +5592,8 @@
  "Opaque surfaces and a vivid blue": "Ondoorzichtige vlakken en een helder blauw",
  "The look of the phone layout, kept by this browser. The desktop mode keeps its own look.": "Het uiterlijk van de telefoonweergave, bewaard door deze browser. De bureaubladmodus houdt zijn eigen uiterlijk.",
  "Reduce transparency": "Transparantie verminderen",
- "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Ondoorzichtige panelen: beter leesbaar en lichter voor oudere telefoons. Ook aan wanneer het systeem erom vraagt."
+ "Opaque panels: easier to read, and lighter for older phones. Also on when the system asks for it.": "Ondoorzichtige panelen: beter leesbaar en lichter voor oudere telefoons. Ook aan wanneer het systeem erom vraagt.",
+ "From {0} to {1}": "Van {0} tot {1}",
+ "from {0} to {1}": "van {0} tot {1}",
+ "This NAS runs Debian {0} ({1}), the latest Debian release.": "Deze NAS draait Debian {0} ({1}), de nieuwste Debian-versie."
 }

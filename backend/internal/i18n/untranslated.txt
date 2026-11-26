@@ -1,0 +1,8 @@
+# Texts of the daemon that are not translated through the server text tables
+# (go run ./cmd/server-texts). One per line: the text itself (Go-quoted or
+# plain, {0}, {1}… for the variable parts), or "file:" and a path prefix.
+
+# App Center catalog: translated by the interface from catalog.ts.
+file:internal/docker/apps
+# The text console of the NAS screen (no language, plain ASCII terminal).
+file:internal/console/
