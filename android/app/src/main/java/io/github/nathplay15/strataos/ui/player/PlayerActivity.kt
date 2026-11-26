@@ -89,6 +89,8 @@ import kotlinx.coroutines.delay
 class PlayerActivity : ComponentActivity() {
     private var inPip by mutableStateOf(false)
     private var controller: ListenableFuture<MediaController>? = null
+    // Paused because the window went away (screen locked, PiP hidden), not by the user: plays again when it comes back.
+    private var pausedByStop = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,8 +100,16 @@ class PlayerActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         if (Playback.player == null || Playback.queue.isEmpty()) {
-            finish() // reopened from the notification after playback ended
-            return
+            // The app was killed in the background: the same queue again, at the kept position, paused.
+            val paths = savedInstanceState?.getStringArray("paths")
+            val names = savedInstanceState?.getStringArray("names")
+            val videos = savedInstanceState?.getBooleanArray("videos")
+            if (paths == null || names == null || videos == null || paths.isEmpty() || paths.size != names.size || paths.size != videos.size) {
+                finish() // reopened from the notification after playback ended
+                return
+            }
+            val items = paths.indices.map { QueueItem(paths[it], names[it], videos[it]) }
+            Playback.open(this, items, savedInstanceState.getInt("index").coerceIn(0, items.size - 1), play = false)
         }
         setContent {
             StrataTheme {
@@ -114,8 +124,22 @@ class PlayerActivity : ComponentActivity() {
         finish()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val q = Playback.queue
+        if (q.isEmpty()) return
+        outState.putStringArray("paths", q.map { it.path }.toTypedArray())
+        outState.putStringArray("names", q.map { it.name }.toTypedArray())
+        outState.putBooleanArray("videos", q.map { it.video }.toBooleanArray())
+        outState.putInt("index", q.indexOfFirst { it.path == Playback.current?.path }.coerceAtLeast(0))
+    }
+
     override fun onStart() {
         super.onStart()
+        if (pausedByStop) {
+            pausedByStop = false
+            Playback.player?.play()
+        }
         // Binding to the session service keeps music going after the screen closes.
         controller = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
         updatePipParams()
@@ -125,8 +149,14 @@ class PlayerActivity : ComponentActivity() {
         super.onStop()
         controller?.let { MediaController.releaseFuture(it) }
         controller = null
-        // A video stops with its window (picture-in-picture closed included); music goes on.
-        if (Playback.current?.video == true) Playback.player?.pause()
+        // A video pauses with its window (screen locked, picture-in-picture hidden) and goes
+        // on from there when it comes back; music goes on. The position is kept in case
+        // the app is killed meanwhile.
+        if (Playback.current?.video == true) {
+            pausedByStop = Playback.player?.isPlaying == true && !isFinishing
+            Playback.player?.pause()
+            Playback.keepPosition()
+        }
     }
 
     override fun onUserLeaveHint() {

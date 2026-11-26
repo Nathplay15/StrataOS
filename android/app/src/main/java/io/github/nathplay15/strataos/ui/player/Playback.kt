@@ -104,8 +104,9 @@ object Playback {
 
     val current: QueueItem? get() = queue.firstOrNull { it.path == currentPath }
 
-    /** Plays [items] from [index]; a long video starts where it was left. */
-    fun open(ctx: Context, items: List<QueueItem>, index: Int) {
+    /** Plays [items] from [index]; a long video starts where it was left
+     * ([play] false: ready but paused, e.g. after the app was restarted). */
+    fun open(ctx: Context, items: List<QueueItem>, index: Int, play: Boolean = true) {
         val p = ensurePlayer(ctx)
         saveResume()
         error = null
@@ -125,7 +126,7 @@ object Playback {
             offsetSec = start
             p.setMediaItems(items.mapIndexed { i, it -> mediaItem(it, if (i == index) start else 0.0) }, index, if (!restart) (resume * 1000).toLong() else 0L)
             p.prepare()
-            p.play()
+            if (play) p.play() else p.playWhenReady = false
         }
     }
 
@@ -244,6 +245,9 @@ object Playback {
         cinema += path
         if (at > prefs.getFloat(path, 0f)) prefs.edit { putFloat(path, at.toFloat()) }
     }
+
+    /** Keeps the position of the current item now (the app may be killed in the background). */
+    fun keepPosition() = saveResume()
 
     private fun saveResume() {
         val path = currentPath

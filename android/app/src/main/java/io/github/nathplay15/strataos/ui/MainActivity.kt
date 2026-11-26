@@ -80,6 +80,12 @@ class MainActivity : FragmentActivity() {
         signedIn = Graph.prefs.server != null && Graph.prefs.vault.load() != null
         unlocked = savedInstanceState?.getBoolean("unlocked") ?: false
         handle(intent)
+        // Killed in the background: back on the screen the user was on.
+        savedInstanceState?.let { st ->
+            st.getString("tab")?.let { tab = it }
+            overlay = st.getString("overlay")
+            section = st.getString("section")
+        }
         setContent {
             StrataTheme {
                 Surface(Modifier.fillMaxSize()) {
@@ -118,6 +124,9 @@ class MainActivity : FragmentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean("unlocked", unlocked)
+        outState.putString("tab", tab)
+        outState.putString("overlay", overlay)
+        outState.putString("section", section)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -221,7 +230,7 @@ private fun Home(tab: String, setTab: (String) -> Unit, overlay: String?, setOve
     var filesPath by rememberSaveable { mutableStateOf("") }
     var filesSearch by remember { mutableStateOf(false) }
     // A section opened from the Home grid (Storage, Status…): Manage opens on it.
-    var openSection by remember { mutableStateOf(section) }
+    var openSection by rememberSaveable { mutableStateOf(section) }
     LaunchedEffect(section) { if (section != null) openSection = section }
     if (overlay != null) {
         BackHandler { setOverlay(null) }
