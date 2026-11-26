@@ -54,3 +54,10 @@ func TestNoPartialTranslation(t *testing.T) {
 		t.Errorf("Key = %q", got)
 	}
 }
+
+func BenchmarkUnknownText(b *testing.B) {
+	T("fr", "warm up")
+	for b.Loop() {
+		T("fr", "Account admin signed in from somewhere unknown to the tables")
+	}
+}

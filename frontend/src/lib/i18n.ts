@@ -40,7 +40,7 @@ document.documentElement.lang = lang;
 
 let dict: Record<string, string> = {};
 let serverDict: Record<string, string> = {};
-type Rule = { re: RegExp; from: string; to: string; weak: boolean };
+type Rule = { re: RegExp; from: string; to: string; weak: boolean; pre: string; suf: string };
 let rules: Rule[] = [];
 let exact = new Map<string, string>();
 // English key of a server text → its text in the current language.
@@ -103,7 +103,8 @@ function buildRules(): Rule[] {
       if (kind === "exact") {
         if (!exact.has(from)) exact.set(from, to);
       } else if (kind !== "connector" && from !== to) {
-        out.push({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to, weak: kind === "weak" });
+        const parts = from.split(/\{\d\}/);
+        out.push({ re: new RegExp("^" + escape(from).replace(/\\\{(\d)\\\}/g, "(.*?)") + "$", "s"), from, to, weak: kind === "weak", pre: parts[0], suf: parts[parts.length - 1] });
       }
     }
   }
@@ -118,6 +119,7 @@ function match(text: string, depth: number): string | null {
   if (e !== undefined) return e;
   if (depth > 3) return null;
   for (const r of rules) {
+    if (!text.startsWith(r.pre) || !text.endsWith(r.suf)) continue;
     const m = r.re.exec(text);
     if (!m) continue;
     const parts: string[] = [];

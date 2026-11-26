@@ -30,11 +30,17 @@ type rule struct {
 	// like it. It applies only when its variable parts are short names or
 	// known texts themselves.
 	weak bool
+	// pre, suf: the literal text before the first and after the last
+	// placeholder, checked before the regular expression (fast).
+	pre, suf string
 }
 
 type table struct {
 	exact map[string]string
 	rules []rule
+	// cache of T: event lists repeat the same texts.
+	cmu   sync.Mutex
+	cache map[string]string
 }
 
 var (
@@ -124,7 +130,9 @@ func load(lang string) *table {
 			}
 			re, err := regexp.Compile("(?s)^" + argRe.ReplaceAllString(regexp.QuoteMeta(from), "(.*?)") + "$")
 			if err == nil {
-				tb.rules = append(tb.rules, rule{re, from, to, kind == "weak"})
+				locs := phRe.FindAllStringIndex(from, -1)
+				pre, suf := from[:locs[0][0]], from[locs[len(locs)-1][1]:]
+				tb.rules = append(tb.rules, rule{re, from, to, kind == "weak", pre, suf})
 			}
 		}
 	}
@@ -140,7 +148,20 @@ func T(lang, text string) string {
 	if lang == "" {
 		lang = "en"
 	}
-	out, _ := load(lang).t(text, 0)
+	tb := load(lang)
+	tb.cmu.Lock()
+	if v, ok := tb.cache[text]; ok {
+		tb.cmu.Unlock()
+		return v
+	}
+	tb.cmu.Unlock()
+	out, _ := tb.t(text, 0)
+	tb.cmu.Lock()
+	if tb.cache == nil || len(tb.cache) >= 8192 {
+		tb.cache = map[string]string{}
+	}
+	tb.cache[text] = out
+	tb.cmu.Unlock()
 	return out
 }
 
@@ -191,6 +212,9 @@ func (tb *table) t(text string, depth int) (string, bool) {
 		return text, false
 	}
 	for _, r := range tb.rules {
+		if !strings.HasPrefix(text, r.pre) || !strings.HasSuffix(text, r.suf) {
+			continue
+		}
 		m := r.re.FindStringSubmatch(text)
 		if m == nil {
 			continue

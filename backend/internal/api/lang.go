@@ -42,10 +42,10 @@ func (s *Server) reqLang(r *http.Request) string {
 }
 
 // textFields are the JSON fields whose values are server texts shown to the
-// user as they are (errors, reasons, hints); they are rendered in the
+// user as they are (errors, reasons, hints, notifications and events); they are rendered in the
 // caller's language. Labels and titles are left alone (they also hold names
 // the interfaces compare), except the titles of jobs.
-var textFields = []string{"error", "reason", "hint", "hints", "cancelReason", "warning", "warnings"}
+var textFields = []string{"error", "reason", "hint", "hints", "cancelReason", "warning", "warnings", "subject", "message"}
 
 // localize renders the server texts of a JSON response in lang. Responses
 // without such fields, and big ones, are sent as they are.
@@ -91,7 +91,11 @@ func walkTexts(v any, lang string) any {
 			if isTextField(k) || (job && k == "title") {
 				switch t := e.(type) {
 				case string:
-					x[k] = i18n.T(lang, t)
+					if strings.Contains(t, "\n") {
+						x[k] = i18n.Lines(lang, t) // reports, multi-line notifications
+					} else {
+						x[k] = i18n.T(lang, t)
+					}
 					continue
 				case []any:
 					for i, s := range t {
