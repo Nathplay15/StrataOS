@@ -36,11 +36,11 @@ check "release notes route answers" "$(c GET /api/system/updates/strata/notes)" 
 V=$(c GET /api/system/updates/strata | py 'print(d["running"])')
 vm "printf 'FROM=0.0.1\nTO=$V\nSERVICES=smbd\n' | sudo tee /var/lib/strata/update-check.env >/dev/null; sudo systemctl restart strata"
 wait_api
-for _ in $(seq 1 30); do vm "test -f /var/lib/strata/update-check.env" || break; sleep 3; done
-check "a healthy update confirms itself" "$(vm "test -f /var/lib/strata/update-check.env && echo still || echo removed")" "removed"
+for _ in $(seq 1 30); do vm "sudo test -f /var/lib/strata/update-check.env" || break; sleep 3; done
+check "a healthy update confirms itself" "$(vm "sudo test -f /var/lib/strata/update-check.env && echo still || echo removed")" "removed"
 check "self-check logged" "$(c GET /api/system/events | py 'print(any("checked: the interface and the services answer" in e["message"] for e in d))')" "True"
 vm "printf 'FROM=$V\nTO=9.9.9\nSERVICES=\nROLLEDBACK=1\n' | sudo tee /var/lib/strata/update-check.env >/dev/null; sudo systemctl restart strata"
 wait_api
 sleep 3
 check "a rollback is reported" "$(c GET /api/system/events | py 'print(any("did not pass its checks" in e["message"] for e in d))')" "True"
-check "rollback marker removed" "$(vm "test -f /var/lib/strata/update-check.env && echo still || echo removed")" "removed"
+check "rollback marker removed" "$(vm "sudo test -f /var/lib/strata/update-check.env && echo still || echo removed")" "removed"
