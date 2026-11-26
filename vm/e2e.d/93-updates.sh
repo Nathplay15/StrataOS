@@ -16,6 +16,7 @@ vm "echo $(base64 -w0 packaging/make-repo.sh) | base64 -d | sudo tee $R/packagin
 for v in 98.0.0 99.0.0~beta.1; do
   vm "d=\$(mktemp -d); mkdir \$d/DEBIAN; printf 'Package: strataos\nVersion: $v\nArchitecture: all\nMaintainer: e2e <e2e@strata.test>\nDescription: e2e test package\n' > \$d/DEBIAN/control; sudo dpkg-deb --root-owner-group -b \$d $R/dist/strataos_${v/\~/-}_all.deb >/dev/null; rm -rf \$d"
 done
+vm "sudo mkdir -p $R/packaging/release-notes; printf 'StrataOS 98.0.0: e2e notes.\n' | sudo tee $R/packaging/release-notes/98.0.0.md >/dev/null"
 check "local repository built with make-repo.sh" "$(vm "sudo $R/packaging/make-repo.sh 2>&1 | tail -1")" "stable 1 package(s), testing 2"
 check "pre-release only in testing" "$(vm "grep -h '^Version' $R/dist/apt/dists/stable/main/binary-amd64/Packages | tr '\n' ' '; printf '| '; grep -h '^Version' $R/dist/apt/dists/testing/main/binary-amd64/Packages | tr '\n' ' '")" "Version: 98.0.0 | Version: 98.0.0 Version: 99.0.0~beta.1"
 vm "printf 'Types: deb\nURIs: file:$R/dist/apt\nSuites: stable\nComponents: main\nSigned-By: $R/packaging/keys/strataos-archive.gpg\n' | sudo tee $SRC >/dev/null"
@@ -24,6 +25,7 @@ INSTALLED=$(vm "dpkg-query -W -f '\${Version}' strataos")
 check "lists refreshed with the local repository" "$(job "$(c POST /api/system/updates/refresh)")" "success"
 check "stable channel by default" "$(c GET /api/system/updates/auto | py 'print(d["channel"], d["repository"], d["beta"])')" "stable True False"
 check "stable offers the final release" "$(c GET /api/system/updates/strata | py 'print(d["candidate"])')" "98.0.0"
+check "its release notes shown before updating" "$(c GET /api/system/updates/strata/notes)" "e2e notes"
 check "invalid channel refused" "$(c PUT /api/system/updates/channel -d '{"channel":"nightly"}')" "invalid update channel"
 
 check "beta channel chosen (lists refreshed)" "$(job "$(c PUT /api/system/updates/channel -d '{"channel":"beta"}')")" "success"

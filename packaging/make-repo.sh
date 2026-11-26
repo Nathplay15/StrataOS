@@ -84,9 +84,12 @@ done
   done
 )
 # Release notes, shown by the Updates page before an update (notes/<version>.md).
-mkdir -p "$REPO/notes"
-for n in packaging/release-notes/[0-9]*.md; do
-  cat "$n" packaging/release-notes/footer.md > "$REPO/notes/$(basename "$n")"
-done
+if [ -d packaging/release-notes ]; then
+  mkdir -p "$REPO/notes"
+  for n in packaging/release-notes/[0-9]*.md; do
+    [ -f "$n" ] || continue
+    { cat "$n"; [ -f packaging/release-notes/footer.md ] && cat packaging/release-notes/footer.md; } > "$REPO/notes/$(basename "$n")"
+  done
+fi
 gpg --batch --yes --export "$KEYID" > "$REPO/strataos-archive.gpg"
 echo ">> Repository ready in $REPO: stable $(ls "$REPO/pool/main/s/strataos" | wc -l) package(s), testing $(find "$REPO/pool" -name '*.deb' | wc -l)"

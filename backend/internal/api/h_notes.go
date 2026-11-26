@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -59,7 +61,15 @@ func (s *Server) notesRoutes() {
 	s.admin("GET /api/system/updates/strata/notes", func(r *http.Request) (any, error) {
 		_, candidate := strataPolicy()
 		base := system.StrataRepoURL()
-		if candidate == "" || candidate == "(none)" || base == "" || !strings.HasPrefix(base, "http") {
+		if candidate == "" || candidate == "(none)" || base == "" {
+			return map[string]string{"version": candidate, "notes": ""}, nil
+		}
+		if dir, ok := strings.CutPrefix(base, "file:"); ok {
+			// A local repository (tests, offline mirrors).
+			b, _ := os.ReadFile(filepath.Join(filepath.Clean(dir), system.NotesName(candidate)))
+			return map[string]string{"version": candidate, "notes": strings.ToValidUTF8(string(b), "")}, nil
+		}
+		if !strings.HasPrefix(base, "http") {
 			return map[string]string{"version": candidate, "notes": ""}, nil
 		}
 		n, err := fetchNotes(r.Context(), base, candidate)
