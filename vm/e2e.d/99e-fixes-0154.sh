@@ -17,8 +17,9 @@ check "no Linux account -oops" "$(vm "getent passwd -- -oops || echo none")" "no
 # ---- Errors of the interface go to the NAS log ----
 check "interface error accepted" "$(c POST /api/client-errors -d '{"page":"/files?path=/private","message":"e2e boom 0154","stack":"at x","kind":"render"}')" '"ok":true'
 check "interface error in the log, without the query" "$(c GET /api/system/events | py 'print([e["message"] for e in d if "e2e boom 0154" in e["message"]])')" "Interface error on /files: e2e boom 0154"
-for _ in $(seq 1 12); do c POST /api/client-errors -d '{"page":"/","message":"flood","kind":"error"}' >/dev/null; done
-check "interface errors rate-limited" "$(c GET /api/system/events | py 'print(sum(1 for e in d if e["message"].endswith(": flood")))')" "9"
+FLOOD="flood-$RANDOM"
+for _ in $(seq 1 12); do c POST /api/client-errors -d "{\"page\":\"/\",\"message\":\"$FLOOD\",\"kind\":\"error\"}" >/dev/null; done
+check "interface errors rate-limited" "$(c GET /api/system/events | py "print(sum(1 for e in d if e['message'].endswith(': $FLOOD')))")" "9"
 
 # ---- Diagnostic report ----
 code=$(curl -s -b "$J" -o "$TMP/report.tgz" -w '%{http_code}' "$B/api/system/support/report")
