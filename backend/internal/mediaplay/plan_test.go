@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func info(format string, streams ...Stream) *Info {
@@ -227,15 +228,38 @@ func TestArgsGPUVariants(t *testing.T) {
 func TestDeviceFailure(t *testing.T) {
 	for _, m := range []string{"ffmpeg: [AVHWDeviceContext @ 0x55] Failed to initialise VAAPI connection: -1 (unknown libva error).",
 		"ffmpeg: Device creation failed: -5.", "ffmpeg: [h264_nvenc @ 0x1] Cannot load libnvidia-encode.so.1",
-		"ffmpeg: [AVHWDeviceContext @ 0x1] No VA display found for device /dev/dri/renderD128."} {
+		"ffmpeg: [AVHWDeviceContext @ 0x1] No VA display found for device /dev/dri/renderD128.",
+		"ffmpeg: /dev/dri/renderD128: Permission denied"} {
 		if !DeviceFailure(m) {
 			t.Errorf("not a device failure: %s", m)
 		}
 	}
 	for _, m := range []string{"ffmpeg: [h264_vaapi @ 0x1] No usable encoding entrypoint found for profile VAProfileH264High (7).",
-		"ffmpeg: Error while decoding stream #0:0: Invalid data found when processing input"} {
+		"ffmpeg: Error while decoding stream #0:0: Invalid data found when processing input",
+		"ffmpeg: /mnt/data/films/a.mkv: Permission denied"} {
 		if DeviceFailure(m) {
 			t.Errorf("file failure taken for a device failure: %s", m)
 		}
+	}
+}
+
+// A detection that is slow does not hold the player's lock.
+func TestHWDetectOutsideLock(t *testing.T) {
+	p := &Player{}
+	started, release := make(chan struct{}), make(chan struct{})
+	p.Configure(func() HW { close(started); <-release; return HW{NVENC: true} })
+	done := make(chan HW)
+	go func() { done <- p.HW() }()
+	<-started
+	locked := make(chan struct{})
+	go func() { p.mu.Lock(); p.mu.Unlock(); close(locked) }()
+	select {
+	case <-locked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the player's lock is held during the detection")
+	}
+	close(release)
+	if hw := <-done; !hw.NVENC {
+		t.Fatalf("hw = %+v", hw)
 	}
 }

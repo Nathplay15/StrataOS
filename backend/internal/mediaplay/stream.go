@@ -83,6 +83,7 @@ type Player struct {
 	mu     sync.Mutex
 	detect func() HW // the daemon's choice of GPU (nil: probe renderD128)
 	hwSet  bool
+	gen    int // bumped by Configure
 	hw     HW
 	st     HWStatus
 	// OnFallback is told when a GPU conversion failed and the CPU took
@@ -124,20 +125,35 @@ func (p *Player) Configure(detect func() HW) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.detect, p.hwSet, p.st.Disabled = detect, false, false
+	p.gen++
 }
 
-// HW returns the hardware encoder in use (detected once).
+// HW returns the hardware encoder in use (detected once, outside the lock:
+// the detection runs vainfo and ffmpeg).
 func (p *Player) HW() HW {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if !p.hwSet {
-		p.hwSet = true
-		if p.detect != nil {
-			p.hw = p.detect()
+		detect, gen := p.detect, p.gen
+		p.mu.Unlock()
+		var hw HW
+		if detect != nil {
+			hw = detect()
 		} else {
-			p.hw = probeVAAPI()
+			hw = probeVAAPI()
+		}
+		p.mu.Lock()
+		if p.gen == gen && !p.hwSet {
+			p.hw, p.hwSet = hw, true
+		} else if p.gen != gen {
+			// Configured again meanwhile: this result is stale, use it once.
+			defer p.mu.Unlock()
+			if p.st.Disabled {
+				return HW{}
+			}
+			return hw
 		}
 	}
+	defer p.mu.Unlock()
 	if p.st.Disabled {
 		return HW{}
 	}
@@ -176,13 +192,15 @@ func probeVAAPI() HW {
 func DeviceFailure(msg string) bool {
 	m := strings.ToLower(msg)
 	for _, s := range []string{"failed to initialise vaapi", "no va display", "device creation failed", "vainitialize failed",
-		"failed to open the drm device", "permission denied", "cannot load libcuda", "cannot load libnvidia-encode",
+		"failed to open the drm device", "cannot load libcuda", "cannot load libnvidia-encode",
 		"no capable devices found", "driver does not support the required nvenc api", "openencodesessionex failed", "unknown encoder"} {
 		if strings.Contains(m, s) {
 			return true
 		}
 	}
-	return false
+	// "Permission denied" is a GPU failure only for the render device
+	// (a file the NAS cannot read is not).
+	return strings.Contains(m, "permission denied") && (strings.Contains(m, "/dev/dri") || strings.Contains(m, "drm") || strings.Contains(m, "renderd"))
 }
 
 // fellBack records a GPU conversion that failed.

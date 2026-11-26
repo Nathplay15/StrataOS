@@ -32,6 +32,7 @@ var gpuApps = map[string]string{"jellyfin": "jellyfin", "plex": "plex"}
 var gpuCache struct {
 	sync.Mutex
 	at      time.Time
+	gen     int // bumped by gpuForget: a detection started before is not kept
 	gpus    []gpu.GPU
 	nonFree bool
 	vainfo  bool
@@ -42,27 +43,46 @@ var gpuCache struct {
 func gpuForget() {
 	gpuCache.Lock()
 	gpuCache.at = time.Time{}
+	gpuCache.gen++
 	gpuCache.Unlock()
 }
 
 // gpuDetect returns the GPUs, detected again after 10 minutes or when fresh.
+// The detection (vainfo, apt-cache, ffmpeg) runs outside the lock.
 func gpuDetect(fresh bool) ([]gpu.GPU, bool, bool) {
 	gpuCache.Lock()
+	if !fresh && !gpuCache.at.IsZero() && time.Since(gpuCache.at) <= 10*time.Minute {
+		defer gpuCache.Unlock()
+		return slices.Clone(gpuCache.gpus), gpuCache.nonFree, gpuCache.vainfo
+	}
+	gen := gpuCache.gen
+	gpuCache.Unlock()
+
+	gpus := gpu.Detect()
+	vainfo := sys.Has("vainfo")
+	nonFree := false
+	if slices.ContainsFunc(gpus, func(g gpu.GPU) bool { return g.Vendor == gpu.VendorIntel }) {
+		// Installable only when the non-free component is in the APT sources.
+		out, _ := sys.Run("apt-cache", "policy", "intel-media-va-driver-non-free")
+		nonFree = strings.Contains(out, "Candidate:") && !strings.Contains(out, "Candidate: (none)")
+	}
+	out, _ := sys.Run("ffmpeg", "-hide_banner", "-encoders")
+	vaapi := strings.Contains(out, "h264_vaapi")
+
+	gpuCache.Lock()
 	defer gpuCache.Unlock()
-	if fresh || gpuCache.at.IsZero() || time.Since(gpuCache.at) > 10*time.Minute {
-		gpuCache.gpus = gpu.Detect()
-		gpuCache.vainfo = sys.Has("vainfo")
-		gpuCache.nonFree = false
-		if slices.ContainsFunc(gpuCache.gpus, func(g gpu.GPU) bool { return g.Vendor == gpu.VendorIntel }) {
-			// Installable only when the non-free component is in the APT sources.
-			out, _ := sys.Run("apt-cache", "policy", "intel-media-va-driver-non-free")
-			gpuCache.nonFree = strings.Contains(out, "Candidate:") && !strings.Contains(out, "Candidate: (none)")
-		}
-		out, _ := sys.Run("ffmpeg", "-hide_banner", "-encoders")
-		gpuCache.vaapi = strings.Contains(out, "h264_vaapi")
+	if gpuCache.gen == gen {
+		gpuCache.gpus, gpuCache.vainfo, gpuCache.nonFree, gpuCache.vaapi = gpus, vainfo, nonFree, vaapi
 		gpuCache.at = time.Now()
 	}
-	return slices.Clone(gpuCache.gpus), gpuCache.nonFree, gpuCache.vainfo
+	return slices.Clone(gpus), nonFree, vainfo
+}
+
+// gpuVAAPI tells whether ffmpeg has the VA-API encoder (from the last detection).
+func gpuVAAPI() bool {
+	gpuCache.Lock()
+	defer gpuCache.Unlock()
+	return gpuCache.vaapi
 }
 
 func pkgInstalled(p string) bool {
@@ -82,10 +102,7 @@ func (s *Server) gpuChoice() mediaplay.HW {
 	if !ok {
 		return mediaplay.HW{}
 	}
-	gpuCache.Lock()
-	vaapi := gpuCache.vaapi
-	gpuCache.Unlock()
-	if g.VA.CanEncode(gpu.H264) && vaapi {
+	if g.VA.CanEncode(gpu.H264) && gpuVAAPI() {
 		return mediaplay.HW{VAAPI: true, Device: g.Node, LowPower: g.VA.LowPower}
 	}
 	if g.NVENC {
