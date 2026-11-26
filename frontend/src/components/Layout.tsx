@@ -348,7 +348,7 @@ export function Layout({ me }: { me: Me }) {
               <ChevronDown size={14} className="text-muted" />
             </button>
             {userMenu && (
-              <Popover anchor={userMenuRef} onClose={() => setUserMenu(false)} className="w-56 p-1.5 text-[13px]">
+              <Popover anchor={userMenuRef} onClose={() => setUserMenu(false)} className="w-56 p-1.5 text-left text-[13px]">
                 <div>
                   <div className="px-3 py-2 text-muted text-[12px]">{me.role === "admin" ? tr("Administrator") : tr("User")}</div>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-panel-2" onClick={() => { setUserMenu(false); setLook(true); }}><Palette size={15} /> {" "}{tr("Appearance")}</button>

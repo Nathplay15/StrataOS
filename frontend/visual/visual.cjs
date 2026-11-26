@@ -1,7 +1,7 @@
 // Visual regression of the main pages: phone and desktop widths, Glass and
 // Modern, light and dark, rendered from the built interface
 // (backend/web/dist) against a mocked API (fixtures.json), compared with the
-// pictures of baselines/ (a pixel differs when a channel moves by more than
+// pictures of baselines/ (at half size; a pixel differs when a channel moves by more than
 // 40; a page fails above 0.5 % of its pixels).
 //
 //   MODE=record STRATA_URL=http://localhost:7070  record fixtures.json from a demo VM
@@ -66,6 +66,22 @@ function serve(fixtures) {
     fs.createReadStream(p).pipe(res);
   });
   return new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv)));
+}
+
+// Half size (2×2 averages): small baselines in the repository, and the
+// anti-aliasing noise of one pixel left out.
+function half(src) {
+  const w = src.width >> 1, h = src.height >> 1;
+  const out = new PNG({ width: w, height: h });
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      for (let c = 0; c < 4; c++) {
+        const at = (yy, xx) => src.data[((yy * src.width) + xx) * 4 + c];
+        out.data[(y * w + x) * 4 + c] = (at(2 * y, 2 * x) + at(2 * y, 2 * x + 1) + at(2 * y + 1, 2 * x) + at(2 * y + 1, 2 * x + 1)) >> 2;
+      }
+    }
+  }
+  return out;
 }
 
 function diff(a, b) {
@@ -141,7 +157,7 @@ async function main() {
         await page.goto(base + p.path, { waitUntil: "load" });
         await page.clock.runFor(4000);
         await sleep(1500);
-        const shot = PNG.sync.read(await page.screenshot({ animations: "disabled", caret: "hide" }));
+        const shot = half(PNG.sync.read(await page.screenshot({ animations: "disabled", caret: "hide" })));
         if (MODE === "update") { fs.writeFileSync(path.join(BASE, name), PNG.sync.write(shot, { deflateLevel: 9 })); continue; }
         const ref = path.join(BASE, name);
         if (!fs.existsSync(ref)) { console.log(`NEW  ${name}`); fs.writeFileSync(path.join(OUT, name), PNG.sync.write(shot)); failed++; continue; }
